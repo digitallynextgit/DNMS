@@ -13,18 +13,10 @@ import {
 import { cn } from "@/lib/utils"
 import { TaskTimeline } from "./task-timeline"
 
-/**
- * The task's activity log in a dialog, so it is reachable from anywhere a task
- * is listed rather than only from the project board's detail sheet.
- *
- * Self-contained: it renders its own trigger and owns its open state, so a list
- * row just drops it in beside the task's other metadata. The timeline only
- * fetches while the dialog is open, so a page of 20 rows costs nothing.
- */
+/** Owns its trigger and open state; the timeline only fetches while open. */
 export function TaskHistoryDialog({
   taskId,
   taskTitle,
-  /** Drop the label where space is tight (board cards) and keep a 28px target. */
   iconOnly = false,
   className,
 }: {

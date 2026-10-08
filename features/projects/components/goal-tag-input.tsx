@@ -6,27 +6,7 @@ import { Tags, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SUGGESTED_TAGS, TagChip, tagTint } from "./goal-status"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Typing a goal's tags.
-//
-// FREE TEXT WITH A MEMORY, not a dropdown. The point of tags here is that a team
-// can name its own cadence - "weekly", "sprint 4", "client ask" - without anyone
-// shipping a migration for it. So the input takes any word.
-//
-// The one thing it must not do is let the same idea in twice under two spellings,
-// because that splits a tag's goals across two filter entries and the filter
-// starts hiding matches. Two defences, and they are different:
-//
-//   the type-ahead - every tag the project already uses is offered as you type,
-//                    so the reflex is to pick the existing one rather than
-//                    retype it slightly differently.
-//   the dedupe     - committing a tag that differs only by case or by stray
-//                    whitespace is a no-op, matching what the server does when
-//                    it stores them.
-//
-// The server re-runs both (goals.service.ts): this is a courtesy to whoever is
-// typing, never the enforcement.
-// ─────────────────────────────────────────────────────────────────────────────
+// Free-text tags. The dedupe here is a courtesy; goals.service.ts enforces it.
 
 /** Mirrors MAX_TAGS_PER_GOAL / MAX_TAG_LENGTH in goals.service.ts. */
 const MAX_TAGS = 6
@@ -67,23 +47,18 @@ export function GoalTagInput({
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (COMMIT_KEYS.has(e.key)) {
-      // Tab with an empty box still moves focus - swallowing it would trap
-      // keyboard users in a field they have nothing left to type into.
+      // Tab on an empty box must still move focus.
       if (e.key === "Tab" && !draft.trim()) return
       e.preventDefault()
       commit(draft)
       return
     }
-    // Backspace on an empty box takes the last chip back, which is what every
-    // other chip input does and therefore what fingers expect.
     if (e.key === "Backspace" && !draft && value.length > 0) {
       onChange(value.slice(0, -1))
     }
   }
 
-  // The project's own tags first, then the generic ones, minus anything already
-  // on this goal. Ordering matters: a team that has settled on "wk" should see
-  // "wk" before we suggest "weekly" at it.
+  // The project's own tags first, so a team that settled on "wk" sees it before "weekly".
   const picked = new Set(value.map((t) => t.toLowerCase()))
   const options = [...suggestions, ...SUGGESTED_TAGS].filter((t, i, all) => {
     const key = t.toLowerCase()
@@ -127,16 +102,13 @@ export function GoalTagInput({
         disabled={full}
         maxLength={MAX_LENGTH}
         onChange={(e) => {
-          // A datalist pick fires change, not keydown, and arrives whole - so
-          // commit it rather than leaving the user to press Enter on a value
-          // they already chose from a list.
+          // A datalist pick fires change, not keydown, so commit it here.
           const next = e.target.value
           if (options.some((o) => o.toLowerCase() === next.trim().toLowerCase())) commit(next)
           else setDraft(next)
         }}
         onKeyDown={onKeyDown}
-        // Losing focus with a half-typed tag should keep it, not bin it: the
-        // most common way out of this field is clicking "Add goal".
+        // Keep a half-typed tag on blur - the usual way out is clicking "Add goal".
         onBlur={() => commit(draft)}
         placeholder={full ? `Up to ${MAX_TAGS} tags` : value.length === 0 ? placeholder : ""}
         aria-label="Goal tags"

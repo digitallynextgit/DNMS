@@ -27,14 +27,7 @@ import {
   fetchMetaCredentials,
 } from "../hooks/use-integration"
 
-/**
- * The CONNECTIONS MANAGER, opened from Insights.
- *
- * A dialog rather than a tab of its own: connecting a platform is a task you
- * finish and dismiss, not a place you go to read something - and doing it
- * here means the numbers it feeds are on screen behind you, filling in as
- * soon as the sync lands, instead of a page away.
- */
+/** The connections manager, opened from Insights. */
 export function IntegrationDialog({
   projectId,
   canManage,
@@ -75,13 +68,11 @@ export function IntegrationTab({
 
   if (isLoading) return <ListSkeleton rows={3} height="h-24" />
 
-  // No leading paragraph: the dialog header above it already says what this
-  // is, and saying it twice in one box reads as a mistake.
   return (
     <div className="space-y-3">
       <MetaConnectionCard projectId={projectId} canManage={canManage} data={data} />
 
-      {/* Future platforms - shown so the multi-integration structure is visible. */}
+      {/* Not-yet-live platforms, shown so it's clear more are coming. */}
       {PROVIDERS.filter((p) => !p.live).map((p) => (
         <Card key={p.id} className="opacity-70">
           <CardContent className="flex items-center gap-3 p-4">
@@ -145,7 +136,6 @@ function MetaConnectionCard({
   return (
     <Card>
       <CardContent className="space-y-4 p-5">
-        {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-sm bg-[#1877F2]/10">
@@ -186,7 +176,6 @@ function MetaConnectionCard({
           )}
         </div>
 
-        {/* Connected summary (read state) */}
         {connected && !editing && (
           <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
             {data?.adAccountId && <span>Account: act_{data.adAccountId}</span>}
@@ -208,7 +197,6 @@ function MetaConnectionCard({
           <p className="text-destructive text-xs">Last error: {data.lastSyncError}</p>
         )}
 
-        {/* Edit form */}
         {editing && (
           <>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -259,8 +247,7 @@ function MetaConnectionCard({
                   })
                 }
                 loading={connect.isPending || sync.isPending}
-                // Ad account always required; token required only for a first connect
-                // (blank keeps the saved token when re-editing a connected account).
+                // Token is required only on first connect; blank keeps the saved one when editing.
                 disabled={!form.adAccountId.trim() || (!connected && !form.accessToken.trim())}
               >
                 <FacebookIcon className="mr-1.5 h-3.5 w-3.5" /> {connected ? "Save" : "Connect"}

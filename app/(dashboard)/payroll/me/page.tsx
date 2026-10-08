@@ -87,9 +87,6 @@ export default function MyPayslipsPage() {
     <div className="space-y-6">
       <PageHeader title="My Payslips" description="View your payslip history" />
 
-      {/* The table renders from the first paint: while `isLoading` it draws
-          skeleton rows inside its own real <thead>, so the header, column count
-          and S.No column never move when the payslips land. */}
       {isLoading || payslips.length > 0 ? (
         <DataTable
           columns={columns}
@@ -97,8 +94,6 @@ export default function MyPayslipsPage() {
           rowKey={(payslip) => payslip.id}
           showSerial
           loading={isLoading}
-          // Phones lead with the month and the net figure - the two things you
-          // open a payslip list for - with gross/deductions as a footer row.
           mobileCard={(payslip) => (
             <div className="space-y-3">
               <div className="flex items-start justify-between gap-3">

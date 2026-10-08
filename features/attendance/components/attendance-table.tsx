@@ -159,8 +159,7 @@ export function AttendanceTable({
       showSerial={showSerial}
       serialOffset={serialOffset}
       selection={selection}
-      // Phone card: who + status on top, then the punch pair and hours as a
-      // compact meta line - the four time columns cannot sit side by side.
+      // Phone card: who + status, then punches and hours on one compact line.
       mobileCard={(log) => {
         const employee = log.employee
         const fullName = employee ? `${employee.firstName} ${employee.lastName}` : "Unknown"

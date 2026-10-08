@@ -13,13 +13,11 @@ const AUTHOR_SELECT = {
   designation: { select: { title: true } },
 }
 
-// GET /api/tasks/[id]/comments
 export const GET = withSession(
   async (_req: NextRequest, ctx: { params: Promise<{ id: string }> }, _session: Session) => {
     try {
       const { id: taskId } = await ctx.params
-      // withSession only proves the caller is signed in; the taskId is theirs to
-      // choose, so confirm they may actually see this task's project first.
+      // taskId is caller-chosen, so check they may see this task's project.
       if (!(await canAccessTask(_session, taskId))) {
         return NextResponse.json({ error: "Not found" }, { status: 404 })
       }
@@ -36,7 +34,6 @@ export const GET = withSession(
   },
 )
 
-// POST /api/tasks/[id]/comments
 export const POST = withSession(
   async (req: NextRequest, ctx: { params: Promise<{ id: string }> }, session: Session) => {
     try {
@@ -46,8 +43,6 @@ export const POST = withSession(
         select: { id: true, projectId: true, title: true },
       })
       if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 })
-      // Posting a comment onto a task you cannot see is the same boundary as
-      // reading it - gate the write on project/task access, not just existence.
       if (!(await canAccessTask(session, taskId))) {
         return NextResponse.json({ error: "Not found" }, { status: 404 })
       }
@@ -61,7 +56,7 @@ export const POST = withSession(
         include: { author: { select: AUTHOR_SELECT } },
       })
 
-      // Adhoc work belongs to no project, so there is no feed to write to.
+      // Adhoc work has no project, so there is no feed to write to.
       if (task.projectId) {
         await logActivity({
           projectId: task.projectId,

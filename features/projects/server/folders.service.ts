@@ -62,8 +62,7 @@ export async function folderPath(
   const path: { id: string; name: string }[] = []
   let cur = byId.get(folderId)
   if (!cur) throw new NotFoundError("Folder")
-  // Depth guard: a cycle is impossible through the service, but a hand-edited
-  // row must not hang the request.
+  // Depth guard: a hand-edited row with a cycle must not hang the request.
   for (let depth = 0; cur && depth < 50; depth++) {
     path.unshift({ id: cur.id, name: cur.name })
     cur = cur.parentId ? byId.get(cur.parentId) : undefined
@@ -71,8 +70,7 @@ export async function folderPath(
   return path
 }
 
-// Two folders with the same name side by side are indistinguishable in the
-// breadcrumb and in "Move to...", so siblings are unique case-insensitively.
+// Siblings are unique case-insensitively, or the breadcrumb and "Move to..." can't tell them apart.
 async function assertUniqueSibling(
   projectId: string,
   parentId: string | null,
@@ -99,11 +97,8 @@ async function assertCanEdit(session: Session, projectId: string, folder: { crea
 }
 
 /**
- * The Drive sub-folder mirroring an app folder, created on first need (uploads
- * to Drive, new Docs, moves). Creates the parent chain first so the Drive tree
- * matches the app tree. Returns null when Drive is off or the mirror could not
- * be made - callers then fall back to the project root rather than failing the
- * user's action over a Drive hiccup.
+ * The Drive sub-folder mirroring an app folder, created (with its parents) on first need. Null when
+ * Drive is off or it failed - callers then fall back to the project root.
  */
 export async function ensureDriveMirror(
   projectId: string,
@@ -120,8 +115,7 @@ export async function ensureDriveMirror(
     let parentDriveId: string
     if (folder.parentId) {
       const parentMirror = await ensureDriveMirror(projectId, folder.parentId)
-      // Never create a child at the root when its parent has no mirror - that
-      // would put it in the wrong place in Drive, which is worse than no mirror.
+      // No mirrored parent: don't create the child at the Drive root (wrong place is worse than none).
       if (!parentMirror) return null
       parentDriveId = parentMirror
     } else {
@@ -190,8 +184,7 @@ export async function moveFolder(
   if (parentId === folder.parentId) return folder
   if (parentId === folder.id) throw new ValidationError("A folder cannot be moved into itself")
   if (parentId) {
-    // Walk up from the target: if we meet the folder being moved, the move
-    // would create a cycle (moving a folder into one of its own sub-folders).
+    // Walk up from the target: meeting the moved folder means a cycle.
     let cursor: string | null = parentId
     for (let depth = 0; cursor && depth < 50; depth++) {
       if (cursor === folder.id) {
@@ -231,12 +224,7 @@ export async function moveFolder(
   return updated
 }
 
-/**
- * Delete a folder. Refuses unless it is EMPTY on both sides (no sub-folders,
- * files or links here, nothing in the mirrored Drive folder). Moving contents
- * up silently would scatter files; deleting them would destroy work. Making
- * the person empty it first is the only version of this that cannot surprise.
- */
+/** Only deletes an EMPTY folder (app and Drive): moving or deleting its contents would surprise. */
 export async function deleteFolder(session: Session, projectId: string, folderId: string) {
   const folder = await getFolder(projectId, folderId)
   await assertCanEdit(session, projectId, folder)
@@ -270,10 +258,8 @@ export async function deleteFolder(session: Session, projectId: string, folderId
 }
 
 /**
- * Give every Drive sub-folder listed under an app folder a row of its own, so
- * folders people make in Drive directly join the one tree. Idempotent: keyed on
- * the Drive id. The reader becomes the "creator" - it is the only person in the
- * request, and creator-ship only widens who may rename/delete.
+ * Give each Drive sub-folder under an app folder its own row (idempotent, keyed on the Drive id).
+ * The reader becomes the creator - creator-ship only widens who may rename/delete.
  */
 export async function adoptDriveFolders(
   projectId: string,

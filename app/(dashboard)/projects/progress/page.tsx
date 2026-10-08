@@ -17,17 +17,8 @@ import { Button } from "@/components/ui/button"
 import { ProgressSkeleton } from "@/features/projects/components/progress-skeleton"
 import { PERMISSIONS } from "@/lib/constants"
 
-// =============================================================================
-// Progress
-//
-// One page for everyone, shaped by what the server says they may see: an
-// admin gets the whole company, an account manager the projects they own and
-// every team on them, a team manager their teams and line reports, a member
-// only themselves. The panel asks the server for that scope and builds its
-// filters from the answer, so the page itself has nothing to decide beyond
-// the title. Goals and tasks are deliberately off this page for now; the work
-// is measured by deliverables.
-// =============================================================================
+// One page for everyone: the server decides the scope (admin, account manager, team manager,
+// member) and the panel builds its filters from the answer.
 
 // Recharts measures the DOM, so the panel is client-only.
 const MyProgress = dynamic(
@@ -37,9 +28,7 @@ const MyProgress = dynamic(
 
 export default function ProjectProgressPage() {
   const { can, isLoading: permsLoading } = usePermissions()
-  // Deliverables are planned by the week, so the week is the natural window:
-  // what is owed now, including the days still ahead. Owned here and picked in
-  // the header, next to Slides, so the panel and the deck read the same window.
+  // Deliverables are planned by the week. Owned here so the panel and the Slides deck share it.
   const [range, setRange] = useState<DateRangeValue>(() => presetValue("week"))
   const [exportOpen, setExportOpen] = useState(false)
   const [filters, setFilters] = useState<ProgressFilterState | null>(null)

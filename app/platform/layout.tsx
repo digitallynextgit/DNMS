@@ -8,50 +8,23 @@ import { TenantProvider } from "@/components/tenant-link"
 import { getPlatformAdminSession } from "@/server/platform-admin"
 import { currentTenantSlugOrFounding } from "@/server/tenant-request"
 
-/**
- * Shell for the platform console.
- *
- * The same visual chrome as the dashboard - a left rail and the topbar - so the
- * console does not look like a different application. The NAV inside that rail
- * is different, and deliberately so.
- *
- * ── ITS OWN NAV, NOT THE TENANT ONE ──────────────────────────────────────────
- * The dashboard sidebar is built from the signed-in tenant's permissions, so
- * every item in it means "in this company". Beside a page listing every company
- * that is actively misleading - does "Employees" mean this workspace or all of
- * them? The console therefore uses PlatformSidebar, which lists only what the
- * console does, plus one route back to the operator's own workspace.
- *
- * The mobile tab bar is omitted for the same reason: its five destinations are
- * all tenant screens.
- *
- * ── GATED HERE, NOT ONLY ON THE PAGE ─────────────────────────────────────────
- * The page checks too, and keeps checking. Putting it in the layout as well
- * means any /platform/* screen added later is covered from the moment it is
- * created rather than the moment somebody remembers.
- */
-/**
- * The console answers notFound() to anyone who may not see it, so a crawler gets
- * a 404 rather than a page. This is the belt to that braces: the one surface
- * listing every customer must never be indexable even if that check changes.
- */
+// Own nav, not the tenant sidebar: beside a page listing every company, tenant items like
+// "Employees" would mislead. Gated here as well as on the page, so new /platform/* pages are covered.
+
+/** The one surface listing every customer must never be indexed, even if the page check changes. */
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
 export default async function PlatformLayout({ children }: { children: React.ReactNode }) {
   const session = await getPlatformAdminSession()
-  // notFound(), not redirect: a 403 or a bounce confirms the route exists. For
-  // the one surface listing every customer, saying nothing is the better answer.
+  // notFound(), not redirect: a 403 or a bounce confirms the route exists.
   if (!session) notFound()
 
-  // Belt and braces: getPlatformAdminSession() already requires an employee
-  // session, so this only fires if that contract changes underneath us.
+  // Belt and braces: getPlatformAdminSession() already requires an employee session.
   if (!session.user?.id) redirect("/login")
 
-  // Platform staff are always Digitally Next employees, so this resolves to the
-  // founding slug - which is what makes the sidebar links point back into their
-  // own workspace rather than nowhere.
+  // Platform staff are always Digitally Next employees, so this resolves to the founding slug.
   const tenantSlug = await currentTenantSlugOrFounding()
 
   return (

@@ -5,9 +5,7 @@ import { sendPushToEmployee } from "@/lib/web-push"
 
 type NotificationType = "info" | "success" | "warning" | "error"
 
-// Admin_ is a silent watch account: actions it performs must not generate
-// notifications. Checks the current request's session - a null session (e.g. a
-// cron run with no logged-in user) is NOT admin_, so those proceed normally.
+// admin_ is a silent account, so its actions don't notify. A null session (cron) is not admin_.
 async function suppressedForAdmin_(): Promise<boolean> {
   try {
     return isAdmin_Session(await getSession())
@@ -24,18 +22,12 @@ interface CreateNotificationOptions {
   link?: string
 }
 
-// A direct, intentional ping (an @mention or a thread reply) must reach its
-// recipient even when the actor is the silent admin_ account - the admin_
-// suppression only exists to mute the CEO's routine/administrative side-effects.
+// Direct pings (@mentions, replies) still go out when the actor is admin_.
 interface NotifyControl {
   force?: boolean
 }
 
-/**
- * Creates a single in-app notification for an employee.
- * Always non-blocking - errors are swallowed so the caller's main operation
- * is never disrupted by a notification failure.
- */
+/** Never throws - a notification failure must not disrupt the caller. */
 export async function createNotification(
   opts: CreateNotificationOptions,
   control: NotifyControl = {},
@@ -53,8 +45,7 @@ export async function createNotification(
       select: { id: true },
     })
 
-    // Also push to the browser, so it lands even with every DNMS tab closed.
-    // Fire-and-forget: push must never slow down or fail the caller.
+    // Also web-push (fire-and-forget), so it lands with every tab closed.
     void sendPushToEmployee(opts.employeeId, {
       id: created.id,
       title: opts.title,
@@ -66,11 +57,7 @@ export async function createNotification(
   }
 }
 
-/**
- * Notifies the people who can act on a request (leave / WFH) the moment it is
- * submitted: the requester's direct manager plus all active HR approvers
- * (hr_manager / admin roles). Non-blocking, deduped, excludes the requester.
- */
+/** Notifies the requester's manager and all active HR approvers of a new leave/WFH request. */
 export async function notifyApprovers(opts: {
   requesterId: string
   title: string
@@ -97,10 +84,7 @@ export async function notifyApprovers(opts: {
     for (const a of hrApprovers) recipientIds.add(a.id)
     recipientIds.delete(opts.requesterId)
 
-    // One batched insert, not a serialized await per recipient. Each
-    // createNotification() is an INSERT *plus* a push-subscription lookup, so
-    // six approvers cost twelve round trips where createNotifications() does one
-    // createMany and fires the pushes without awaiting them.
+    // One batched insert, instead of an INSERT plus a push lookup per approver.
     if (recipientIds.size > 0) {
       await createNotifications(
         [...recipientIds].map((employeeId) => ({
@@ -117,9 +101,6 @@ export async function notifyApprovers(opts: {
   }
 }
 
-/**
- * Creates in-app notifications for multiple employees at once.
- */
 export async function createNotifications(
   notifications: CreateNotificationOptions[],
   control: NotifyControl = {},
@@ -136,7 +117,6 @@ export async function createNotifications(
       })),
     })
 
-    // Push each one too (fire-and-forget), so recipients get it with no tab open.
     for (const n of notifications) {
       void sendPushToEmployee(n.employeeId, {
         title: n.title,

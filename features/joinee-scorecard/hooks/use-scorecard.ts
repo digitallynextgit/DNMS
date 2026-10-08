@@ -9,7 +9,6 @@ import type { ScorecardResponse } from "../types"
 
 const keyFor = (employeeId: string | null | undefined) => ["joinee-scorecard", employeeId]
 
-/** An employee's 15-day scorecard (null when none was started) and whether you may edit it. */
 export function useScorecard(employeeId: string | null | undefined) {
   return useQuery({
     queryKey: keyFor(employeeId),
@@ -23,7 +22,6 @@ export function useScorecard(employeeId: string | null | undefined) {
   })
 }
 
-/** Start a scorecard by hand for someone who joined before scorecards existed. */
 export function useStartScorecard(employeeId: string) {
   const qc = useQueryClient()
   return useMutation(
@@ -40,7 +38,6 @@ export function useStartScorecard(employeeId: string) {
   )
 }
 
-/** HR SPOC, observations, recommendation. */
 export function useUpdateScorecard(employeeId: string, id: string) {
   const qc = useQueryClient()
   return useMutation(
@@ -73,11 +70,7 @@ export function useDeleteScorecard(employeeId: string, id: string) {
   )
 }
 
-/**
- * Set or clear one score. Optimistic: the grid shows the new value at once and
- * rolls back (with a toast) if the save fails - HR fills ninety of these, and
- * waiting on a round trip for each would make the grid feel broken.
- */
+/** Optimistic with rollback: HR fills ninety of these and can't wait on each round trip. */
 export function useSetDayScore(employeeId: string, id: string) {
   const qc = useQueryClient()
   const key = keyFor(employeeId)
@@ -118,9 +111,7 @@ export function useSetDayScore(employeeId: string, id: string) {
       if (ctx?.before) qc.setQueryData(key, ctx.before)
       toast.error(e instanceof Error ? e.message : "Couldn't save that score")
     },
-    // Refetch only once the LAST pending score has settled: a refetch between
-    // two quick clicks would briefly paint the server's older value over the
-    // newer optimistic one.
+    // Refetch only after the LAST pending save, or an older server value flashes over a newer click.
     onSettled: () => {
       if (qc.isMutating({ mutationKey }) === 1) qc.invalidateQueries({ queryKey: key })
     },

@@ -26,16 +26,11 @@ import {
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
-// Permission helper: returns roles for the current user against a task.
-//
-// "Manager" is the team's manager for project work and the assignee's LINE
-// manager for adhoc work, which has no team - see resolveTaskManagerId.
+// "Manager" = the team's manager for project work, or the assignee's line manager for adhoc work.
 async function getTaskAuthContext(taskId: string, userId: string) {
   const task = await db.projectTask.findUnique({
     where: { id: taskId },
     include: {
-      // The slugs ride along on the read that already happens - notifications
-      // below link at the project by slug, and adhoc work has neither.
       team: {
         select: {
           id: true,
@@ -75,7 +70,6 @@ export const PATCH = withSession(
         startDate,
         dueDate,
         estimatedHours,
-        // loggedHours is deliberately NOT destructured - see API-04 below.
         tags,
         links,
         isMilestone,
@@ -92,28 +86,22 @@ export const PATCH = withSession(
 
       const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
 
-      // Only assignee, manager, or admin may modify
       if (!auth.isAssignee && !auth.isManager && !isAdmin) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
       }
 
-      // Editing the task's DETAILS is time-boxed for whoever raised it and open
-      // to the manager; moving it through the workflow (status) is not covered -
-      // see task-permissions.ts for why.
+      // Detail edits are time-boxed for the author and open to the manager (see task-permissions.ts).
       const subject = {
         creatorId: auth.task.creatorId,
         createdAt: auth.task.createdAt,
-        // Straight off the stored row - a task with no project is adhoc, and its
-        // own author/assignee keeps editing rights indefinitely.
+        // No project = adhoc; its author/assignee keeps editing rights indefinitely.
         projectId: auth.task.projectId,
         assigneeId: auth.task.assigneeId,
         teamManagerId: auth.managerId,
       }
       const actor = { userId: session.user.id, isAdmin, canEditPastTasks: false }
 
-      // Handing the work to someone ELSE is an allocation decision, not a
-      // correction, so it stays with the manager even inside the author's
-      // window - this route does not verify the new assignee is on the team.
+      // Reassigning is an allocation decision, so it stays with the manager even inside the author's window.
       if (assigneeId !== undefined && !auth.isManager && !isAdmin) {
         return NextResponse.json(
           { error: "Only the team manager can reassign a task." },
@@ -130,21 +118,13 @@ export const PATCH = withSession(
         estimatedHours !== undefined ||
         tags !== undefined
       if (isStructuralChange) {
-        // Looked up only here, where it can change the answer - a details edit
-        // by someone whose window may have closed. The far commoner status-only
-        // update never pays for it.
         actor.canEditPastTasks = await hasPastTaskAccess(session.user.id)
         const refusal = taskEditLockReason(subject, actor)
         if (refusal) return NextResponse.json({ error: refusal }, { status: 403 })
       }
 
-      // Moving a HOLD FOLLOW-UP whose original has since been picked up again.
-      // The follow-up exists to carry work forward; if the original is already
-      // in progress or finished, that work is happening (or happened) there, and
-      // touching this one silently double-books it. Refuse once with everything
-      // the client needs to ask "keep it, or remove it?" - answering re-sends
-      // with keepFollowUp, so a UI that does not handle the question gets a
-      // plain error instead of quietly doing the wrong thing.
+      // Moving a hold follow-up whose original was picked up again would double-book the work, so refuse
+      // once with what the client needs to ask "keep or remove?" (it re-sends with keepFollowUp).
       if (
         status !== undefined &&
         status !== auth.task.status &&
@@ -174,7 +154,6 @@ export const PATCH = withSession(
       }
 
       const data: Record<string, unknown> = {}
-      /** Whether THIS task's clock starts, stops, or is untouched by this PATCH. */
       let clockAction: "start" | "stop" | null = null
       if (title !== undefined) data.title = title
       if (description !== undefined) data.description = description
@@ -182,21 +161,11 @@ export const PATCH = withSession(
         data.status = status
         data.completedAt = status === "DONE" ? new Date() : null
 
-        // Reopening clears "nothing came out of this". The answer was about a
-        // finished piece of work; the work is no longer finished, so the
-        // question is live again.
+        // Reopening clears "nothing came out of this" - the question is live again.
         if (auth.task.status === "DONE" && status !== "DONE") data.outputSkippedAt = null
 
-        // Time spent is MEASURED, not typed in: the clock starts the moment a
-        // task enters In Progress and the elapsed stretch is banked into
-        // loggedHours when it leaves. A task can be started and stopped any
-        // number of times; each stretch adds to the total.
-        //
-        // ANY NUMBER OF A PERSON'S TASKS MAY RUN AT ONCE. The banking itself is
-        // done by settleRunningTasks inside the transaction below, which pays
-        // every running clock its share of the stretch just ended - see
-        // task-clock.service.ts. All this branch decides is whether THIS task's
-        // clock is running afterwards.
+        // Time spent is measured: the clock runs while a task is In Progress, and any number of a person's
+        // tasks may run at once (settleRunningTasks banks them - see task-clock.service.ts).
         if (status !== auth.task.status) {
           if (status === "IN_PROGRESS") clockAction = "start"
           else if (auth.task.inProgressSince) clockAction = "stop"
@@ -228,7 +197,6 @@ export const PATCH = withSession(
           data.holdReason = null
           data.holdExpectedDate = null
         } else {
-          // Any other status clears prior hold/discard context.
           data.holdReason = null
           data.holdExpectedDate = null
           data.discardReason = null
@@ -236,10 +204,8 @@ export const PATCH = withSession(
       }
       if (priority !== undefined) data.priority = priority
       if (assigneeId !== undefined) {
-        // The tenant guard scopes WHERE clauses, not data payloads, so a bare
-        // FK write would accept any employees.id in the database - including
-        // another tenant's. Verify the new assignee is an active employee of
-        // THIS tenant (the guard scopes this read) before writing the id.
+        // The tenant guard scopes WHERE clauses, not payloads, so check the new assignee is an active
+        // employee of THIS tenant before writing the FK.
         if (assigneeId) {
           const assignee = await db.employee.findFirst({
             where: { id: assigneeId, isActive: true },
@@ -256,10 +222,7 @@ export const PATCH = withSession(
       }
       if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null
       if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null
-      // Validate numbers instead of writing raw parseFloat results (API-04): an
-      // empty string / non-numeric became NaN, which Prisma rejects -> the whole
-      // PATCH (including a legitimate status change) 500s. A finite, non-negative
-      // number or explicit null only.
+      // A finite, non-negative number or null only - NaN would make Prisma reject the whole PATCH.
       if (estimatedHours !== undefined) {
         if (estimatedHours === null || estimatedHours === "") {
           data.estimatedHours = null
@@ -271,42 +234,22 @@ export const PATCH = withSession(
           data.estimatedHours = n
         }
       }
-      // loggedHours is NOT client-writable (API-04). It is measured by the
-      // server from inProgressSince above (:179), and it feeds the performance
-      // page, progress buckets and over-budget reminders - so accepting it from
-      // the request body let anyone set their own "time spent" to whatever they
-      // liked, and worse, silently overwrote the value just measured on this
-      // very request. No client sends it; every UI reads it. Ignored, not 422'd,
-      // so an older client that still posts the field keeps working.
+      // loggedHours is server-measured and never client-writable; ignored (not 422'd) for older clients.
       if (tags !== undefined) data.tags = tags
       if (links !== undefined) {
-        // Only http(s), and only what parses. A cell where anyone can type is a
-        // cell where "javascript:..." can be typed, and these render as
-        // clickable anchors for the whole team.
-        // Deduped server-side too: the client already does it, but a repeated
-        // URL is stored data that then renders as two identical chips sharing a
-        // React key, and the API cannot assume the client bothered.
+        // Only http(s) links that parse (they render as clickable anchors), deduped server-side too.
         const cleaned = dedupeLinks((Array.isArray(links) ? links : []).map((l) => String(l)))
         const bad = cleaned.filter((l) => !isSafeHttpUrl(l))
         if (bad.length > 0) {
           return NextResponse.json({ error: `Not a valid web link: ${bad[0]}` }, { status: 422 })
         }
-        // 20 is far past "the brief, the doc, the live page" and stops a paste
-        // of someone's whole clipboard becoming a row nobody can read.
         data.links = cleaned.slice(0, 20)
       }
       if (typeof isMilestone === "boolean") data.isMilestone = isMilestone
       if (typeof producesOutput === "boolean") data.producesOutput = producesOutput
-      // "Nothing came out of this" - the answer to the capture prompt, and a
-      // real answer rather than a dismissal: it stops the nudge, the amber
-      // label on Progress and the weekly digest all asking again. Whoever may
-      // touch this task at all may say it (the gate above is already assignee,
-      // manager or admin), and only a DONE task is ever asked - but an early
-      // one is stored rather than refused, because it costs nothing and the
-      // reopen branch above clears it anyway.
+      // "Nothing came out of this" stops the nudge, the Progress label and the digest asking again.
       if (outputSkipped === true) data.outputSkippedAt = new Date()
-      // The goal this work serves. Must be a goal on THIS task's project - a
-      // valid goal id from another client is a 404, not a link. Null unlinks.
+      // Must be a goal on THIS task's project (another client's goal is a 404). Null unlinks.
       if (goalId !== undefined) {
         if (goalId === null || goalId === "") {
           data.goalId = null
@@ -328,16 +271,9 @@ export const PATCH = withSession(
       const prevStatus = auth.task.status
       const statusChanged = status !== undefined && status !== prevStatus
 
-      // The task row and its status history move together: a recorded status
-      // with no period (or the reverse) would make every duration wrong from
-      // that point on.
+      // The task row and its status history move together, or every duration is wrong from then on.
       const { task, resumeTask, removedResume } = await db.$transaction(async (tx) => {
-        // ── Settle BEFORE the status moves ──────────────────────────────────
-        // Every running clock banks the full stretch that is ending. Doing it
-        // first is what keeps the arithmetic exact: after this line every
-        // running task (including this one, if it was running) is banked and
-        // restarted from `now`, so starting or stopping below is a clean cut.
-        // See task-clock.service.ts.
+        // Settle every running clock BEFORE the status moves, so starting or stopping below is a clean cut.
         const now = new Date()
         if (clockAction !== null) {
           await settleRunningTasks(tx, {
@@ -347,8 +283,6 @@ export const PATCH = withSession(
           })
         }
 
-        // Now this task's own clock. Several of a person's tasks may run at
-        // once; starting one does NOT stop the others.
         if (clockAction === "start") data.inProgressSince = now
         else if (clockAction === "stop") data.inProgressSince = null
 
@@ -367,37 +301,24 @@ export const PATCH = withSession(
             to: updated.status,
             actorId: session.user.id,
             taskCreatedAt: auth.task.createdAt,
-            // Kept ON the period: the task's own holdReason is cleared the moment
-            // the work resumes, so the history would otherwise lose why it was
-            // ever parked.
+            // Kept on the period: holdReason is cleared on resume, and history would lose why it was parked.
             note: updated.holdReason ?? updated.discardReason ?? null,
           })
         }
-        // Hold books the unfinished hours onto a task dated for the day the work
-        // is expected to resume. Inside the transaction on purpose: a hold
-        // recorded WITHOUT the task carrying its hours is the exact silent loss
-        // this prevents. `updated` is used rather than auth.task so the carried
-        // hours include the stretch just banked by this very request.
-        // Returned alongside the task rather than assigned to an outer variable:
-        // TypeScript cannot see that a callback ran, so a `let` written only in
-        // here still reads as null afterwards.
+        // Hold books the unfinished hours onto a follow-up task inside the transaction, so they can't be lost.
+        // Returned rather than assigned outside, because TS can't see the callback ran.
         let resume: ResumeTaskResult | null = null
         let removedResume: { id: string; dueDate: Date | null } | null = null
         if (statusChanged && updated.status === "ON_HOLD") {
           resume = await upsertResumeTask(tx, updated, session.user.id)
         } else if (statusChanged && prevStatus === "ON_HOLD") {
-          // Coming OFF hold - resumed, finished the same day, or abandoned. The
-          // follow-up meant "the rest of this, later"; that later is now, so an
-          // untouched one is taken back rather than left to double-book the work
-          // into a future week.
+          // Coming off hold: an untouched follow-up is taken back so it can't double-book the work.
           removedResume = await removeResumeTaskIfPristine(tx, updated.id)
         }
         return { task: updated, resumeTask: resume, removedResume }
       })
 
-      // Before AND after, not just the new value: "who moved the deadline, and
-      // from what" is the question the activity log gets asked, and recording
-      // only the result made it unanswerable the moment it was written.
+      // Before AND after, so the log can answer "who moved the deadline, and from what".
       await createAuditLog(session, {
         action: "UPDATE",
         module: "project",
@@ -406,8 +327,6 @@ export const PATCH = withSession(
         changes: { fields: diffTaskFields(auth.task, data) ?? {}, applied: data } as object,
       })
 
-      // Null for adhoc work, which belongs to no project - there is no activity
-      // feed to write to and no project page to link a notification at.
       const projectId = auth.task.team?.projectId ?? auth.task.projectId
       const projectSlug = auth.task.team?.project?.slug ?? auth.task.project?.slug ?? null
       if (status !== undefined && status !== prevStatus) {
@@ -422,8 +341,6 @@ export const PATCH = withSession(
           })
         }
 
-        // Notify whoever manages this task on the key transitions - the team
-        // manager, or the assignee's line manager when it is adhoc.
         const mgrId = auth.managerId
         if (mgrId && mgrId !== session.user.id) {
           const who = task.assignee
@@ -453,8 +370,6 @@ export const PATCH = withSession(
             await createNotification({
               employeeId: mgrId,
               ...notif,
-              // The task board is where the manager can see the status that just
-              // changed. Adhoc work has no project page; My Tasks is where it lives.
               link: projectId
                 ? projectHref({ id: projectId, slug: projectSlug }, "tasks")
                 : "/projects/my-tasks",
@@ -462,9 +377,7 @@ export const PATCH = withSession(
           }
         }
 
-        // Tell the assignee where their unfinished hours went. The follow-up sits
-        // on a FUTURE date, so it is not on the board they are looking at when
-        // they hit hold - without this the hours look like they vanished.
+        // The follow-up sits on a future date, so tell the assignee where their unfinished hours went.
         if (resumeTask && task.assigneeId) {
           const resumeOn = resumeTask.dueDate.toISOString().slice(0, 10)
           const carried = resumeTask.estimatedHours
@@ -479,8 +392,6 @@ export const PATCH = withSession(
           })
         }
 
-        // The mirror of the above: the hours came back to this task, so say so
-        // rather than letting a planned day quietly empty itself.
         if (removedResume && task.assigneeId) {
           const wasFor = removedResume.dueDate?.toISOString().slice(0, 10)
           await createNotification({
@@ -516,9 +427,7 @@ export const DELETE = withSession(
       const auth = await getTaskAuthContext(ctx.params.id, session.user.id)
       if (!auth) return NextResponse.json({ error: "Task not found" }, { status: 404 })
 
-      // Deleting destroys the task's hours, comments and history, so it stays
-      // with the manager - the person who raised it cannot take it back, not
-      // even inside their edit window.
+      // Deleting destroys hours, comments and history, so it stays with the manager - not the author.
       const isAdminDel = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
       const deletable = canDeleteTask(
         {
@@ -530,10 +439,7 @@ export const DELETE = withSession(
         },
         { userId: session.user.id, isAdmin: isAdminDel },
       )
-      // ...with one exception: an UNTOUCHED hold follow-up. The app raised that
-      // one automatically, and there is nothing in it to destroy, so its
-      // assignee may decline it without chasing a manager - which is what the
-      // "Remove task" answer in the follow-up dialog does.
+      // Except an untouched hold follow-up: the app raised it, so its assignee may decline it.
       const ownUntouchedFollowUp =
         !deletable && (await canRemoveUntouchedFollowUp(ctx.params.id, session.user.id))
 

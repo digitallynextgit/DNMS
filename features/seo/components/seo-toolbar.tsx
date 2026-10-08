@@ -8,14 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { useSeoAi } from "../hooks/use-seo"
 
-// =============================================================================
-// Shared per-tab furniture: a one-line explanation of what the tab is for, an
-// export button, and (where useful) an "Explain with AI" read-out.
-//
-// The explanation line exists because the module has a lot of tabs and none of
-// them previously said what they were - an operator had to infer it from an
-// empty table.
-// =============================================================================
+// Per-tab header: a one-line purpose, an export button, and optionally "Explain with AI".
 
 export function TabHeader({
   title,

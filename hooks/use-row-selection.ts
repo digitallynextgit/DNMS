@@ -2,11 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react"
 
-/**
- * Multi-row selection state for tables: an immutable `Set` of ids plus toggle
- * helpers and the indeterminate/all-selected flags for a "select all on page"
- * master checkbox. Pass the CURRENT page's ids so select-all operates per page.
- */
+/** Table row selection. Pass the CURRENT page's ids so select-all works per page. */
 export function useRowSelection<T extends string = string>(pageIds: T[]) {
   const [selected, setSelected] = useState<Set<T>>(new Set())
 

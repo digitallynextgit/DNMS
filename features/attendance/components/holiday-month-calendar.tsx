@@ -15,10 +15,7 @@ import { MonthNav } from "@/components/shared/month-nav"
 import { CalendarLegend, type CalendarLegendItem } from "@/components/shared/calendar-legend"
 import { cn } from "@/lib/utils"
 
-// =============================================================================
-// The ONE month-grid calendar. Used by the Calendar page's Holiday and Birthday
-// views and by the HR Holidays page - don't hand-roll another grid.
-// =============================================================================
+// The one month-grid calendar (Holiday/Birthday views and HR Holidays) - don't hand-roll another.
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const pad = (n: number) => String(n).padStart(2, "0")
@@ -74,8 +71,7 @@ export function HolidayMonthCalendar({
   const firstDow = new Date(Date.UTC(year, month, 1)).getUTCDay()
   const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
 
-  // Only what can actually appear: the Birthday Calendar passes no holidays,
-  // and a legend promising public holidays there would be noise.
+  // Only what can appear (the Birthday Calendar passes no holidays).
   const legend: CalendarLegendItem[] = [
     ...(holidays.length > 0
       ? [
@@ -118,9 +114,7 @@ export function HolidayMonthCalendar({
               : ""
             const dow = new Date(Date.UTC(year, month, day)).getUTCDay()
             const weekend = dow === 0 || dow === 6
-            // A floating holiday this employee applied for and HR approved is a
-            // confirmed day off - show it with a tick, distinct from an
-            // un-availed floating option.
+            // An approved floating holiday is a confirmed day off - shown with a tick.
             const approved = !!h && h.isOptional && !!approvedFloatingIds?.has(h.id)
 
             return (
@@ -143,9 +137,7 @@ export function HolidayMonthCalendar({
                       : undefined
                 }
                 className={cn(
-                  // Phone cells are ~33px wide, too narrow for a holiday name -
-                  // they carry the colour + day number, with the name in the
-                  // title tooltip; the label returns from `sm` up.
+                  // Phone cells (~33px) show colour + day only; the name is in the tooltip.
                   "flex aspect-square w-full flex-col items-center justify-center rounded-sm p-1 text-center transition-shadow hover:ring-2 hover:ring-inset focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset sm:aspect-auto sm:min-h-19 sm:items-stretch sm:justify-start sm:p-1.5 sm:text-left",
                   isBirthday
                     ? "bg-rose-100 text-rose-900 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200"
@@ -172,8 +164,7 @@ export function HolidayMonthCalendar({
           })}
         </div>
 
-        {/* Day detail - the phone cell shows only a coloured number, so the
-            holiday name and its kind live one tap away. */}
+        {/* Day detail - phone cells only show a coloured number. */}
         <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
           <DialogContent className="max-w-sm">
             <DialogHeader>

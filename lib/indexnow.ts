@@ -2,15 +2,8 @@ import "server-only"
 
 import { getConfig } from "@/server/app-config"
 
-// =============================================================================
-// IndexNow - a free protocol (Bing, Yandex, Seznam, Naver) for pushing "this URL
-// changed, please recrawl" instantly, instead of waiting to be crawled. One key
-// per host, served as a text file at the site root.
-//
-// Config (Admin -> Integrations): INDEXNOW_KEY - a 8-128 char hex key. The site
-// must host it at https://<host>/<key>.txt containing exactly the key. Without
-// that file the endpoints reject the submission (422), so we surface that.
-// =============================================================================
+// IndexNow (Bing, Yandex, Seznam, Naver): push changed URLs for recrawl. INDEXNOW_KEY (8-128 hex)
+// must also be served at https://<host>/<key>.txt, or submissions fail with 422.
 
 const ENDPOINT = "https://api.indexnow.org/indexnow"
 const TIMEOUT_MS = 15_000
@@ -27,11 +20,7 @@ export interface IndexNowResult {
   error?: string
 }
 
-/**
- * Submit changed URLs for a host. All URLs must belong to `host`. Returns a
- * result object rather than throwing - a failed ping should never break the
- * flow that triggered it (a deploy, a publish).
- */
+/** All URLs must belong to `host`. Never throws - a failed ping must not break a deploy or publish. */
 export async function submitToIndexNow(host: string, urls: string[]): Promise<IndexNowResult> {
   const key = await getConfig("INDEXNOW_KEY")
   if (!key) return { ok: false, submitted: 0, status: 0, error: "INDEXNOW_KEY not configured" }

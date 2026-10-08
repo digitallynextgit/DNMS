@@ -13,7 +13,7 @@ interface StatCardProps {
   iconColor?: string
   iconBg?: string
   trend?: { value: number; label: string }
-  /** Draws the value as a skeleton in the card's real shape (no layout shift). */
+  /** Skeleton in the card's real shape (no layout shift). */
   loading?: boolean
   className?: string
 }
@@ -61,8 +61,6 @@ export function StatCard({
               </div>
             )}
           </div>
-          {/* When a caller supplies iconBg, the icon gets a tinted tile; otherwise
-              it stays a plain muted glyph. */}
           {iconBg ? (
             <div
               className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-sm", iconBg)}

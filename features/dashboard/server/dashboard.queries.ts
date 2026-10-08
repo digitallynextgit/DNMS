@@ -3,13 +3,7 @@ import "server-only"
 import { db } from "@/server/db"
 import { EMPLOYEE_SUMMARY_SELECT, VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 
-// Dashboard data reads.
-//
-// Extracted from GET /api/dashboard/stats and GET /api/dashboard/me so the route
-// handlers AND the server-side prefetch in app/(dashboard)/dashboard/page.tsx run
-// the exact same query - the prefetched React Query cache entry must be
-// byte-identical to the API body the client would otherwise have fetched.
-// Each function returns its route's payload shape verbatim.
+// Shared by the API routes and the dashboard page prefetch, so both return identical payloads.
 
 /** Org-wide HR stats (route is gated by dashboard:read). */
 export async function getDashboardStats() {
@@ -26,12 +20,10 @@ export async function getDashboardStats() {
     unreadNotifications,
     recentJoiners,
   ] = await Promise.all([
-    // Total active employees
     db.employee.count({
       where: { status: "ACTIVE", isActive: true, ...VISIBLE_EMPLOYEE_FILTER },
     }),
 
-    // Joined in the last 30 days
     db.employee.count({
       where: {
         isActive: true,
@@ -40,29 +32,24 @@ export async function getDashboardStats() {
       },
     }),
 
-    // Grouped by status
     db.employee.groupBy({
       by: ["status"],
       where: { isActive: true, ...VISIBLE_EMPLOYEE_FILTER },
       _count: { _all: true },
     }),
 
-    // Grouped by department
     db.employee.groupBy({
       by: ["departmentId"],
       where: { status: "ACTIVE", isActive: true, ...VISIBLE_EMPLOYEE_FILTER },
       _count: { _all: true },
     }),
 
-    // Total documents
     db.document.count(),
 
-    // Unread notifications
     db.notification.count({
       where: { isRead: false },
     }),
 
-    // Last 5 joiners
     db.employee.findMany({
       where: { isActive: true, ...VISIBLE_EMPLOYEE_FILTER },
       orderBy: { dateOfJoining: "desc" },
@@ -80,7 +67,6 @@ export async function getDashboardStats() {
     }),
   ])
 
-  // Resolve department ids → names for the byDepartment groupBy result
   const departmentIds = byDepartment.map((d) => d.departmentId).filter(Boolean) as string[]
 
   const departments = await db.department.findMany({
@@ -121,11 +107,7 @@ export async function getDashboardStats() {
   }
 }
 
-/**
- * Personal self-service dashboard for regular employees. Unlike
- * getDashboardStats (org-wide HR data, gated by dashboard:read), this only ever
- * returns data scoped to the given employee.
- */
+/** Self-service dashboard; only ever returns data scoped to this employee. */
 export async function getMyDashboard(employeeId: string) {
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -133,8 +115,7 @@ export async function getMyDashboard(employeeId: string) {
   const year = now.getFullYear()
   const todayDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
-  // The working week the allocation sheet is written in (Mon 00:00 -> Sun 23:59,
-  // local), so "this week" here means the same days it does in My Tasks.
+  // Mon 00:00 -> Sun 23:59 local, the same week My Tasks uses.
   const weekStart = new Date(todayDateOnly)
   weekStart.setDate(weekStart.getDate() - ((now.getDay() + 6) % 7))
   const weekEnd = new Date(weekStart)
@@ -165,19 +146,16 @@ export async function getMyDashboard(employeeId: string) {
       },
     }),
 
-    // This month's attendance logs (for the per-status summary)
     db.attendanceLog.findMany({
       where: { employeeId, date: { gte: monthStart, lte: monthEnd } },
       select: { status: true, workHours: true },
     }),
 
-    // Current-year leave balances
     db.leaveBalance.findMany({
       where: { employeeId, year },
       include: { leaveType: true },
     }),
 
-    // Most recent payslip that has actually been processed/paid
     db.payrollRecord.findFirst({
       where: { employeeId, status: { in: ["APPROVED", "PAID"] } },
       orderBy: [{ year: "desc" }, { month: "desc" }],
@@ -194,7 +172,6 @@ export async function getMyDashboard(employeeId: string) {
     db.leaveRequest.count({ where: { employeeId, status: "PENDING" } }),
     db.wfhRequest.count({ where: { employeeId, status: "PENDING" } }),
 
-    // Next holidays from today
     db.holiday.findMany({
       where: { date: { gte: todayDateOnly } },
       orderBy: { date: "asc" },
@@ -204,8 +181,6 @@ export async function getMyDashboard(employeeId: string) {
 
     db.notification.count({ where: { employeeId, isRead: false } }),
 
-    // Everything still on this person's plate. Scoped to OPEN work rather than
-    // every task they have ever had, so the query stays flat as history grows.
     db.projectTask.findMany({
       where: {
         assigneeId: employeeId,
@@ -226,8 +201,6 @@ export async function getMyDashboard(employeeId: string) {
       orderBy: [{ dueDate: "asc" }],
     }),
 
-    // Finished this week - the "look what I got done" half of the picture,
-    // which open tasks alone can never show.
     db.projectTask.findMany({
       where: {
         assigneeId: employeeId,
@@ -238,7 +211,6 @@ export async function getMyDashboard(employeeId: string) {
     }),
   ])
 
-  // Roll up attendance counts by status
   const attendance = {
     present: 0,
     absent: 0,
@@ -263,30 +235,22 @@ export async function getMyDashboard(employeeId: string) {
       ? Math.round((attendance.totalHours / attendance.workingDays) * 10) / 10
       : 0
 
-  // Aggregate available leave across all types
   const totalLeaveAvailable = leaveBalances.reduce((sum, b) => {
     const available = Math.max(0, b.allocated + b.carried - b.used - b.pending)
     return sum + available
   }, 0)
 
-  // ── Work ──────────────────────────────────────────────────────────────────
-  // An employee opens this page to answer "what am I supposed to be doing right
-  // now", and until now it could not tell them: the whole panel was HR data.
   const sameDay = (d: Date | null) =>
     !!d &&
     new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() === todayDateOnly.getTime()
 
-  // Overdue = past its due day AND still actionable. On hold is deliberately
-  // excluded: it was parked on purpose, which is a decision, not a slip.
+  // ON_HOLD is never overdue: it was parked on purpose.
   const isOverdue = (t: (typeof openTasks)[number]) =>
     !!t.dueDate &&
     new Date(t.dueDate.getFullYear(), t.dueDate.getMonth(), t.dueDate.getDate()) < todayDateOnly &&
     t.status !== "ON_HOLD"
 
-  // ON_HOLD is excluded for the same reason it is never counted overdue: it was
-  // parked on purpose, and its unfinished hours already live on a follow-up task
-  // dated for the day it resumes. Listing it as "due today" would put work in
-  // front of someone that they have explicitly decided not to do today.
+  // ON_HOLD isn't "due today" either: its remaining hours live on a follow-up task.
   const dueToday = openTasks.filter(
     (t) => sameDay(t.dueDate) && !isOverdue(t) && t.status !== "ON_HOLD",
   )
@@ -303,7 +267,6 @@ export async function getMyDashboard(employeeId: string) {
     weekTasks.reduce((s, t) => s + t.loggedHours, 0) +
     doneThisWeek.reduce((s, t) => s + t.loggedHours, 0)
 
-  // One row per client the person still owes work to, busiest first.
   const projectMap = new Map<
     string,
     { id: string; name: string; slug: string | null; open: number; overdue: number }
@@ -322,7 +285,6 @@ export async function getMyDashboard(employeeId: string) {
     projectMap.set(key, entry)
   }
 
-  /** Just enough of a task to render a row and link to it. */
   const slim = (t: (typeof openTasks)[number]) => ({
     id: t.id,
     title: t.title,
@@ -364,8 +326,7 @@ export async function getMyDashboard(employeeId: string) {
         allocated: Math.round(weekAllocated * 100) / 100,
         spent: Math.round(weekSpent * 100) / 100,
       },
-      // Overdue first - it is the work that needs a decision today - then what
-      // is actually due today. Capped: this is a glance, not the task list.
+      // Overdue first, then due today; capped - this is a glance, not the task list.
       today: [...overdue, ...dueToday].slice(0, 6).map(slim),
       running: running.map(slim),
       projects: [...projectMap.values()].sort((a, b) => b.open - a.open),

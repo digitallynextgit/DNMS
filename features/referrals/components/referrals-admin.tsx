@@ -39,8 +39,7 @@ export function ReferralsAdmin() {
         description="Every candidate somebody put forward, and the reward owed on them."
       />
 
-      {/* An employee id that matched nobody is the one thing here that needs a
-          human - surfaced rather than left to be noticed. */}
+      {/* Unmatched employee ids need a human, so surface them. */}
       {unresolved.length > 0 && (
         <Card className="border-l-2 border-l-amber-500">
           <CardContent className="flex items-start gap-3 p-4">
@@ -130,9 +129,7 @@ export function ReferralsAdmin() {
                 )}
 
                 <div className="flex shrink-0 gap-2">
-                  {/* Linking is offered for any hire that is not linked yet -
-                      including one still marked shortlisted, because linking IS
-                      the act of confirming the hire. */}
+                  {/* Offered for any unlinked hire - linking IS confirming the hire. */}
                   {!r.hire && (
                     <Button
                       variant="outline"
@@ -158,7 +155,6 @@ export function ReferralsAdmin() {
         </div>
       )}
 
-      {/* Link a hire to the employee record created for them. */}
       <Dialog open={!!linking} onOpenChange={(o) => !o && setLinking(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -168,8 +164,7 @@ export function ReferralsAdmin() {
               the one-year clock on the referral reward.
             </DialogDescription>
           </DialogHeader>
-          {/* Clearing the combobox hands back undefined; "" is this dialog's
-              "nothing picked", which is what the submit button reads. */}
+          {/* A cleared combobox gives undefined; "" is this dialog's "nothing picked". */}
           <EmployeeCombobox value={hireId} onChange={(id) => setHireId(id ?? "")} />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setLinking(null)}>

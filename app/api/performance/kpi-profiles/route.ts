@@ -3,8 +3,6 @@ import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS, HIDDEN_ROLES } from "@/lib/constants"
 
-// List active employees with their KPI-profile status (how many manager-side and
-// self-side items each has configured), for the KPI Profiles overview.
 export const GET = withAuth(PERMISSIONS.PERFORMANCE_REVIEW, async () => {
   const employees = await db.employee.findMany({
     where: {

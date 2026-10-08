@@ -1,12 +1,7 @@
 import { randomBytes, createCipheriv, createDecipheriv } from "crypto"
 
-// AES-256-GCM encryption for at-rest secrets (e.g. employee Gmail App Passwords).
-// Format stored in DB: `iv:authTag:ciphertext`, each part base64-encoded.
-//
-// Key requirements:
-//  - 32 raw bytes (256 bits)
-//  - Supplied via ENCRYPTION_KEY env var as base64 (preferred) or hex
-//  - Generate one with: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+// AES-256-GCM for secrets at rest, stored as `iv:authTag:ciphertext` (each base64).
+// ENCRYPTION_KEY is 32 bytes as base64 (or hex), e.g. crypto.randomBytes(32).toString("base64").
 
 const ALGO = "aes-256-gcm"
 const IV_LENGTH = 12 // GCM standard nonce size
@@ -19,7 +14,6 @@ function getKey(): Buffer {
     )
   }
 
-  // Try base64 first, fall back to hex
   let key: Buffer
   try {
     key = Buffer.from(raw, "base64")
@@ -38,10 +32,6 @@ function getKey(): Buffer {
   return key
 }
 
-/**
- * Encrypts a UTF-8 string with AES-256-GCM.
- * Returns a single string: `iv:authTag:ciphertext` (each base64).
- */
 export function encrypt(plaintext: string): string {
   if (typeof plaintext !== "string" || plaintext.length === 0) {
     throw new Error("encrypt() requires a non-empty string")
@@ -54,10 +44,7 @@ export function encrypt(plaintext: string): string {
   return [iv.toString("base64"), tag.toString("base64"), enc.toString("base64")].join(":")
 }
 
-/**
- * Decrypts a string produced by `encrypt()`. Returns the original UTF-8 plaintext.
- * Throws if the input is malformed or the auth tag fails (data was tampered with).
- */
+/** Throws if the input is malformed or the auth tag fails (tampered data). */
 export function decrypt(payload: string): string {
   if (typeof payload !== "string") {
     throw new Error("decrypt() requires a string")
@@ -78,7 +65,7 @@ export function decrypt(payload: string): string {
   return dec.toString("utf8")
 }
 
-/** Safe wrapper - returns null if input is null/empty or decryption fails. */
+/** Null for empty input or a failed decrypt. */
 export function tryDecrypt(payload: string | null | undefined): string | null {
   if (!payload) return null
   try {

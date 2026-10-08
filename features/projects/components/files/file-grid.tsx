@@ -1,13 +1,6 @@
 "use client"
 
-/**
- * The Repository's card view - the Google Drive layout: folders first as a
- * row of compact tiles, then files as thumbnail cards.
- *
- * It renders the SAME rows the table does (already filtered, sorted and paged
- * by the tab) and reuses the tab's own open/actions handlers, so the two views
- * can never drift apart on what a click does or who may do it.
- */
+/** The Repository's card view; uses the table's rows and handlers so the two views can't drift. */
 import { useState } from "react"
 
 import { Checkbox } from "@/components/ui/checkbox"
@@ -21,11 +14,9 @@ interface TileProps {
   onToggle: () => void
   onOpen: () => void
   actions: React.ReactNode
-  /** Preview image, when one could be resolved. */
   thumb?: string
 }
 
-/** Enter/Space open the item, matching what a click on the tile does. */
 function openKeys(onOpen: () => void) {
   return (e: React.KeyboardEvent) => {
     if (e.key !== "Enter" && e.key !== " ") return
@@ -34,18 +25,7 @@ function openKeys(onOpen: () => void) {
   }
 }
 
-/**
- * The item's type icon, which BECOMES its checkbox on hover or once ticked.
- *
- * The two share one 16px slot rather than sitting side by side. A checkbox that
- * is merely `opacity-0` still occupies its place in the row, and that was the
- * permanent empty gap to the left of every name in this grid. Swapping in place
- * also means ticking something shifts nothing.
- *
- * A touch screen has no hover to swap on, so there the checkbox is simply the
- * one showing: losing selection entirely on mobile is the worse trade, and the
- * band heading above already says whether these are folders or files.
- */
+/** Type icon that swaps in place for its checkbox on hover or once ticked; on touch the checkbox shows. */
 function IconOrCheck({
   icon: Icon,
   tint,
@@ -59,8 +39,7 @@ function IconOrCheck({
   selected: boolean
   onToggle: () => void
   label: string
-  /** Nudges from the caller. Merged in rather than applied by a wrapper span:
-   *  a wrapper is inline, and an inline box ignores the w-4/h-4 this slot is. */
+  /** Merged in, not applied by a wrapper span - an inline wrapper ignores this slot's w-4/h-4. */
   className?: string
 }) {
   return (
@@ -69,8 +48,7 @@ function IconOrCheck({
         className={cn(
           "absolute inset-0 h-4 w-4 transition-opacity max-sm:opacity-0",
           tint,
-          // Not `opacity-0 … selected && opacity-100`: both would be emitted
-          // and the winner would depend on utility order, not on this value.
+          // Not `opacity-0 … selected && opacity-100`: the winner would depend on utility order.
           selected ? "opacity-0" : "opacity-100 group-focus-within:opacity-0 group-hover:opacity-0",
         )}
       />
@@ -114,8 +92,6 @@ function FolderTile({ file, selected, onToggle, onOpen, actions }: TileProps) {
       />
 
       <span className="min-w-0 flex-1">
-        {/* Two lines before it gives up, so "Festival & Campaign Creatives"
-            reads as itself instead of "Festival & ...". */}
         <span className="line-clamp-2 text-sm leading-snug font-medium break-words">
           {file.name}
         </span>
@@ -134,8 +110,7 @@ function FolderTile({ file, selected, onToggle, onOpen, actions }: TileProps) {
 function GridCard({ file, selected, onToggle, onOpen, actions, thumb }: TileProps) {
   const meta = TYPE_META[file.type]
   const Icon = meta.icon
-  // A signed thumbnail expires, and Drive can refuse one outright. Either way
-  // the card falls back to its type icon rather than showing a broken image.
+  // Signed thumbnails expire and Drive can refuse one; fall back to the type icon.
   const [broken, setBroken] = useState(false)
   const showThumb = !!thumb && !broken
 
@@ -173,8 +148,7 @@ function GridCard({ file, selected, onToggle, onOpen, actions, thumb }: TileProp
         )}
       >
         {showThumb ? (
-          // Signed B2 URLs and Drive thumbnails are per-file and short-lived,
-          // so next/image (which would proxy and cache them) is the wrong tool.
+          // Signed B2 URLs and Drive thumbnails are short-lived, so not next/image.
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={thumb}
@@ -205,7 +179,6 @@ function GridCard({ file, selected, onToggle, onOpen, actions, thumb }: TileProp
   )
 }
 
-/** Section heading, matching Drive's small grey labels above each band. */
 function Band({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
@@ -228,7 +201,6 @@ export function FileGrid({
   onToggle: (f: UnifiedFile) => void
   onOpen: (f: UnifiedFile) => void
   actions: (f: UnifiedFile) => React.ReactNode
-  /** Row id -> preview image URL, for the rows that have one. */
   thumbs: Map<string, string>
 }) {
   const folders = rows.filter((f) => f.source === "folder")
@@ -238,8 +210,7 @@ export function FileGrid({
     <div className="space-y-5">
       {folders.length > 0 && (
         <Band label="Folders">
-          {/* One column fewer than the file cards: a folder is a NAME, and six
-              across left every name too narrow to be one. */}
+          {/* One column fewer than the file cards, so folder names have room. */}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {folders.map((f) => (
               <FolderTile

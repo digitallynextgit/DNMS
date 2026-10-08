@@ -1,28 +1,14 @@
 import "server-only"
 
-// =============================================================================
-// Real-time chat fan-out via Postgres LISTEN/NOTIFY.
-// =============================================================================
-// Same shape as server/notification-stream.ts, on its own channel. A SECOND
-// listener rather than a shared one on purpose: a chat message fires on every
-// keystroke-worth of conversation, and mixing that volume into the notification
-// channel would make one feature's traffic the other's problem.
-//
-// It carries project-message events too: this is one realtime channel PER
-// EMPLOYEE, not per feature, and a second LISTEN connection to say "a project
-// reply landed" would cost a Postgres connection to duplicate what this does.
-//
-// NOTIFY is published explicitly by the service rather than by a table trigger,
-// because the payload needs the sender's name - a trigger would only see the
-// row, and every client would have to fetch the sender separately.
-// =============================================================================
+// Real-time chat (and project-message) fan-out via Postgres LISTEN/NOTIFY. Kept apart from
+// notification-stream.ts so chat volume never delays notifications. Published by the service,
+// not a trigger, because the payload needs the sender's name.
 
 import { Client } from "pg"
 
 export interface ChatEvent {
   type: "message" | "read" | "delivered" | "project-message" | "reaction"
   conversationId: string
-  /** Who should receive this event. */
   recipientId: string
   messageId?: string
   senderId?: string
@@ -38,8 +24,7 @@ type Subscriber = (event: ChatEvent) => void
 const CHANNEL = "dnms_chat"
 const HEARTBEAT_MS = 30_000
 
-// Survives dev hot-reload: a plain module-level client would leak a new LISTEN
-// connection on every edit until Postgres refused more.
+// On globalThis so dev hot-reload doesn't leak a LISTEN connection per edit.
 const g = globalThis as unknown as {
   __dnmsChatClient?: Client | null
   __dnmsChatStarting?: Promise<void> | null
@@ -104,7 +89,7 @@ function ensureListening(): Promise<void> {
   return g.__dnmsChatStarting
 }
 
-/** Register a callback for one employee's chat events. Returns an unsubscribe fn. */
+/** Returns an unsubscribe fn. */
 export async function subscribeChat(employeeId: string, cb: Subscriber): Promise<() => void> {
   await ensureListening()
   let set = subscribers.get(employeeId)
@@ -122,17 +107,11 @@ export async function subscribeChat(employeeId: string, cb: Subscriber): Promise
   }
 }
 
-/**
- * Broadcast an event to one recipient.
- *
- * Never throws: a dropped realtime event costs a refresh, and must not fail the
- * send that already committed to the database.
- */
+/** Never throws: a dropped event costs a refresh and must not fail a send already committed. */
 export async function publishChat(event: ChatEvent): Promise<void> {
   try {
     const { db } = await import("@/server/db")
-    // pg_notify() as a parameterised query - NOTIFY itself takes no bind
-    // parameters, so string-building it would be an injection hole.
+    // pg_notify() because NOTIFY takes no bind parameters (string-building it = injection).
     await db.$executeRaw`SELECT pg_notify(${CHANNEL}, ${JSON.stringify(event)})`
   } catch (e) {
     console.error("[chat-stream] publish failed:", e)

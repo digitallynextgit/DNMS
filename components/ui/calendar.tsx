@@ -24,8 +24,7 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
       classNames={{
         months: "relative flex flex-col gap-4 sm:flex-row",
         month: "flex w-full flex-col gap-4",
-        // Caption row holds the month/year dropdowns; the horizontal padding
-        // keeps them clear of the absolutely-positioned nav arrows.
+        // Padding keeps the dropdowns clear of the absolutely-positioned nav arrows.
         month_caption: "flex h-8 items-center justify-center px-8",
         caption_label: "text-sm font-medium",
         nav: "absolute inset-x-0 top-0 flex items-center justify-between",
@@ -49,12 +48,8 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         ),
         selected:
           "[&>button]:bg-primary [&>button]:text-primary-foreground [&>button:hover]:bg-primary [&>button:hover]:text-primary-foreground rounded-sm",
-        // Range mode only - these modifiers never apply to a single-date picker,
-        // so they cannot affect the existing DateField. The two ends keep the
-        // solid `selected` fill; the days between are a soft band instead, which
-        // is what makes a range read as one span rather than 30 selected days.
-        // The `!` is load-bearing: `selected` also matches every middle day, and
-        // without it which background wins depends on CSS source order.
+        // Range ends keep the solid fill; middle days get a soft band. The `!` matters: `selected` also
+        // matches the middle days.
         range_start: "rounded-l-sm rounded-r-none",
         range_end: "day-range-end rounded-r-sm rounded-l-none",
         range_middle:
@@ -75,9 +70,7 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
                 : ChevronDown
           return <Icon className={cn("size-4", chevronClassName)} />
         },
-        // Render the month/year dropdowns with the app's own Select so they
-        // match the rest of the form and stay readable in every theme. rdp only
-        // reads `e.target.value`, so a synthetic event is enough to drive it.
+        // The app's own Select; rdp only reads `e.target.value`, so a synthetic event drives it.
         Dropdown: ({ options, value, onChange }) => (
           <Select
             value={value?.toString()}
@@ -90,8 +83,7 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
             <SelectTrigger className="h-8 w-fit gap-1 px-2 text-sm font-medium focus:ring-0 focus:ring-offset-0">
               <SelectValue />
             </SelectTrigger>
-            {/* z-70 lifts the month/year list above the calendar's own popover
-                (z-60); without it the dropdown opens *behind* the calendar. */}
+            {/* z-70: above the calendar's own popover (z-60). */}
             <SelectContent className="z-70 max-h-72">
               {options?.map((option) => (
                 <SelectItem

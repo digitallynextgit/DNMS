@@ -33,32 +33,7 @@ import { formatHours } from "../lib/format-hours"
 import { projectHref } from "../lib/project-href"
 import { STATES, type State } from "./portfolio-charts"
 
-// =============================================================================
-// The list behind a number.
-//
-// Every drill-down on the Progress page ends here: a flat list of the tasks a
-// tile, slice or bar was counting, grouped so it reads as an answer ("these
-// twelve, on these three clients") rather than a dump. Fetches from
-// /api/projects/tasks, whose state buckets are the performance route's, so the
-// list length always equals the count that was clicked.
-//
-// ── BUILT FOR 275 ROWS, NOT 12 ───────────────────────────────────────────────
-// "Completed, all time" is a real click and it is hundreds of rows across
-// several clients. The first version rendered them as one long scroll, so
-// reaching the second client meant scrolling past every row of the first. So:
-//
-//   jump chips  - one per group, with its count. Click one and the list shows
-//                 ONLY that group. This is the fix for "scroll past 32 to see
-//                 the next client": you do not scroll, you pick.
-//   collapse    - every group header is a toggle, and there is a collapse-all.
-//   search      - title, assignee, client, team. Local, instant.
-//   one line    - the team rides inline after the title; the second line only
-//                 exists when there is something to say on it.
-//   show more   - the server caps a page; the footer says so and fetches more.
-//
-// The toolbar is STICKY inside the popup's scroll area, so the controls stay
-// under your hand however far down you are.
-// =============================================================================
+// The tasks behind a Progress number; the API's buckets match the performance route, so the counts agree.
 
 export type TaskState = State | "open" | "all"
 
@@ -93,7 +68,6 @@ export interface DrillTask {
   /** The goal it serves. Null = unlinked. */
   goal: { id: string; title: string } | null
   producesOutput: boolean
-  /** Deliverables logged against it. */
   outputs: number
   /** Answered "nothing came out of this" - a real answer, not an omission. */
   outputSkipped: boolean
@@ -104,7 +78,6 @@ export interface TaskListFiltersExtra {
   unlinked?: boolean
 }
 
-/** The chips over a list: the five chart states plus "everything". */
 export const STATE_CHIPS: { key: TaskState; label: string }[] = [
   { key: "all", label: "All" },
   ...STATES.map((s) => ({ key: s.key as TaskState, label: s.label })),
@@ -139,18 +112,11 @@ export function useTaskList(filters: TaskListFilters, enabled = true, limit = PA
   })
 }
 
-/**
- * Which of the five chart states a task is in - the client-side twin of the
- * server's buckets, for views that fetch once and filter locally.
- * Discarded work belongs to no state and returns null.
- */
+/** Client-side twin of the server's state buckets; discarded work returns null. */
 export function stateOfTask(t: DrillTask): State | null {
   if (t.status === "DONE") return "done"
   if (t.status === "DISCARDED" || t.status === "CANCELLED") return null
-  // OVERDUE OUTRANKS ON-HOLD, and is tested first for that reason. Parking a
-  // task does not make it less late, and a row that answered "hold" here while
-  // the server counted it under overdue would put the chips and the donut out
-  // of step with each other.
+  // Overdue outranks on-hold, matching the server.
   if (t.overdue) return "overdue"
   if (t.status === "ON_HOLD") return "hold"
   if (t.status === "IN_PROGRESS" || t.status === "IN_REVIEW") return "progress"
@@ -164,7 +130,6 @@ export function matchesState(t: DrillTask, state: TaskState): boolean {
   return stateOfTask(t) === state
 }
 
-/** One task, one line. Two only when there is a second thing to say. */
 function TaskRow({
   t,
   showProject,
@@ -178,8 +143,7 @@ function TaskRow({
   // Finished, expected to produce something, nothing logged: the nudge.
   const missingOutput =
     done && t.producesOutput && t.outputs === 0 && !t.outputSkipped && t.project !== null
-  // Asked and answered - "nothing came out of this". Said quietly rather than
-  // dropped, so the row does not read as an oversight nobody has looked at.
+  // Answered "nothing came out of this" - shown quietly, not dropped.
   const skippedOutput = done && t.producesOutput && t.outputSkipped
   const secondLine =
     (showProject && t.project) || (t.status === "ON_HOLD" && t.holdExpectedDate) || t.goal
@@ -259,8 +223,7 @@ function TaskRow({
         />
       )}
 
-      {/* "-" for nothing logged rather than "0m": a zero here usually means the
-          clock was never started, not that the work took no time. */}
+      {/* "-" rather than "0m": a zero usually means the clock was never started. */}
       {(t.estimatedHours != null || t.loggedHours > 0) && (
         <span className="text-muted-foreground hidden w-24 shrink-0 items-center justify-end gap-1 tabular-nums sm:inline-flex">
           <Timer className="h-3 w-3" />
@@ -301,13 +264,7 @@ const haystack = (t: DrillTask) =>
     .join(" ")
     .toLowerCase()
 
-/**
- * Presentational list, grouped, with its own toolbar.
- *
- * Takes rows so a view that fetched once can filter locally (the person popup)
- * and a view that fetched per state can just hand them over. `compact` drops
- * the toolbar and caps the rows - for a summary panel that has a "see all".
- */
+/** Takes rows so a view can filter locally or pass them through; `compact` drops the toolbar and caps rows. */
 export function TaskRows({
   tasks,
   groupBy = "project",
@@ -323,7 +280,6 @@ export function TaskRows({
   showAssignee?: boolean
   emptyTitle?: string
   compact?: boolean
-  /** Cap the rows rendered (compact panels). */
   limit?: number
 }) {
   const [query, setQuery] = React.useState("")
@@ -332,8 +288,7 @@ export function TaskRows({
 
   const showProj = showProject ?? groupBy !== "project"
 
-  // Group FIRST, then search within - so the jump chips keep their true counts
-  // and a search never makes a client vanish from the chip row.
+  // Group first, then search, so the jump chips keep their true counts.
   const groups = React.useMemo<Group[]>(() => {
     if (groupBy === "none") return [{ key: "__all", label: "", tasks }]
     const map = new Map<string, Group>()
@@ -367,8 +322,6 @@ export function TaskRows({
     })
   const allCollapsed = visible.length > 0 && visible.every((g) => collapsed.has(g.key))
 
-  // Compact: no toolbar, first N rows, and a group header only when the rows
-  // actually span groups.
   if (compact) {
     const rows = tasks.slice(0, limit ?? tasks.length)
     return (
@@ -436,7 +389,6 @@ export function TaskRows({
             )}
           </div>
 
-          {/* Jump chips: pick a client instead of scrolling to it. */}
           {groups.length > 1 && (
             <div className="flex flex-wrap gap-1.5">
               <Chip active={only === null} onClick={() => setOnly(null)}>
@@ -532,7 +484,6 @@ function Chip({
   )
 }
 
-/** Fetch + render, with "show more" when the server capped the page. */
 export function TaskList({
   filters,
   groupBy,
@@ -548,7 +499,6 @@ export function TaskList({
   showAssignee?: boolean
   emptyTitle?: string
   compact?: boolean
-  /** Compact panels: rows to render. */
   limit?: number
 }) {
   const [page, setPage] = React.useState(PAGE)

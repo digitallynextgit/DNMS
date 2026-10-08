@@ -22,28 +22,13 @@ import {
   DeliverableStatusPill,
 } from "./deliverable-history-dialog"
 
-// =============================================================================
-// One deliverable, at a glance - above the per-team tabs on its own page.
-//
-// The tabs are where you WORK a period; this is where you find out whether you
-// need to. The same three questions the Goals card answers, asked of a week:
-// how much of it landed, how the rest is spread across the five states, and
-// which team is behind.
-//
-// UNITS, NOT ITEMS, is the headline. "4 blogs" planned as one item is four
-// things the client is waiting for, and a tracker that called that done the
-// moment one blog landed would be wrong in the direction people notice.
-//
-// The team rows double as the tab switcher: a row saying VIDEO is at 0% is
-// only worth reading if the next click shows VIDEO's items.
-// =============================================================================
+// Headline is units, not items: "4 blogs" planned as one item is four things the client waits for.
 
 /** The rows a tracker reads. The board's `DeliverableRow` satisfies it. */
 export interface TrackerRow extends PeriodRowLike {
   employee?: { id: string } | null
 }
 
-/** A stat tile. Deliberately flat - the card is already a surface. */
 function Tile({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
   return (
     <div className="bg-muted/40 rounded-sm px-3 py-2.5">
@@ -62,9 +47,7 @@ export function DeliverableTracker<R extends TrackerRow>({
   onTeamSelect,
 }: {
   period: DeliverablePeriod<R>
-  /** The team tab currently open, so its row reads as selected. */
   activeTeam?: string
-  /** Clicking a team row opens that team's tab. */
   onTeamSelect?: (key: string) => void
 }) {
   const rows = period.rows
@@ -72,8 +55,7 @@ export function DeliverableTracker<R extends TrackerRow>({
   const byStatus = React.useMemo(() => unitsByStatus(rows).filter((s) => s.units > 0), [rows])
   const teams = React.useMemo(() => splitByTeam(rows), [rows])
 
-  // Owed work with nobody on it - the one thing here that is nobody's job
-  // until somebody makes it theirs, which is why it gets its own line.
+  // Owed work with nobody on it gets its own line.
   const unassigned = rows.filter((r) => !r.employee && isOpenStatus(r.status)).length
 
   const chartData = byStatus.map((s) => ({ ...s, name: DELIVERABLE_STATUS_LABELS[s.status] }))
@@ -90,9 +72,6 @@ export function DeliverableTracker<R extends TrackerRow>({
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[auto_1fr] lg:gap-6">
-          {/* Donut + legend. The percentage sits in the hole because it is the
-              one number people came for, and a ring reads as "share of a whole"
-              in a way a bar does not. */}
           <div className="flex items-center gap-4">
             <div className="relative h-32 w-32 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
@@ -120,8 +99,7 @@ export function DeliverableTracker<R extends TrackerRow>({
                   />
                 </PieChart>
               </ResponsiveContainer>
-              {/* aria-hidden: the same numbers are in the legend as text, and a
-                  screen reader reading the ring would say them twice. */}
+              {/* aria-hidden: the legend has the same numbers as text. */}
               <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"
@@ -173,8 +151,7 @@ export function DeliverableTracker<R extends TrackerRow>({
               <ProgressBar value={pct} className="h-2" />
             </div>
 
-            {/* The facts that make somebody act. Both conditional: a standing
-                "0 overdue" row trains people to stop reading the strip. */}
+            {/* Both conditional: a standing "0 overdue" stops being read. */}
             {(period.overdue || unassigned > 0) && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                 {period.overdue && (
@@ -194,8 +171,6 @@ export function DeliverableTracker<R extends TrackerRow>({
           </div>
         </div>
 
-        {/* The teams themselves, so the card names who is behind rather than
-            only counting units. Each row opens that team's tab. */}
         <div className="space-y-1 border-t pt-3">
           {teams.map((t) => {
             const teamPct = pctMade(t.planned, t.made)

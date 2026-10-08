@@ -26,7 +26,6 @@ const FEATURED = PLANS.RED.key
 
 const GST_PERCENT = Math.round(GST_RATE * 100)
 
-/** The four facts a buyer asks about before they ask anything else. */
 const NOTES: { icon: LucideIcon; title: string; body: ReactNode }[] = [
   {
     icon: Users,
@@ -41,8 +40,7 @@ const NOTES: { icon: LucideIcon; title: string; body: ReactNode }[] = [
   {
     icon: Receipt,
     title: "Prices exclude GST",
-    // Derived from PLANS, not typed: a worked example that disagrees with the
-    // cards above it is worse than no example at all.
+    // Derived from PLANS, so the example can't disagree with the cards.
     body: (
       <>
         Every figure above is in INR before tax. GST of {Math.round(GST_RATE * 100)}% is added at
@@ -66,11 +64,7 @@ const NOTES: { icon: LucideIcon; title: string; body: ReactNode }[] = [
   },
 ]
 
-/**
- * Listed prices exclude GST, so every PAID tier carries the rate beside the
- * figure. Free and negotiated tiers do not: "+ 18% GST" next to "Free" is
- * nonsense, and next to "Let's talk" it pre-empts a conversation.
- */
+/** Prices exclude GST, so paid tiers show the rate; free and "Let's talk" tiers don't. */
 function priceLabel(plan: Plan): { amount: string; unit: string | null; taxed: boolean } {
   if (plan.pricePerEmployee === null) return { amount: "Let's talk", unit: null, taxed: false }
   if (plan.pricePerEmployee === 0) return { amount: "Free", unit: "for 21 days", taxed: false }
@@ -81,22 +75,13 @@ function priceLabel(plan: Plan): { amount: string; unit: string | null; taxed: b
   }
 }
 
-/**
- * Pricing page.
- *
- * Reads PLANS from the tenants feature rather than restating the numbers, so
- * the page cannot advertise a price or a headcount ceiling that differs from
- * what signup provisions and what the enforcement check actually applies. A
- * marketing page quoting a limit the product does not have is a support ticket
- * waiting to happen.
- */
+/** Pricing page. Reads PLANS from the tenants feature, so it matches what signup enforces. */
 export function PricingContent() {
   return (
     <div className="relative">
       <GridBackdrop />
 
       <div className="relative mx-auto max-w-[1600px] px-4 pt-28 pb-24 sm:px-6 lg:pt-32">
-        {/* ── Header ─────────────────────────────────────────────────────── */}
         <Reveal>
           <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
@@ -110,13 +95,9 @@ export function PricingContent() {
           </span>
         </Reveal>
 
-        {/* Title left, supporting line right, both starting on the same line -
-            the same header treatment as About and Contact. */}
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-start lg:gap-16 xl:gap-24">
           <Reveal>
-            {/* Two explicit lines rather than text-balance: where this heading
-                breaks is a composition decision, not something to leave to the
-                width of the column. */}
+            {/* Two explicit lines, not text-balance - the break is a design choice. */}
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
               <span className="block">Pay for the people you</span>
               <span className="block" style={{ color: BRAND_RED }}>
@@ -132,7 +113,6 @@ export function PricingContent() {
           </Reveal>
         </div>
 
-        {/* ── Plans ──────────────────────────────────────────────────────── */}
         <div className="mt-16 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           {SHOWN.map((plan, i) => {
             const featured = plan.key === FEATURED
@@ -162,8 +142,6 @@ export function PricingContent() {
                   </p>
 
                   <div className="mt-5">
-                    {/* Baseline-aligned so the tax note sits on the price's
-                        baseline rather than its cap height. */}
                     <div className="flex flex-wrap items-baseline gap-x-2">
                       <span className="text-3xl font-bold tracking-tight">{amount}</span>
                       {taxed && (
@@ -189,8 +167,6 @@ export function PricingContent() {
                           <span className="text-muted-foreground leading-snug">{item}</span>
                         </li>
                       ))}
-                      {/* What a plan does NOT include, named rather than left to
-                          be discovered after purchase. */}
                       {plan.excludes.map((item) => (
                         <li key={item} className="flex gap-2.5 text-sm">
                           <Minus
@@ -224,11 +200,6 @@ export function PricingContent() {
           })}
         </div>
 
-        {/* ── Notes ──────────────────────────────────────────────────────────
-            Four across at lg rather than a narrow two-up card. These are short,
-            independent facts - a row of them scans in one pass, where a boxed
-            column made the reader work down it. Each carries an icon so the
-            block can be skimmed for the one that applies. */}
         <Reveal delay={120}>
           <div className="border-border/70 bg-card/40 mt-16 rounded-sm border p-6 sm:p-8 lg:p-10">
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
@@ -255,10 +226,6 @@ export function PricingContent() {
           </div>
         </Reveal>
 
-        {/* ── CTA ────────────────────────────────────────────────────────────
-            A full-width band, message left and actions right, rather than a
-            centred column adrift in the page. At this width a centred CTA reads
-            as an afterthought; a band reads as the end of an argument. */}
         <Reveal delay={180}>
           <div
             className="relative mt-8 overflow-hidden rounded-sm border p-8 sm:p-10 lg:p-12"

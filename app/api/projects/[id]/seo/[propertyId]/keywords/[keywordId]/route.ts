@@ -13,13 +13,8 @@ const patchSchema = z.object({
   notes: z.string().max(2000).nullable().optional(),
 })
 
-/**
- * Prove the property is tracked under THIS project before touching its keywords.
- * withProjectManager only validated the URL project; propertyId/keywordId are
- * client-supplied, and updateKeyword/delete scope by propertyId alone - so
- * without this a manager of project A could edit project B's keywords by pairing
- * A's id with B's propertyId. Mirrors the owned() guard in the sibling route.
- */
+// propertyId is client-supplied and the updates scope by it alone, so check it belongs to THIS
+// project (or a manager of A could edit B's keywords).
 async function propertyInProject(projectId: string, propertyId: string): Promise<boolean> {
   const owned = await db.seoProperty.findFirst({
     where: { id: propertyId, projectId },
@@ -28,7 +23,6 @@ async function propertyInProject(projectId: string, propertyId: string): Promise
   return !!owned
 }
 
-// PATCH - update a keyword's human fields (winnable / value / intent / status).
 export const PATCH = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _s: Session) => {
     const { id: projectId, propertyId, keywordId } = ctx.params
@@ -48,7 +42,6 @@ export const PATCH = withProjectManager(
   },
 )
 
-// DELETE - drop a keyword from the backlog.
 export const DELETE = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _s: Session) => {
     const { id: projectId, propertyId, keywordId } = ctx.params

@@ -1,14 +1,11 @@
 import { PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Mirrors CompanyDocumentsPage: header + upload action, a category tab bar, then
-// the document-card list (icon + name/meta + two action buttons per row).
 export default function DocumentsLoading() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeaderSkeleton withActions />
 
-      {/* Category tabs (All / Policies / Templates / Employment / Other). */}
       <div className="flex gap-1">
         {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="bg-muted h-8 w-24 animate-pulse rounded-sm" />

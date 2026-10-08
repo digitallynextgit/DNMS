@@ -9,44 +9,27 @@ import { siteConfig } from "@/lib/site"
 import { Button } from "@/components/ui/button"
 import { useMarketingSession } from "../hooks/use-marketing-session"
 
-// Real pages, not in-page anchors.
-//
-// The old nav was four homepage anchors, which silently stopped working the
-// moment there were other pages: "#faq" from /about scrolls to nothing. Every
-// entry is now a real page, so none of them depend on where you happen to be.
+// Real pages, not in-page anchors - "#faq" from /about scrolls to nothing.
 const NAV = [
   { href: "/about", label: "About us" },
   { href: "/contact", label: "Contact us" },
-  // Temporarily hidden from the nav. The /pricing page itself is still live
-  // and still linked from the footer and the sitemap - this only takes it out
-  // of the header. Uncomment to put it back.
-  // { href: "/pricing", label: "Pricing" },
+  // Pricing is hidden from the nav for now; the /pricing page is still live.
   { href: "/faq", label: "FAQ" },
 ]
 
-/** Dark/light only, wired to next-themes (the app's theme system). */
-// NOTE: the theme toggle used to live here. The marketing site is dark-only
-// now - Providers pins forcedTheme="dark" for these routes - so a control that
-// appeared to do nothing has been removed rather than left to confuse people.
-
 /**
- * Scroll-aware header: transparent over the hero, then gains a blurred
- * background + border once scrolled. Logo left, links centered (desktop),
- * theme toggle + Login on the right; a hamburger menu on mobile.
+ * Scroll-aware header: transparent over the hero, solid once scrolled; a hamburger menu on mobile.
  */
 export function MarketingHeader() {
   const ref = useRef<HTMLElement>(null)
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
 
-  // Already signed in? Send them straight to their app instead of the login page.
-  // Both button sets are rendered; `auth-member` / `auth-guest` (globals.css)
-  // pick one before first paint - see useMarketingSession.
+  // Both button sets render; CSS picks one before first paint (see useMarketingSession).
   const { appHref } = useMarketingSession()
 
   useEffect(() => {
-    // The marketing shell scrolls in its own container (globals.css pins the
-    // body), so listen to the header's scroll parent, not window.
+    // The marketing shell scrolls in its own container, so listen there, not on window.
     const scroller = ref.current?.parentElement
     if (!scroller) return
     const onScroll = () => setScrolled(scroller.scrollTop > 8)
@@ -69,15 +52,12 @@ export function MarketingHeader() {
       )}
     >
       <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-4 sm:px-6 md:grid md:grid-cols-[1fr_auto_1fr]">
-        {/* Left: logo */}
         <Link
           href="/"
           className="flex items-center gap-2 justify-self-start"
           aria-label={siteConfig.name}
         >
-          {/* Dark logo only: the marketing site is forced-dark (providers.tsx
-              forcedTheme), so the theme-swapped light twin could never show -
-              it just downloaded 17KB on every marketing page for nothing. */}
+          {/* Dark logo only - the marketing site is forced-dark. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo_dark_bg-96.webp"
@@ -89,7 +69,6 @@ export function MarketingHeader() {
           />
         </Link>
 
-        {/* Center: nav links (desktop) */}
         <nav className="hidden items-center gap-1 md:flex">
           {NAV.map((n) => (
             <a
@@ -102,13 +81,11 @@ export function MarketingHeader() {
           ))}
         </nav>
 
-        {/* Right: theme toggle + login (desktop) + hamburger (mobile) */}
         <div className="flex items-center gap-1.5 justify-self-end sm:gap-2">
           <Button asChild className="auth-member hidden md:inline-flex">
             <Link href={appHref}>Dashboard</Link>
           </Button>
-          {/* Log in is the quieter of the two: most people arriving on the
-              marketing page do not have an account yet. */}
+          {/* Quieter than the main CTA: most visitors don't have an account yet. */}
           <Button asChild variant="ghost" className="auth-guest hidden md:inline-flex">
             <Link href="/login">Log in</Link>
           </Button>
@@ -127,7 +104,6 @@ export function MarketingHeader() {
         </div>
       </div>
 
-      {/* Mobile menu panel */}
       {menuOpen && (
         <div className="border-border/60 bg-background/95 supports-[backdrop-filter]:bg-background/85 border-t backdrop-blur-xl md:hidden">
           <nav className="mx-auto flex max-w-[1600px] flex-col gap-0.5 px-4 py-3 sm:px-6">

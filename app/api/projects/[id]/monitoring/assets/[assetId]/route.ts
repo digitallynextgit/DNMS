@@ -3,8 +3,7 @@ import { respond } from "@/server/api-handler"
 import { withProjectAccess } from "@/features/projects/server/project-access"
 import { updateAsset, deleteAsset } from "@/features/monitoring/server/monitoring.service"
 
-// PATCH  /api/projects/:id/monitoring/assets/:assetId - a later expiry resets reminders
-// DELETE /api/projects/:id/monitoring/assets/:assetId
+// A later expiry resets the reminders.
 export const PATCH = withProjectAccess(async (req: NextRequest, { params }, session) =>
   respond(await updateAsset(params.id, params.assetId, await req.json(), session)),
 )

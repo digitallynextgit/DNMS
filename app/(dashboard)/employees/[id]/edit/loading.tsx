@@ -1,8 +1,6 @@
 import { PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-/** Mirrors the edit form: header + stacked section cards, each a title over a
- *  two-column field grid, so the page doesn't reflow when the form mounts. */
 function FormCardSkeleton({ fields = 6 }: { fields?: number }) {
   return (
     <div className="border-border bg-card space-y-5 rounded-sm border p-6">

@@ -1,8 +1,7 @@
 import { fileURLToPath } from "node:url"
 import { defineConfig } from "vitest/config"
 
-// Unit tests cover the PURE modules only (features/*/lib): derivation maths,
-// lifecycle tables, date rules. Nothing here touches Prisma or Next.
+// Unit tests cover pure modules only (features/*/lib) - nothing touches Prisma or Next.
 export default defineConfig({
   resolve: {
     alias: { "@": fileURLToPath(new URL("./", import.meta.url)) },

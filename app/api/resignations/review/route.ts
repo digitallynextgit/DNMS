@@ -7,7 +7,6 @@ type ReviewFilters = {
   limit?: number
 }
 
-// GET /api/resignations/review - resignations the current user may act on (paginated).
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const sp = req.nextUrl.searchParams
   const filters: ReviewFilters = {}

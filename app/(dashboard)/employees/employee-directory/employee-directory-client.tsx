@@ -52,34 +52,25 @@ export function EmployeeDirectoryClient() {
   const pathname = usePathname()
   const { can } = usePermissions()
 
-  // ── Row action state ──────────────────────────────────────────────────────
   const [hardDeleteId, setHardDeleteId] = useState<string | null>(null)
   const deactivateEmployee = useDeleteEmployee()
   const activateEmployee = useActivateEmployee()
   const hardDeleteEmployee = useHardDeleteEmployee()
 
-  // ── Bulk-selection state ──────────────────────────────────────────────────
   const queryClient = useQueryClient()
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
 
-  // ── URL-driven filters + pagination ───────────────────────────────────────
-  // The URL query string is the single source of truth: department, status,
-  // page and view all live in `?…=` params, so the view survives refresh,
-  // deep-linking, and browser back/forward. `setParams` is the only writer.
+  // The URL is the single source of truth for filters, page and view; setParams is the only writer.
   const departmentId = searchParams.get("departmentId") ?? ""
-  // Default to active employees; the URL param still wins for shared links.
-  // "All Statuses" is an explicit `?status=all` - an empty value is dropped
-  // from the URL and would fall straight back to Active.
+  // Active by default. "All Statuses" is an explicit ?status=all - empty would fall back to Active.
   const statusParam = searchParams.get("status") ?? "ACTIVE"
   const status = statusParam === "all" ? "" : statusParam
-  // Table is the default; card view is `?view=card`. Not localStorage: a
-  // remembered "card" made the page open as cards for good.
+  // Card view is ?view=card, not localStorage, so a remembered "card" can't stick for good.
   const viewMode: ViewMode = searchParams.get("view") === "card" ? "card" : "table"
   const page = Math.max(1, Number(searchParams.get("page") ?? "1"))
 
-  // The search box needs immediate local state for responsive typing; its
-  // debounced value is what gets written to the URL (and drives the query).
+  // Local state for responsive typing; the debounced value goes to the URL.
   const [search, setSearch] = useState(searchParams.get("search") ?? "")
   const debouncedSearch = useDebounce(search, 350)
 
@@ -105,8 +96,7 @@ export function EmployeeDirectoryClient() {
   const setPage = useCallback((p: number) => setParams({ page: String(p) }), [setParams])
   const setViewMode = (v: ViewMode) => setParams({ view: v })
 
-  // Push the debounced search term to the URL, resetting to page 1. Skips the
-  // initial mount so a deep-linked ?page=N isn't wiped on first render.
+  // Skips the initial mount so a deep-linked ?page=N isn't wiped on first render.
   useUpdateEffect(() => {
     setParams({ search: debouncedSearch, page: "1" })
   }, [debouncedSearch])
@@ -121,11 +111,9 @@ export function EmployeeDirectoryClient() {
 
   function handleClearFilters() {
     setSearch("")
-    // Back to the defaults, but keep the chosen view.
     router.replace(viewMode === "card" ? `${pathname}?view=card` : pathname, { scroll: false })
   }
 
-  // ── Data ──────────────────────────────────────────────────────────────────
   const { data, isLoading } = useEmployees({
     search: debouncedSearch,
     departmentId: departmentId || undefined,
@@ -137,7 +125,6 @@ export function EmployeeDirectoryClient() {
   const employees = data?.data ?? []
   const pagination = data?.pagination
 
-  // ── Row action handlers ───────────────────────────────────────────────────
   async function confirmHardDelete() {
     if (!hardDeleteId) return
     try {
@@ -148,19 +135,14 @@ export function EmployeeDirectoryClient() {
     }
   }
 
-  // ── Selection helpers ─────────────────────────────────────────────────────
   const pageIds = useMemo(() => employees.map((e) => e.id), [employees])
-  // The whole object goes to DataTable's `selection` prop (it renders the
-  // select-all + per-row checkboxes); the page only needs these four directly.
   const selection = useRowSelection<string>(pageIds)
   const { selectedIds, count, isSelected, clear } = selection
 
-  // Reset selection when filters change (different page contents).
   useEffect(() => {
     clear()
   }, [debouncedSearch, departmentId, status, page, clear])
 
-  // CSV export of the currently selected rows.
   function exportSelectedCsv() {
     const selected = employees.filter((e) => isSelected(e.id))
     if (selected.length === 0) return
@@ -179,7 +161,6 @@ export function EmployeeDirectoryClient() {
     toast.success(`Exported ${selected.length} employee${selected.length !== 1 ? "s" : ""}`)
   }
 
-  // Bulk terminate via the /api/employees/bulk-terminate endpoint.
   async function confirmBulkDelete() {
     if (count === 0) return
     setBulkBusy(true)
@@ -271,7 +252,6 @@ export function EmployeeDirectoryClient() {
         const fullName = `${emp.firstName} ${emp.lastName}`
         return (
           <div className="flex items-center justify-end gap-1">
-            {/* View profile - same destination as clicking the name. */}
             <Button
               asChild
               variant="ghost"
@@ -358,7 +338,6 @@ export function EmployeeDirectoryClient() {
         }
       />
 
-      {/* Filters + view toggle */}
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
           <EmployeeFilters
@@ -372,18 +351,12 @@ export function EmployeeDirectoryClient() {
           />
         </div>
 
-        {/* View toggle */}
         <ViewToggle value={viewMode} onChange={setViewMode} />
       </div>
 
-      {/* Loading state - card view only. The table view keeps its real <thead>
-          and draws skeleton rows inside <DataTable loading />, so it never has
-          to be swapped out for a stand-in that guesses the column count. */}
       {isLoading && viewMode === "card" && <CardGridSkeleton count={8} />}
 
-      {/* Empty state. "Add First Employee" only when there is genuinely no
-          one - with a search active, an empty result got the same CTA, which
-          read as "your company has no employees" mid-search. */}
+      {/* "Add First Employee" only when there's genuinely no one - not for an empty search result. */}
       {!isLoading && employees.length === 0 && (
         <EmptyState
           title={search ? "No employees match your search." : "No employees found."}
@@ -395,7 +368,6 @@ export function EmployeeDirectoryClient() {
         />
       )}
 
-      {/* Card View */}
       {!isLoading && employees.length > 0 && viewMode === "card" && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {employees.map((emp) => (
@@ -410,7 +382,6 @@ export function EmployeeDirectoryClient() {
         </div>
       )}
 
-      {/* Bulk action bar - visible when at least one row is selected */}
       {viewMode === "table" && (
         <BulkActionBar count={count} onClear={clear}>
           <Button className="gap-1.5" variant="outline" onClick={exportSelectedCsv}>
@@ -430,8 +401,6 @@ export function EmployeeDirectoryClient() {
         </BulkActionBar>
       )}
 
-      {/* Table View - rendered while loading too, so the header row, column
-          widths and S.No column are already on screen when the rows land. */}
       {viewMode === "table" && (isLoading || employees.length > 0) && (
         <DataTable
           columns={columns}
@@ -442,7 +411,6 @@ export function EmployeeDirectoryClient() {
           selection={selection}
           loading={isLoading}
           skeletonRows={10}
-          // Phone card: person + status, then role/department as one meta line.
           mobileCard={(emp) => (
             <Link
               href={`/employees/${employeeSlug(emp.employeeNo, emp.firstName, emp.lastName)}`}
@@ -489,7 +457,7 @@ export function EmployeeDirectoryClient() {
         />
       )}
 
-      {/* Pagination - the table view renders its own inside <DataTable />. */}
+      {/* The table view renders its own pagination. */}
       {pagination && (viewMode === "card" || employees.length === 0) && (
         <Pagination
           page={pagination.page}
@@ -500,7 +468,6 @@ export function EmployeeDirectoryClient() {
         />
       )}
 
-      {/* Hard-delete confirmation dialog */}
       <ConfirmDialog
         open={!!hardDeleteId}
         onOpenChange={(open) => !open && setHardDeleteId(null)}
@@ -512,7 +479,6 @@ export function EmployeeDirectoryClient() {
         isLoading={hardDeleteEmployee.isPending}
       />
 
-      {/* Bulk terminate confirmation dialog */}
       <ConfirmDialog
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}

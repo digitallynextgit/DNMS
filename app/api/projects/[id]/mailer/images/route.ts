@@ -10,15 +10,11 @@ import { mailerImageUrl } from "@/features/project-mailer/lib/image-url"
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
 const MAX_BYTES = 10 * 1024 * 1024
 
-// Emails render at roughly 600px; 1200 covers that at 2x DPI. Anything larger is
-// weight every single recipient downloads, on mobile data, for no visible gain.
+// Emails render at ~600px; 1200 covers that at 2x DPI.
 const MAX_DIM = 1200
 const QUALITY = 82
 
-/**
- * POST /api/projects/:id/mailer/images - upload an image for use in a template
- * or campaign body. Returns the PUBLIC url to drop into an <img src>.
- */
+// Returns the PUBLIC url to drop into an <img src>.
 export const POST = withMailerAccess(async (req: NextRequest, { params }, session) => {
   if (!(await isB2Configured())) {
     return NextResponse.json({ error: "Backblaze B2 storage is not configured." }, { status: 500 })
@@ -57,12 +53,7 @@ export const POST = withMailerAccess(async (req: NextRequest, { params }, sessio
     select: { id: true, fileName: true, size: true },
   })
 
-  // Absolute URL: a mail client has no origin to resolve "/api/..." against.
-  //
-  // APP_URL FIRST, matching every other outbound link in the app. Reading
-  // NEXTAUTH_URL first sent a real campaign with "http://localhost:3000" in the
-  // <img src> - a value that is correct on the machine composing the email and
-  // unreachable for every single person receiving it.
+  // Absolute URL, APP_URL first: mail clients can't resolve "/api/..." and NEXTAUTH_URL may be localhost.
   const origin = (await getConfig("APP_URL")) ?? process.env.NEXTAUTH_URL ?? req.nextUrl.origin
   return NextResponse.json({
     data: { ...asset, url: mailerImageUrl(origin, asset.id) },

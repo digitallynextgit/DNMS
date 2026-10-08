@@ -3,10 +3,8 @@
 import { useEffect, useRef, type DependencyList, type EffectCallback } from "react"
 
 /**
- * Like {@link useEffect}, but skips the initial mount - the callback only runs on
- * subsequent dependency changes. Use for "reset on change" effects (e.g. jumping a
- * paginated list back to page 1 when a filter/view changes) so they don't clobber a
- * deep-linked/refreshed page on first render.
+ * useEffect that skips the first mount - for "reset on change" effects (back to page 1 on a
+ * filter change) that must not clobber a deep-linked page.
  */
 export function useUpdateEffect(effect: EffectCallback, deps?: DependencyList) {
   const mounted = useRef(false)

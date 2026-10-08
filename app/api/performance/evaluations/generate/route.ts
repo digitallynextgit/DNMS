@@ -9,10 +9,7 @@ import { DEFAULT_SECTION_A_LABEL, DEFAULT_SECTION_B_LABEL } from "@/features/per
 import { buildEvaluationCriteria } from "@/features/performance/server/evaluation.service"
 import type { Session } from "next-auth"
 
-// POST /api/performance/evaluations/generate
-// Create TODAY's performance evaluation for EVERY active employee in one go, and
-// notify each employee (and their manager). Idempotent: skips anyone who already
-// has an evaluation for today's period, so clicking twice the same day is safe.
+// Idempotent: skips anyone who already has an evaluation for today's period.
 export const POST = withSession(
   async (_req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -27,10 +24,7 @@ export const POST = withSession(
         year: "numeric",
       })
 
-      // Active employees who actually HAVE a KPI profile configured - anyone
-      // without KPIs has nothing meaningful to be scored on. The KPI profile is
-      // the opt-in: an `admin` who has one (team leads who also run DNMS) is
-      // evaluated like anyone else. Only the invisible admin_ account is skipped.
+      // Only employees with a KPI profile (the opt-in); just the invisible admin_ account is skipped.
       const employees = await db.employee.findMany({
         where: {
           isActive: true,
@@ -53,7 +47,6 @@ export const POST = withSession(
           continue
         }
 
-        // Snapshot the employee's KPI/parameter profile (self + manager sides).
         const { selfCriteria, managerCriteria } = await buildEvaluationCriteria(emp.id)
         const ev = await db.evaluation.create({
           data: {

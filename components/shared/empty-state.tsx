@@ -5,7 +5,7 @@ import { Inbox } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
-/** A CTA. Provide `href` for navigation or `onClick` for an action. */
+/** `href` to navigate, or `onClick` for an action. */
 interface EmptyAction {
   label: string
   onClick?: () => void
@@ -16,16 +16,11 @@ interface EmptyStateProps {
   icon?: React.ElementType
   title: string
   description?: string
-  /** The primary CTA. */
   action?: EmptyAction
-  /**
-   * A second, outlined CTA beside the primary one - for an empty state with
-   * two genuinely different ways in (e.g. build one, or import one).
-   */
+  /** An outlined second CTA, e.g. "build one" next to "import one". */
   secondaryAction?: EmptyAction
   /** "card" wraps the empty state in the standard `bg-card` bordered panel. */
   variant?: "plain" | "card"
-  /** Tighter spacing for small in-card/sub-section empties. */
   compact?: boolean
   className?: string
 }

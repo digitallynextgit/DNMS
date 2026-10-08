@@ -29,11 +29,7 @@ export const REQUIREMENT_SELECT = {
   blockedTasks: { select: { id: true, title: true, status: true } },
 } as const
 
-/**
- * Who to tell when a requirement is raised: the person it is requested from,
- * plus the blocked team's manager so the lead knows their team is stuck. The
- * raiser is never notified about their own action.
- */
+/** Notify the person it is requested from plus the blocked team's manager - never the raiser. */
 async function audienceForNew(args: {
   requestedFromId: string
   teamId: string | null
@@ -72,8 +68,7 @@ export async function createRequirement(args: {
       title: args.title,
       details: args.details,
       neededBy: args.neededBy,
-      // Linking here rather than in a second write, so a task can never be left
-      // pointing at a requirement that failed to create.
+      // Linked in the same write so a task never points at a requirement that failed to create.
       ...(args.blockedTaskIds.length > 0
         ? { blockedTasks: { connect: args.blockedTaskIds.map((id) => ({ id })) } }
         : {}),
@@ -103,15 +98,12 @@ export async function createRequirement(args: {
     })
   }
 
-  // Email only the person who has to act; the manager copy stays in-app so the
-  // inbox does not fill with things they cannot resolve.
+  // Email only the person who has to act; the manager copy stays in-app.
   const owner = await db.employee.findUnique({
     where: { id: args.requestedFromId },
     select: { email: true, firstName: true },
   })
   if (owner && args.requestedFromId !== args.raisedById) {
-    // Same branded template as the leave/decision letters, rather than ad-hoc
-    // HTML - this lands in a client-facing person's inbox.
     const mail = renderRequirementEmail({
       recipientFirstName: owner.firstName,
       raisedByName: who,
@@ -165,8 +157,7 @@ export async function updateRequirementStatus(args: {
       },
       select: REQUIREMENT_SELECT,
     })
-    // Resolved means the work is no longer blocked. Unlinking here is what keeps
-    // "blocked" honest instead of a flag someone has to remember to clear.
+    // Resolved means no longer blocked, so unlink the tasks.
     if (resolving) {
       await tx.projectTask.updateMany({
         where: { requirementId: args.requirementId },

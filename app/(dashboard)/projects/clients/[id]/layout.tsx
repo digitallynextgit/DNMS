@@ -6,11 +6,7 @@ import { getClientTitle } from "@/features/clients/server/clients.queries"
 
 const DESCRIPTION = "A client's projects, contacts and portal access."
 
-/**
- * The tab reads the client's name, not "Client". Same shape as the project
- * layout: the page is a client component, so the name is looked up here with
- * the tenant context established.
- */
+/** The page is a client component, so the client's name for the tab is looked up here. */
 export async function generateMetadata({
   params,
 }: {

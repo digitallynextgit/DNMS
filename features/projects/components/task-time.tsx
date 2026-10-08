@@ -17,24 +17,14 @@ interface Props {
   className?: string
 }
 
-/**
- * Hours elapsed since `since`, or 0 when the clock is not running.
- *
- * The WHOLE stretch, matching what settleRunningTasks banks: a task running
- * beside others is not accruing any slower, so the live figure and the banked
- * one are the same number and nothing jumps when the clock stops.
- */
+/** Hours since `since` (0 when stopped) - the whole stretch, matching what settleRunningTasks banks. */
 function elapsedHoursSince(since: string | null | undefined): number {
   if (!since) return 0
   const ms = Date.now() - new Date(since).getTime()
   return ms > 0 ? ms / 3_600_000 : 0
 }
 
-/**
- * Re-render on a fixed beat so a running timer stays honest without a render
- * every second. 30s is under the smallest unit we display (1 minute), so the
- * number is never visibly stale.
- */
+/** Re-renders every 30s, under the smallest unit shown (1 minute). */
 function useTick(active: boolean, everyMs = 30_000) {
   const [, setTick] = useState(0)
   useEffect(() => {
@@ -44,14 +34,7 @@ function useTick(active: boolean, everyMs = 30_000) {
   }, [active, everyMs])
 }
 
-/**
- * Allocated vs actual time for one task.
- *
- * Allocated comes from the plan. Spent is measured: the clock starts when the
- * task moves to In Progress and the elapsed stretch is banked when it leaves,
- * so this shows banked time plus the stretch currently running. It turns amber
- * once spent passes allocated, which is the moment worth noticing.
- */
+/** Allocated vs spent (banked + the running stretch); amber once spent passes allocated. */
 export function TaskTime({
   estimatedHours,
   loggedHours,
@@ -95,8 +78,6 @@ export function TaskTime({
     )
   }
 
-  // "45m / 1h 31m" reads as a range, not as plan-vs-actual. Both numbers carry
-  // their own word so there is nothing to guess at.
   return (
     <div
       className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]", className)}

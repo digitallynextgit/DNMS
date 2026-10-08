@@ -4,18 +4,12 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
-// `mb-2 block` gives every field label the same gap to its input as the login
-// form. (In Tailwind v4, margin-bottom only applies to a block-level label, so
-// `block` is required for `mb-2` to take effect.) Labels used inline / beside a
-// checkbox or switch override this with `mb-0` on their own className.
+// `block` is needed for `mb-2` on a label in Tailwind v4. Inline labels (checkbox/switch) use mb-0.
 const labelVariants = cva(
   "mb-2 block text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
 )
 
-/**
- * The one red asterisk for compulsory fields. `<Label required>` renders it;
- * reach for it directly only on a label that cannot be a `<Label>`.
- */
+/** `<Label required>` renders this; use it directly only where a `<Label>` can't be used. */
 function RequiredMark() {
   return (
     <span aria-hidden="true" className="text-destructive">
@@ -29,7 +23,7 @@ const Label = React.forwardRef<
   React.ElementRef<typeof LabelPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root> &
     VariantProps<typeof labelVariants> & {
-      /** The field is compulsory: show the standard red asterisk after the text. */
+      /** Shows the red asterisk. */
       required?: boolean
     }
 >(({ className, required, children, ...props }, ref) => (

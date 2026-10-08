@@ -3,11 +3,7 @@
 import { useEffect } from "react"
 import { Button } from "@/components/ui/button"
 
-/**
- * Group-level boundary for the CLIENT portal. External clients must never be
- * dumped onto the staff-styled root boundary: this keeps the failure inside the
- * portal frame, with wording written for a customer rather than an employee.
- */
+/** Keeps a portal failure inside the portal frame, worded for a customer. */
 export default function PortalError({
   error,
   reset,

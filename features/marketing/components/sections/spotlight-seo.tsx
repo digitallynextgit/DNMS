@@ -5,8 +5,6 @@ import { SpotlightSection } from "../spotlight-section"
 
 const m = MODULES.find((x) => x.name === "SEO Suite")!
 
-/** Bespoke visual: a "Clicks" area chart trending up with a soft gradient fill,
- *  plus a keyword table with positions and green up-deltas that fills the height. */
 function SeoVisual() {
   const rows: [string, string, string][] = [
     ["seo audit tool", "3", "+5"],
@@ -17,7 +15,6 @@ function SeoVisual() {
   ]
   return (
     <div className="flex h-full flex-col gap-4">
-      {/* chart */}
       <div className="border-border bg-background rounded-sm border p-4">
         <div className="mb-3 flex items-center justify-between">
           <div>
@@ -50,7 +47,6 @@ function SeoVisual() {
         </svg>
       </div>
 
-      {/* keyword table */}
       <div className="border-border bg-background flex flex-1 flex-col rounded-sm border p-3">
         <div className="text-muted-foreground mb-2 grid grid-cols-3 items-center gap-2 text-[10px] font-medium uppercase">
           <span>Keyword</span>

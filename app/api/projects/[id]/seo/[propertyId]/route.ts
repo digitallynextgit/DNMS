@@ -24,8 +24,7 @@ const CONFIG_SELECT = {
   lastSyncError: true,
 } as const
 
-/** A property id from the URL is only valid if it really belongs to this
- *  project - otherwise one project's manager could edit another's site. */
+/** The URL's property must belong to this project, or one project's manager could edit another's site. */
 async function assertOwned(projectId: string, propertyId: string): Promise<boolean> {
   const p = await db.seoProperty.findFirst({
     where: { id: propertyId, projectId },
@@ -34,7 +33,6 @@ async function assertOwned(projectId: string, propertyId: string): Promise<boole
   return !!p
 }
 
-// PUT - update one tracked site.
 export const PUT = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     const { id: projectId, propertyId } = ctx.params
@@ -90,7 +88,6 @@ export const PUT = withProjectManager(
   },
 )
 
-// DELETE - stop tracking a site. Snapshots cascade away with it.
 export const DELETE = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     const { id: projectId, propertyId } = ctx.params

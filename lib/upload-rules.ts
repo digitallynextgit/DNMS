@@ -5,33 +5,10 @@ import {
   ALLOWED_VIDEO_EXTENSIONS,
 } from "@/lib/constants"
 
-// =============================================================================
-// "What kind of file is this, and may we take it?"
-//
-// Kept separate from where the bytes end up (lib/drive-media.ts) and from the
-// storage clients, because every upload path needs to ask these two questions
-// and they must answer the same way everywhere.
-//
-// ── WHY EXTENSIONS AS WELL AS MIME ───────────────────────────────────────────
-// `file.type` is supplied by the BROWSER and is routinely an empty string - some
-// browsers for drag-and-drop, most for files off a network share, and anything
-// posting the multipart body by hand. The original check read
-//
-//     if (file.type && !ALLOWED_FILE_TYPES.includes(file.type)) reject
-//
-// which skips the allowlist entirely the moment the type is blank: a type-less
-// .exe passed it. So a missing MIME falls back to the extension instead of
-// waiving the rule.
-// =============================================================================
+// Upload type rules, shared by every upload path. `file.type` comes from the browser and is often
+// empty, so a missing MIME falls back to the extension instead of skipping the check.
 
-/**
- * The largest file any upload path here accepts, in bytes.
- *
- * Lives beside the type rules rather than in a component so the CLIENT can
- * check it before spending minutes pushing 300 MB up an agency connection only
- * to be refused. The server's own cap in app/api/projects/[id]/resources is the
- * one that enforces it; this is the one that saves the round trip.
- */
+/** Lets the client refuse big files before uploading; the server cap (app/api/projects/[id]/resources) enforces it. */
 export const MAX_UPLOAD_MB = 250
 export const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 

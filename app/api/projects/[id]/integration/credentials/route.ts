@@ -3,9 +3,7 @@ import { withProjectManager } from "@/features/projects/server/project-access"
 import { getMetaCredentials } from "@/features/projects/server/meta-sync.service"
 import type { Session } from "next-auth"
 
-// GET /api/projects/[id]/integration/credentials
-// Returns the DECRYPTED Meta credentials to pre-fill the Edit form. Manager-only
-// (withProjectManager) - never expose these on the member-facing dashboard route.
+// Returns DECRYPTED credentials for the edit form - manager-only, never on the member-facing route.
 export const GET = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {

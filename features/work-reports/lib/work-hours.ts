@@ -1,29 +1,13 @@
-// =============================================================================
-// Hours a person actually spent on each task, per IST working day.
-//
-// The source is the task clock's IN_PROGRESS periods (TaskStatusPeriod), not
-// ProjectTask.loggedHours: loggedHours is a lifetime total with no day attached,
-// and between 19 Aug and 21 Sep 2026 it was banked as a 1/N share of parallel
-// clocks, so it cannot be split back into days. The periods can.
-//
-// Three rules turn raw periods into hours somebody would sign off on:
-//   1. Only office time counts: a period is clipped to that day's attendance
-//      window (check-in to check-out), or 09:30-19:30 IST with no usable punch.
-//   2. A clock left running past the day it started (or still running) means the
-//      status was never moved on when the work stopped. It counts on its start
-//      day only, and for no longer than the task's estimate.
-//   3. Two tasks running at once share the time between them, so a person's day
-//      can never add up to more than the hours they were there.
-// Days that are not working days for the person (weekends, holidays, full-day
-// leave) are skipped entirely - the caller decides which days those are.
-// =============================================================================
+// Hours per task per IST working day, from the task clock's IN_PROGRESS periods (loggedHours has
+// no day attached). Periods are clipped to the day's attendance window (09:30-19:30 IST without a
+// usable punch); a clock left running past its start day counts on that day only, capped at the
+// estimate; parallel tasks split the time. Non-working days are skipped (the caller picks them).
 
 export const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000
 const MS_PER_HOUR = 3_600_000
 /** A check-out this close to the check-in is a double tap, not a day's work. */
 const MIN_PUNCH_SPAN_MS = MS_PER_HOUR
 
-/** "YYYY-MM-DD" of the IST calendar day an instant falls on. */
 export function istDayKey(at: Date): string {
   return new Date(at.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10)
 }
@@ -45,11 +29,7 @@ export function defaultWindow(day: string): DayWindow {
   return { start: istInstant(day, 9, 30), end: istInstant(day, 19, 30) }
 }
 
-/**
- * The stretch of a day that counts. Both punches -> exactly that stretch. A
- * single punch (or a check-out within an hour of the check-in) keeps the punch
- * we trust and falls back to 19:30 for the end.
- */
+/** The part of a day that counts: both punches -> that stretch; one usable punch -> it to 19:30. */
 export function attendanceWindow(
   day: string,
   log: { checkIn: Date | null; checkOut: Date | null } | undefined,
@@ -87,7 +67,6 @@ export interface TaskHoursInput {
   workingDays: Set<string>
   /** Attendance window per IST day; days without one use `defaultWindow`. */
   windows: Map<string, DayWindow>
-  /** "Now", for clocks that are still running. */
   now: Date
 }
 

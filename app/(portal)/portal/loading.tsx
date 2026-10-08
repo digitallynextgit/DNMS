@@ -1,7 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Standalone project-picker landing (no app shell): mirrors the centered
-// max-w-3xl column - logo, welcome heading, then a 2-up grid of project cards.
 export default function PortalHomeLoading() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-16">

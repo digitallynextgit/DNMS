@@ -4,7 +4,6 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-/** Standard pagination metadata returned by all paginated server actions / APIs. */
 export interface PaginationMeta {
   total: number
   page: number
@@ -13,26 +12,18 @@ export interface PaginationMeta {
 }
 
 interface PaginationProps {
-  /** Current page (1-indexed). */
+  /** 1-indexed. */
   page: number
-  /** Total number of pages. */
   totalPages: number
-  /** Total number of items across all pages. */
   total: number
-  /** Called with the next page number when the user navigates. */
   onPageChange: (page: number) => void
-  /** Singular noun for the item count label, e.g. "employee". Default "item". */
+  /** Singular noun, e.g. "employee". Default "item". */
   itemLabel?: string
-  /** Hide the whole control when there is only one page. Default true. */
+  /** Default true. */
   hideOnSinglePage?: boolean
   className?: string
 }
 
-/**
- * Shared pagination control used by every paginated table/list in the app.
- * Renders a "Page X of Y · N items" summary plus Previous / numbered / Next
- * buttons. Pair it with a server action or API that returns `PaginationMeta`.
- */
 export function Pagination({
   page,
   totalPages,
@@ -56,11 +47,7 @@ export function Pagination({
         {total !== 1 ? "s" : ""}
       </p>
 
-      {/* flex-wrap + justify-center: Prev + up to 7 numbers + Next is ~364px,
-          wider than the 358px column a 390px phone gives and far wider than
-          320px. `main` is overflow-x-hidden, so without wrapping the "Next"
-          button was pushed outside the viewport with no scrollbar and no way to
-          reach it - on every paginated page in the app. */}
+      {/* Wrap, or "Next" falls off a phone screen (main is overflow-x-hidden). */}
       <div className="flex flex-wrap items-center justify-center gap-1">
         <Button
           className="gap-1"
@@ -105,10 +92,7 @@ export function Pagination({
   )
 }
 
-/**
- * Compact page-number window: always shows first & last page, the current page
- * and its neighbours, with "…" gaps. e.g. 1 … 4 [5] 6 … 20
- */
+/** First, last, current and neighbours, with gaps: 1 … 4 [5] 6 … 20 */
 function getPageWindow(page: number, totalPages: number): Array<number | "…"> {
   if (totalPages <= 7) {
     return Array.from({ length: totalPages }, (_, i) => i + 1)

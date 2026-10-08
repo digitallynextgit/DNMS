@@ -17,8 +17,6 @@ import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
 import { afterTaskPatch } from "../lib/after-task-patch"
 import { followUpConflictFrom } from "../lib/follow-up-conflict"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export interface ProjectListItem {
   id: string
   name: string
@@ -149,7 +147,6 @@ export interface ProjectActivity {
   actor: EmployeeSnippet
 }
 
-/** Re-exported so callers get the attachment shape from one place. */
 export type MessageAttachment = Attachment
 
 export interface ProjectMessage {
@@ -171,7 +168,6 @@ export interface ProjectMessage {
   reactions?: ReactionGroup[]
 }
 
-/** A chat that matched a search, plus WHICH parts of it matched. */
 export interface MessageSearchHit extends ProjectMessage {
   titleMatch: boolean
   contentMatch: boolean
@@ -194,11 +190,8 @@ export interface ProjectMessageReply {
   poll?: PollCardData | null
   event?: EventCardData | null
   contact?: ContactCardData | null
-  /** Emoji reactions, grouped per viewer by the server. */
   reactions?: ReactionGroup[]
-  /** The line this one quotes, flattened server-side whether it was the opening
-   *  post ("root") or another reply. Null when nothing was quoted, or when the
-   *  quoted line has since been deleted. */
+  /** The quoted line (opening post or reply); null if none, or since deleted. */
   replyTo?: { id: string; content: string; authorName: string; fromMe: boolean } | null
 }
 
@@ -240,14 +233,13 @@ export interface ProjectResource {
   team: { id: string; name: string } | null
   /** Set when the file came from the client portal rather than a staff member. */
   uploadedByClient?: { id: string; name: string } | null
-  /** Published to the client portal. Undefined on responses that predate it. */
+  /** Published to the client portal. */
   isClientVisible?: boolean
   /** Where a shared file stands in the client's review. */
   reviewStatus?: "IN_REVIEW" | "APPROVED" | "CHANGES_REQUESTED" | null
 }
 
-// Projects. `enabled: false` skips the fetch for callers that only render the
-// list conditionally (e.g. a task dialog whose project is already fixed).
+// `enabled: false` skips the fetch when the list is rendered conditionally.
 export function useProjects(opts?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["projects"],
@@ -268,8 +260,6 @@ export function useProject(id: string | undefined) {
     staleTime: 30_000,
   })
 }
-
-// ─── Progress ────────────────────────────────────────────────────────────────
 
 export interface ProgressBucket {
   total: number
@@ -335,13 +325,7 @@ export interface ProjectProgress {
   seoTotals: { clicks: number; clicksChange: number | null; impressions: number } | null
 }
 
-/**
- * Delivery and search progress for one project.
- *
- * `range` scopes to tasks DUE inside the window. It is part of the query key, so
- * changing the filter refetches rather than serving the previous window's
- * numbers - which is how the breakdown used to contradict the headline tiles.
- */
+/** One project's delivery + search progress. `range` (tasks DUE inside it) is part of the key. */
 export function useProjectProgress(
   projectId: string | undefined,
   range?: { from?: string | null; to?: string | null },
@@ -362,7 +346,6 @@ export function useProjectProgress(
   })
 }
 
-// Teams
 export function useProjectTeams(projectId: string | undefined) {
   return useQuery({
     queryKey: ["project-teams", projectId],
@@ -372,10 +355,8 @@ export function useProjectTeams(projectId: string | undefined) {
   })
 }
 
-// Teams are fixed (features/projects/lib/project-teams.ts): there is no create,
-// rename or delete. Staffing is the only thing that changes - see below.
+// Teams are fixed (lib/project-teams.ts); only staffing changes.
 
-// Team members
 export function useAddTeamMember(projectId: string, teamId: string) {
   const qc = useQueryClient()
   return useMutation(
@@ -392,19 +373,14 @@ export function useAddTeamMember(projectId: string, teamId: string) {
   )
 }
 
-/**
- * Add several people in one go. The API takes one employee per call, so this
- * loops - but it reports a single toast and a single invalidation, which is what
- * makes staffing a team feel like one action instead of five.
- */
+/** Add several people: one call each (the API takes one), but one toast and one invalidation. */
 export function useAddTeamMembers(projectId: string, teamId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (employeeIds: string[]) => {
       let added = 0
       const failed: string[] = []
-      // Keep the first real reason - "already on the Design team" and "forbidden"
-      // need different actions, and a bare count tells you neither.
+      // Keep the first real reason - a bare count says nothing actionable.
       let reason: string | undefined
       for (const employeeId of employeeIds) {
         try {
@@ -458,7 +434,6 @@ export function usePromoteTeamMember(projectId: string, teamId: string) {
   )
 }
 
-// Tasks
 export function useTeamTasks(projectId: string, teamId: string | undefined) {
   return useQuery({
     queryKey: ["team-tasks", projectId, teamId],
@@ -497,8 +472,7 @@ export function useUpdateTask() {
     qc.invalidateQueries({ queryKey: ["team-tasks"] })
     qc.invalidateQueries({ queryKey: ["my-tasks"] })
     qc.invalidateQueries({ queryKey: ["project-all-tasks"] })
-    // A task IS a goal's progress - finishing, linking or unlinking one moves
-    // the bar on both the project's Goals tab and the portfolio card.
+    // Task changes move goal progress (Goals tab and portfolio card).
     qc.invalidateQueries({ queryKey: ["project-goals"] })
     qc.invalidateQueries({ queryKey: ["goals-portfolio"] })
   }
@@ -520,15 +494,10 @@ export function useUpdateTask() {
       }),
     onSuccess: (data, variables) => {
       invalidate()
-      // Shared clock, "Updated", and the output prompt - one helper, so every
-      // screen that moves a task says the same three things. See
-      // lib/after-task-patch.ts.
       afterTaskPatch(data, { silent: variables.silent })
     },
     onError: (e: Error, variables) => {
-      // The server refused because this is a hold follow-up whose original has
-      // already been picked up. That is a QUESTION, not a failure - put it to
-      // the user instead of flashing an error they cannot act on.
+      // A hold follow-up whose original was picked up again: ask the user, don't show an error.
       const conflict = followUpConflictFrom(e)
       if (conflict) {
         askFollowUp({
@@ -541,8 +510,7 @@ export function useUpdateTask() {
               body: JSON.stringify({ ...variables.body, keepFollowUp: true }),
             })
             invalidate()
-            // The confirmed re-send is the same status change, so it raises the
-            // same questions - answering the follow-up must not lose the prompt.
+            // The confirmed re-send raises the same prompts.
             afterTaskPatch(kept, { silent: variables.silent })
           },
         })
@@ -564,7 +532,6 @@ export function useDeleteTask() {
   )
 }
 
-// Resources
 export function useProjectResources(
   projectId: string | undefined,
   filters?: { teamId?: string; category?: string },
@@ -610,12 +577,8 @@ export function useUploadResource(projectId: string) {
           body: fd,
         })
         if (!res.ok) {
-          // The API sends `{ error: "<message>" }` - a STRING. Reading
-          // `err.error?.message` always yielded undefined, so every failure
-          // surfaced as a bare "Upload failed" and the real cause was lost.
-          // A non-JSON body means the request never reached the app (e.g. nginx
-          // returning its own 413/504 page), so fall back to the status code -
-          // that alone says whether it was too large, timed out, or crashed.
+          // The API sends `{ error: "<message>" }` (a string). A non-JSON body means a proxy page
+          // (e.g. nginx 413/504), so fall back to the status code.
           const body = await res.json().catch(() => null)
           const msg =
             typeof body?.error === "string"
@@ -636,13 +599,7 @@ export function useUploadResource(projectId: string) {
   )
 }
 
-/**
- * Publish a project file to the client portal, or pull it back.
- *
- * The only control in the Files tab that changes who OUTSIDE the company can
- * see a file, which is why the API restricts it to project managers and audits
- * every flip. Sharing also opens the review loop; unsharing closes it.
- */
+/** Share with / unshare from the client portal (managers only, audited). Also opens/closes review. */
 export function useShareResource(projectId: string) {
   const qc = useQueryClient()
   return useMutation(
@@ -663,12 +620,7 @@ export function useShareResource(projectId: string) {
   )
 }
 
-/**
- * A staff decision on a file the CLIENT uploaded.
- *
- * The client cannot approve their own upload, so without this the file would
- * sit in "Awaiting review" with nobody able to move it.
- */
+/** Staff decision on a client upload - the client can't approve their own. */
 export function useReviewResource(projectId: string) {
   const qc = useQueryClient()
   return useMutation(
@@ -711,13 +663,7 @@ export function useDeleteResource(projectId: string) {
   )
 }
 
-/**
- * A short-lived signed URL for a stored file.
- *
- * `download` asks the server to sign it with an attachment disposition so the
- * browser SAVES it. Without that flag the same object opens inline, which is
- * the difference between the View and the Download action in the Files tab.
- */
+/** Short-lived signed URL; `download` signs it as an attachment so the browser saves it. */
 export async function getResourceDownloadUrl(
   projectId: string,
   fileId: string,
@@ -749,7 +695,6 @@ export function useUpdateResourceTag(projectId: string) {
   )
 }
 
-// All tasks for a project (used by Kanban)
 export function useProjectAllTasks(projectId: string | undefined) {
   return useQuery({
     queryKey: ["project-all-tasks", projectId],
@@ -848,7 +793,6 @@ export function useDeletePassword(projectId: string) {
   )
 }
 
-// Task Comments
 export function useTaskComments(taskId: string | undefined) {
   return useQuery({
     queryKey: ["task-comments", taskId],
@@ -884,7 +828,6 @@ export function useDeleteComment(taskId: string) {
   )
 }
 
-// Task Checklist
 export function useTaskChecklist(taskId: string | undefined) {
   return useQuery({
     queryKey: ["task-checklist", taskId],
@@ -935,11 +878,9 @@ export function useDeleteChecklistItem(taskId: string) {
   )
 }
 
-// Project Activity
 export function useProjectActivity(projectId: string | undefined, keyOnly = false) {
   return useQuery({
-    // keyOnly is part of the key: the two views are different result sets, not
-    // the same one filtered, so they must not share a cache entry.
+    // keyOnly gives a different result set, so it is part of the key.
     queryKey: ["project-activity", projectId, keyOnly],
     queryFn: () =>
       apiFetch<{ data: ProjectActivity[] }>(
@@ -950,22 +891,16 @@ export function useProjectActivity(projectId: string | undefined, keyOnly = fals
   })
 }
 
-// Project Messages
 export function useProjectMessages(projectId: string | undefined) {
   return useQuery({
     queryKey: ["project-messages", projectId],
     queryFn: () => apiFetch<{ data: ProjectMessage[] }>(`/api/projects/${projectId}/messages`),
     enabled: !!projectId,
     staleTime: 10_000,
-    // NO POLL. The only caller is messages-tab.tsx, which holds an EventSource on
-    // /api/chat/stream and invalidates THIS key on every "project-message" frame,
-    // so the list is already live - a 15s poll on top of that was a second copy of
-    // the same job, four requests a minute per open project.
+    // No poll: messages-tab.tsx's SSE stream invalidates this key on every project-message frame.
     refetchOnWindowFocus: true,
   })
 }
-
-// ── Requirements ─────────────────────────────────────────────────────────────
 
 export interface ProjectRequirement {
   id: string
@@ -1070,11 +1005,7 @@ export function useDeleteRequirement(projectId: string) {
   )
 }
 
-/**
- * Full-text search across a project's chats - subject lines, opening posts AND
- * every reply. Separate from useProjectMessages so the plain chat list keeps its
- * own cache entry and polling; this one only runs while a query is typed.
- */
+/** Full-text search across chats and replies; its own cache, only runs while a query is typed. */
 export function useProjectMessageSearch(projectId: string | undefined, q: string) {
   const query = q.trim()
   return useQuery({
@@ -1089,11 +1020,7 @@ export function useProjectMessageSearch(projectId: string | undefined, q: string
   })
 }
 
-/**
- * Employees the "Add member" picker can choose from, scoped to this project.
- * Uses the project-scoped route rather than /api/employees, which needs the
- * global `employee:read` an Account Manager typically doesn't have.
- */
+/** "Add member" picker list. Project-scoped: /api/employees needs employee:read, AMs lack it. */
 export function useAssignableEmployees(projectId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: ["project-assignable-employees", projectId],
@@ -1176,11 +1103,7 @@ export function useUnreadMessageCount(projectId: string | undefined) {
       ),
     enabled: !!projectId,
     staleTime: 10_000,
-    // 60s, not 15s. This badge is read on the project page, where the Messages
-    // tab - and therefore the SSE subscription that would invalidate this key -
-    // is usually NOT mounted, so the poll cannot be removed outright the way the
-    // two message lists' polls were. A badge may lag a minute; it need not cost
-    // four requests one.
+    // Polls (60s): the SSE subscription that would invalidate it usually isn't mounted here.
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   })
@@ -1196,8 +1119,6 @@ export function useMarkMessagesSeen(projectId: string) {
   })
 }
 
-// ─── Message thread replies ─────────────────────────────────────────────────
-
 export function useMessageReplies(projectId: string, messageId: string, enabled: boolean) {
   return useQuery({
     queryKey: ["project-message-replies", projectId, messageId],
@@ -1207,8 +1128,7 @@ export function useMessageReplies(projectId: string, messageId: string, enabled:
       ),
     enabled: enabled && !!messageId,
     staleTime: 10_000,
-    // NO POLL - same reason as useProjectMessages above: messages-tab.tsx's SSE
-    // handler invalidates this exact key when a frame arrives for this thread.
+    // No poll - the SSE handler in messages-tab.tsx invalidates this key.
     refetchOnWindowFocus: true,
   })
 }

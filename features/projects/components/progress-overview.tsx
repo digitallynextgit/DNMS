@@ -24,29 +24,11 @@ import { TASK_PRIORITY_COLORS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 import { useProjectProgress, type ProgressBucket } from "../hooks/use-projects"
 import { formatHours } from "../lib/format-hours"
 
-// =============================================================================
-// Progress at a glance, on the project Overview.
-//
-// Scoped by who is looking. A manager gets the PROJECT: overall delivery, the
-// weekly pace, and how each team is doing. Everyone else gets THEIR OWN slice of
-// it, because "the project is 60% done" is not actionable to someone who wants
-// to know what they personally still owe.
-//
-// The full breakdown lives on the Progress tab; this is the summary that makes
-// you go there.
-//
-// Charts follow the house data-viz rules: two categorical slots in fixed order
-// (never cycled), one axis per chart, recessive chrome, a legend whenever there
-// are two series, and a tooltip on every mark. Rates are null when there is
-// nothing to measure and render as a dash, never as 0%.
-// =============================================================================
-
 const AXIS = "var(--viz-axis)"
 const GRID = "var(--viz-grid)"
 const SERIES_1 = "var(--viz-1)"
 const SERIES_2 = "var(--viz-2)"
 
-/** Shared tooltip shell, so every chart's hover reads the same. */
 function TipShell({ title, rows }: { title: string; rows: { label: string; value: string }[] }) {
   return (
     <div className="bg-popover rounded-sm border p-2 text-xs shadow-md">
@@ -61,7 +43,6 @@ function TipShell({ title, rows }: { title: string; rows: { label: string; value
   )
 }
 
-/** A headline number is a stat tile, not a chart. */
 function Stat({
   label,
   value,
@@ -96,11 +77,7 @@ function Stat({
   )
 }
 
-/**
- * Status mix as a single stacked bar. These are STATUS colours, not series
- * colours, and each segment carries a labelled swatch so the state never rests
- * on hue alone.
- */
+/** Each segment has a labelled swatch, so the state never rests on hue alone. */
 function StatusMix({ b }: { b: ProgressBucket }) {
   if (b.total === 0) return null
   const seg = [
@@ -113,7 +90,6 @@ function StatusMix({ b }: { b: ProgressBucket }) {
 
   return (
     <div className="space-y-2">
-      {/* gap-0.5 is the 2px surface gap between adjacent fills. */}
       <div className="flex h-2.5 w-full gap-0.5 overflow-hidden">
         {seg.map((s) => (
           <div
@@ -157,7 +133,6 @@ export function ProgressOverview({
   const bucket: ProgressBucket | null = isAdmin ? data.summary : mine
   const heading = isAdmin ? "Project progress" : "My progress"
 
-  // Someone with no tasks here gets told that plainly rather than a wall of dashes.
   if (!bucket || bucket.total === 0) {
     return (
       <Card>
@@ -207,7 +182,6 @@ export function ProgressOverview({
           </Link>
         </div>
 
-        {/* Headline numbers */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Stat
             label="Completed"
@@ -262,8 +236,6 @@ export function ProgressOverview({
         <StatusMix b={bucket} />
 
         <div className={cn("grid gap-5", isAdmin && teams.length > 1 ? "lg:grid-cols-2" : "")}>
-          {/* Weekly pace. Two series, so a legend is mandatory. One y-axis:
-              both series are task counts, so they share a scale honestly. */}
           {hasTrend && (
             <div>
               <div className="mb-2 flex items-center justify-between">
@@ -332,8 +304,6 @@ export function ProgressOverview({
             </div>
           )}
 
-          {/* Completion by team. One series, so no legend box - the title names
-              it - and every bar is directly labelled with its own value. */}
           {isAdmin && teams.length > 1 && (
             <div>
               <p className="mb-2 text-xs font-medium">Completion by team</p>
@@ -387,7 +357,6 @@ export function ProgressOverview({
           )}
         </div>
 
-        {/* What is actually next. */}
         {upcoming.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-medium">{isAdmin ? "Due next" : "Your next tasks"}</p>

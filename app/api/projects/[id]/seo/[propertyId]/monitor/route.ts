@@ -13,7 +13,6 @@ async function owned(projectId: string, propertyId: string) {
   return db.seoProperty.findFirst({ where: { id: propertyId, projectId }, select: { id: true } })
 }
 
-// GET - the latest daily-monitor result for this site.
 export const GET = withAuth(
   PERMISSIONS.PROJECT_READ,
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
@@ -24,7 +23,6 @@ export const GET = withAuth(
   },
 )
 
-// POST - run the monitor check now (the daily cron does this automatically).
 export const POST = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _s: Session) => {
     const { id, propertyId } = ctx.params

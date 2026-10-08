@@ -16,20 +16,8 @@ import {
 } from "../schemas/client-portal.schema"
 import { generatePassword, sendCredentials } from "./client-admin.service"
 
-// =============================================================================
-// Client → Contacts (staff side)
-// =============================================================================
-// The only place portal access is managed (projects have no tab for it).
-// The CLIENT is fixed by the route guard (withClient) and a
-// grant names a project and a person. Everything checks that the person, and
-// the project, belong to that client, so this surface cannot be used to reach
-// another company's projects or people.
-//
-// A ClientUser is global - one row per email. Attaching one to a client is a
-// claim on that row, so a login that already belongs to ANOTHER client is
-// refused rather than moved. Moving a person between companies is a decision
-// for a person, not a side effect of a form.
-// =============================================================================
+// Staff side of portal access. Every check ties the person and project to this client.
+// A ClientUser is global (one per email); a login owned by another client is refused, not moved.
 
 const CONTACT_SELECT = {
   id: true,
@@ -84,12 +72,9 @@ function contactOfClient(clientId: string, contactId: string) {
   })
 }
 
-// ─── Contacts ───────────────────────────────────────────────────────────────
-
 /**
- * Give one of the client's people a portal login, optionally with a first
- * project already granted. A brand-new account gets a generated password by
- * email; an existing login is attached to the client and keeps its password.
+ * Give a client contact a portal login, optionally with a first project. A new account gets
+ * a generated password by email; an existing login keeps its password.
  */
 export async function createClientContact(
   clientId: string,
@@ -105,8 +90,7 @@ export async function createClientContact(
     })
     if (!client) return fail("Client not found", undefined, 404)
 
-    // One address with both a staff and a client account means whichever login
-    // page they happen to use decides what they can see. Refused outright.
+    // One email with both a staff and a client account is refused outright.
     const staff = await db.employee.findUnique({
       where: { email: input.email },
       select: { id: true },
@@ -152,9 +136,7 @@ export async function createClientContact(
       })
       contactId = created.id
 
-      // Platform identity (M2). If the address already belongs to somebody,
-      // provisionIdentity keeps their credential and only adds the CLIENT
-      // membership, so they keep the password they already have.
+      // An existing identity keeps its password; only the CLIENT membership is added.
       await provisionIdentity({
         email: input.email,
         name: input.name,
@@ -189,8 +171,7 @@ export async function createClientContact(
         to: input.email,
         name: input.name,
         password: issuedPassword,
-        // The invite names what they are being given access to. Without a
-        // first project that is the company itself.
+        // Without a first project, the invite names the company.
         projectName: grantProject?.name ?? client.name,
         isReset: false,
         mustChange: input.forcePasswordChange,
@@ -212,8 +193,6 @@ export async function createClientContact(
     return ok(
       serialize({
         data: contact ? withModules(contact) : null,
-        // Lets the UI say "existing login attached" rather than implying an
-        // invite went out when it did not.
         credentialsSent: !!issuedPassword,
       }),
     )
@@ -294,9 +273,6 @@ export async function resetClientContactPassword(
   })
 }
 
-// ─── Grants ─────────────────────────────────────────────────────────────────
-
-/** Give one of the client's people one of the client's projects. */
 export async function grantClientProject(
   clientId: string,
   body: unknown,
@@ -349,8 +325,7 @@ export async function updateClientGrant(
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const input = clientGrantUpdateSchema.parse(body)
-    // The grant must belong to one of THIS client's people; a grant id from
-    // another company must not resolve here.
+    // The grant must belong to one of THIS client's people.
     const existing = await db.clientProjectAccess.findFirst({
       where: { id: grantId, clientUser: { clientId } },
       select: { id: true },

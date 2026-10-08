@@ -8,20 +8,13 @@ import { createPoll, createEvent, createContact } from "@/server/message-cards"
 
 export const runtime = "nodejs"
 
-/**
- * POST /api/projects/:id/messages/:messageId/cards
- *
- * The project-side twin of the chat card route: creates a REPLY carrying the
- * poll, event or contact, so the card always has a reply to live in.
- */
+// Project-side twin of the chat card route: the card always gets a reply to live in.
 export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId, messageId } = await ctx.params
 
-      // Scope by projectId - messageId is client-supplied, so posting a card into
-      // another project's thread must be impossible (withProjectAccess only
-      // validated the URL project id).
+      // messageId is client-supplied, so scope by projectId (withProjectAccess only checked the URL project).
       const parent = await db.projectMessage.findFirst({
         where: { id: messageId, projectId },
         select: { id: true, title: true, authorId: true, replies: { select: { authorId: true } } },

@@ -8,8 +8,7 @@ export const newsletterSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
 })
 
-/** Public newsletter sign-up. Idempotent: re-subscribing an existing email is a
- *  no-op success (never leaks whether the email was already on the list). */
+/** Public newsletter sign-up. Re-subscribing silently succeeds, so it never reveals the list. */
 export async function subscribeToNewsletter(input: unknown): Promise<{ email: string }> {
   const { email } = newsletterSchema.parse(input)
   await db.newsletterSubscriber.upsert({

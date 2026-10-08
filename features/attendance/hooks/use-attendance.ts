@@ -5,8 +5,6 @@ import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export interface AttendanceEmployee {
   id: string
   firstName: string
@@ -76,8 +74,7 @@ export interface HikvisionDevice {
   ipAddress: string
   port: number
   username: string
-  // The admin password is never sent to the browser (server-only, used by the
-  // sync path). The API returns only whether one is set.
+  // The admin password is never sent to the browser; only whether one is set.
   hasPassword: boolean
   location: string | null
   isActive: boolean
@@ -134,8 +131,6 @@ export interface AttendanceCalendarMonth {
   firstPunchDate: string | null
   days: CalendarDay[]
 }
-
-// ─── Fetch helpers ─────────────────────────────────────────────────────────────
 
 async function fetchAttendanceLogs(
   filters: AttendanceFilters,
@@ -286,8 +281,6 @@ async function deleteHoliday(id: string): Promise<{ message: string }> {
   return apiFetch<{ message: string }>(`/api/attendance/holidays/${id}`, { method: "DELETE" })
 }
 
-// ─── Directory (one row per employee for a date range) ──────────────────────────
-
 export interface AttendanceDirectoryRow {
   employeeId: string
   firstName: string
@@ -333,8 +326,6 @@ export function useAttendanceDirectory(from: string, to: string) {
     enabled: !!from && !!to,
   })
 }
-
-// ─── Hooks ─────────────────────────────────────────────────────────────────────
 
 export function useAttendanceLogs(filters: AttendanceFilters = {}) {
   return useQuery({
@@ -385,7 +376,7 @@ export function useMyAttendanceCalendar(year: number, month: number) {
   })
 }
 
-// HR: a specific employee's calendar (opened from the attendance directory).
+// HR: one employee's calendar (opened from the attendance directory).
 async function fetchEmployeeCalendar(
   employeeId: string,
   year: number,

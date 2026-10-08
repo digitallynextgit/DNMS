@@ -1,7 +1,6 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Link } from "@/components/tenant-link"
 import {
   HardDrive,
   Files,
@@ -86,7 +85,6 @@ const CATEGORY_META: Record<StorageCategory, { icon: React.ElementType; tint: st
   other: { icon: Folder, tint: "bg-muted text-muted-foreground" },
 }
 
-// The "Referenced / Orphaned" pill maps.
 const STATUS_COLORS: Record<string, string> = { LIVE: TONE.green, ORPHAN: TONE.amber }
 const STATUS_LABELS: Record<string, string> = { LIVE: "In use", ORPHAN: "Orphaned" }
 
@@ -111,11 +109,10 @@ export function StorageManager({
   const [cleanupOpen, setCleanupOpen] = useState(false)
   const [page, setPage] = useState(1)
 
-  // A bucket can hold thousands of objects; rendering every row is what makes a
-  // large bucket feel slow AFTER the data has already arrived.
+  // Paginated: rendering every row of a large bucket is slow even after the data arrives.
   const PAGE_SIZE = 25
 
-  const files = data?.files ?? []
+  const files = useMemo(() => data?.files ?? [], [data])
   const q = search.trim().toLowerCase()
   const rows = useMemo(
     () =>
@@ -244,7 +241,6 @@ export function StorageManager({
         }
       />
 
-      {/* Usage gauge */}
       <div className="bg-card rounded-sm border p-5">
         <div className="mb-2 flex items-end justify-between">
           <div>
@@ -264,7 +260,6 @@ export function StorageManager({
         <Progress value={usedPct} />
       </div>
 
-      {/* Stat cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
           title="Total Files"
@@ -289,7 +284,6 @@ export function StorageManager({
         />
       </div>
 
-      {/* Category folders (drive-style, click to filter) */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <FolderCard
           label="All files"
@@ -316,7 +310,6 @@ export function StorageManager({
         ))}
       </div>
 
-      {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput
           value={search}
@@ -336,7 +329,6 @@ export function StorageManager({
         />
       </div>
 
-      {/* Files */}
       {isLoading || rows.length > 0 ? (
         <>
           <DataTable
@@ -359,25 +351,31 @@ export function StorageManager({
         <EmptyState variant="card" icon={Files} title="No files match this view." />
       )}
 
-      {/* Single delete */}
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title={deleteTarget?.referenced ? "Delete this file?" : "Delete orphaned file?"}
+        title={
+          deleteTarget?.refType === "applicant-resume"
+            ? `Delete ${deleteTarget.owner ?? "this applicant"}'s CV?`
+            : deleteTarget?.referenced
+              ? "Delete this file?"
+              : "Delete orphaned file?"
+        }
         description={
-          deleteTarget?.referenced
-            ? `"${deleteTarget?.name}" is in use (${deleteTarget?.owner ?? "linked"}). Deleting it removes the file AND its record from the app. This cannot be undone.`
-            : `"${deleteTarget?.name}" is not referenced anywhere. Deleting it just frees the storage. This cannot be undone.`
+          deleteTarget?.refType === "applicant-resume"
+            ? `This is the CV ${deleteTarget.owner ?? "an applicant"} sent with their job application. Deleting it removes the CV from their application in Recruitment - nobody will be able to open it again. Only delete it if you're sure. This cannot be undone.`
+            : deleteTarget?.referenced
+              ? `"${deleteTarget?.name}" is in use (${deleteTarget?.owner ?? "linked"}). Deleting it removes the file AND its record from the app. This cannot be undone.`
+              : `"${deleteTarget?.name}" is not referenced anywhere. Deleting it just frees the storage. This cannot be undone.`
         }
         variant="destructive"
-        confirmLabel="Delete"
+        confirmLabel={deleteTarget?.refType === "applicant-resume" ? "Yes, delete CV" : "Delete"}
         isLoading={del.isPending}
         onConfirm={() =>
           deleteTarget && del.mutate(deleteTarget.key, { onSuccess: () => setDeleteTarget(null) })
         }
       />
 
-      {/* Bulk orphan cleanup */}
       <ConfirmDialog
         open={cleanupOpen}
         onOpenChange={setCleanupOpen}

@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api-fetch"
 import type { PaginationMeta } from "@/components/shared/pagination"
 import type { ClientModuleKey } from "@/features/client-portal"
 
-// ─── Types (mirror features/clients/server/clients.queries.ts) ───────────────
+// Types mirror features/clients/server/clients.queries.ts.
 
 export interface ClientPerson {
   id: string
@@ -111,9 +111,7 @@ export interface ClientListParams {
   limit?: number
 }
 
-// ─── Keys ────────────────────────────────────────────────────────────────────
-// ["client", ref] is a prefix for the detail AND its activity pages, so one
-// invalidation after a mutation on any tab refreshes both.
+// ["client", ref] prefixes the detail and its activity, so one invalidation refreshes both.
 
 export const clientKeys = {
   all: ["clients"] as const,
@@ -131,9 +129,7 @@ function query(params: object): string {
   return str ? `?${str}` : ""
 }
 
-// ─── Queries ─────────────────────────────────────────────────────────────────
-// Envelope: withAuth → respond() wraps the service payload under `data`, so a
-// paginated list arrives as res.data.data + res.data.pagination.
+// respond() wraps payloads in `data`: lists arrive as res.data.data + res.data.pagination.
 
 export function useClients(params: ClientListParams = {}, opts: { enabled?: boolean } = {}) {
   return useQuery({

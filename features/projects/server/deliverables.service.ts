@@ -26,58 +26,19 @@ import {
   type RepeatEvery,
 } from "../lib/deliverable-lifecycle"
 
-// =============================================================================
-// Logging what was produced.
-//
-// Tasks record what people are doing and hours record how long it took. This is
-// the third column - what came out - and it is the one a client is paying for.
-// One row per thing (or batch: `quantity`), dated by the day it was finished.
-//
-// ── WHO MAY LOG FOR WHOM ─────────────────────────────────────────────────────
-// Anyone on a project logs their own output. Logging on somebody ELSE's behalf,
-// or editing somebody else's entry, is for the people who run the work: a
-// project admin, the account manager, or the manager of that person's team on
-// the project. A member edits their own entries without limit - the entry is
-// their claim about their own work, and the manager can always see who wrote it
-// (`loggedById`) and when.
-//
-// ── THE TEAM IS STAMPED, NOT CHOSEN ──────────────────────────────────────────
-// A person is on at most one team per project (enforced by the schema), so the
-// entry takes that team at logging time. Stamped rather than looked up later so
-// a team change or dissolution does not rewrite what was reported for last
-// month.
-//
-// ── A ROW HAS A LIFE, NOT JUST A DATE ────────────────────────────────────────
-// A row can also be a PROMISE (PLANNED - "three reels by Friday") that later
-// becomes a thing, and once delivered it can be accepted or sent back. Which
-// moves are legal, and who may make them, live in ../lib/deliverable-lifecycle
-// so the buttons and this file cannot disagree. Every write here appends a
-// ProjectDeliverableEvent: the ledger is what gets reported on, so how a number
-// changed has to be answerable months later.
-//
-// ── THE PERIOD LOCK ──────────────────────────────────────────────────────────
-// A member may correct their own entry for LOCK_DAYS after the day it counts
-// for. After that the period has been reported on and a quiet edit rewrites a
-// number somebody already sent a client - so it takes a project manager, and it
-// is written to the history as LOCKED_EDIT rather than a plain EDITED.
-// =============================================================================
+// Logging what was produced. Members log/edit their own output; logging for someone else needs a
+// project admin, the account manager or that person's team manager. The team is stamped at logging
+// time. Every write appends a ProjectDeliverableEvent; past LOCK_DAYS only a PM may edit.
 
 export interface DeliverableInput {
-  /**
-   * Who will make it. Omit it on an owed row to leave it to the team - the
-   * account manager commits the team, the team manager puts a name to it.
-   * Required the moment anything is actually delivered.
-   */
+  /** Who will make it. Omit on an owed row to leave it to the team; required once delivered. */
   employeeId?: string | null
   /** Which team owes it. Required when there is no employee. */
   teamId?: string | null
   type: string
   title: string
   quantity?: number
-  /**
-   * How many of `quantity` are actually made. Moves on its own as the work
-   * lands, so the status does not have to lie about a half-finished row.
-   */
+  /** How many of `quantity` are made - moves as work lands, so the status needn't lie. */
   deliveredQuantity?: number
   /** PLANNED / IN_PROGRESS / DELIVERED at create; anything at update. */
   status?: DeliverableStatus
@@ -90,10 +51,7 @@ export interface DeliverableInput {
   links?: string[]
   notes?: string | null
   taskId?: string | null
-  /**
-   * Lay the same commitment down every week (or month) from `dueOn`.
-   * Owed work only - you cannot retroactively have made a thing twelve times.
-   */
+  /** Repeat the commitment weekly/monthly from `dueOn`. Owed work only. */
   repeat?: { every: RepeatEvery; count: number } | null
 }
 
@@ -104,11 +62,7 @@ export interface StatusChangeInput {
   note?: string | null
 }
 
-/**
- * One PATCH can carry both the form's fields and a move, so it also carries the
- * two things a move can need: the `reason` a rejection or un-acceptance must
- * give, and the optional acceptance `note`.
- */
+/** A PATCH may carry fields and a move together, so it also carries the move's `reason` / `note`. */
 export interface DeliverableUpdateInput extends Partial<DeliverableInput> {
   reason?: string | null
   note?: string | null
@@ -126,26 +80,14 @@ function parseDay(value: string | null | undefined, label: string): Date | null 
   return d
 }
 
-/**
- * The upper bound for a date somebody says has already happened.
- *
- * Not plain UTC-today: a date picker is LOCAL, and after 18:30 UTC a person in
- * Kolkata (or all day in Auckland) legitimately picks a day that UTC has not
- * reached. See latestCalendarDay.
- */
+/** Not after the user's LOCAL today (see latestCalendarDay) - pickers are local, not UTC. */
 function assertNotFuture(d: Date | null, label: string): void {
   if (d && d > latestCalendarDay()) {
     throw new ValidationError(`The ${label} date cannot be in the future.`)
   }
 }
 
-/**
- * Snap a typed type onto the casing the project already uses, if any.
- *
- * "reel" typed onto a project that already has "Reel" is stored as "Reel", so
- * the by-type count has one row, not two. A genuinely new type is stored as
- * typed - a team's own spelling is the right spelling.
- */
+/** Snap a typed type onto the project's casing ("reel" -> "Reel"); new types stay as typed. */
 async function canonicalType(projectId: string, raw: string): Promise<string> {
   const cleaned = cleanType(raw)
   if (!cleaned)
@@ -170,13 +112,7 @@ function normaliseLinks(raw: unknown): string[] {
   return cleaned.slice(0, MAX_LINKS)
 }
 
-/**
- * How much of the promise is made.
- *
- * Clamped rather than rejected at the top: the promise can be edited down
- * after work was logged against it, and refusing that edit would be a worse
- * answer than quietly capping a number nobody typed.
- */
+/** Clamped, not rejected: the promise may be edited down after work was logged. */
 function normaliseDeliveredQuantity(raw: unknown, promised: number): number {
   if (raw === undefined || raw === null || raw === "") return 0
   const n = Number(raw)
@@ -187,23 +123,8 @@ function normaliseDeliveredQuantity(raw: unknown, promised: number): number {
 }
 
 /**
- * You cannot call four blogs delivered having made one.
- *
- * The maker is held to the promise; a project manager is not, because closing
- * a period out on three of four is a real decision somebody has to be able to
- * make, and the history records who made it.
- */
-/**
- * Delivered means somebody can SEE what was made.
- *
- * Checked against what the request leaves behind, not only what is stored:
- * the log-work save and a status move can arrive together, and a gate that
- * read stale columns would refuse the very request that satisfies it.
- *
- * No exemption for the account manager here, unlike the quantity gate below.
- * Closing a period out early is a judgement call they are entitled to make;
- * declaring work delivered with no record of it is not a judgement, it is a
- * gap in the trail the client is eventually shown.
+ * Delivered needs proof (link, file or note), checked against what this request leaves behind.
+ * No account-manager exemption: delivered with no record is a gap the client will see.
  */
 function assertLogged(
   existing: { links: string[]; notes: string | null; _count: { files: number } },
@@ -221,6 +142,7 @@ function assertLogged(
   }
 }
 
+/** The maker must log every promised unit before DELIVERED; a PM may close a row out early. */
 function assertFullyMade(
   existing: { quantity: number; deliveredQuantity: number },
   input: DeliverableUpdateInput,
@@ -266,7 +188,6 @@ async function teamOf(projectId: string, employeeId: string): Promise<string | n
   return m?.teamId ?? null
 }
 
-/** Does this person manage the team `employeeId` sits on for this project? */
 async function managesTeamOf(session: Session, projectId: string, employeeId: string) {
   const team = await db.projectTeam.findFirst({
     where: {
@@ -279,8 +200,7 @@ async function managesTeamOf(session: Session, projectId: string, employeeId: st
   return !!team
 }
 
-/** Does this person manage THIS team? Used for rows owed by a team, which have
- *  no member to look the team up through. */
+/** For team-owed rows, which have no member to look the team up through. */
 async function managesTeam(session: Session, projectId: string, teamId: string) {
   const team = await db.projectTeam.findFirst({
     where: { id: teamId, projectId, managerId: session.user.id },
@@ -289,7 +209,6 @@ async function managesTeam(session: Session, projectId: string, teamId: string) 
   return !!team
 }
 
-/** Is this person ON that team, for this project? */
 async function isOnTeam(session: Session, projectId: string, teamId: string) {
   const m = await db.projectTeamMember.findFirst({
     where: { projectId, teamId, employeeId: session.user.id },
@@ -298,11 +217,7 @@ async function isOnTeam(session: Session, projectId: string, teamId: string) {
   return !!m
 }
 
-/**
- * Whose row is this, as far as permissions go: the assignee when there is one,
- * otherwise the team that owes it. Every check below reads this shape so an
- * unassigned row is never mistaken for an unowned one.
- */
+/** Row owner for permissions: the assignee, else the team that owes it (unassigned != unowned). */
 export interface DeliverableOwner {
   employeeId: string | null
   teamId: string | null
@@ -319,11 +234,7 @@ async function managesOwner(
   return !!owner.teamId && managesTeam(session, projectId, owner.teamId)
 }
 
-/**
- * May `session` log output on behalf of `employeeId` for this project?
- * Yourself: any member. Someone else: admin, account manager, or their team's
- * manager.
- */
+/** Log for `employeeId`? Self: any member. Others: admin, AM, or their team's manager. */
 export async function canLogFor(
   session: Session,
   projectId: string,
@@ -337,7 +248,6 @@ export async function canLogFor(
 /** How many lines one plan may carry. A week of work, not a year of it. */
 const MAX_PLAN_LINES = 60
 
-/** May `session` change or remove this entry? */
 export async function canEditDeliverable(
   session: Session,
   d: DeliverableOwner & { projectId: string },
@@ -347,13 +257,7 @@ export async function canEditDeliverable(
   return managesOwner(session, d.projectId, d)
 }
 
-/**
- * The caller's standing on ONE row, resolved once per request.
- *
- * Everything downstream - which transitions are legal, whether the period lock
- * applies - asks this instead of re-running the same three permission queries
- * per question.
- */
+/** The caller's standing on ONE row, resolved once per request. */
 export async function resolveActor(
   session: Session,
   projectId: string,
@@ -367,8 +271,7 @@ export async function resolveActor(
   ) {
     return "maker"
   }
-  // Nobody has picked it up yet: anyone on the team that owes it stands where
-  // the maker would, so they can claim it and get on with it.
+  // Unclaimed: anyone on the owing team stands as the maker, so they can claim it.
   if (!owner.employeeId && owner.teamId && (await isOnTeam(session, projectId, owner.teamId))) {
     return "maker"
   }
@@ -429,14 +332,7 @@ interface TransitionResult {
   completedOn: Date | null
 }
 
-/**
- * What a legal move DOES to the row, on top of the status itself.
- *
- * Redelivery is the interesting one: the row keeps its identity and its history
- * but takes the NEW completion date, because the ledger's question is "when did
- * the client get this", not "when did we first try". The overwritten date is
- * kept in the event's `changes` so the first attempt is not lost.
- */
+/** Side effects of a move. A redelivery takes the NEW date; the old one is kept in the event. */
 function transitionEffects(
   existing: {
     status: DeliverableStatus
@@ -469,11 +365,7 @@ function transitionEffects(
     if (existing.status === "REJECTED") data.revisionCount = { increment: 1 }
   }
 
-  // Sent back: the manager's check goes with it.
-  //
-  // A stage-one check belongs to ONE delivery, not to the row. Left standing,
-  // a redelivered item would still read "checked by X" for a version X never
-  // saw, and the account manager would be accepting on the strength of it.
+  // Sent back: clear the stage-one check - it belonged to that delivery, not the row.
   if (to === "REJECTED") {
     data.verifiedAt = null
     data.verifiedById = null
@@ -486,9 +378,7 @@ function transitionEffects(
     data.acceptanceNote = null
   }
 
-  // Nobody had picked it up and now it exists: whoever moved it made it.
-  // Without this the CHECK constraint would reject a made row with no maker,
-  // and rightly so - "delivered by nobody" is not a fact about the world.
+  // Unclaimed work just made: whoever moved it made it (a made row needs a maker).
   if (!existing.employeeId && isMadeStatus(to)) {
     data.employeeId = opts.actorId
     changes.employeeId = [null, opts.actorId]
@@ -533,8 +423,6 @@ async function assertTaskInProject(projectId: string, taskId: string): Promise<v
   if (!task) throw new NotFoundError("Task")
 }
 
-// ─── Create ───────────────────────────────────────────────────────────────────
-
 export async function createDeliverable(
   session: Session,
   projectId: string,
@@ -545,9 +433,7 @@ export async function createDeliverable(
     throw new ValidationError("A new entry starts as owed, in progress, or delivered.")
   }
 
-  // "Nobody yet" is only spellable by passing employeeId: null EXPLICITLY, and
-  // only for owed work. Leaving the field out still means "me", so every
-  // existing caller keeps logging its own output.
+  // Only an explicit employeeId: null means "nobody yet" (owed work only); omitted still means "me".
   const unassigned = input.employeeId === null
   if (unassigned && !isOpenStatus(status)) {
     throw new ValidationError("Something that has been made needs a maker.")
@@ -569,8 +455,7 @@ export async function createDeliverable(
   }
 
   const actor = await resolveActor(session, projectId, { employeeId, teamId: explicitTeam })
-  // Planning is a commitment made ON somebody's behalf, so it belongs to the
-  // people who own the schedule, not to whoever will do the work.
+  // Planning commits someone else's time, so it belongs to whoever owns the schedule.
   if (isOpenStatus(status) && actor !== "project_manager" && actor !== "team_manager") {
     throw new ForbiddenError("Only a project manager or the team's manager can plan work.")
   }
@@ -595,8 +480,7 @@ export async function createDeliverable(
   if (input.taskId) await assertTaskInProject(projectId, input.taskId)
   if (input.goalId) await assertGoalInProject(projectId, input.goalId)
 
-  // An explicit team wins: it is the team that was ASKED, and it stays
-  // accountable even after a member of another team ends up doing the work.
+  // An explicit team wins: the team that was ASKED stays accountable.
   const [type, memberTeam] = await Promise.all([
     canonicalType(projectId, input.type ?? ""),
     employeeId ? teamOf(projectId, employeeId) : Promise.resolve(null),
@@ -605,9 +489,6 @@ export async function createDeliverable(
   const quantity = normaliseQuantity(input.quantity)
   const taskId = input.taskId || null
 
-  // "Three reels a week until December" is one commitment to make and twelve
-  // rows to keep - each editable on its own, which is the point of writing
-  // them down rather than deriving them.
   const repeat = input.repeat ?? null
   if (repeat) {
     if (!isOpenStatus(status)) {
@@ -689,8 +570,6 @@ export async function createDeliverable(
   return { id: created.row.id, created: created.count }
 }
 
-// ─── Edit ─────────────────────────────────────────────────────────────────────
-
 const EDIT_SELECT = {
   id: true,
   projectId: true,
@@ -709,18 +588,11 @@ const EDIT_SELECT = {
   dueOn: true,
   links: true,
   notes: true,
-  // For the Delivered gate: an item cannot be declared made with nothing
-  // to show for it, and a file is the one proof that does not live on the row.
+  // For the Delivered gate: files are the one proof not on the row.
   _count: { select: { files: true } },
 } satisfies Prisma.ProjectDeliverableSelect
 
-/**
- * Edit the entry, and optionally move it, in ONE write.
- *
- * The form submits both at once ("fix the title and mark it delivered"), so
- * splitting them into two requests would leave a half-applied row on a failure.
- * They land as one transaction and two events: what changed, and where it went.
- */
+/** Edit and optionally move the entry in ONE transaction (two events), so nothing half-applies. */
 export async function updateDeliverable(
   session: Session,
   projectId: string,
@@ -766,9 +638,7 @@ export async function updateDeliverable(
     if (noteChange(changes, "quantity", existing.quantity, q)) data.quantity = q
   }
 
-  // How much of it is actually made. Editing the promise down below what has
-  // already been logged is a legitimate correction ("it was only ever 2"), so
-  // the progress follows the promise rather than blocking the edit.
+  // Progress follows the promise when it is edited down ("it was only ever 2").
   const promised = (data.quantity as number | undefined) ?? existing.quantity
   if (input.deliveredQuantity !== undefined) {
     const made = normaliseDeliveredQuantity(input.deliveredQuantity, promised)
@@ -826,9 +696,7 @@ export async function updateDeliverable(
     if (noteChange(changes, "goalId", existing.goalId, g)) data.goalId = g
   }
 
-  // Putting a name to the work, taking it off someone, or moving it between
-  // people. The team it was ASKED of does not move with the assignee: the
-  // account manager committed that team, and it stays accountable.
+  // Reassigning doesn't move the team it was asked of - that team stays accountable.
   if (input.employeeId !== undefined && input.employeeId !== existing.employeeId) {
     const nextEmployee = input.employeeId
     if (nextEmployee === null) {
@@ -847,9 +715,7 @@ export async function updateDeliverable(
       if (!(await canLogFor(session, projectId, nextEmployee))) {
         throw new ForbiddenError("You cannot move this entry to that person.")
       }
-      // Claiming unowned work is open to the team that owes it; handing it to
-      // someone else is a manager's call. resolveActor already made a member
-      // of the owed team a "maker", so this reads the same either way.
+      // Claiming is open to the owing team (resolveActor made them makers); reassigning isn't.
       if (actor === "none") throw new ForbiddenError("This is not yours to assign.")
       noteChange(changes, "employeeId", existing.employeeId, nextEmployee)
       data.employeeId = nextEmployee
@@ -871,9 +737,7 @@ export async function updateDeliverable(
       )
     : null
 
-  // A row that is delivered is fully delivered. This is what keeps the number
-  // honest after a project manager closes one out early - without it the row
-  // would sit at ACCEPTED still claiming three of four were missing.
+  // Made means fully made - keeps the number honest after a PM closes a row out early.
   if (nextStatus && isMadeStatus(nextStatus)) {
     const promisedNow = (data.quantity as number | undefined) ?? existing.quantity
     if (existing.deliveredQuantity !== promisedNow) {
@@ -888,9 +752,7 @@ export async function updateDeliverable(
     throw new ValidationError("When was it completed?")
   }
 
-  // The lock guards the period a row COUNTS FOR, on both sides of the edit. A
-  // redelivery is exempt on the old date: the whole point of it is that the old
-  // date no longer applies.
+  // The lock guards the period a row counts for, both sides; a redelivery is exempt on the old date.
   const guarded: (Date | null)[] =
     nextStatus === "DELIVERED" && existing.status === "REJECTED"
       ? [transition?.completedOn ?? null]
@@ -961,15 +823,7 @@ export async function updateDeliverable(
   }
 }
 
-// ─── Move ─────────────────────────────────────────────────────────────────────
-
-/**
- * Move one row along its life: start it, deliver it, accept it, send it back.
- *
- * Separate from `updateDeliverable` because the row actions are one click each
- * and carry their own small payload (a reason, a redelivery date) rather than
- * the whole form.
- */
+/** One-click row moves (start, deliver, accept, send back), separate from the full-form update. */
 export async function setDeliverableStatus(
   session: Session,
   projectId: string,
@@ -1019,8 +873,7 @@ export async function setDeliverableStatus(
     today,
   )
 
-  // A redelivery is judged on the date it is being given, not the one it is
-  // replacing - the old date is exactly what the move is undoing.
+  // A redelivery is judged on its new date, not the one it replaces.
   const guarded: (Date | null)[] =
     existing.status === "REJECTED" && to === "DELIVERED"
       ? [transition.completedOn]
@@ -1053,25 +906,9 @@ export async function setDeliverableStatus(
   })
 }
 
-// ─── Verify ───────────────────────────────────────────────────────────────────
-
 /**
- * Internal QC sign-off: a manager says they have looked at it.
- *
- * Distinct from ACCEPTED, which is the client's verdict recorded by staff. This
- * one is ours, and only the people who answer for the work may set it - a maker
- * verifying their own output would say nothing.
- */
-/**
- * May this person sign off stage one?
- *
- * The team's manager checks their team's work. The exception is the case that
- * breaks it: when the team manager IS the maker, there is nobody above them on
- * that team, so it falls to the maker's own line manager. Without that, a team
- * manager's own items could only ever be checked by the account manager.
- *
- * NOBODY CHECKS THEIR OWN WORK - that is the rule the whole stage exists for,
- * and it holds even for a team manager looking at an item they made.
+ * May this person sign off stage one (internal QC)? The team's manager - or, when they made it
+ * themselves, the maker's line manager. Nobody checks their own work.
  */
 async function canVerify(
   session: Session,
@@ -1154,16 +991,9 @@ export async function verifyDeliverable(
   })
 }
 
-// ─── Delete ───────────────────────────────────────────────────────────────────
-
 /**
- * Remove the entry. Its files stay on the project (the FK is SET NULL): a wrong
- * log line must not destroy real work product. They remain on the Files tab
- * under Deliverables, where they can be deleted deliberately.
- *
- * An ACCEPTED row is a recorded verdict, so removing it is a project manager's
- * call alone; a made row obeys the period lock like any other edit; an owed row
- * is just a plan and whoever may touch it may drop it.
+ * Remove the entry; its files stay on the project (FK SET NULL). ACCEPTED rows are PM-only, made
+ * rows obey the period lock, owed rows are just plans.
  */
 export async function deleteDeliverable(
   session: Session,
@@ -1207,20 +1037,9 @@ export async function deleteDeliverable(
   })
 }
 
-// ─── Starting owed work ───────────────────────────────────────────────────────
-
 /**
- * Turn an owed row into work somebody is actually doing.
- *
- * One action, because it is one decision: the person claims the row if nobody
- * had it, it moves to IN_PROGRESS, and a task appears on their list linked back
- * to it. When they finish that task the existing capture prompt opens THIS row
- * to record what came out, so the loop from commitment to evidence closes
- * without anybody having to remember the connection.
- *
- * This is also the one place a plain member may raise a PROJECT task, and the
- * reason is narrow: the work was already committed to them or to their team,
- * so the task is only how they track doing it - not new scope.
+ * Start owed work: claim it if unowned, move it to IN_PROGRESS and create a linked task, so finishing
+ * the task prompts for this row's output. The one place a plain member may raise a project task.
  */
 export async function startDeliverable(
   session: Session,
@@ -1256,8 +1075,7 @@ export async function startDeliverable(
   const actor = await resolveActor(session, projectId, existing)
   if (actor === "none") throw new ForbiddenError("This is not yours to start.")
 
-  // A manager starting somebody else's row does not steal it; only unowned
-  // work changes hands, and it changes hands to whoever picked it up.
+  // Only unowned work changes hands - a manager starting someone's row doesn't steal it.
   const claimed = !existing.employeeId
   const ownerId = existing.employeeId ?? session.user.id
   const today = todayUtc()
@@ -1273,8 +1091,7 @@ export async function startDeliverable(
         creatorId: session.user.id,
         dueDate: existing.dueOn,
         goalId: existing.goalId,
-        // It exists to produce this exact deliverable, so the completion
-        // prompt must fire - whatever the team's usual default is.
+        // It exists to produce this deliverable, so the completion prompt must fire.
         producesOutput: true,
         isManagerCreated: ownerId !== session.user.id,
       },
@@ -1325,8 +1142,6 @@ export async function startDeliverable(
   return { taskId, claimed }
 }
 
-// ─── Planning a period, team by team ──────────────────────────────────────────
-
 /** One line of a plan: what a team owes, and how many. */
 export interface PlanLine {
   teamId: string
@@ -1346,26 +1161,13 @@ export interface PlanInput {
   lines: PlanLine[]
 }
 
-/**
- * Commit a period's work in one go.
- *
- * The account manager's real question is "what does this week look like", and
- * the answer is several teams' worth of rows at once. Creating them one dialog
- * at a time made that a chore, and a half-entered week is worse than an empty
- * one - so this is a single transaction: the whole period lands, or none of it.
- *
- * Rows come out UNASSIGNED by default, owed by their team, which is what lets
- * the team manager put names to them afterwards.
- */
+/** Commit a period's work across teams in one transaction. Rows start unassigned, owed by the team. */
 export async function planDeliverables(
   session: Session,
   projectId: string,
   input: PlanInput,
 ): Promise<{ created: number }> {
-  // The ACCOUNT MANAGER only. Planning a period is a promise made to the
-  // client across every team on the project, which is a different act from a
-  // team manager scheduling their own team - and the button is drawn by the
-  // same rule, so neither can offer what the other refuses.
+  // Account manager only: a period plan is a promise to the client across every team.
   if (!(await canManageProject(session, projectId))) {
     throw new ForbiddenError("Only the account manager can plan a period of work.")
   }
@@ -1374,11 +1176,6 @@ export async function planDeliverables(
   const end = parseDay(input.periodEnd, "Period end")
   if (!start || !end) throw new ValidationError("A plan needs a period to cover.")
 
-  // Any range, bounded only by sanity. This used to insist on exactly one
-  // working week, which suited a weekly retainer and had no way to express a
-  // campaign running "twenty assets between the 8th and the 23rd". The wizard
-  // still offers weeks first, so the habitual path is unchanged; what went is
-  // the refusal, not the default.
   const problem = periodProblem(start, end)
   if (problem) throw new ValidationError(problem)
 
@@ -1388,20 +1185,16 @@ export async function planDeliverables(
     throw new ValidationError(`That is more than ${MAX_PLAN_LINES} lines - split the plan.`)
   }
 
-  // Every team named must actually be on this project, and the caller must be
-  // allowed to staff it. Checked once per team, not once per line.
+  // Every team must be on this project and staffable by the caller.
   const teamIds = [...new Set(lines.map((l) => l.teamId))]
   for (const teamId of teamIds) {
     if (!teamId) throw new ValidationError("Every line needs a team to owe it.")
     await assertTeamInProject(projectId, teamId)
   }
 
-  // The same period may be planned again - what arrives joins what is already
-  // there rather than replacing it.
+  // Planning the same period again adds to it rather than replacing it.
 
-  // Resolve the vocabulary and the goals ONCE, before the transaction opens:
-  // canonicalType reads the project's existing types, and doing that inside a
-  // transaction holds it open across N round trips for no reason.
+  // Resolved before the transaction so it isn't held open across N round trips.
   const resolved = await Promise.all(
     lines.map(async (l) => {
       if (l.goalId) await assertGoalInProject(projectId, l.goalId)

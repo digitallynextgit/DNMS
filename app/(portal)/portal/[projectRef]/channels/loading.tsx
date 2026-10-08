@@ -1,7 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Mirrors the sales-channels page: custom heading then a 3-up card grid, each
-// card being a title + provider line, a stat number, and a footer line.
 export default function PortalChannelsLoading() {
   return (
     <div className="space-y-5">

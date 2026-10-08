@@ -1,12 +1,4 @@
-// =============================================================================
-// Curated theme palettes.
-//
-// Deliberately SMALL: one well-chosen dark theme per colour family. An earlier
-// iteration shipped 123 generated variants ("Royal Purple" vs "Deep Violet" vs
-// "Amethyst"…) that differed by a few HSL degrees - nobody could tell them
-// apart, and picking one was noise, not choice. The survivors keep their
-// original ids, so anyone already using one keeps exactly the same palette.
-// =============================================================================
+// Curated palettes: one dark theme per colour family. Ids are stable so saved choices keep working.
 
 export type ThemeCategory =
   | "purple"
@@ -53,10 +45,7 @@ export type Theme = {
   swatchPrimary: string
   swatchAccent: string
   palette: Palette
-  /** When set, primary controls render as a gradient between these two colours
-   *  and the app gets a subtle two-hue ambient background (CSS reads them via
-   *  --mc-1/--mc-2). This is what makes a multi-colour theme look designed
-   *  rather than merely recoloured. */
+  /** Primary controls become a gradient and the app gets a two-hue ambient background (--mc-1/--mc-2). */
   gradient?: { from: string; to: string }
 }
 
@@ -94,8 +83,7 @@ type DarkSpec = {
   primaryLight: number
 }
 
-// Unchanged from the original generator - the kept themes must produce the
-// exact palettes they always had.
+// Don't change: existing themes must keep producing exactly the same palettes.
 function makeDark(s: DarkSpec): Theme {
   const { bgHue, bgSat, bgLight, primaryHue, primarySat, primaryLight } = s
   const surfaceLight = Math.min(bgLight + 4, 22)
@@ -145,7 +133,6 @@ function makeDark(s: DarkSpec): Theme {
   }
 }
 
-// One per family - the most distinctive of its former group.
 export const themes: Theme[] = [
   makeDark({
     id: "purple-royal",
@@ -213,9 +200,7 @@ export const themes: Theme[] = [
     primarySat: 75,
     primaryLight: 60,
   }),
-  // Multi-colour: hand-built rather than generated. Deep navy base, violet
-  // primary, cyan second accent - the classic "modern dashboard" pairing. The
-  // gradient field drives purple->cyan primary buttons + ambient glow.
+  // Multi-colour, hand-built: navy base, violet primary, cyan second accent.
   {
     id: "multi-aurora",
     name: "Aurora",

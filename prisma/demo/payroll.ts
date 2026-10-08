@@ -1,17 +1,7 @@
-// =============================================================================
-// Payroll: a salary structure for everyone, PAID payslips for the last three
-// months and a DRAFT run for the current month (the Payroll Directory opens on
-// the current month, so without it the page would be empty).
-//
-// Numbers follow app/api/payroll/records/route.ts exactly:
-//   payable days walk every calendar day - off days, approved floating
-//   holidays and future days are paid; PRESENT/LATE = 1; HALF_DAY = 0.5;
-//   paid leave = 1 (also counted as leaveDays); anything else is loss of pay.
-//   earning = structure value * payableDays / 30 (2 dp); statutory
-//   deductions are off (STATUTORY_DEDUCTIONS_ENABLED = false), so net = gross.
-// Two deliberate kindnesses: an approved WFH day and the birthday day off are
-// paid (the generator has no rule for either and would dock them).
-// =============================================================================
+// Demo payroll: a salary structure for everyone, PAID payslips for the last three months and a DRAFT run for
+// this month (the Payroll Directory opens on it). Numbers follow app/api/payroll/records/route.ts: earning =
+// structure * payableDays / 30, statutory deductions off so net = gross. Approved WFH and birthday days off are
+// paid here, though the app's generator has no rule for them and would dock them.
 
 import { DEMO_FORMER_PEOPLE, DEMO_PEOPLE } from "@/features/help/demo/dataset"
 import {
@@ -33,12 +23,8 @@ const STANDARD_MONTH_DAYS = 30
 const r2 = (n: number) => Math.round(n * 100) / 100
 
 /**
- * HR adjustments made while a run was still DRAFT (the payslip editor's "Other
- * deductions", the only deduction this app produces with statutory deductions
- * switched off). By month offset: -1 = last month. Loss-of-pay days are not
- * deductions here - the generator prorates them out of gross instead.
- *
- * GUIDE REQUIREMENT (payroll): the Deductions column is not ₹0 on every row.
+ * HR "Other deductions" added while a run was DRAFT, by month offset (-1 = last month).
+ * Guide requirement: the Deductions column is not ₹0 on every row.
  */
 const ADJUSTMENTS: { who: string; month: number; amount: number; note: string }[] = [
   { who: "priya", month: -2, amount: 1500, note: "Salary advance recovery (1 of 2)." },
@@ -72,7 +58,6 @@ function structureFor(gross: number) {
 export async function seedPayroll(ctx: DemoContext): Promise<void> {
   const { db } = await import("@/server/db")
 
-  // ── salary structures ──────────────────────────────────────────────────────
   const appraisal = new Date(Date.UTC(ctx.today.getUTCFullYear(), 3, 1)) // 1 April
   const structures = new Map<string, { id: string; s: ReturnType<typeof structureFor> }>()
   const ssRows: Record<string, unknown>[] = []
@@ -105,7 +90,6 @@ export async function seedPayroll(ctx: DemoContext): Promise<void> {
   await makeMany(ctx, "salaryStructure", ssRows)
   ctx.summary.add(MODULE, "salary structures", ssRows.length)
 
-  // ── payroll runs ───────────────────────────────────────────────────────────
   const recRows: Record<string, unknown>[] = []
   const perStatus: Record<string, number> = {}
   for (const delta of [-3, -2, -1, 0]) {

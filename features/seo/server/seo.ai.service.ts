@@ -3,20 +3,8 @@ import "server-only"
 import { db } from "@/server/db"
 import { aiComplete, AI_MODEL_SMART } from "@/lib/ai"
 
-// =============================================================================
-// AI assistance for SEO configuration (the "ask AI for help" affordances).
-//
-// Every prompt is grounded in data we actually hold - the site's real Search
-// Console queries and page titles - rather than asking the model to invent a
-// business from a domain name. That keeps suggestions checkable: each returned
-// keyword either echoes a query the site already gets impressions for, or is a
-// close variant a human can verify in one incognito search.
-//
-// Nothing here writes to the database. The model proposes; a human picks what to
-// keep in the UI and saves it through the normal site-settings route. That
-// matters - auto-applying AI guesses to a client's tracked keywords would put
-// unreviewed machine output straight into client reporting.
-// =============================================================================
+// AI suggestions for SEO setup, grounded in the site's real Search Console data. Nothing here
+// writes to the DB - a human reviews and saves what to keep.
 
 /** Grounding facts pulled from what we already know about the site. */
 async function siteContext(propertyId: string) {
@@ -60,9 +48,7 @@ async function siteContext(propertyId: string) {
     pages = p.map((x) => x.page)
   }
 
-  // What our competitors publish. Their titles and headings are the phrases they
-  // target, which is a real signal about the market even though it says nothing
-  // about how well they rank.
+  // Competitors' titles and headings are the phrases they target.
   const audit = await db.seoCompetitorAudit.findFirst({
     where: { propertyId },
     orderBy: { createdAt: "desc" },
@@ -91,12 +77,7 @@ export interface KeywordSuggestion {
   fromSearchConsole: boolean
 }
 
-/**
- * Propose money keywords for a site. Real Search Console queries are offered
- * first (they are facts, not guesses); the model adds close commercial variants
- * and explains each. Returns [] rather than throwing when there is nothing to
- * ground on, so the caller can show a "sync first" hint.
- */
+/** Propose money keywords: real Search Console queries first, then model variants ([] if none). */
 export async function suggestKeywords(propertyId: string): Promise<KeywordSuggestion[]> {
   const ctx = await siteContext(propertyId)
   if (!ctx) return []
@@ -161,12 +142,7 @@ export interface CompetitorSuggestion {
   reason: string
 }
 
-/**
- * Propose competitor domains. The model is explicitly told to return only real,
- * well-known sites and to skip marketplaces/directories (Amazon, Justdial…),
- * which rank for everything and make a useless comparison. A human still
- * confirms each by incognito-searching the money keywords - that's plan step 5.
- */
+/** Propose real competitor domains (no marketplaces or directories) for a human to confirm. */
 export async function suggestCompetitors(propertyId: string): Promise<CompetitorSuggestion[]> {
   const ctx = await siteContext(propertyId)
   if (!ctx) return []
@@ -229,11 +205,7 @@ export async function suggestCompetitors(propertyId: string): Promise<Competitor
     .slice(0, 5)
 }
 
-/**
- * Explain a site's current SEO position in plain language: what the numbers say,
- * what to do first, and why. Grounded in the stored scorecard + latest snapshot
- * so it describes THIS site rather than generic advice.
- */
+/** Explain the site's SEO position in plain language, from its stored scorecard and snapshot. */
 export async function explainSeo(propertyId: string): Promise<string> {
   const ctx = await siteContext(propertyId)
   if (!ctx) return ""

@@ -3,8 +3,6 @@ import { SpotlightSection } from "../spotlight-section"
 
 const m = MODULES.find((x) => x.name === "Comms & Culture")!
 
-/** Bespoke visual: a chat thread with two incoming bubbles, an outgoing bubble,
- *  a reaction pill, and a compact poll card with thin result bars. */
 function CommsVisual() {
   const poll: [string, number][] = [
     ["Friday team lunch", 68],
@@ -17,7 +15,6 @@ function CommsVisual() {
         <span className="text-emerald-500">3 online</span>
       </div>
 
-      {/* incoming */}
       <div className="flex max-w-[85%] flex-col gap-1">
         <div className="bg-muted text-foreground rounded-sm px-3 py-2 text-xs">
           Ship-ready mockups are in the vault
@@ -29,19 +26,16 @@ function CommsVisual() {
         </div>
       </div>
 
-      {/* incoming */}
       <div className="bg-muted text-foreground max-w-[85%] rounded-sm px-3 py-2 text-xs">
         Can we lock the launch date today?
       </div>
 
-      {/* outgoing */}
       <div className="flex justify-end">
         <div className="bg-primary text-primary-foreground animate-dnms-fade-up max-w-[85%] rounded-sm px-3 py-2 text-xs">
           Yes - posting a poll now 👇
         </div>
       </div>
 
-      {/* poll card */}
       <div className="border-border bg-card mt-auto rounded-sm border p-3">
         <div className="text-xs font-medium">When should we celebrate the launch?</div>
         <div className="mt-2.5 space-y-2">

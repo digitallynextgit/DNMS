@@ -1,41 +1,29 @@
-// =============================================================================
-// Shared branded email layout. Centralizes the brand name, logo header and
-// footer that were duplicated across the welcome, password-reset and inline
-// approve/reject emails. Table-based + inline styles for email-client safety.
-// =============================================================================
+// Shared branded email layout. Table-based with inline styles: Gmail/Outlook strip <style> blocks.
 
 import { getConfigSync } from "@/server/app-config"
 import { cleanLeaveTypeForLetter } from "@/lib/utils"
 
 export const BRAND_NAME = "Digitally Next"
 
-/** Wordmark for the email header (rendered 34px tall).
- *  Falls back to a 68px PNG derivative, deliberately NOT logo_dark_bg.webp:
- *  (a) that master is 4500px wide / 118 KB for a 34px slot, and (b) Outlook
- *  desktop renders mail through Word, which cannot decode WebP at all - the
- *  header logo was simply broken there. */
+/** Header wordmark as a small PNG: Outlook desktop can't decode WebP. */
 export function logoUrl(): string {
   const base = (process.env.NEXTAUTH_URL ?? "").replace(/\/$/, "")
   return getConfigSync("EMAIL_LOGO_URL") || `${base}/email-logo.png`
 }
 
-/** The signature uses the standalone brand mark, not the wordmark used in the
- *  email header. Points at the 104px derivative (2x the 52px render), NOT the
- *  2505x2200 / 729 KB master: there is no image optimizer in front of a mail
- *  client, so every recipient re-downloaded 729 KB per email opened. */
+/** Brand mark at 2x its 52px render - mail clients have no image optimizer. */
 export function signatureLogoUrl(): string {
   const base = (process.env.NEXTAUTH_URL ?? "").replace(/\/$/, "")
   return `${base}/brand-mark-104.png`
 }
 
-/** Hosted PNG icons for the signature (mail clients strip inline SVG, so the
- *  little phone/mail/social glyphs must be real images). See public/email-icons. */
+/** PNG icons, because mail clients strip inline SVG. */
 export function signatureIconUrl(name: string): string {
   const base = (process.env.NEXTAUTH_URL ?? "").replace(/\/$/, "")
   return `${base}/email-icons/${name}.png`
 }
 
-/** A single "Label / value" row for a details card (omitted when value is empty). */
+/** Empty values render nothing. */
 export function detailRow(label: string, value?: string | null): string {
   if (!value) return ""
   return `
@@ -47,7 +35,6 @@ export function detailRow(label: string, value?: string | null): string {
     </tr>`
 }
 
-/** Wrap inner body HTML in the standard branded card (logo header + footer). */
 export function wrapEmail({ title, bodyHtml }: { title: string; bodyHtml: string }): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -87,7 +74,6 @@ export function wrapEmail({ title, bodyHtml }: { title: string; bodyHtml: string
 </html>`
 }
 
-// Escape user-provided text before inlining it into email HTML.
 function escapeHtml(value?: string | null): string {
   return (value ?? "")
     .replace(/&/g, "&amp;")
@@ -118,10 +104,7 @@ function formatEmailDate(ymd?: string | null): string | null {
   return `${d} ${months[m - 1]} ${y}`
 }
 
-/**
- * Build the email HR receives when an employee submits a resignation request.
- * Sent from the employee's own mailbox (so the manager can be CC'd and reply).
- */
+/** Sent from the employee's own mailbox so the manager can be CC'd and reply. */
 export function renderResignationRequestEmail(input: {
   employeeName: string
   employeeNo: string
@@ -194,17 +177,13 @@ ${reviewUrl ? `\nReview: ${reviewUrl}` : ""}`
   return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
 }
 
-/**
- * HR's reply to a resignation: a proper acceptance or decline letter, addressed
- * to the employee. Use a "Re: Resignation - <name>" subject so it threads.
- */
+/** Use a "Re: Resignation - <name>" subject so it threads. */
 export function renderResignationDecisionEmail(input: {
   approved: boolean
   employeeName: string
   firstName: string
   /** "yyyy-MM-dd" - the confirmed last working day (approvals). */
   lastWorkingDate?: string | null
-  /** Reviewer's note shared with the employee. */
   note?: string | null
   reviewerName?: string | null
 }): { subject: string; html: string; text: string } {
@@ -267,17 +246,13 @@ ${BRAND_NAME}`
   return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
 }
 
-/**
- * Build an approve/reject decision email (leave, WFH, resignation, etc.).
- * `kind` is the request label ("Leave request", "WFH request"…).
- */
+/** `kind` is the request label, e.g. "Leave request". */
 export function renderDecisionEmail(input: {
   kind: string
   approved: boolean
   firstName: string
-  /** A short summary line, e.g. "Annual Leave · 12 Jun - 14 Jun". */
+  /** e.g. "Annual Leave · 12 Jun - 14 Jun" */
   detailLine?: string
-  /** Reviewer's reason/note (shown for rejections, optional otherwise). */
   reason?: string | null
   loginUrl?: string
 }): { subject: string; html: string; text: string } {
@@ -306,17 +281,8 @@ export function renderDecisionEmail(input: {
   return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
 }
 
-/**
- * "A team needs something from you" - the email behind a project requirement.
- *
- * Same branded shell as the leave and decision letters: the detail table states
- * the facts, the deadline is called out (red once it is in the past), and the
- * single button goes straight to the Requirements tab. Table-based and inline
- * styled, like every other template here, because Gmail and Outlook strip
- * <style> blocks.
- */
+/** Email for a project requirement. The deadline turns red once it's past. */
 export function renderRequirementEmail(input: {
-  /** Who has to act. */
   recipientFirstName: string
   raisedByName: string
   projectName: string
@@ -427,15 +393,7 @@ export function renderRequirementEmail(input: {
   return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
 }
 
-/**
- * The employee's email signature block, mirroring the one staff use in Gmail:
- * logo | name / designation / socials / phone / website / email / address.
- *
- * Company-level bits (website, address, socials) come from app settings, so they
- * can be corrected without a redeploy; a blank social is simply omitted rather
- * than rendering a dead link. Table-based + inline styles because Gmail/Outlook
- * strip <style> blocks and ignore flexbox.
- */
+/** Mirrors the staff Gmail signature. Company bits come from app settings; blank socials are omitted. */
 export function renderSignature(input: {
   name: string
   designation?: string | null
@@ -451,7 +409,6 @@ export function renderSignature(input: {
     { label: "YouTube", url: getConfigSync("SOCIAL_YOUTUBE") || "" },
   ].filter((s) => s.url)
 
-  // Reference palette.
   const RED = "#e5231b"
   const TEAL = "#25c1c1"
   const INK = "#1a1a1a"
@@ -461,9 +418,8 @@ export function renderSignature(input: {
   const link = `color:${BODY}; text-decoration:none;`
   const websiteHref = website.startsWith("http") ? website : `https://${website}`
 
-  void TEAL // palette is baked into the icon PNGs now
+  void TEAL // baked into the icon PNGs
 
-  // Social icons: real teal-square PNGs (only the ones with a configured URL).
   const iconMap: Record<string, string> = {
     YouTube: "youtube",
     Instagram: "instagram",
@@ -479,11 +435,9 @@ export function renderSignature(input: {
     )
     .join("")
 
-  // A "<icon> value" cell - icon PNG + text, both vertically centred.
   const iconText = (icon: string, inner: string) =>
     `<span style="white-space:nowrap;"><img src="${signatureIconUrl(icon)}" width="13" height="13" alt="" style="border:0; vertical-align:-2px; margin-right:5px;" />${inner}</span>`
 
-  // Phone + website share a row, like the reference.
   const contactLine = [
     phone ? iconText("phone", `<span style="${body}">${escapeHtml(phone)}</span>`) : "",
     website
@@ -521,20 +475,13 @@ export function renderSignature(input: {
     </table>`
 }
 
-/**
- * The leave application, written AS THE EMPLOYEE and addressed to their manager
- * (HR is CC'd). It reads like a letter the employee sent, not a system alert -
- * the previous version was an unbranded one-liner that didn't even include the
- * reason, so the manager was asked to decide without being told why.
- */
+/** Written as the employee to their manager (HR CC'd), so it reads like a letter, not an alert. */
 export function renderLeaveRequestEmail(input: {
-  /** First name of the manager the letter is addressed to. */
   approverFirstName: string
   applicantName: string
   employeeNo?: string | null
   designation?: string | null
   department?: string | null
-  /** For the signature block. */
   applicantEmail?: string | null
   applicantPhone?: string | null
   leaveType: string
@@ -543,11 +490,9 @@ export function renderLeaveRequestEmail(input: {
   endDate: string
   totalDays: number
   reason?: string | null
-  /** When set, this REPLACES the auto-composed letter body (the greeting through
-   *  "Best Regards,") - it's the text the employee edited in the preview. The
-   *  signature and review link are still appended automatically. */
+  /** Replaces the auto letter body (greeting to "Best Regards,"); the signature and link are still added. */
   bodyText?: string | null
-  /** When set, REPLACES the auto subject line (edited in the preview). */
+  /** Replaces the auto subject (edited in the preview). */
   subjectText?: string | null
   reviewUrl?: string
 }): { subject: string; html: string; text: string } {
@@ -573,9 +518,6 @@ export function renderLeaveRequestEmail(input: {
   const end = formatEmailDate(endDate) ?? endDate
   const dates = start === end ? start : `${start} to ${end}`
   const dayLabel = `${totalDays} day${totalDays === 1 ? "" : "s"}`
-  // The letter to the manager shouldn't expose payroll qualifiers - "Leave
-  // Without Pay (Unpaid)" reads simply as "leave". Other types stay natural
-  // (e.g. "casual leave", "sick leave").
   const type = cleanLeaveTypeForLetter(leaveType)
   const subject = subjectText?.trim() || `Leave application - ${applicantName} - ${dates}`
 
@@ -583,12 +525,11 @@ export function renderLeaveRequestEmail(input: {
   const reasonHtml = reasonTrimmed ? escapeHtml(reasonTrimmed).replace(/\n/g, "<br />") : ""
   const para = "margin:0 0 16px; font-size:15px; line-height:1.7; color:#374151;"
 
-  // Signature block: "Designation · EMP-01 · Department" (only what exists).
+  // "Designation · EMP-01 · Department" (only what exists)
   const sigParts = [designation, employeeNo, department].filter(Boolean) as string[]
 
   const edited = bodyText?.trim() || ""
-  // The employee's edited letter -> escaped HTML paragraphs (blank line = new
-  // paragraph, single newline = <br>). Falls back to the auto-composed letter.
+  // Blank line = new paragraph, single newline = <br>.
   const letterHtml = edited
     ? edited
         .split(/\n{2,}/)
@@ -667,11 +608,8 @@ Approve or decline in ${BRAND_NAME}: ${reviewUrl}`
 }
 
 /**
- * The approve/reject reply, written AS THE APPROVER (manager/HR/admin) and
- * addressed to the employee - a proper letter, not a system "approved" box. It
- * threads onto the original application (the service sets Re: + References) and
- * carries the APPROVER's signature. The approver can edit the body in the UI;
- * their text arrives as `bodyText` and replaces the auto-composed letter.
+ * Written as the approver to the employee, threaded onto the original application.
+ * `bodyText` (the approver's edit) replaces the auto letter.
  */
 export function renderLeaveDecisionLetter(input: {
   employeeFirstName: string
@@ -681,13 +619,10 @@ export function renderLeaveDecisionLetter(input: {
   startDate: string
   endDate: string
   totalDays: number
-  /** Rejection reason (rejections only). */
   reason?: string | null
-  /** The approver's edited letter body; overrides the auto-composed one. */
   bodyText?: string | null
-  /** Subject (the service passes "Re: <original>"). */
+  /** The service passes "Re: <original>". */
   subject: string
-  /** Approver signature fields. */
   approverName: string
   approverDesignation?: string | null
   approverEmail?: string | null
@@ -717,8 +652,7 @@ export function renderLeaveDecisionLetter(input: {
   const para = "margin:0 0 16px; font-size:15px; line-height:1.7; color:#374151;"
   const reasonTrimmed = reason?.trim() || ""
 
-  // Default letter (used when the approver didn't edit it). Kept in sync with the
-  // client-side composer in the approve/reject dialog.
+  // Keep in sync with the client-side composer in the approve/reject dialog.
   const defaultLines = approved
     ? [
         `Dear ${employeeFirstName},`,
@@ -764,38 +698,25 @@ export function renderLeaveDecisionLetter(input: {
   return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
 }
 
-/**
- * The Work From Home application, written AS THE EMPLOYEE and addressed to their
- * reporting manager (HR is CC'd) - the WFH twin of renderLeaveRequestEmail.
- *
- * WFH used to raise in-app notifications only, so an approver who wasn't in the
- * app never learnt a request existed. This is the same letter shape as leave so
- * the two requests read identically in a manager's inbox.
- */
+/** The WFH twin of renderLeaveRequestEmail, so both read alike in a manager's inbox. */
 export function renderWfhRequestEmail(input: {
-  /** First name of the manager the letter is addressed to. */
   approverFirstName: string
   applicantName: string
   employeeNo?: string | null
   designation?: string | null
   department?: string | null
-  /** For the signature block. */
   applicantEmail?: string | null
   applicantPhone?: string | null
-  /** "yyyy-MM-dd" - the first day of the request. */
+  /** "yyyy-MM-dd", the first day. */
   date: string
-  /** "yyyy-MM-dd" - the last day. Omitted or equal to `date` = a single day. */
+  /** "yyyy-MM-dd". Omitted or equal to `date` means a single day. */
   endDate?: string | null
-  /** Working days the range covers (weekends/holidays inside it are skipped). */
+  /** Working days only (weekends/holidays skipped). */
   totalDays?: number | null
   reason?: string | null
   /** Emergency requests need BOTH the manager and HR to sign off. */
   isEmergency?: boolean
-  /** When set, REPLACES the auto-composed letter body (the greeting through
-   *  "Best Regards,") - the text the employee edited in the preview. The
-   *  signature and review link are still appended automatically. */
   bodyText?: string | null
-  /** When set, REPLACES the auto subject line (edited in the preview). */
   subjectText?: string | null
   reviewUrl?: string
 }): { subject: string; html: string; text: string } {
@@ -820,8 +741,7 @@ export function renderWfhRequestEmail(input: {
   const day = formatEmailDate(date) ?? date
   const lastDay = endDate && endDate !== date ? (formatEmailDate(endDate) ?? endDate) : null
 
-  // One phrase, built once, so the subject, the HTML letter and the plain-text
-  // letter can never describe a different stretch of days from each other.
+  // Built once so the subject, HTML and plain-text letters always agree.
   const dayLabel = lastDay ? `${day} to ${lastDay}` : day
   const daysNote = lastDay && totalDays && totalDays > 1 ? ` (${totalDays} working days)` : ""
   const whenPhrase = lastDay ? `from ${dayLabel}${daysNote}` : `on ${dayLabel}`
@@ -832,7 +752,6 @@ export function renderWfhRequestEmail(input: {
   const reasonHtml = reasonTrimmed ? escapeHtml(reasonTrimmed).replace(/\n/g, "<br />") : ""
   const para = "margin:0 0 16px; font-size:15px; line-height:1.7; color:#374151;"
 
-  // Signature block: "Designation · EMP-01 · Department" (only what exists).
   const sigParts = [designation, employeeNo, department].filter(Boolean) as string[]
 
   const availabilityLine = lastDay
@@ -918,31 +837,21 @@ Approve or decline in ${BRAND_NAME}: ${reviewUrl}`
   return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
 }
 
-/**
- * The floating-holiday application, written AS THE EMPLOYEE and addressed to
- * their reporting manager (HR is Cc'd) - the same letter shape as leave and WFH,
- * so all three requests land in an approver's mailbox looking alike.
- *
- * Floating holidays differ from leave in two ways the letter has to carry:
- *  - it is drawn from a fixed yearly allowance, so the balance is stated; and
- *  - the manager's approval is only the first step, HR makes the final call.
- */
+/** Same letter shape as leave and WFH; also states the yearly balance. HR makes the final call. */
 export function renderFloatingHolidayRequestEmail(input: {
-  /** First name of the approver the letter is addressed to. */
   approverFirstName: string
   applicantName: string
   employeeNo?: string | null
   designation?: string | null
   department?: string | null
-  /** For the signature block. */
   applicantEmail?: string | null
   applicantPhone?: string | null
-  /** The optional holiday being claimed, e.g. "Diwali". */
+  /** e.g. "Diwali" */
   holidayName: string
-  /** "yyyy-MM-dd" - a floating holiday is always a single day. */
+  /** "yyyy-MM-dd" - always a single day. */
   date: string
   reason?: string | null
-  /** Yearly allowance context: this is the Nth of `limit` for `year`. */
+  /** This is the Nth of `limit` for `year`. */
   usedCount: number
   limit: number
   year: number
@@ -973,14 +882,12 @@ export function renderFloatingHolidayRequestEmail(input: {
     const teen = n % 100 >= 11 && n % 100 <= 13
     return `${n}${teen ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`
   }
-  // Stated in prose - the letter deliberately has no details card.
   const balanceSentence = `This would be my ${ordinal(usedCount)} floating holiday of ${limit} for ${year}.`
 
   const reasonTrimmed = reason?.trim() || ""
   const reasonHtml = reasonTrimmed ? escapeHtml(reasonTrimmed).replace(/\n/g, "<br />") : ""
   const para = "margin:0 0 16px; font-size:15px; line-height:1.7; color:#374151;"
 
-  // Signature block: "Designation · EMP-01 · Department" (only what exists).
   const sigParts = [designation, employeeNo, department].filter(Boolean) as string[]
 
   const body = `

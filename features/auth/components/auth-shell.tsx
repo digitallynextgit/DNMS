@@ -9,17 +9,10 @@ const HIGHLIGHTS = [
   "Payroll, leave & performance",
 ]
 
-/**
- * Two-column auth layout shared by the login and forgot-password pages: a
- * branded panel on the left (desktop only) and a centred form column on the
- * right. Page-specific content (heading + form) is supplied via `children`.
- */
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
-      {/* ── Brand panel (desktop only) - content hugs the divider ────────── */}
       <div className="relative hidden overflow-hidden border-r border-white/10 bg-neutral-950 p-12 text-neutral-300 lg:flex lg:flex-col lg:items-center lg:justify-between xl:p-16">
-        {/* decorative grid */}
         <div
           aria-hidden
           className="absolute inset-0"
@@ -31,7 +24,6 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             WebkitMaskImage: "radial-gradient(ellipse at center, black 20%, transparent 82%)",
           }}
         />
-        {/* logo */}
         <div className="relative z-10 w-full max-w-xl">
           <Link href="/" aria-label="Digitally Next home" className="inline-block">
             <Image
@@ -39,19 +31,15 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
               alt="Digitally Next"
               width={370}
               height={96}
-              // Kept: unlike the theme-swapped pairs below, this one has no
-              // CSS-hidden twin, so the preload is never discarded.
+              // Kept: this one has no CSS-hidden twin, so the preload is never discarded.
               priority
               className="h-12 w-auto"
             />
           </Link>
         </div>
 
-        {/* value proposition */}
         <div className="relative z-10 w-full max-w-xl space-y-6 py-4">
-          {/* No animationDelay on the LCP element: `both`-filled fade-up held
-              the page's largest text invisible for the delay + ramp, which is
-              the LCP timestamp. The smaller lines below keep their stagger. */}
+          {/* No animationDelay on the LCP element: a delayed fade-up pushes back the LCP timestamp. */}
           <h2 className="animate-dnms-fade-up text-4xl font-bold tracking-tight text-balance text-white sm:text-5xl">
             Run your entire team from <span style={{ color: BRAND_RED }}>one place.</span>
           </h2>
@@ -78,7 +66,6 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           </ul>
         </div>
 
-        {/* footer */}
         <div className="relative z-10 w-full max-w-xl space-y-5">
           <p className="text-xs text-neutral-500">
             © 2026{" "}
@@ -96,10 +83,8 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      {/* ── Form panel - content hugs the divider ───────────────────────── */}
       <div className="flex items-center justify-center px-6 py-10 lg:px-12">
         <div className="animate-dnms-fade-up w-full max-w-md">
-          {/* logo - mobile only (swaps with theme) */}
           <div className="mb-8 flex justify-center lg:hidden">
             <Link href="/" aria-label="Digitally Next home" className="inline-flex">
               <Image

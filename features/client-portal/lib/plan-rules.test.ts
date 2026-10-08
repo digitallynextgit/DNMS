@@ -33,8 +33,7 @@ describe("mayWithdraw", () => {
   })
 
   it("refuses the moment anybody has started or made it", () => {
-    // From here the row is a record of real work, and deleting it would erase
-    // that - the whole reason the rule stops at PLANNED.
+    // Once started, the row is a record of real work.
     for (const status of ["IN_PROGRESS", "DELIVERED", "ACCEPTED", "REJECTED"]) {
       expect(mayWithdraw({ ...mine, status }, ME), status).toBe(false)
     }

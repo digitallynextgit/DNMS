@@ -1,25 +1,7 @@
 "use client"
 
-// =============================================================================
-// Tab bar that spills its OVERFLOW onto a second strip
-// =============================================================================
-// Plain `flex-wrap` gets the behaviour right - only what doesn't fit moves down
-// - but everything stays inside one track, so the wrapped items read as a ragged
-// edge rather than a second bar. Moving items into a DIFFERENT container can't
-// be expressed in CSS, so the split point is measured.
-//
-// How it stays honest:
-//   • A hidden row holds every tab on one line at all times. Tab widths are
-//     intrinsic (they don't change with the container), so it is the one place
-//     that always knows how wide each tab really is - the visible strips can't
-//     tell us, because once an item moves to strip two it is no longer being
-//     measured against strip one.
-//   • The hidden row is measured at `font-semibold`, the ACTIVE weight and
-//     therefore the widest a tab can ever be. Measuring the lighter idle weight
-//     would under-estimate and let the active tab overhang.
-//   • A ResizeObserver recomputes on every container resize, so the split
-//     follows the window instead of being decided once at mount.
-// =============================================================================
+// Tabs that don't fit spill onto a second strip. A hidden one-line row (at the active, widest weight)
+// measures true tab widths; a ResizeObserver recomputes the split.
 
 import * as React from "react"
 import { TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -31,17 +13,10 @@ export interface ProjectTabItem {
   icon: React.ComponentType<{ className?: string }>
   /** Optional count pill (unread messages, open requirements). */
   badge?: number
-  /** Tailwind background for the badge. */
   badgeClassName?: string
 }
 
-/**
- * Matches TabsTrigger's box exactly, so the hidden row measures true widths.
- *
- * `[&_svg]:size-4` is load-bearing, not cosmetic: TabsTrigger sizes its icons
- * that way, and a bare lucide icon defaults to 24px. Without it every tab
- * measures ~8px too wide here and the bar spills onto its second strip early.
- */
+/** Matches TabsTrigger's box. `[&_svg]:size-4` matters: bare lucide icons are 24px and would over-measure. */
 const MEASURE_ITEM =
   "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold whitespace-nowrap [&_svg]:size-4 [&_svg]:shrink-0"
 
@@ -65,8 +40,7 @@ function Badge({ count, className }: { count: number; className?: string }) {
 export function ProjectTabsBar({ items }: { items: ProjectTabItem[] }) {
   const containerRef = React.useRef<HTMLDivElement>(null)
   const measureRef = React.useRef<HTMLDivElement>(null)
-  // Start with everything on strip one; the layout effect corrects it before
-  // paint, so there is no flash of a wrongly-split bar.
+  // Start with everything on strip one; the layout effect corrects it before paint.
   const [splitAt, setSplitAt] = React.useState(items.length)
 
   React.useLayoutEffect(() => {
@@ -87,9 +61,7 @@ export function ProjectTabsBar({ items }: { items: ProjectTabItem[] }) {
         used += next
         fits++
       }
-      // Never strand strip one empty: on an absurdly narrow viewport one tab
-      // still sits up top and the rest spill, rather than the whole bar
-      // collapsing into the overflow strip.
+      // Never leave strip one empty, even on an absurdly narrow viewport.
       setSplitAt(Math.max(1, fits))
     }
 
@@ -118,10 +90,7 @@ export function ProjectTabsBar({ items }: { items: ProjectTabItem[] }) {
 
   return (
     <div ref={containerRef} className="relative w-full space-y-1">
-      {/* Hidden yardstick: every tab, one line, never wrapped. aria-hidden and
-          absolutely positioned so it costs no layout space and is invisible to
-          assistive tech. Plain spans, not TabsTriggers - duplicating real
-          triggers would register duplicate values with Radix. */}
+      {/* Hidden yardstick. Plain spans, not TabsTriggers: duplicates would register duplicate values with Radix. */}
       <div
         ref={measureRef}
         aria-hidden
@@ -141,14 +110,11 @@ export function ProjectTabsBar({ items }: { items: ProjectTabItem[] }) {
         })}
       </div>
 
-      {/* w-full, so these strips DO need an explicit alignment: an inline-flex
-          track hugs its content, but a full-width one would otherwise centre
-          its tabs and leave a half-empty second row floating in the middle. */}
+      {/* Full width, so justify-start is needed or the tabs would centre. */}
       <TabsList className="h-auto min-h-9 w-full justify-start gap-1">
         {primary.map(renderTrigger)}
       </TabsList>
 
-      {/* Second strip appears ONLY when something actually overflows. */}
       {overflow.length > 0 && (
         <TabsList className="h-auto min-h-9 w-full justify-start gap-1">
           {overflow.map(renderTrigger)}

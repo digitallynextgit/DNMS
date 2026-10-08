@@ -8,22 +8,13 @@ import { FAQ_CATEGORIES, ALL_FAQS } from "@/features/marketing/faq.content"
 import { GridBackdrop, Reveal } from "../fx"
 import { SectionNav } from "../section-nav"
 
-/**
- * The /faq page.
- *
- * Deliberately NOT an accordion, unlike the homepage section. That one is a
- * teaser inside a long scroll, where collapsing keeps the page moving. This page
- * is where somebody arrives with a question, so every answer is open and on the
- * page: findable with the browser's own search, linkable, and readable without
- * clicking anything.
- */
+/** The /faq page. Not an accordion: every answer is open, searchable and linkable. */
 export function FaqContent() {
   return (
     <div className="relative">
       <GridBackdrop />
 
       <div className="relative mx-auto max-w-[1600px] px-4 pt-28 pb-24 sm:px-6 lg:pt-32">
-        {/* ── Header ─────────────────────────────────────────────────────── */}
         <Reveal>
           <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
@@ -37,8 +28,6 @@ export function FaqContent() {
           </span>
         </Reveal>
 
-        {/* Title left, standfirst right, both starting on the same line - the
-            same header treatment as About, Contact and Pricing. */}
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.65fr)] lg:items-start lg:gap-12 xl:gap-16">
           <Reveal delay={60}>
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl xl:text-[3.25rem]">
@@ -56,10 +45,7 @@ export function FaqContent() {
           </Reveal>
         </div>
 
-        {/* ── Categories + answers ───────────────────────────────────────── */}
         <div className="mt-16 grid gap-12 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-12 xl:grid-cols-[250px_minmax(0,1fr)] xl:gap-20">
-          {/* The same scroll-spy rail the legal documents use, so the topic you
-              are reading is marked rather than left for you to work out. */}
           <SectionNav
             heading="Topics"
             accent={BRAND_RED}
@@ -107,7 +93,6 @@ export function FaqContent() {
           </div>
         </div>
 
-        {/* ── CTA ────────────────────────────────────────────────────────── */}
         <Reveal delay={120}>
           <div
             className="relative mt-16 overflow-hidden rounded-sm border p-8 sm:p-10 lg:p-12"

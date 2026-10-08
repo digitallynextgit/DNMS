@@ -4,12 +4,6 @@ import { cn } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 
-// =============================================================================
-// The ONE compact summary strip: a single divided row of label/value cells
-// inside a Card. Five pages used to hand-roll this grid plus their own private
-// `Stat` / `SummaryStat` / `SummaryCard` cell - don't write another one.
-// =============================================================================
-
 const TONE_CLASSES = {
   default: "text-foreground",
   success: "text-emerald-600 dark:text-emerald-400",
@@ -17,10 +11,7 @@ const TONE_CLASSES = {
   danger: "text-red-600 dark:text-red-400",
 } as const
 
-/**
- * Tailwind can't see interpolated class names, so the column count is a lookup
- * of literal classes: always 2-up on mobile, N-up from `sm:`.
- */
+/** Literal classes, because Tailwind can't see interpolated names. */
 const COLUMN_CLASSES: Record<number, string> = {
   1: "grid-cols-1",
   2: "grid-cols-2",
@@ -36,7 +27,6 @@ export interface StatStripItem {
   /** Renders value as small text rather than a big number (e.g. a currency string). */
   isText?: boolean
   tone?: keyof typeof TONE_CLASSES
-  /** Optional glyph rendered before the label. */
   icon?: React.ElementType
   /** Small muted unit printed after the value ("days", "requests"). */
   suffix?: string
@@ -44,7 +34,7 @@ export interface StatStripItem {
 
 interface StatStripProps {
   items: StatStripItem[]
-  /** Draws each value as a skeleton in the cell's real shape (no layout shift). */
+  /** Skeleton in the cell's real shape (no layout shift). */
   loading?: boolean
   className?: string
 }
@@ -62,8 +52,7 @@ export function StatStrip({ items, loading = false, className }: StatStripProps)
               <div key={item.label} className="min-w-0 px-4 py-3">
                 <div className="flex min-w-0 items-center gap-1.5">
                   {Icon && <Icon className="text-muted-foreground h-3 w-3 shrink-0" />}
-                  {/* min-w-0 + truncate: a tracking-widest uppercase label in a
-                      2-up grid cell overflowed its column at 320px. */}
+                  {/* min-w-0 + truncate: the uppercase label overflowed a 2-up cell at 320px. */}
                   <p className="text-muted-foreground min-w-0 truncate text-[10px] font-medium tracking-widest uppercase">
                     {item.label}
                   </p>

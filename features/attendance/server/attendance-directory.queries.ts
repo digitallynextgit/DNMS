@@ -4,14 +4,9 @@ import { db } from "@/server/db"
 import { VISIBLE_EMPLOYEE_FILTER, EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { ok, fail, type ActionResult } from "@/server/action-result"
 
-// Per-employee attendance roster for a date range (one row per employee).
-// Default range is today. For a single day each row carries that day's punches;
-// for a range it carries present / half / absent day counts + average hours.
-//
-// Extracted from GET /api/attendance/directory so the route handler AND the
-// server-side prefetch in app/(dashboard)/attendance/attendance-directory/page.tsx
-// run the exact same query - the prefetched React Query cache entry must be
-// byte-identical to the API body the client would otherwise have fetched.
+// Per-employee attendance roster for a date range (default today): a single day carries punches,
+// a range carries day counts + average hours. Shared by the API route and the page prefetch so
+// the cached data matches exactly.
 
 type LogRow = {
   employeeId: string
@@ -47,12 +42,11 @@ export interface AttendanceDirectoryPayload {
   rows: AttendanceDirectoryRow[]
 }
 
-// The caller supplies from/to, so the range is clamped server-side: a wide range
-// would pull every attendance log in it (unbounded, no pagination downstream).
+// Clamp the caller's range: a wide one would pull every log in it (no pagination downstream).
 const MAX_RANGE_DAYS = 92
 const MS_PER_DAY = 86_400_000
 
-/** Today in YYYY-MM-DD, matching the route's previous default. */
+/** Today in YYYY-MM-DD. */
 export function attendanceDirectoryToday(): string {
   return new Date().toISOString().slice(0, 10)
 }
@@ -141,7 +135,6 @@ export async function getAttendanceDirectory(
     const avgHours = hoursDays > 0 ? Math.round((totalHours / hoursDays) * 100) / 100 : 0
     const absentDays = Math.max(0, workingDays - (presentDays + halfDays + missingDays))
 
-    // Single-day snapshot for the roster columns.
     let checkIn: string | null = null
     let checkOut: string | null = null
     let workHours: number | null = null
@@ -155,7 +148,6 @@ export async function getAttendanceDirectory(
       status = c === "present" ? "PRESENT" : c === "half" ? "HALF_DAY" : "MISSING_PUNCH"
     }
 
-    // Summary tally.
     const came = isSingleDay
       ? status === "PRESENT" || status === "MISSING_PUNCH"
       : presentDays > 0 || missingDays > 0

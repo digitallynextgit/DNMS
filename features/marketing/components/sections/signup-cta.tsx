@@ -14,16 +14,7 @@ const REASSURANCES = [
   { icon: ShieldCheck, label: "Cancel anytime" },
 ]
 
-/**
- * The conversion band: the one place on the page that asks for a signup.
- *
- * CLIENT component, session via useMarketingSession() - the same trade the Hero makes.
- * The old server-side auth() read here was the LAST thing keeping the homepage
- * dynamic after the root layout stopped reading the session: one CTA band made
- * every visitor's homepage a server render. Static HTML now ships BOTH
- * variants, and the `auth-member` / `auth-guest` classes (globals.css) show the
- * right one before first paint - see useMarketingSession.
- */
+/** The signup band. Client-side session (useMarketingSession), so the homepage stays static. */
 export function SignupCta() {
   const { appHref } = useMarketingSession()
 
@@ -31,7 +22,6 @@ export function SignupCta() {
     <section id="get-started" className="relative overflow-hidden py-24">
       <GridBackdrop />
 
-      {/* Warm wash behind the band so it reads as the page's destination. */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.07]"

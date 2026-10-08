@@ -56,11 +56,8 @@ async function reviewFloatingRequest(
   return res.json()
 }
 
-/**
- * Floating-holiday approval inbox (pending requests with approve/reject). The
- * server routes a manager's approval as the first step and HR's as the final.
- * Used both on the HR Holiday Calendar and the manager's Leave section.
- */
+/** Floating-holiday approval inbox (manager approval first, HR final), used on the HR Holiday
+ *  Calendar and the manager's Leave section. */
 export function FloatingRequestsInbox() {
   const qc = useQueryClient()
   const [rejectId, setRejectId] = useState<string | null>(null)

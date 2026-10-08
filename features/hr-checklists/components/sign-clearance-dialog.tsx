@@ -9,14 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useSetItemDone } from "../hooks/use-checklists"
 import type { ChecklistItem } from "../types"
 
-/**
- * Signing off a clearance.
- *
- * A note is asked for rather than required. Requiring one would get "ok" typed
- * into it a thousand times, which is worse than nothing because it looks like
- * evidence. Prompting gets the useful half - the asset tag, the settled
- * advance - from the people who have something to record.
- */
+/** Signing off a clearance. The note is prompted, not required - a required note just gets "ok". */
 export function SignClearanceDialog({
   item,
   onOpenChange,
@@ -30,11 +23,7 @@ export function SignClearanceDialog({
   const [noteFor, setNoteFor] = React.useState<string | null>(null)
   const setDone = useSetItemDone()
 
-  // Clear the note when the dialog moves to a different item. Adjusted DURING
-  // RENDER rather than in an effect: an effect would paint the previous
-  // signer's note for one frame and cost a second render every time the dialog
-  // opens. React re-runs this component immediately without committing, which
-  // is the documented way to reset state on a prop change.
+  // Reset the note during render, not in an effect, so the previous note never flashes.
   if (item && noteFor !== item.id) {
     setNoteFor(item.id)
     setNote("")

@@ -31,7 +31,6 @@ export default function MyPerformancePage() {
   const [status, setStatus] = useState("")
 
   const all = data?.data ?? []
-  // Scorecards where I'm the one being evaluated.
   const mine = all.filter((ev) => ev.employeeId === myId)
   // Scorecards I must review for my team (manager or project controller).
   const toReview = all.filter(

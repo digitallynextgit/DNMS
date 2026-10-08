@@ -1,34 +1,18 @@
 import type { LucideIcon } from "lucide-react"
 
-// =============================================================================
-// Help & Guides content model.
-//
-// A guide is plain data (features/help/guides/*.ts), so the same file feeds the
-// Help pages AND the screenshot script (scripts/help-screenshots.ts). Every
-// sentence is written twice - English and Hindi. In the Hindi text, the words
-// that appear ON SCREEN (button names, tab names, field labels) stay in English,
-// exactly as spelled in the app, so a reader can find what the guide points at.
-// =============================================================================
+// Guides are plain data feeding both the Help pages and scripts/help-screenshots.ts. In Hindi
+// text, on-screen words (buttons, tabs, field labels) stay in English, spelled as in the app.
 
 export type HelpLang = "en" | "hi"
 
-/** One piece of guide text in both languages. */
 export interface L10n {
   en: string
   hi: string
 }
 
-/**
- * Which demo account a screenshot is taken as (see features/help/demo/dataset.ts):
- * a plain employee, a team manager, HR, or the company admin.
- */
 export type DemoPersona = "employee" | "manager" | "hr" | "admin"
 
-/**
- * How the screenshot script finds an element - Playwright locators, written as
- * data. Prefer `role` + `name` (what the user reads on the button), then
- * `label` (form fields), then `text`. `css` is the last resort.
- */
+/** Playwright locators as data. Prefer role + name, then label, then text; css is the last resort. */
 export type HelpTarget = (
   | {
       role:
@@ -44,6 +28,7 @@ export type HelpTarget = (
         | "dialog"
         | "alertdialog"
         | "menu"
+        | "img"
         | "tablist"
         | "tabpanel"
         | "list"
@@ -66,19 +51,20 @@ export type HelpTarget = (
   nth?: number
 }
 
-/** Something to do on the page before the picture is taken. */
 export type HelpAction =
   | { click: HelpTarget }
   | { fill: HelpTarget; value: string }
   | { hover: HelpTarget }
   | { press: string }
-  | { waitFor: HelpTarget }
+  /** `timeout` in ms (default 20 s) - raise it for slow work like a first AI-model download. */
+  | { waitFor: HelpTarget; timeout?: number }
+  /** Put a file (repo path, e.g. "public/brand-mark-104.png") into the page's first file input. */
+  | { upload: string }
   /** Milliseconds - only for animations that have no element to wait on. */
   | { wait: number }
 
-/** A screenshot, described so `pnpm help:shots` can take it. */
 export interface HelpShot {
-  /** Stable, unique, kebab-case. Becomes public/help/shots/<id>.webp. */
+  /** Stable, unique, kebab-case. */
   id: string
   as: DemoPersona
   /** App path WITHOUT the company prefix, e.g. "/leave" or "/leave/apply". */
@@ -88,6 +74,8 @@ export interface HelpShot {
   highlight?: HelpTarget[]
   /** Crop to this element (plus a margin) instead of the whole window. */
   crop?: HelpTarget
+  /** Elements to leave out of the picture (e.g. a warning that only shows on a dev machine). */
+  hide?: HelpTarget[]
   /** "mobile" takes it in a phone-sized window. Default "desktop". */
   device?: "desktop" | "mobile"
 }
@@ -106,9 +94,7 @@ export interface HelpSection {
   permission?: string
   intro?: L10n
   steps?: HelpStep[]
-  /** Short "good to know" notes, shown after the steps. */
   tips?: L10n[]
-  /** Common questions about this part of the module. */
   faq?: { q: L10n; a: L10n }[]
 }
 
@@ -123,10 +109,7 @@ export interface HelpGuide {
   title: L10n
   /** One sentence: what this module is for. */
   summary: L10n
-  /**
-   * The page this guide explains. Who can SEE the guide follows who can see that
-   * page in the sidebar (lib/nav.ts), so nobody reads about a screen they lack.
-   */
+  /** Who can SEE the guide follows who can see this page in the sidebar (lib/nav.ts). */
   href?: string
   /** Overrides the sidebar-derived permission (or gates a guide with no href). */
   permission?: string
@@ -135,14 +118,10 @@ export interface HelpGuide {
   sections: HelpSection[]
 }
 
-/** What the screenshot script recorded for one shot (features/help/shots.generated.ts). */
 export interface HelpShotFile {
   src: string
   width: number
   height: number
-  /**
-   * Highlight boxes as fractions (0-1) of the image, in highlight order. `null`
-   * marks one the script couldn't find, so the numbers after it don't shift.
-   */
+  /** Fractions (0-1) of the image; null marks a box not found, so later numbers don't shift. */
   boxes: ({ x: number; y: number; w: number; h: number } | null)[]
 }

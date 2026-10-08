@@ -189,20 +189,17 @@ const VIEWS: Record<ViewKey, React.ReactNode> = {
   activity: <ActivityView />,
 }
 
-/** Bespoke visual: the real client-portal shell - a module sidebar (the client's
- *  granted modules) beside module content. Clicking a module switches the view,
- *  like the hero mockup. */
+/**
+ * The client-portal shell: granted-module sidebar beside content; clicking a module switches views.
+ */
 function ClientPortalVisual() {
   const [view, setView] = useState<ViewKey>("products")
   const current = NAV.find((n) => n.key === view)!
 
   return (
     <div className="border-border bg-background flex h-full overflow-hidden rounded-sm border shadow-xl">
-      {/* sidebar */}
       <div className="border-border/70 bg-card/40 flex w-[116px] shrink-0 flex-col border-r p-2 sm:w-[136px]">
-        {/* project switcher (decorative - part of the product mockup, so it is
-            taken out of the tab order and hidden from assistive tech rather
-            than presenting as a button that does nothing) */}
+        {/* Decorative, so it's out of the tab order and hidden from assistive tech. */}
         <button
           type="button"
           tabIndex={-1}
@@ -221,7 +218,6 @@ function ClientPortalVisual() {
           </span>
           <ChevronDown className="text-muted-foreground h-3 w-3 shrink-0" />
         </button>
-        {/* modules */}
         <div className="text-muted-foreground mb-1 px-1 text-[8px] font-medium tracking-wide uppercase">
           Modules
         </div>
@@ -255,7 +251,6 @@ function ClientPortalVisual() {
         </nav>
       </div>
 
-      {/* content */}
       <div className="flex min-w-0 flex-1 flex-col p-3">
         <div className="mb-3 flex items-center justify-between gap-2">
           <span className="text-xs font-semibold">{current.title}</span>

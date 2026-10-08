@@ -59,14 +59,8 @@ async function fetchRows(where: Record<string, unknown>) {
   })
 }
 
-/**
- * Shape one stored application into the row the UI renders.
- *
- * The reward is DERIVED here rather than stored: hire link, joining date and
- * payout stamp already contain the answer, and a stored status is one more
- * thing that can drift out of step with them. Once paid, the frozen amount
- * wins - the referred person's salary moves on, what was paid does not.
- */
+/** Shape a stored application into a UI row. The reward is derived, not stored; once paid, the
+ *  frozen amount wins. */
 function toRow(r: Row, percent: number | null, now: Date): ReferralRow {
   const hire = r.hiredEmployee
   const joining = hire?.dateOfJoining ?? null
@@ -106,23 +100,15 @@ function toRow(r: Row, percent: number | null, now: Date): ReferralRow {
   }
 }
 
-/**
- * The roles an employee may refer somebody to.
- *
- * Deliberately NOT the admin careers tree: that one is gated on
- * recruitment:read, which only HR holds - pointing the referral form at it left
- * every ordinary employee looking at an empty dropdown, which is everyone the
- * feature exists for. This returns the published job board only, which is
- * already public on the careers site, so an employee seeing it leaks nothing.
- */
+/** Roles an employee may refer to: the published job board (already public), not the admin
+ *  careers tree, which needs recruitment:read. */
 export async function getReferableRoles(): Promise<
   { id: string; title: string; department: string }[]
 > {
   const roles = await db.careerRole.findMany({
     where: {
       status: "PUBLISHED",
-      // A published role inside a draft department is not actually advertised;
-      // referring into it would put a candidate in a pipeline nobody is running.
+      // A published role in a draft department isn't actually advertised.
       subDepartment: { status: "PUBLISHED", group: { status: "PUBLISHED" } },
     },
     select: {
@@ -155,9 +141,7 @@ export async function getMyReferrals(
   const [rows, percent, me] = await Promise.all([
     fetchRows({ referrerId: employeeId }),
     currentPercent(),
-    // Their own id, so the page can tell them what to pass on. Nobody knows
-    // their employee number offhand, and "ask HR" is how a referral goes
-    // unclaimed.
+    // Their own employee number, so the page can tell them what to pass on.
     db.employee.findUnique({ where: { id: employeeId }, select: { employeeNo: true } }),
   ])
   const now = new Date()
@@ -188,8 +172,7 @@ export async function getAllReferrals(): Promise<
   })[]
 > {
   const [rows, percent] = await Promise.all([
-    // Anything that CLAIMS a referrer, resolved or not: an employee number that
-    // matched nobody is exactly what HR needs to see and fix by hand.
+    // Anything that claims a referrer, even an unmatched employee number HR must fix by hand.
     fetchRows({ OR: [{ referrerId: { not: null } }, { referrerEmployeeNo: { not: null } }] }),
     currentPercent(),
   ])

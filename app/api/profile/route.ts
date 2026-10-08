@@ -47,7 +47,6 @@ export const PATCH = withSession(async (req: NextRequest, _ctx: unknown, session
     if (body.currentAddress !== undefined) data.currentAddress = body.currentAddress || null
     if (body.emergencyContact !== undefined) data.emergencyContact = body.emergencyContact || null
 
-    // Gmail App Password - strip spaces, must be exactly 16 chars when present.
     if (body.gmailAppPassword !== undefined) {
       const raw =
         typeof body.gmailAppPassword === "string" ? body.gmailAppPassword.replace(/\s+/g, "") : ""
@@ -63,7 +62,6 @@ export const PATCH = withSession(async (req: NextRequest, _ctx: unknown, session
       }
     }
 
-    // Password change
     let newPassword: string | null = null
     if (body.currentPassword && body.newPassword) {
       const employee = await db.employee.findUnique({
@@ -83,9 +81,8 @@ export const PATCH = withSession(async (req: NextRequest, _ctx: unknown, session
           { error: "Password must be at least 8 characters" },
           { status: 400 },
         )
-      // Applied AFTER the profile update below, through the one function allowed
-      // to write a credential (M2): it updates `users` and the legacy employee
-      // column together, which a plain `data.passwordHash =` here would not.
+      // Applied after the profile update, via the one function allowed to write credentials (it updates
+      // `users` and the legacy employee column together).
       newPassword = body.newPassword
     }
 
@@ -97,7 +94,6 @@ export const PATCH = withSession(async (req: NextRequest, _ctx: unknown, session
         phone: true,
         currentAddress: true,
         emergencyContact: true,
-        // Expose only whether a password is set, never the value itself.
       },
     })
 
@@ -105,7 +101,6 @@ export const PATCH = withSession(async (req: NextRequest, _ctx: unknown, session
       await setPassword({ employeeId: session.user.id }, newPassword)
     }
 
-    // Tell the client whether they currently have an App Password on file.
     const hasGmailAppPassword = !!(
       await db.employee.findUnique({
         where: { id: session.user.id },

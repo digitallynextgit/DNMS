@@ -1,8 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Mirrors AlbumView: a back-link header (back button above title) with an action
-// button, then the square photo/video grid (grid-cols-2 sm:grid-cols-4
-// lg:grid-cols-5, aspect-square).
 export default function AlbumLoading() {
   return (
     <div className="space-y-6">

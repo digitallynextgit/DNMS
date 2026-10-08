@@ -4,8 +4,7 @@ import { cn } from "@/lib/utils"
 import { Reveal, SpotlightCard } from "./fx"
 import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
-// The punchy tail of each module headline, painted brand red like the hero &
-// bento titles. Keyed by the eyebrow, which is the module name each section passes.
+// Brand-red tail of each module headline, keyed by the eyebrow (the module name).
 const TITLE_ACCENT: Record<string, string> = {
   "HR & People": "one record",
   "Attendance & Time": "on autopilot",
@@ -19,11 +18,7 @@ const TITLE_ACCENT: Record<string, string> = {
   "Governance & Control": "full visibility",
 }
 
-/**
- * Shared layout for a module "spotlight": a text column (eyebrow + title + copy +
- * checklist) beside a bespoke visual/mockup. `reverse` swaps the sides; `tinted`
- * gives an alternating banded background. Each module supplies its own `visual`.
- */
+/** Module spotlight: text beside a bespoke visual. `reverse` swaps sides; `tinted` bands it. */
 export function SpotlightSection({
   id,
   eyebrow,
@@ -49,13 +44,10 @@ export function SpotlightSection({
   /** Render the visual without the outer card chrome (it supplies its own frame). */
   bareVisual?: boolean
 }) {
-  // Split the title so its brand-red accent phrase (if any) can be colored.
   const accent = TITLE_ACCENT[eyebrow]
   const accentAt = accent ? title.indexOf(accent) : -1
 
-  // Hero-style pill (matches the platform + bento sections). Rendered twice: for
-  // real in the text column, and as an invisible spacer above the visual so the
-  // card top lines up with the TITLE rather than the pill.
+  // Rendered twice: in the text column, and as a spacer so the visual lines up with the title.
   const pill = (
     <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
       <span
@@ -86,8 +78,7 @@ export function SpotlightSection({
             ) : (
               <>
                 {title.slice(0, accentAt)}
-                {/* Accent stays together on one line - it flows onto the same
-                    line when it fits, otherwise wraps as a whole to the next. */}
+                {/* The accent wraps as a whole, never mid-phrase. */}
                 <span
                   className={cn("whitespace-nowrap", titleBreak && "block")}
                   style={{ color: BRAND_RED }}
@@ -112,13 +103,10 @@ export function SpotlightSection({
         </Reveal>
         <Reveal delay={120} className={cn("h-full min-w-0", reverse && "lg:order-1")}>
           <div className="flex h-full min-w-0 flex-col">
-            {/* Invisible pill-height spacer so the card's top lines up with the
-                TITLE (not the pill) on desktop. Hidden on mobile where it stacks. */}
             <div aria-hidden className="pointer-events-none hidden opacity-0 select-none lg:block">
               {pill}
             </div>
             {bareVisual ? (
-              // Visual brings its own frame - no outer card chrome.
               <div className="flex flex-1 flex-col lg:mt-6">{visual}</div>
             ) : (
               <SpotlightCard className="border-border bg-card/60 relative flex flex-1 flex-col justify-center overflow-hidden rounded-sm border p-3 shadow-xl sm:p-4 lg:mt-6">

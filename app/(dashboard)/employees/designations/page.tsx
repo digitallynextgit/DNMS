@@ -153,9 +153,7 @@ export default function DesignationsPage() {
 
   const designations = data?.data ?? []
 
-  // ── Client-side search + slot-of-10 pagination ────────────────────────────
-  // getDesignations is reused as a lookup (filters/forms), so the list is
-  // fetched in full and paginated here on the client.
+  // The list is reused as a lookup, so it's fetched in full and paginated here.
   const PAGE_SIZE = 10
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -165,8 +163,7 @@ export default function DesignationsPage() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
 
-  // Reset to page 1 when the search changes (skips mount so a deep-linked
-  // ?page=N survives first render).
+  // Skips mount so a deep-linked ?page=N survives first render.
   useUpdateEffect(() => {
     setPage(1)
   }, [search])
@@ -301,9 +298,6 @@ export default function DesignationsPage() {
         </BulkActionBar>
       )}
 
-      {/* The table renders from the first paint: while `isLoading` it draws
-          skeleton rows inside its own real <thead>, so the header, column count
-          and S.No column never move when the data lands. */}
       {isLoading || rows.length > 0 ? (
         <DataTable
           columns={columns}

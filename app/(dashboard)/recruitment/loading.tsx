@@ -1,17 +1,11 @@
 import { PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-/**
- * Recruitment landing skeleton: header + a 3-up stat row (icon tile + number +
- * label), a status filter-chip strip, then the job-posting card grid
- * (sm:grid-cols-2 lg:grid-cols-3) so nothing reflows when the postings arrive.
- */
 export default function Loading() {
   return (
     <div className="space-y-6">
       <PageHeaderSkeleton withActions />
 
-      {/* Stats (3-up: icon tile + number + label) */}
       <div className="grid gap-4 sm:grid-cols-3">
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="border-border bg-card rounded-sm border">
@@ -26,14 +20,12 @@ export default function Loading() {
         ))}
       </div>
 
-      {/* Status filter chips */}
       <div className="flex items-center gap-2">
         {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="bg-muted h-6 w-16 animate-pulse rounded-sm" />
         ))}
       </div>
 
-      {/* Job-posting card grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="border-border bg-card space-y-3 rounded-sm border p-4">

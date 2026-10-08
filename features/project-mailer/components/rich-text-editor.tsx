@@ -1,17 +1,7 @@
 "use client"
 
-// =============================================================================
-// Minimal WYSIWYG editor
-// =============================================================================
-// Deliberately dependency-free. A full editor (TipTap/Lexical/Quill) is a large
-// dependency for what an email body needs, and email HTML has to stay simple
-// anyway - Outlook ignores most of what a rich editor emits.
-//
-// Built on contentEditable + document.execCommand. execCommand is formally
-// deprecated but is implemented everywhere and is the only API that gives
-// inline formatting without a full editing model; the alternative is hand-rolling
-// selection and range handling, which is exactly the complexity we are avoiding.
-// =============================================================================
+// Minimal dependency-free WYSIWYG for email bodies, on contentEditable + execCommand.
+// execCommand is deprecated but universal, and avoids hand-rolling selection handling.
 
 import * as React from "react"
 import {
@@ -64,8 +54,7 @@ export function RichTextEditor({
   const ref = React.useRef<HTMLDivElement>(null)
   const fileRef = React.useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = React.useState(false)
-  // The toolbar button opens a file dialog, which blurs the editable - so the
-  // caret is stashed on mousedown, before that happens.
+  // The file dialog blurs the editable, so the caret is stashed on mousedown.
   const savedRange = React.useRef<Range | null>(null)
   // The image the user clicked, plus where to float its action buttons.
   const [picked, setPicked] = React.useState<{
@@ -76,9 +65,7 @@ export function RichTextEditor({
     href: string | null
   } | null>(null)
 
-  // Only write into the DOM when the incoming value genuinely differs from what
-  // is already there. Assigning innerHTML on every render would collapse the
-  // caret to the start on every keystroke.
+  // Only write innerHTML when the value really differs, or the caret jumps to the start.
   React.useEffect(() => {
     const el = ref.current
     if (el && el.innerHTML !== value) el.innerHTML = value || ""
@@ -92,20 +79,12 @@ export function RichTextEditor({
 
   const insertVar = (key: string) => {
     ref.current?.focus()
-    // insertText, not insertHTML: the braces must land as literal characters, or
-    // the browser escapes them into entities and the renderer stops matching.
+    // insertText, not insertHTML: the braces must stay literal, not become entities.
     document.execCommand("insertText", false, `{{${key}}}`)
     onChange(ref.current?.innerHTML ?? "")
   }
 
-  /**
-   * Insert HTML where the caret was.
-   *
-   * An upload is async, and the selection is gone by the time it resolves - the
-   * file dialog, or simply the round trip, blurs the editable. So the Range is
-   * captured up front and restored before inserting; without this every image
-   * lands at the start of the document.
-   */
+  /** Insert HTML at a saved Range - the selection is gone by the time an upload resolves. */
   function insertAtRange(html: string, saved: Range | null) {
     const el = ref.current
     if (!el) return
@@ -134,8 +113,7 @@ export function RichTextEditor({
     try {
       for (const file of files) {
         const url = await onUploadImage(file)
-        // Sizing is INLINE, not a class: mail clients strip <style> blocks, so
-        // without it a wide image blows out the layout on a phone.
+        // Inline sizing: mail clients strip <style> blocks.
         insertAtRange(
           `<img src="${url}" alt="" style="max-width:100%;height:auto;display:block;border:0;" />`,
           saved,
@@ -157,8 +135,6 @@ export function RichTextEditor({
     try {
       const url = await onUploadImage(file)
       ref.current?.focus()
-      // Sizing is INLINE, not a class: mail clients strip <style> blocks, so
-      // without it a wide image blows out the layout on a phone.
       document.execCommand(
         "insertHTML",
         false,
@@ -171,13 +147,7 @@ export function RichTextEditor({
   }
 
   /**
-   * Clicking an image selects it.
-   *
-   * contentEditable does not reliably select an <img> on click, which is why
-   * Backspace appeared to do nothing - there was no selection to delete. Wrapping
-   * the node in a Range makes Delete/Backspace work AND gives us somewhere to
-   * anchor an explicit Remove button, since "click it then press a key" is not a
-   * discoverable way to remove a picture.
+   * Select a clicked image (contentEditable won't), so Delete/Backspace and the Remove button work.
    */
   function pickImage(img: HTMLImageElement) {
     const el = ref.current
@@ -201,13 +171,7 @@ export function RichTextEditor({
     return parent && parent.tagName === "A" ? (parent as HTMLAnchorElement) : null
   }
 
-  /**
-   * Make the picked image clickable, or change/remove where it points.
-   *
-   * A bare domain is given https:// - people type "hard2soft.in", and an href
-   * without a scheme is treated as a RELATIVE path, which in an email resolves
-   * against the mail client's own domain and 404s.
-   */
+  /** Link or unlink the picked image. Bare domains get https:// (no scheme = relative URL). */
   function linkPicked() {
     const el = ref.current
     const img = picked?.el
@@ -233,8 +197,7 @@ export function RichTextEditor({
         anchor.appendChild(img)
       }
       anchor.setAttribute("href", href)
-      // Mail clients open links in a browser anyway, but webmail needs this to
-      // avoid replacing the inbox tab itself.
+      // So webmail doesn't replace the inbox tab.
       anchor.setAttribute("target", "_blank")
       anchor.setAttribute("rel", "noopener noreferrer")
       setPicked((p) => (p ? { ...p, href } : p))
@@ -247,15 +210,13 @@ export function RichTextEditor({
     const img = picked?.el
     if (!el || !img) return
     const src = img.getAttribute("src") ?? ""
-    // Take the wrapping <a> with it. An anchor left holding nothing is invisible
-    // in the editor but still a clickable dead zone in the delivered email.
+    // Remove an emptied wrapping <a> too - it would be a dead click zone in the email.
     const anchor = anchorOf(img)
     if (anchor && anchor.childNodes.length === 1) anchor.remove()
     else img.remove()
     setPicked(null)
     onChange(el.innerHTML)
-    // Reclaim the file only after it is out of the document, so a failed delete
-    // never leaves a live <img> pointing at an object we already removed.
+    // Reclaim the file only once it's out of the document.
     if (src) onDeleteImage?.(src)
   }
 
@@ -287,8 +248,7 @@ export function RichTextEditor({
             size="icon"
             title={t.label}
             aria-label={t.label}
-            // onMouseDown + preventDefault: a click would blur the editable and
-            // drop the selection before the command runs.
+            // onMouseDown + preventDefault: a click would blur the editable and lose the selection.
             onMouseDown={(e) => {
               e.preventDefault()
               t.run()
@@ -416,18 +376,14 @@ export function RichTextEditor({
             else setPicked(null)
           }}
           onKeyDown={(e) => {
-            // Delete/Backspace on a picked image goes through the same path as the
-            // button, so the file is reclaimed either way.
+            // Same path as the Remove button, so the file is reclaimed either way.
             if ((e.key === "Delete" || e.key === "Backspace") && picked) {
               e.preventDefault()
               removePicked()
             }
           }}
           onScroll={() => setPicked(null)}
-          // Pasted IMAGES are uploaded and embedded - a screenshot or an image
-          // copied from anywhere just works. Pasted TEXT is still flattened to
-          // plain text, because Word and web pages drag in pages of styles and
-          // classes that break in every email client.
+          // Pasted images are uploaded; pasted text is flattened (Word/web styles break in email).
           onPaste={(e) => {
             const images = Array.from(e.clipboardData.files).filter((f) =>
               f.type.startsWith("image/"),
@@ -442,7 +398,6 @@ export function RichTextEditor({
             document.execCommand("insertText", false, text)
             onChange(ref.current?.innerHTML ?? "")
           }}
-          // Drag an image straight in from the desktop.
           onDrop={(e) => {
             const images = Array.from(e.dataTransfer.files).filter((f) =>
               f.type.startsWith("image/"),

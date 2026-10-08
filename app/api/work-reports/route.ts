@@ -12,12 +12,8 @@ import {
 import { buildWorkReport } from "@/features/work-reports/server/work-report.service"
 import type { WorkReportFormat } from "@/features/work-reports/types"
 
-// GET /api/work-reports?month=YYYY-MM&employeeIds=a,b&format=pptx|pdf|docx&ai=0|1
-//
-// The month-end work report as a file download. Who it may cover comes from the
-// session: anyone for admin/HR, the caller and their reporting line for a
-// manager, only the caller for everyone else. Asking for someone outside that is
-// a 403, never a quietly shorter report.
+// Coverage comes from the session: anyone for admin/HR, the reporting line for a manager, otherwise
+// just the caller. Asking outside it is a 403, never a quietly shorter report.
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 

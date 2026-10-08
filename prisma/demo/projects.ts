@@ -1,23 +1,7 @@
-// =============================================================================
-// Projects: the four projects from the dataset with the standard six teams,
-// and every project tab - brand, files & links, passwords, requirements,
-// chats, goals, deliverables, calendars, monitoring, insights, SEO, mailer.
-// Tasks live in tasks.ts (they need the goals and requirements made here).
-//
-// ── SAFETY: NOTHING HERE WAKES A BACKGROUND JOB ──────────────────────────────
-// The production server's jobs read this database too (server/scheduler.ts,
-// app/api/cron/*), so:
-//   - uptime monitors are stored PAUSED (isActive = false): the 5-minute sweep
-//     and its escalation only look at active monitors, so nothing is fetched
-//     and the open incident never escalates; the tab still shows the last state
-//   - renewals are > 14 days out with lastAlertStage already at the stage they
-//     have crossed, so the hourly renewal sweep has nothing to send for days
-//   - SEO sites are isActive = false - the SEO job skips a tenant with no
-//     active site, and so do the seo-daily / seo-weekly crons
-//   - the Meta integration has NO credentials; syncing is manual-only anyway
-//   - the mailer account points at smtp.demo.invalid and every campaign is
-//     SENT - the campaign runner only picks up QUEUED / SENDING
-// =============================================================================
+// Demo projects: the four dataset projects with the standard six teams and every project tab. Tasks live in
+// tasks.ts (they need the goals and requirements made here).
+// Safety: production jobs read this database too, so nothing seeded here may wake one (monitors, SEO sites,
+// renewals, the Meta integration and the mailer are all stored inert - see each one below).
 
 import { randomUUID } from "node:crypto"
 import { encrypt } from "@/lib/crypto"
@@ -46,10 +30,9 @@ const TEAMS: Record<
   string,
   Partial<Record<(typeof TEAM_NAMES)[number], { manager: string | null; members: string[] }>>
 > = {
-  // Rohan is the Account Manager on Sunmeadow and UrbanNest and manages DESIGN
-  // there (he is the Creative Lead); Priya is a plain DESIGN member.
+  // Rohan is the Account Manager on Sunmeadow and UrbanNest and manages DESIGN there; Priya is a DESIGN member.
   sunrise: {
-    // GUIDE REQUIREMENT (review): WEB is staffed - the first staffed team.
+    // Guide requirement: WEB is the first staffed team.
     WEB: { manager: "karthik", members: ["rahul"] },
     DESIGN: { manager: "rohan", members: ["priya"] },
     MAP: { manager: "vikram", members: ["ananya"] },
@@ -111,8 +94,6 @@ const teamId = (ctx: DemoContext, project: string, team: string) => {
   if (!id) throw new Error(`No team ${team} on ${project}`)
   return id
 }
-
-// ── projects + teams ─────────────────────────────────────────────────────────
 
 async function seedProjectsAndTeams(ctx: DemoContext): Promise<void> {
   const activity: Record<string, unknown>[] = []
@@ -177,8 +158,6 @@ async function seedProjectsAndTeams(ctx: DemoContext): Promise<void> {
   ctx.summary.add(M, "teams (6 per project)", DEMO_PROJECTS.length * TEAM_NAMES.length)
   ctx.summary.add(M, "team memberships", members)
 }
-
-// ── brand, files, passwords ──────────────────────────────────────────────────
 
 async function seedBrandFilesVault(ctx: DemoContext): Promise<void> {
   const rohan = idOf(ctx, "rohan")
@@ -318,7 +297,7 @@ async function seedBrandFilesVault(ctx: DemoContext): Promise<void> {
   })
   ctx.summary.add(M, "brand workspaces (+1 brief file row)", brands.length)
 
-  // ── repository: folders, files (rows only), links ──────────────────────────
+  // Repository: folders, files (rows only), links.
   const folder: Record<string, string> = {}
   for (const name of ["Brand", "Campaigns", "Reports"]) {
     folder[name] = await make(ctx, "projectFolder", {
@@ -431,7 +410,7 @@ async function seedBrandFilesVault(ctx: DemoContext): Promise<void> {
     3 + files.length + 2,
   )
 
-  // ── passwords (encrypted with lib/crypto, the app's own way) ───────────────
+  // Passwords, encrypted with lib/crypto the app's own way.
   const vault = [
     {
       project: "sunrise",
@@ -494,12 +473,9 @@ async function seedBrandFilesVault(ctx: DemoContext): Promise<void> {
   ctx.summary.add(M, "password vault entries (encrypted)", vault.length)
 }
 
-// ── requirements + project chats ─────────────────────────────────────────────
-
 async function seedRequirementsAndChats(ctx: DemoContext): Promise<void> {
   const reqs = [
-    // GUIDE REQUIREMENT (projects): OPEN asked of Rohan (blocks Priya's task),
-    // IN_PROGRESS and overdue, PROVIDED with a note.
+    // Guide requirement: OPEN asked of Rohan (blocks Priya's task), IN_PROGRESS and overdue, PROVIDED with a note.
     {
       key: "req:photos",
       project: "sunrise",
@@ -632,7 +608,6 @@ async function seedRequirementsAndChats(ctx: DemoContext): Promise<void> {
   }
   ctx.summary.add(M, "requirements", reqs.length)
 
-  // ── project chats ──────────────────────────────────────────────────────────
   const ago = (mins: number) => new Date(ctx.now.getTime() - mins * 60_000)
   type Thread = {
     project: string
@@ -743,8 +718,7 @@ async function seedRequirementsAndChats(ctx: DemoContext): Promise<void> {
       isPinned: t.pinned ?? false,
       mentionedIds: (t.mentions ?? []).map((k) => idOf(ctx, k)),
       createdAt: ago(t.minsAgo),
-      // The Chats tab shows "edited" whenever updatedAt !== createdAt, and a
-      // reply does not touch its thread - so both are the posting time.
+      // The Chats tab shows "edited" when updatedAt !== createdAt, and a reply does not touch its thread.
       updatedAt: ago(t.minsAgo),
     })
     const replyIds = t.replies.map(() => randomUUID())
@@ -795,8 +769,6 @@ async function seedRequirementsAndChats(ctx: DemoContext): Promise<void> {
   ctx.summary.add(M, "project chat replies", replies)
 }
 
-// ── goals ────────────────────────────────────────────────────────────────────
-
 async function seedGoals(ctx: DemoContext): Promise<void> {
   type Goal = {
     key: string
@@ -812,8 +784,7 @@ async function seedGoals(ctx: DemoContext): Promise<void> {
     reason?: string
     sort: number
   }
-  // GUIDE REQUIREMENT (projects): Sunmeadow has three goals - one with two
-  // sub-goals, one AT_RISK with a reason, one with a delivery target.
+  // Guide requirement: Sunmeadow has three goals - one with two sub-goals, one AT_RISK with a reason, one with a target.
   const goals: Goal[] = [
     {
       key: "goal:launch",
@@ -961,8 +932,6 @@ async function seedGoals(ctx: DemoContext): Promise<void> {
   ctx.summary.add(M, "goals (incl. sub-goals)", goals.length)
 }
 
-// ── deliverables ─────────────────────────────────────────────────────────────
-
 async function seedDeliverables(ctx: DemoContext): Promise<void> {
   const mon = mondayOf(ctx.today)
   const week = (k: number) => ({ start: addDays(mon, 7 * k), end: addDays(mon, 7 * k + 4) })
@@ -983,11 +952,9 @@ async function seedDeliverables(ctx: DemoContext): Promise<void> {
     link?: string
     goal?: string
   }
-  // GUIDE REQUIREMENT (projects / project tools): Sunmeadow's newest week is
-  // THIS week (none later): DESIGN has an unassigned "To do", Priya's To do /
-  // In progress, and a "Made" one with a link; older weeks hold Accepted and
-  // "Awaiting revision" (revisionCount 1). Priya also has an overdue one and
-  // items on UrbanNest and FitLife.
+  // Guide requirement: Sunmeadow's newest week is THIS week, with an unassigned DESIGN "To do", Priya's To do /
+  // In progress and a "Made" one with a link; older weeks hold Accepted and "Awaiting revision". Priya also has
+  // an overdue one and items on UrbanNest and FitLife.
   const rows: D[] = [
     // Sunmeadow - this week
     {
@@ -1442,8 +1409,6 @@ async function seedDeliverables(ctx: DemoContext): Promise<void> {
   ctx.summary.add(M, "deliverables (this week + 3 weeks back)", delivRows.length)
 }
 
-// ── calendars (workbooks) ────────────────────────────────────────────────────
-
 async function seedCalendars(ctx: DemoContext): Promise<void> {
   const sunrise = ctx.project.sunrise!
   const sneha = idOf(ctx, "sneha")
@@ -1695,8 +1660,6 @@ async function seedCalendars(ctx: DemoContext): Promise<void> {
   ctx.summary.add(M, 'Sunmeadow "Content calendar" (2 months x 2 tabs)', 2)
 }
 
-// ── monitoring, insights, SEO, mailer ────────────────────────────────────────
-
 async function seedMonitoring(ctx: DemoContext): Promise<void> {
   const urbannest = ctx.project.urbannest!
   const karthik = idOf(ctx, "karthik")
@@ -1747,8 +1710,7 @@ async function seedMonitoring(ctx: DemoContext): Promise<void> {
       escalationLevel: 0,
     },
   ])
-  // Renewals. lastAlertStage = the stage already crossed, so nothing is sent
-  // until the next threshold (14 days out for the domain).
+  // Renewals: lastAlertStage = the stage already crossed, so nothing is sent until the next threshold.
   await makeMany(ctx, "projectAsset", [
     {
       projectId: urbannest,
@@ -1791,13 +1753,11 @@ async function seedMonitoring(ctx: DemoContext): Promise<void> {
 
 async function seedInsights(ctx: DemoContext): Promise<void> {
   const sunrise = ctx.project.sunrise!
-  // "Connected" with NO credentials: the tab reads the stored series; the only
-  // sync path is a manual button, which would simply fail.
+  // "Connected" with NO credentials: the tab reads the stored series; a manual sync would simply fail.
   await make(ctx, "projectIntegration", {
     projectId: sunrise,
     provider: "META",
-    // Stored WITHOUT the "act_" prefix, as saveMetaIntegration does - the
-    // tab and the sync both add it.
+    // Stored without the "act_" prefix, as saveMetaIntegration does; the tab and the sync add it.
     metaAdAccountId: "000000000000",
     status: "connected",
     lastSyncedAt: new Date(ctx.now.getTime() - 3 * 3_600_000),

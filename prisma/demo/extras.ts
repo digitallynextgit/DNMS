@@ -1,12 +1,7 @@
-// =============================================================================
-// Notifications for the personas, the attendance devices, and Priya's AI
-// connection (Claude).
-// =============================================================================
+// Demo notifications, attendance devices and Priya's AI connection.
 
 import { db } from "@/server/db"
 import { addDays, at, idOf, make, makeMany, type DemoContext } from "./context"
-
-// ── Notifications ────────────────────────────────────────────────────────────
 
 export async function seedNotifications(ctx: DemoContext): Promise<void> {
   const sunrise = "/projects/sunmeadow-organics-launch"
@@ -90,7 +85,6 @@ export async function seedNotifications(ctx: DemoContext): Promise<void> {
       minsAgo: 1500,
       read: true,
     },
-    // Rohan (manager)
     {
       to: "rohan",
       title: "Leave request",
@@ -140,7 +134,6 @@ export async function seedNotifications(ctx: DemoContext): Promise<void> {
       minsAgo: 15000,
       read: true,
     },
-    // Neha (HR)
     {
       to: "neha",
       title: "Resignation submitted",
@@ -174,7 +167,6 @@ export async function seedNotifications(ctx: DemoContext): Promise<void> {
       minsAgo: 8000,
       read: true,
     },
-    // Aarav (admin)
     {
       to: "aarav",
       title: "Leave request",
@@ -200,7 +192,6 @@ export async function seedNotifications(ctx: DemoContext): Promise<void> {
       minsAgo: 3000,
       read: true,
     },
-    // Clearance owners
     {
       to: "meera",
       title: "Exit clearance waiting on you",
@@ -235,15 +226,9 @@ export async function seedNotifications(ctx: DemoContext): Promise<void> {
   ctx.summary.add("Notifications", "notifications (unread ones for every persona)", list.length)
 }
 
-// ── Attendance devices ───────────────────────────────────────────────────────
-
 export async function seedDevices(ctx: DemoContext): Promise<void> {
-  // STORED DISABLED, on purpose. An ENABLED device whose stored address does
-  // not answer makes the attendance-sync job sweep the server's whole local
-  // subnet for any Hikvision terminal (features/attendance/server/
-  // device-resolver.ts) - on the production server that is the real office
-  // LAN. Disabled devices are skipped by the job and still listed on the page.
-  // TEST-NET addresses (RFC 5737) and documentation MACs (RFC 7042) besides.
+  // Stored DISABLED on purpose: an enabled device that does not answer makes the sync job sweep the server's
+  // local subnet (the real office LAN in production). TEST-NET addresses (RFC 5737), documentation MACs (RFC 7042).
   const ago = (mins: number) => new Date(ctx.now.getTime() - mins * 60_000)
   const devices = [
     {
@@ -287,16 +272,11 @@ export async function seedDevices(ctx: DemoContext): Promise<void> {
   )
 }
 
-// ── AI connection ────────────────────────────────────────────────────────────
-
 /** The AI apps' client ids. OAuthClient rows are PLATFORM-level and shared. */
 const CLAUDE = "https://claude.ai/oauth/mcp-oauth-client-metadata"
 const CLAUDE_CODE = "https://claude.ai/oauth/claude-code-client-metadata"
 
-/**
- * Who has connected which AI app. GUIDE REQUIREMENT: Priya has one active
- * Claude connection, and Aarav's "Everyone in this workspace" list has rows.
- */
+/** Who has connected which AI app. Guide requirement: Priya has one active Claude connection; Aarav's list has rows. */
 const CONNECTIONS: {
   who: string
   client: string
@@ -345,9 +325,7 @@ const CONNECTIONS: {
 ]
 
 export async function seedAiConnection(ctx: DemoContext): Promise<void> {
-  // Only tenant-scoped GRANTS are written. The OAuth clients are shared,
-  // platform-level rows that already exist once anybody has connected the app;
-  // they are never created here. No tokens: a connection lists, it cannot act.
+  // Only tenant-scoped grants are written; the platform-level OAuth clients are never created here. No tokens.
   const clients = new Set(
     (
       await db.oAuthClient.findMany({

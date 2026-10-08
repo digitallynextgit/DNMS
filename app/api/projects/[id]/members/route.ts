@@ -3,9 +3,7 @@ import { db } from "@/server/db"
 import { withProjectAccess } from "@/features/projects/server/project-access"
 import type { Session } from "next-auth"
 
-// GET /api/projects/[id]/members
-// Flat, deduped list of everyone who belongs to the project (Account Manager +
-// every team member) - used to power the @mention picker in messages.
+// Account Manager + every team member, deduped - powers the @mention picker.
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {

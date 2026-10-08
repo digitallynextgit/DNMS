@@ -3,16 +3,8 @@ import { withProjectAccess } from "@/features/projects/server/project-access"
 import { sheetBelongsToProject, writeCellsAt } from "@/features/projects/server/sheets.service"
 import type { Session } from "next-auth"
 
-/**
- * PATCH - write cells at a row POSITION, creating the row if needed.
- *
- * Addressed by position rather than row id because the grid draws a thousand
- * rows and only the typed-in ones exist. The client knows which row number it
- * is writing to; it cannot know an id for a row that has never been saved.
- *
- * Anyone on the project. Merged, so two people editing different columns of the
- * same row do not overwrite each other.
- */
+// Addressed by row position: the grid draws a thousand rows and only typed-in ones exist (no id yet).
+// Merged, so two people editing different columns of one row don't overwrite each other.
 export const PATCH = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, sheetId } = ctx.params

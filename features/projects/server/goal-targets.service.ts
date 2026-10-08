@@ -10,35 +10,9 @@ import { logActivity } from "./activity"
 import { cleanType, MAX_QUANTITY, MAX_TYPE_LENGTH } from "../lib/deliverable-types"
 import { normaliseType } from "../lib/goal-derivation"
 
-// =============================================================================
-// What a goal actually PROMISED: "20 reels, September".
-//
-// A goal used to be measurable only through the work planned under it, which
-// answers "did we do the things we listed" and not "did we deliver what we
-// said we would". Those two come apart the moment a task list is optimistic or
-// a client asks for a number. A target is the second question, written down
-// before the month starts, so the goal can grade itself against it.
-//
-// ── FREE TEXT, SNAPPED TO THE PROJECT'S OWN SPELLING ─────────────────────────
-// The type is matched against ProjectDeliverable.type, which is free text with
-// per-team suggestions (see lib/deliverable-types.ts). A target typed "reel"
-// on a project that already logs "Reel" is STORED as "Reel", so the goal board
-// and the deliverables tab name the same thing the same way. Matching itself
-// is case-folded either way - the snap is about how it reads.
-//
-// ── PERIODS MAY NOT OVERLAP ──────────────────────────────────────────────────
-// Two targets for the same type over overlapping dates make "made" ambiguous:
-// one delivery would count towards both, and the goal would report progress it
-// did not make. So per goal and per type: dated periods must not overlap, and
-// there is at most ONE open-ended target - the standing commitment, "50 pages
-// eventually" - which is exempt from the overlap rule because it measures a
-// different thing from the monthly ones beside it.
-//
-// ── MANAGE-ONLY, LIKE THE GOAL ITSELF ────────────────────────────────────────
-// A team manager may break a goal into work; that is theirs to plan. Changing
-// what was PROMISED is the account manager's call, so this mirrors goal CRUD
-// rather than the task-staffing boundary.
-// =============================================================================
+// Goal targets ("20 reels, September") - what a goal promised. Per goal and type, dated periods
+// must not overlap (one delivery would count twice) and only one target may be open-ended.
+// Changing a promise is the account manager's call, so writes follow goal CRUD permissions.
 
 const TARGET_SELECT = {
   id: true,
@@ -57,10 +31,6 @@ export interface GoalTargetInput {
   periodStart?: string | null
   periodEnd?: string | null
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Validation
-// ─────────────────────────────────────────────────────────────────────────────
 
 function parseDay(value: string | null | undefined, label: string): Date | null {
   if (!value) return null
@@ -81,14 +51,7 @@ function parseQuantity(raw: unknown): number {
   return n
 }
 
-/**
- * Snap a typed type onto the casing the project already uses, if any.
- *
- * Deliberately a local copy of the rule deliverables.service.ts applies when a
- * deliverable is logged: both write into the same free-text vocabulary, and a
- * target stored as "reel" beside rows that say "Reel" would still MATCH (the
- * tally is case-folded) but would read as a second type on screen.
- */
+/** Snap a typed type onto the project's existing casing (same rule as deliverables.service.ts). */
 async function canonicalType(projectId: string, raw: string): Promise<string> {
   const cleaned = cleanType(raw ?? "")
   if (!cleaned) {
@@ -116,10 +79,6 @@ function overlaps(
   const bEnd = b.end ? b.end.getTime() : Infinity
   return aStart <= bEnd && bStart <= aEnd
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// How a target reads in the history
-// ─────────────────────────────────────────────────────────────────────────────
 
 const MONTHS = [
   "Jan",
@@ -159,13 +118,7 @@ function describe(t: {
   return `${t.quantity} × ${t.deliverableType}${period ? ` (${period})` : ""}`
 }
 
-/**
- * Refuse a target that would make "made" ambiguous.
- *
- * Compared in memory rather than with a clever WHERE: a goal carries a handful
- * of targets, and the type match runs through the same case-folding the tally
- * uses, which a SQL comparison would have to restate and could drift from.
- */
+/** Refuse a target that makes "made" ambiguous (in memory, using the tally's case-folding). */
 async function assertNoClash(
   goalId: string,
   typeKey: string,
@@ -197,11 +150,7 @@ async function assertNoClash(
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared by the three writes
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** The goal, once we know the caller is allowed to touch this project's goals. */
+/** The goal, after checking the caller may touch this project's goals. */
 async function loadGoal(session: Session, projectId: string, goalId: string) {
   if (!(await canManageProject(session, projectId))) {
     throw new ForbiddenError("Only project managers can set what a goal promises.")
@@ -214,12 +163,7 @@ async function loadGoal(session: Session, projectId: string, goalId: string) {
   return goal
 }
 
-/**
- * The project feed entry. The goal's own append-only history is written inside
- * each transaction beside the row it describes; this is the second, coarser
- * trail the project activity list reads, and it is best-effort by design
- * (logActivity swallows its own failures rather than failing the write).
- */
+/** Best-effort project feed entry; the goal's own history is written inside each transaction. */
 async function record(
   projectId: string,
   goal: { id: string; title: string },
@@ -236,10 +180,6 @@ async function record(
     meta: { goalTitle: goal.title, change, ...meta },
   })
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Writes
-// ─────────────────────────────────────────────────────────────────────────────
 
 export async function addGoalTarget(
   session: Session,
@@ -262,8 +202,7 @@ export async function addGoalTarget(
   })
 
   const actorId = session.user.id
-  // The target and the line of history explaining it land together, or neither
-  // does - the same rule every other goal write follows.
+  // The target and its history line land together, or neither does.
   const target = await db.$transaction(async (tx) => {
     const created = await tx.projectGoalTarget.create({
       data: { goalId, deliverableType, quantity, periodStart, periodEnd, createdById: actorId },
@@ -298,9 +237,7 @@ export async function updateGoalTarget(
   })
   if (!existing) throw new NotFoundError("Target")
 
-  // Every field is optional on a PATCH, so the candidate starts as what is
-  // stored and only what was sent moves. `undefined` leaves a period alone;
-  // `null` clears it, which is the only way to make a target open-ended again.
+  // Start from what's stored. `undefined` leaves a period alone; `null` makes it open-ended.
   const deliverableType =
     input.deliverableType === undefined
       ? existing.deliverableType
@@ -363,8 +300,7 @@ export async function removeGoalTarget(
   })
   if (!existing) throw new NotFoundError("Target")
 
-  // What it said stays in the history even though the row does not: "we
-  // dropped the September reels commitment" is the part worth keeping.
+  // Keep what it said in the history even though the row goes.
   const gone = describe(existing)
   const actorId = session.user.id
   await db.$transaction(async (tx) => {

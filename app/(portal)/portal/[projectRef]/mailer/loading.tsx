@@ -1,7 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Mirrors the mailer page: custom heading, then the 4-tab bar and a content
-// block the ProjectMailerTab renders (its own sections skeleton-load after).
 export default function PortalMailerLoading() {
   return (
     <div className="space-y-5">

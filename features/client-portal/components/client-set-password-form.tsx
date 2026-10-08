@@ -27,15 +27,8 @@ const FIELDS = [
 ] as const
 
 /**
- * First-sign-in password change for a client.
- *
- * The gate in proxy.ts holds them here until `mustChangePassword` clears IN THE
- * JWT COOKIE - the middleware reads the cookie, not the database. `update()`
- * races that cookie write, so a router.push() straight afterwards was leaving
- * with the stale token and getting bounced right back here, looking like the
- * button did nothing. Signing in again with the new password re-issues the
- * token deterministically, and a hard navigation guarantees the proxy sees it.
- * Same fix as the staff form (features/auth/components/change-password-form).
+ * First-sign-in password change. The proxy reads mustChangePassword from the JWT cookie, so we
+ * sign in again to mint a fresh token, then hard-navigate (same fix as the staff form).
  */
 export function ClientSetPasswordForm() {
   const { data: session } = useSession()
@@ -59,8 +52,7 @@ export function ClientSetPasswordForm() {
       return
     }
 
-    // The password is already changed at this point. Re-authenticate with it so
-    // NextAuth mints a fresh JWT carrying mustChangePassword=false.
+    // Re-authenticate so NextAuth mints a JWT with mustChangePassword=false.
     const email = session?.user?.email
     const reauth = email
       ? await signIn("credentials", {
@@ -70,9 +62,7 @@ export function ClientSetPasswordForm() {
         })
       : null
 
-    // If the token could NOT be refreshed, sending them to /portal would just
-    // bounce off the proxy back to this page - the very loop this is fixing.
-    // Drop them at the login screen instead, where the new password works.
+    // No fresh token means /portal would bounce back here - send them to the login screen instead.
     if (!reauth?.ok) {
       toast.success("Password updated - please sign in with your new password")
       await signOut({ callbackUrl: "/login" })
@@ -80,10 +70,8 @@ export function ClientSetPasswordForm() {
     }
 
     toast.success("Password updated")
-    // Hard navigation, not router.push: a client-side transition can be served
-    // from the router cache and/or carry the pre-update cookie, and the proxy
-    // would send us straight back here.
-    window.location.href = "/portal"
+    // Hard navigation: a client-side transition may carry the old cookie and bounce back here.
+    window.location.assign("/portal")
   }
 
   return (
@@ -131,9 +119,7 @@ export function ClientSetPasswordForm() {
           {isSubmitting ? "Saving…" : "Set password"}
         </Button>
 
-        {/* The proxy pins them to this page until the flag clears, so without an
-            escape hatch a client who mistypes their temporary password has no
-            way off it. */}
+        {/* Escape hatch: the proxy pins them here, so a mistyped temp password would trap them. */}
         <button
           type="button"
           onClick={() => signOut({ callbackUrl: "/login" })}

@@ -5,17 +5,7 @@ import { TrendingDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { GoalNode } from "../lib/goal-derivation"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The shared vocabulary of a goal: its shape on the wire, its five states, and
-// the one colour each state wears.
-//
-// Extracted from goals-tab.tsx once the Overview card started showing the same
-// states. Two components rendering "at risk" from two private records is how a
-// state ends up amber in one place and grey in the other - the exact drift the
-// STATUS_STYLE note below warns about, so the record has to outrank both.
-//
-// Types mirror ProjectGoalsSummary in features/projects/server/goals.service.ts.
-// ─────────────────────────────────────────────────────────────────────────────
+// Shared goal vocabulary. Types mirror ProjectGoalsSummary in ../server/goals.service.ts.
 
 export type Status = "NOT_STARTED" | "IN_PROGRESS" | "AT_RISK" | "DONE" | "DISCARDED"
 
@@ -29,18 +19,7 @@ export interface GoalEvent {
   at: string
 }
 
-/**
- * The goal tree, taken from the server's own definition rather than mirrored.
- *
- * These two used to be hand-copied here, which is exactly the drift the note at
- * the top warns about: every field added server-side (targets, slipping,
- * weight) had to be re-typed in a second place, and until somebody did, the
- * board could not see it. The derivation module they come from
- * (../lib/goal-derivation.ts) is PURE - no Prisma client, no server-only - so
- * a client component can take its types without dragging the server in. The
- * re-export keeps every existing `import type { GoalNode } from "./goal-status"`
- * working.
- */
+/** From the pure ../lib/goal-derivation.ts, so client components can use them without server code. */
 export type { GoalNode, GoalTaskLink, GoalTarget } from "../lib/goal-derivation"
 
 export interface GoalsSummary {
@@ -48,7 +27,6 @@ export interface GoalsSummary {
   overallProgress: number
   /** Countable MAIN goals. Sub-goals belong to their parent and are not added. */
   totalGoals: number
-  /** Of `totalGoals`, how many are done. */
   doneGoals: number
   /** Flat, sub-goals included: these describe rows on the board, not goals. */
   discardedGoals: number
@@ -59,16 +37,12 @@ export interface GoalsSummary {
   /** Behind the calendar without anyone having said so yet. Derived. */
   slippingGoals: number
   nextTargetDate: string | null
-  /** Every tag in use on the project, for the filter list and the type-ahead. */
   allTags: string[]
   /** Open tasks serving no goal - shown to the manager as work to sort. */
   unlinkedOpenTasks: number
 }
 
-/**
- * What a component renders before the first response lands, and if the request
- * fails. A zeroed summary rather than a null check at every read site.
- */
+/** Used before the first response and on failure, instead of null checks everywhere. */
 export const EMPTY_SUMMARY: GoalsSummary = {
   goals: [],
   overallProgress: 0,
@@ -92,49 +66,15 @@ export const STATUS_LABEL: Record<Status, string> = {
   DISCARDED: "Discarded",
 }
 
-/**
- * One colour per state, applied to every surface that shows it: the chip, the
- * dot on a sub-goal row, the select that sets it, the arrow in the history, and
- * the slice in the Overview donut.
- *
- * Semantic rather than brand: these are Tailwind palette colours, not the theme
- * accent, so a state reads the same on every surface even where the brand red
- * is doing a different job around it.
- *
- * Kept as one record rather than scattered class strings so a state cannot end
- * up amber in the chip and grey in the dropdown - which is exactly what happens
- * when each surface picks its own.
- */
+/** One colour per state on every surface (chip, dot, select, history, donut), so they can't drift. */
 export interface StatusStyle {
-  /** Filled chip. */
   chip: string
-  /** The dot on a sub-goal row, and the legend swatch. */
   dot: string
-  /** Text on a plain background. */
   text: string
-  /** The select trigger: tinted border + text, so the row carries its state. */
   trigger: string
-  /**
-   * The goal's own title.
-   *
-   * Separate from `text` because a title is body copy and has to stay readable
-   * first. NOT_STARTED keeps the default foreground rather than going muted:
-   * an unstarted goal is not less important than an active one, and greying it
-   * says it is. DONE and DISCARDED are struck through, so on those two the
-   * colour confirms the state rather than having to carry it alone.
-   */
+  /** Body copy, so NOT_STARTED keeps the default foreground; DONE/DISCARDED are struck through. */
   title: string
-  /**
-   * The same colour as a CSS value, for SVG.
-   *
-   * Recharts writes `fill` inline and cannot take a Tailwind class, so a chart
-   * that wants these colours has to restate them - which is how the donut and
-   * the chips drift apart. Stating it here keeps one record authoritative.
-   *
-   * NOT_STARTED is a token rather than a hex so the neutral slice inverts with
-   * the theme; the other four are the same palette steps as the classes above,
-   * which read on both grounds.
-   */
+  /** CSS value for SVG (Recharts can't take classes); NOT_STARTED is a token so it follows the theme. */
   fill: string
 }
 
@@ -172,9 +112,7 @@ export const STATUS_STYLE: Record<Status, StatusStyle> = {
     fill: "#10b981",
   },
   DISCARDED: {
-    // Red, and a step darker than the amber of AT_RISK so the two do not blur
-    // into one warm blob on a row that holds both. The strike-through is what
-    // says "out of play"; the red says the goal was dropped rather than met.
+    // A step darker than AT_RISK's amber so the two don't blur; red means dropped, not met.
     chip: "bg-red-500/12 text-red-500",
     dot: "bg-red-500",
     text: "text-red-500",
@@ -210,15 +148,7 @@ export function fmtWhen(iso: string): string {
   })
 }
 
-/**
- * Behind the calendar, and nobody has said so yet.
- *
- * NOT a status - it is derived every time the tree is read and clears itself
- * the moment the work catches up, so it rides BESIDE the status badge rather
- * than replacing it. Amber like AT_RISK on purpose: they mean the same thing
- * to a reader, the difference being only whether a person or the arithmetic
- * noticed first. The title says which.
- */
+/** Derived, not a status: clears itself when the work catches up, so it rides beside the badge. */
 export function SlippingChip({ className }: { className?: string }) {
   return (
     <span
@@ -246,33 +176,10 @@ export function StatusBadge({ status }: { status: Status }) {
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tags
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Offered as type-ahead on a project that has not invented its own tags yet.
- *
- * A SUGGESTION, NOT A VOCABULARY. The field is free text and the server stores
- * whatever is typed; these exist only so the first person to tag a goal is not
- * staring at an empty box, and so the obvious cadences get spelled the same way
- * on every project instead of splitting into "weekly"/"Weekly"/"wkly".
- */
+/** Type-ahead suggestions only; tags are free text. */
 export const SUGGESTED_TAGS = ["weekly", "monthly", "quarterly", "primary", "secondary"] as const
 
-/**
- * Tag colours, keyed off the tag itself.
- *
- * DELIBERATELY NOT THE STATUS PALETTE. Blue, amber, emerald and red all mean
- * something specific on this board, and a "weekly" chip in amber sitting beside
- * an AT_RISK badge in amber would be read as a warning by anyone scanning the
- * page. These are the hues left over once the five states have taken theirs.
- *
- * Assigned by hashing the tag rather than by position, so "weekly" is the same
- * colour on every goal, on every project, however many tags exist and whatever
- * order they were created in. Position-based assignment would recolour half the
- * board the moment somebody added a tag alphabetically early.
- */
+/** Not the status palette (those hues carry meaning); picked by hashing the tag so it's stable everywhere. */
 const TAG_TINTS = [
   "border-violet-500/35 bg-violet-500/10 text-violet-400",
   "border-cyan-500/35 bg-cyan-500/10 text-cyan-400",
@@ -289,17 +196,7 @@ export function tagTint(tag: string): string {
   return TAG_TINTS[hash % TAG_TINTS.length]!
 }
 
-/**
- * One tag, as a pill.
- *
- * Rounded-full and sentence-cased against the status badge's square corners and
- * uppercase, because the two sit inches apart on the same row and the shape has
- * to say which is which before the colour does.
- *
- * `onClick` turns it into a filter button - clicking "weekly" on any goal
- * filters the board to it. That is the shortest path from "I see a tag" to "show
- * me the rest of these", and it costs a prop.
- */
+/** `onClick` turns it into a filter button. */
 export function TagChip({
   tag,
   onClick,
@@ -347,37 +244,12 @@ export function ProgressBar({ value, className }: { value: number; className?: s
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Derived counts
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * The numbers the Overview card shows, worked out from the tree the API already
- * returns rather than added to the summary server-side.
- *
- * MAIN GOALS ONLY. A sub-goal is a part of its parent, not a goal beside it:
- * "Launch the storefront" with three sub-goals is one goal, not four, and a
- * donut that counted all four would show three-quarters of a project's goals
- * living inside the other quarter. Nothing is lost by leaving them out - the
- * server rolls each parent's status up from its sub-goals, so the parent's
- * slice already says how its parts are going.
- *
- * DISCARDED IS COUNTED HERE, unlike in the progress denominator. A chart of
- * states that silently omits one of the five states is a chart that does not
- * add up: the reader counts the slices, counts the goals, and finds the card
- * lying to them. So the tiles and the slices share one population - every main
- * goal that exists - and "discarded goals do not count toward progress" is said
- * in words next to the progress figure, where it actually applies.
- *
- * Deactivated goals are absent entirely: the card fetches without
- * `includeInactive`, so the tree never contains them.
- */
+// Main goals only - each parent already rolls up its sub-goals. DISCARDED is counted here (unlike the
+// progress denominator) so the slices add up to the total.
 export interface GoalBreakdown {
   /** Main goals in each state, in STATUS_ORDER. Zero-count states included. */
   byStatus: { status: Status; count: number }[]
-  /** Slices with a count, for the donut. Empty when there are no goals. */
   slices: { status: Status; count: number }[]
-  /** Main goals, and the sum of every slice. */
   total: number
 }
 

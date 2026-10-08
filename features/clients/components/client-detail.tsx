@@ -50,11 +50,6 @@ import { ClientActivityTab } from "./client-activity-tab"
 const TABS = ["overview", "projects", "contacts", "activity"] as const
 type Tab = (typeof TABS)[number]
 
-/**
- * One client: who they are, what we are building for them, who at their end
- * can sign in, and whether anyone does. The company's own details live on the
- * Overview tab; everything that hangs off the company has a tab of its own.
- */
 export function ClientDetail({ clientRef }: { clientRef: string }) {
   const { can } = usePermissions()
   const canWrite = can(PERMISSIONS.CLIENT_WRITE)
@@ -109,9 +104,7 @@ export function ClientDetail({ clientRef }: { clientRef: string }) {
     )
   }
 
-  // Delete only when nothing hangs off the client; otherwise the honest way to
-  // retire it is status INACTIVE, which the edit form offers. The server
-  // refuses either way - this just keeps the button off the screen.
+  // Hide Delete unless nothing hangs off the client (the server refuses anyway).
   const canDelete = canWrite && client.stats.projects === 0 && client.stats.contacts === 0
   const website = client.website
     ? client.website.startsWith("http")
@@ -335,9 +328,5 @@ export function ClientDetail({ clientRef }: { clientRef: string }) {
   )
 }
 
-/**
- * The pill beside a tab label. TabsBar hides it at zero - "Projects 0" reads as
- * a warning - and these counts are informational, so they stay muted rather
- * than taking the loud default.
- */
+/** Tab count pill - muted, since the counts are informational. */
 const COUNT_BADGE = "bg-muted text-muted-foreground tabular-nums"

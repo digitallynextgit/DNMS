@@ -24,12 +24,10 @@ export interface SeoMetrics {
   position: number
 }
 
-/** A metric with its previous-period comparison. `changePct` is null when the
- *  previous period is zero (growth from nothing is not a percentage).
- *
- * `comparable` is false when there IS no previous snapshot - a site synced for
- * the first time has nothing to compare against, and rendering `change` then
- * would show a made-up swing (e.g. avg position "dropping" from 0 to 14.2). */
+/**
+ * A metric vs the previous period. `changePct` is null from a zero base;
+ * `comparable` is false when there is no previous snapshot.
+ */
 export interface SeoDelta {
   current: number
   previous: number
@@ -58,14 +56,13 @@ export interface SeoOverview {
   topPages: SeoRowStat[]
   /** Money keywords from the config, matched against the latest snapshot. */
   moneyKeywords: (SeoRowStat & { tracked: boolean })[]
-  /** Queries ranking 8-30: the fastest wins, per the SEO plan. */
+  /** Queries ranking 8-30: the fastest wins. */
   strikingDistance: SeoRowStat[]
   /** Chronological clicks/impressions per snapshot, for the trend chart. */
   trend: { periodEnd: string; clicks: number; impressions: number; position: number }[]
   alerts: SeoAlert[]
   snapshotCount: number
-  /** Open work tagged to this site, so the report answers "what are we actually
-   *  doing about it?" alongside the numbers. */
+  /** Open work tagged to this site. */
   tasks: SeoSiteTask[]
   /** Every stored week, newest first, so the UI can offer a period picker. */
   availablePeriods: { start: string; end: string }[]
@@ -79,7 +76,6 @@ export interface SeoAlert {
   detail: string
 }
 
-/** An open task scoped to one tracked site. */
 export interface SeoSiteTask {
   id: string
   title: string
@@ -89,8 +85,7 @@ export interface SeoSiteTask {
   assigneeName: string | null
 }
 
-/** One tracked site inside the roll-up. Totals only - the per-keyword detail
- *  lives in that site's own overview, so the roll-up stays cheap with 13 sites. */
+/** One site in the roll-up - totals only, so it stays cheap. */
 export interface SeoPropertySummary {
   id: string
   label: string
@@ -110,15 +105,13 @@ export interface SeoPropertySummary {
   overdueTasks: number
 }
 
-/** Every site on a project, plus the combined numbers across them. */
 export interface SeoRollup {
   projectId: string
   properties: SeoPropertySummary[]
   totals: {
     clicks: SeoDelta
     impressions: SeoDelta
-    /** Impression-weighted across sites - a plain average would let a tiny
-     *  subdomain swing the whole account's number. */
+    /** Impression-weighted across sites. */
     position: SeoDelta
     ctr: number
   }
@@ -215,13 +208,10 @@ export interface KeywordView {
   status: string
   taskId: string | null
   notes: string | null
-  /** GSC means real Search Console data. COMPETITOR means mined from a rival's
-   *  pages, so there is no demand figure behind it unless we rank for it too. */
+  /** GSC = real Search Console data; COMPETITOR = mined from a rival's pages (no demand figure). */
   source: string
   sourceDomain: string | null
 }
-
-// --- phase 4: competitor gap analysis ---------------------------------------
 
 export interface CompetitorReportView {
   domain: string
@@ -246,8 +236,6 @@ export interface CompetitorAuditView {
   gaps: CompetitorGapView[]
   createdAt: string
 }
-
-// --- phase 5: content brief + QA loop ---------------------------------------
 
 export interface BriefQaCheck {
   id: string
@@ -284,8 +272,6 @@ export interface ContentBriefView {
   updatedAt: string
 }
 
-// --- step 8: off-page / backlinks -------------------------------------------
-
 export interface ReferringDomainView {
   domain: string
   links: number
@@ -302,8 +288,6 @@ export interface BacklinkSummaryView {
   lastImportAt: string | null
 }
 
-// --- step 9: daily accident monitor -----------------------------------------
-
 export interface MonitorIssueView {
   url: string
   level: "critical"
@@ -318,8 +302,6 @@ export interface MonitorView {
   issues: MonitorIssueView[]
   checkedAt: string
 }
-
-// --- guided setup + AI assistance --------------------------------------------
 
 export type SetupAction =
   | "EDIT_SITE"

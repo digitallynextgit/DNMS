@@ -1,14 +1,5 @@
-// =============================================================================
-// Performance: KPI profiles (PerfKpi) for most people, and two evaluation
-// batches - last fortnight's (closed, scored) and the open one with mixed
-// statuses. Priya's self-evaluation in the open batch is PENDING.
-//
-// Shapes mirror features/performance/evaluation.ts:
-//   criteria  [{ id, section, label, description, weight }]  (A = 60%, B = 40%,
-//             split equally inside each section; id = the PerfKpi id)
-//   ratings   { [criterionId]: 1..5 }
-//   finalScore = round1(sum(weight * managerRating / 5)), set on manager submit
-// =============================================================================
+// Demo performance: KPI profiles for most people and two evaluation batches (last fortnight's, closed, and
+// the open one). Shapes mirror features/performance/evaluation.ts.
 
 import { randomUUID } from "node:crypto"
 import { DEMO_PEOPLE } from "@/features/help/demo/dataset"
@@ -168,7 +159,6 @@ function halfMonth(d: Date): [Date, Date] {
 export async function seedPerformance(ctx: DemoContext): Promise<void> {
   const r = ctx.rand
 
-  // ── KPI profiles ───────────────────────────────────────────────────────────
   const criteriaFor: Record<string, { self: Criterion[]; manager: Criterion[] }> = {}
   const kpiRows: Record<string, unknown>[] = []
   for (const p of DEMO_PEOPLE) {
@@ -212,7 +202,6 @@ export async function seedPerformance(ctx: DemoContext): Promise<void> {
   ctx.summary.add(MODULE, "KPI profile rows (PerfKpi)", kpiCount)
   ctx.summary.add(MODULE, "people with a KPI profile", Object.keys(criteriaFor).length)
 
-  // ── evaluations ────────────────────────────────────────────────────────────
   // The open batch is the half-month that just ended; the closed one before it.
   const [curStart] = halfMonth(ctx.today)
   const [openStart, openEnd] = halfMonth(addDays(curStart, -1))

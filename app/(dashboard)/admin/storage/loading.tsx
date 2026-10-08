@@ -1,7 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 
-// Storage: header (view toggle + Add storage) + a grid of connected-bucket cards.
 export default function Loading() {
   return (
     <div className="space-y-6">

@@ -1,20 +1,13 @@
 import { wrapEmail } from "@/lib/email-layout"
 
-/**
- * The only email a client account ever gets from provisioning: their address,
- * a temporary password, and where to sign in. The password is shown once here
- * and forced to change on first sign-in, so it is never stored in readable form
- * anywhere and never returned by an API.
- */
+/** Client invite: address, temp password (shown once, never stored readable), sign-in link. */
 export function renderClientInviteEmail(input: {
   name: string
   email: string
   tempPassword: string
   /** true when an admin re-issued the password rather than creating the account. */
   isReset: boolean
-  /** Whether they'll be forced to replace this password on first sign-in. The
-   *  wording has to match reality, or they go looking for a prompt that never
-   *  appears (or are surprised by one that does). */
+  /** Wording must match whether they'll be forced to change it on first sign-in. */
   mustChange: boolean
   /** The project they were added to, so a client on several knows which. */
   projectName?: string

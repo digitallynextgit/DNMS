@@ -9,11 +9,7 @@ import { CARD_SELECT, shapePoll } from "@/server/message-cards"
 import { groupReactions } from "@/server/reactions"
 import { resolveProjectMemberIds } from "../../route"
 
-/**
- * Most replies returned for one thread. High enough that no real conversation
- * is clipped in practice; low enough that a runaway thread cannot pull every
- * reply plus every reaction and attachment into one response.
- */
+/** Caps a runaway thread; high enough that no real conversation is clipped. */
 const MESSAGE_REPLY_LIMIT = 500
 
 /** Everything the shared attachment renderer needs, and nothing more. */
@@ -55,15 +51,11 @@ const AUTHOR_SELECT = {
   designation: { select: { title: true } },
 }
 
-// GET /api/projects/[id]/messages/[messageId]/replies - thread replies, oldest first.
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId, messageId } = await ctx.params
-      // withProjectAccess only proved access to the URL project; messageId is an
-      // opaque string the caller supplied. Confirm the thread actually lives in
-      // this project before returning any of it, or A can read B's thread by
-      // pairing A's id with B's messageId.
+      // messageId is client-supplied: confirm the thread lives in this project, or A could read B's thread.
       const parent = await db.projectMessage.findFirst({
         where: { id: messageId, projectId },
         select: { id: true },
@@ -72,13 +64,7 @@ export const GET = withProjectAccess(
       const [recentFirst, reads] = await Promise.all([
         db.projectMessageReply.findMany({
           where: { messageId },
-          // desc + take + reverse, NOT asc + take. This thread was completely
-          // unbounded with a 7-way include, so a long-running conversation
-          // pulled every reply and every reaction on each open. Capping with the
-          // original `asc` ordering would have kept the OLDEST replies and
-          // hidden the newest, which is exactly backwards for a chat - so the
-          // newest MESSAGE_REPLY_LIMIT are taken and flipped back to ascending
-          // for the renderer.
+          // desc + take + reverse keeps the NEWEST replies (asc + take would keep the oldest).
           orderBy: { createdAt: "desc" },
           take: MESSAGE_REPLY_LIMIT + 1,
           include: {
@@ -90,10 +76,7 @@ export const GET = withProjectAccess(
             ...CARD_SELECT,
           },
         }),
-        // Who has opened this project's Messages tab, and when. A message is
-        // "seen by" everyone whose mark is later than it - the same timestamp
-        // evidence personal chat uses, so no per-message read table is needed
-        // and old messages are covered retroactively rather than only new ones.
+        // "Seen by" = everyone whose Messages-tab read mark is later than the message (as in personal chat).
         db.projectMessageRead.findMany({
           where: { projectId },
           select: {
@@ -107,19 +90,14 @@ export const GET = withProjectAccess(
 
       const truncated = recentFirst.length > MESSAGE_REPLY_LIMIT
       if (truncated) recentFirst.length = MESSAGE_REPLY_LIMIT
-      const replies = recentFirst.reverse() // back to oldest-first for the thread
+      const replies = recentFirst.reverse()
 
-      // The poll is reshaped per viewer - "did I vote?" is not a property of the
-      // row, it is a property of who is asking.
+      // Polls are reshaped per viewer ("did I vote?" depends on who is asking).
       return NextResponse.json({
-        // `truncated` so a clipped thread can say "older replies not shown"
-        // rather than quietly presenting a partial conversation as complete.
+        // `truncated` lets a clipped thread say "older replies not shown".
         meta: { truncated, limit: MESSAGE_REPLY_LIMIT },
         data: replies.map(({ replyTo, replyToRoot, ...r }) => {
-          // Flattened to ONE shape whichever kind of bubble was quoted, so the
-          // renderer does not branch on which column happened to be set. A quote
-          // whose target has since been deleted comes through as null, and the
-          // bubble says "message deleted" rather than dropping the quote.
+          // One shape whichever bubble was quoted; a deleted target comes through as null ("message deleted").
           const quoted = replyTo ?? replyToRoot
           return {
             ...r,
@@ -127,8 +105,7 @@ export const GET = withProjectAccess(
             reactions: groupReactions(r.reactions, _session.user.id),
             replyTo: quoted
               ? {
-                  // The opening post is addressed as "root" everywhere in this
-                  // thread's DOM ids, so a jump target resolves the same way.
+                  // The opening post is "root" in the thread's DOM ids, so jump targets resolve the same way.
                   id: replyTo ? quoted.id : "root",
                   content: quoted.content,
                   authorName: `${quoted.author.firstName} ${quoted.author.lastName}`.trim(),
@@ -146,13 +123,11 @@ export const GET = withProjectAccess(
   },
 )
 
-// POST /api/projects/[id]/messages/[messageId]/replies - post a reply (any member).
 export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId, messageId } = await ctx.params
-      // Scope by projectId: messageId is client-supplied, so quoting/replying
-      // into another project's thread must be impossible, not just unlikely.
+      // messageId is client-supplied, so scope by projectId.
       const parent = await db.projectMessage.findFirst({
         where: { id: messageId, projectId },
         select: {
@@ -173,10 +148,7 @@ export const POST = withProjectAccess(
         Array.isArray(body.mentionedIds) ? body.mentionedIds : [],
       )
 
-      // "root" means the opening post; anything else must be a reply that really
-      // belongs to THIS thread - the id arrives from the client, so quoting a
-      // line out of another project's chat has to be impossible here, not just
-      // unlikely.
+      // "root" = the opening post; anything else must be a reply in THIS thread (the id comes from the client).
       const rawQuote = typeof body.replyToId === "string" ? body.replyToId : null
       let replyToId: string | null = null
       let replyToRootId: string | null = null
@@ -217,8 +189,7 @@ export const POST = withProjectAccess(
         meta: { title: parent.title, reply: true },
       })
 
-      // Notify everyone in the conversation: the original author + prior repliers +
-      // anyone @mentioned in this reply. Never notify the person replying.
+      // Notify the author, prior repliers and anyone @mentioned - never the replier.
       const recipients = new Set<string>([parent.authorId])
       for (const r of parent.replies) recipients.add(r.authorId)
       for (const id of mentionedIds) recipients.add(id)
@@ -238,8 +209,7 @@ export const POST = withProjectAccess(
         )
       }
 
-      // Everyone in the conversation, including people this reply does not
-      // notify: the thread on their screen is stale either way.
+      // Everyone in the conversation, notified or not - their view of the thread is stale either way.
       const watchers = new Set<string>([parent.authorId])
       for (const r of parent.replies) watchers.add(r.authorId)
       watchers.delete(session.user.id)

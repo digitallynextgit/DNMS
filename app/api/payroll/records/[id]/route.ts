@@ -48,7 +48,6 @@ export const GET = withAuth(
         return NextResponse.json({ error: "Payroll record not found" }, { status: 404 })
       }
 
-      // Employees may only view their own record; HR (payroll:write) sees all.
       if (
         !hasPermission(session, PERMISSIONS.PAYROLL_WRITE) &&
         record.employeeId !== session.user.id
@@ -78,7 +77,6 @@ export const PATCH = withAuth(
 
       const { status, notes } = body
 
-      // Validate status transitions
       const validTransitions: Record<string, string[]> = {
         DRAFT: ["PROCESSING"],
         PROCESSING: ["APPROVED"],
@@ -98,7 +96,6 @@ export const PATCH = withAuth(
       const updateData: Record<string, unknown> = {}
       if (notes !== undefined) updateData.notes = notes
 
-      // ── Adjustments (overtime / one-off deductions) - DRAFT only ──
       if (
         existing.status === "DRAFT" &&
         (body.overtime !== undefined || body.otherDeductions !== undefined)
@@ -109,10 +106,7 @@ export const PATCH = withAuth(
           body.otherDeductions !== undefined
             ? Math.max(0, Number(body.otherDeductions))
             : existing.otherDeductions
-        // Same formula the generator uses - see computePayslip (DUP-01). This
-        // path previously omitted telephoneAllowance from gross AND applied
-        // statutory deductions the generator zeroes, so simply editing overtime
-        // changed the payslip's total.
+        // Same formula as the generator (computePayslip), so editing overtime can't change the totals.
         const totals = computePayslip(
           {
             basicSalary: existing.basicSalary,
@@ -147,7 +141,6 @@ export const PATCH = withAuth(
         include: payrollInclude,
       })
 
-      // ── Distribute the payslip when the run is marked PAID ──
       if (status === "PAID") {
         const monthName = new Date(updated.year, updated.month - 1).toLocaleString("default", {
           month: "long",

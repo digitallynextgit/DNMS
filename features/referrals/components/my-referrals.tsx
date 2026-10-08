@@ -55,8 +55,7 @@ export function MyReferrals() {
         }
       />
 
-      {/* What to pass on. Nobody knows their own employee number offhand, and a
-          candidate who guesses gets nothing credited to anybody. */}
+      {/* Their employee number, for the candidate to quote. */}
       {data?.me.employeeNo && (
         <Card>
           <CardContent className="flex flex-wrap items-center gap-x-3 gap-y-1 p-4 text-sm">
@@ -135,8 +134,7 @@ function ReferralCard({ row }: { row: ReferralRow }) {
           </p>
         </div>
 
-        {/* The reward story, in words. "Pending" without a date is the kind of
-            thing people ask HR about; the date answers it up front. */}
+        {/* The reward status in words, with the date up front. */}
         {row.reward.state !== "none" && (
           <div className="text-right">
             <p className={cn("text-xs", reward.className)}>{reward.label}</p>

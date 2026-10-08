@@ -4,8 +4,6 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-
 export interface MyResignation {
   id: string
   reason: string | null
@@ -51,8 +49,6 @@ interface ResignationsToReviewResult {
   pagination: PaginationMeta
 }
 
-// ─── Queries ────────────────────────────────────────────────────────────────
-
 export function useMyResignation() {
   return useQuery({
     queryKey: ["my-resignation"],
@@ -76,17 +72,11 @@ export function useResignationsToReview(filters: { page?: number; limit?: number
         )
       ).data
     },
-    // Keep the panel live (matches the sidebar badge) so new requests appear
-    // without a reload. The badge watcher also invalidates this on arrival.
+    // Polled like the sidebar badge, so new requests appear without a reload.
     refetchInterval: 120_000,
   })
 }
 
-/**
- * Live count of pending resignations the user can review, for the sidebar badge.
- * Polls every 30s (and on window focus) for near-real-time updates; mutations
- * below also invalidate it for instant updates on the reviewer's own actions.
- */
 export function usePendingResignationCount() {
   return useQuery({
     queryKey: ["pending-resignation-count"],
@@ -97,8 +87,6 @@ export function usePendingResignationCount() {
     staleTime: 5_000,
   })
 }
-
-// ─── Mutations ──────────────────────────────────────────────────────────────
 
 export function useApplyResignation() {
   const qc = useQueryClient()

@@ -1,11 +1,4 @@
-// =============================================================================
-// Standard API response shape (CLAUDE.md §3)
-// =============================================================================
-// Used by API route handlers (app/api/**/route.ts). NOTE: this is distinct from
-// the server-action result helpers in server/action-result.ts (which also export
-// `ok`/`fail` but with the `ActionResult` wire shape). Import the one that
-// matches the layer you're in.
-// =============================================================================
+// API route response shape. Server actions use server/action-result.ts instead (also exports ok/fail).
 
 import { NextResponse } from "next/server"
 

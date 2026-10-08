@@ -8,9 +8,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useSeoRollup } from "../hooks/use-seo"
 
-// A compact "what sites does this client have, and what's happening on them"
-// card for the project Overview tab. An account like KYG has 13 subdomains; you
-// shouldn't have to open the SEO tab to know they exist.
+// Project Overview card listing the client's tracked sites.
 
 const num = (v: number) => v.toLocaleString("en-IN")
 
@@ -25,8 +23,7 @@ export function ProjectSitesCard({
   const { data, isLoading } = useSeoRollup(projectId, true)
   const sites = data?.properties ?? []
 
-  // Nothing tracked yet: stay out of the way rather than showing an empty card
-  // on every project that doesn't do SEO.
+  // Nothing tracked: render nothing rather than an empty card on non-SEO projects.
   if (isLoading || sites.length === 0) return null
 
   const totalOpen = sites.reduce((a, s) => a + s.openTasks, 0)

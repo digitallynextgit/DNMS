@@ -49,8 +49,7 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
   const res = await fetch("/api/dashboard/stats")
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    // fail() nests { error: { code, message } } - reading .error alone put
-    // "[object Object]" in the user-facing banner.
+    // fail() nests { error: { code, message } }.
     const message =
       typeof body?.error === "string" ? body.error : (body?.error?.message ?? undefined)
     throw new Error(message ?? "Failed to load dashboard stats")

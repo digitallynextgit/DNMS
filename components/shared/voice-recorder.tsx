@@ -1,18 +1,7 @@
 "use client"
 
-/**
- * The voice-note recorder, laid out the way the phone apps do it: while you are
- * recording, the whole composer becomes a recording bar - bin on the left, a
- * running clock, a live waveform, pause, and send.
- *
- * Deliberately NOT push-to-hold. On a desktop a long mouse hold is
- * uncomfortable, and one accidental mouse-up mid-sentence loses the recording
- * with no way to get it back. Tap to start, tap to send.
- *
- * The bars drawn here are not decoration: the same peaks are handed to the
- * caller and stored with the clip, so the bubble in the thread shows the real
- * shape of what was said rather than a random pattern.
- */
+// Voice-note recorder: tap to start, tap to send (not push-to-hold, which loses clips on a stray
+// mouse-up). The waveform peaks are stored with the clip so the bubble shows the real shape.
 
 import * as React from "react"
 import { Mic, Trash2, Send, Loader2, Pause, Play } from "lucide-react"
@@ -62,7 +51,7 @@ export function VoiceRecorder({
   const active = state !== "idle"
   React.useEffect(() => onActiveChange?.(active), [active, onActiveChange])
 
-  /** Stop the microphone light. Leaving the track live keeps it on indefinitely. */
+  /** Leaving the track live keeps the mic light on. */
   const teardown = React.useCallback(() => {
     recorderRef.current?.stream.getTracks().forEach((t) => t.stop())
     recorderRef.current = null
@@ -75,13 +64,8 @@ export function VoiceRecorder({
     }
   }, [])
 
-  // Releasing on unmount matters: navigating away mid-recording would otherwise
-  // leave the browser's recording indicator on with nothing to turn it off.
-  //
-  // Set abortRef BEFORE teardown (UI-02): stopping the tracks can fire
-  // MediaRecorder.onstop, and without the abort flag that path would UPLOAD the
-  // half-finished clip (and setState on an unmounted component). The explicit
-  // finish button is the only path that should ever send.
+  // Release on unmount, or the browser's recording indicator stays on. Set abortRef first: stopping
+  // the tracks can fire onstop, which would otherwise upload the half-finished clip.
   React.useEffect(() => {
     return () => {
       abortRef.current = true
@@ -89,7 +73,6 @@ export function VoiceRecorder({
     }
   }, [teardown])
 
-  /** Reduce the peak history to a fixed number of bars for storage. */
   function compress(peaks: number[], target = STORED_PEAKS): number[] {
     if (peaks.length === 0) return []
     if (peaks.length <= target) return peaks.map((p) => Math.round(p))
@@ -127,8 +110,7 @@ export function VoiceRecorder({
         void deliver(blob, seconds, peaks)
       }
 
-      // A tiny FFT is all a 3px bar can express, and it keeps the sampling
-      // cheap enough to run alongside the recorder without dropping frames.
+      // A tiny FFT is plenty for 3px bars, and cheap to run alongside the recorder.
       const ctx = new AudioContext()
       const analyser = ctx.createAnalyser()
       analyser.fftSize = 256
@@ -161,8 +143,7 @@ export function VoiceRecorder({
       // Silence sits at 128; loudness is how far the wave swings away from it.
       let peak = 0
       for (const v of buf) peak = Math.max(peak, Math.abs(v - 128))
-      // Speech rarely exceeds half of full scale, so scale against that instead
-      // of 128 - otherwise a normal voice draws a permanently flat line.
+      // Speech rarely passes half scale, so scale against 70, not 128.
       const level = Math.min(100, Math.round((peak / 70) * 100))
       allPeaksRef.current.push(level)
       setLive((prev) => [...prev, level].slice(-LIVE_BARS))
@@ -210,8 +191,7 @@ export function VoiceRecorder({
       await onSend(blob, seconds, peaks)
       reset()
     } catch {
-      // The upload failed and the clip is already gone from the recorder, so
-      // there is nothing to retry with. Fail back to idle rather than pretend.
+      // The clip is already gone from the recorder, so there's nothing to retry - back to idle.
       reset()
     }
   }
@@ -267,8 +247,7 @@ export function VoiceRecorder({
         <Trash2 className="h-4 w-4" />
       </Button>
 
-      {/* The dot stops blinking when paused, so the state is readable without
-          having to find the pause button and work out which way it points. */}
+      {/* The dot stops blinking when paused. */}
       <span
         className={cn(
           "bg-destructive h-2 w-2 shrink-0 rounded-sm",
@@ -308,11 +287,7 @@ export function VoiceRecorder({
   )
 }
 
-/**
- * The live trace. Bars are pinned to the right so the newest sample is always
- * under the clock and the history scrolls away leftward - the direction the
- * sound actually travelled.
- */
+/** Pinned right: the newest sample sits under the clock and history scrolls left. */
 function LiveWaveform({ peaks, paused }: { peaks: number[]; paused: boolean }) {
   const pad = Math.max(0, LIVE_BARS - peaks.length)
 
@@ -324,8 +299,7 @@ function LiveWaveform({ peaks, paused }: { peaks: number[]; paused: boolean }) {
       )}
       aria-hidden
     >
-      {/* Leading placeholders keep the trace right-aligned from the first
-          sample, instead of it sliding across as the buffer fills. */}
+      {/* Leading placeholders keep the trace right-aligned from the first sample. */}
       {Array.from({ length: pad }, (_, i) => (
         <span key={`pad-${i}`} className="bg-muted-foreground/25 h-0.5 w-[3px] rounded-sm" />
       ))}

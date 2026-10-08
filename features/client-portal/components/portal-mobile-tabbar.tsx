@@ -26,12 +26,7 @@ const ICONS: Record<ClientModuleKey, React.ComponentType<{ className?: string }>
   activity: Activity,
 }
 
-/**
- * The portal's phone navigation: the client's granted modules as a bottom tab
- * bar, replacing the rail below `md` exactly as the staff shell does. The module
- * list is the same allowlist the sidebar reads, so a client can never reach a
- * module their grant does not include.
- */
+/** Phone nav: the client's granted modules as a bottom tab bar, below `md`. */
 export function PortalMobileTabbar({
   projectRef,
   modules,
@@ -39,8 +34,6 @@ export function PortalMobileTabbar({
   projectRef: string
   modules: ClientModuleKey[]
 }) {
-  // NOT usePathname(): that returns the tenant-prefixed URL on the client and
-  // the rewritten one on the server, so nav highlighting broke on hydration.
   const pathname = useAppPathname()
   const items = CLIENT_MODULES.filter((m) => modules.includes(m.key))
   if (items.length === 0) return null
@@ -71,8 +64,7 @@ export function PortalMobileTabbar({
                 active ? "font-semibold" : "font-medium",
               )}
             >
-              {/* "Product catalog" / "Email campaigns" are too long for a 78px
-                  tab, so the bar uses the first word. */}
+              {/* Full labels are too long for a 78px tab. */}
               {m.label.split(" ")[0]}
             </span>
           </Link>

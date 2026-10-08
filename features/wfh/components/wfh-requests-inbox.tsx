@@ -24,11 +24,7 @@ import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 
 const PAGE_SIZE = 10
 
-/**
- * WFH approval inbox - HR sees every pending request, a manager sees their team's.
- * A manager's approve/reject is recorded as an advisory decision (shown in the
- * Manager column); HR makes the final call and can override a manager rejection.
- */
+/** HR sees every pending request; a manager sees their team's. The first decision is final. */
 export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" }) {
   const [page, setPage] = useUrlPage("wfhReqPage")
   const [rejectId, setRejectId] = useState<string | null>(null)
@@ -178,8 +174,7 @@ export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" })
         minWidth="min-w-[840px]"
         showSerial
         serialOffset={(page - 1) * PAGE_SIZE}
-        // Approving is the whole job of this screen, so the phone card keeps the
-        // two decision buttons full-size instead of the row's icon buttons.
+        // Approving is this screen's job, so the phone card keeps full-size decision buttons.
         mobileCard={(r) => (
           <div className="space-y-2.5">
             <div className="flex items-start justify-between gap-3">

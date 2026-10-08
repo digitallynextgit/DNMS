@@ -1,10 +1,8 @@
-// Public API for the marketing feature. Only these are imported from app/.
 export { MarketingHeader } from "./components/marketing-header"
 export { MarketingFooter } from "./components/marketing-footer"
 export { StructuredData } from "./components/structured-data"
 export { SpotlightCursor } from "./components/fx"
 
-// Standalone public pages
 export { LegalPage } from "./components/legal-page"
 export { ContactForm } from "./components/contact-form"
 export { AboutContent } from "./components/sections/about-content"

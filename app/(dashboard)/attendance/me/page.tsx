@@ -45,7 +45,6 @@ export default function MyAttendancePage() {
     } else setMonth((m) => m + 1)
   }
 
-  // Summary for the SELECTED month.
   const presentDays = days.filter((d) => d.status === "PRESENT").length
   const missingPunchDays = days.filter((d) => d.status === "MISSING_PUNCH").length
   const halfDays = days.filter((d) => d.status === "HALF_DAY").length
@@ -60,9 +59,7 @@ export default function MyAttendancePage() {
         description={`${MONTH_NAMES[month - 1]} ${year}`}
         actions={
           <>
-            {/* No device "Refresh" here: pulling punches is an HR/admin action (see
-                Attendance Directory). Employees just read their own calendar, which
-                the scheduled sync keeps current. */}
+            {/* No device "Refresh" here: pulling punches is an HR/admin action. */}
             {/* The header already prints the month, so the stepper is arrows only. */}
             <MonthNav
               year={year}
@@ -77,7 +74,6 @@ export default function MyAttendancePage() {
         }
       />
 
-      {/* Summary cards (selected month) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Present Days"
@@ -110,7 +106,6 @@ export default function MyAttendancePage() {
         />
       </div>
 
-      {/* Calendar (selected month) */}
       {isLoading ? (
         <div className="bg-card flex h-72 items-center justify-center rounded-sm border">
           <Spinner size="lg" className="text-muted-foreground" />

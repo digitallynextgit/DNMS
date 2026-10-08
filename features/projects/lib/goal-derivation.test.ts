@@ -13,18 +13,6 @@ import {
   type GoalStatusValue,
 } from "./goal-derivation"
 
-// =============================================================================
-// The goal maths, pinned.
-//
-// Every number on the Goals tab and the Progress page comes out of
-// summariseGoalRows, and every one of them is an assertion somebody will make
-// to a client ("we're 40% of the way through September's reels"). These cases
-// are the ones where the arithmetic could plausibly go the other way: weighting
-// against averaging, discarded work leaving the denominator but not the output
-// tally, targets outranking tasks, and the two thresholds behind "slipping".
-// =============================================================================
-
-/** The task-status column's type, so the row factory can build real rows. */
 type TaskStatus = GoalRowLite["tasks"][number]["status"]
 
 const D = (iso: string): Date => new Date(`${iso}T00:00:00.000Z`)
@@ -66,13 +54,7 @@ interface RowSpec {
   targetDate?: Date | null
 }
 
-/**
- * One goal row in the shape the query returns.
- *
- * Defaults are the boring case - an active, not-started goal created on 1
- * January with no work, no targets and no date - so each test states only the
- * one thing it is about.
- */
+/** One goal row as the query returns it. Defaults: an active, not-started, empty goal. */
 function row(spec: RowSpec = {}): GoalRowLite {
   return {
     id: spec.id ?? uid("g"),
@@ -100,9 +82,7 @@ function row(spec: RowSpec = {}): GoalRowLite {
       return {
         id: uid("t"),
         title: `Task ${i + 1}`,
-        // The derivation reads task status as plain text (it only ever compares
-        // against "DONE" and the dropped set), but the ROW carries Prisma's
-        // enum. Asserted rather than widened so a test can still write "TODO".
+        // The row carries Prisma's enum; asserted so tests can still write "TODO".
         status: t.status as TaskStatus,
         dueDate: t.dueDate ?? null,
         producesOutput: t.producesOutput ?? false,
@@ -127,7 +107,6 @@ const output = (type: string, quantity: number, on = "2026-02-15"): GoalOutput =
 const outputsFor = (byGoal: Record<string, GoalOutput[]>): GoalOutputMap =>
   new Map(Object.entries(byGoal))
 
-/** Depth-first lookup by id, so a test can assert on a sub-goal. */
 function find(goals: GoalNode[], id: string): GoalNode {
   const hit = findOrNull(goals, id)
   if (!hit) throw new Error(`No goal "${id}" in the tree`)
@@ -144,8 +123,6 @@ function findOrNull(goals: GoalNode[], id: string): GoalNode | null {
 
 const summarise = (rows: GoalRowLite[], outputs?: GoalOutputMap) =>
   summariseGoalRows(rows, TODAY, outputs)
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe("weighting", () => {
   it("weights a sub-goal by the work under it, not by one tick", () => {

@@ -17,8 +17,6 @@ import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { formatDate, truncate } from "@/lib/utils"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface EmailTemplate {
   id: string
   slug: string
@@ -32,8 +30,6 @@ interface EmailTemplate {
   createdAt: string
   updatedAt: string
 }
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 10
 
@@ -96,9 +92,7 @@ export default function EmailTemplatesPage() {
   const pagedTemplates = templates.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   // Keep the current page in range when the list size changes (e.g. after a delete).
-  React.useEffect(() => {
-    if (!isLoading && page > totalPages) setPage(totalPages)
-  }, [page, totalPages, isLoading])
+  if (!isLoading && page > totalPages) setPage(totalPages)
 
   const columns: DataTableColumn<EmailTemplate>[] = [
     { header: "Name", className: "font-medium", cell: (template) => template.name },
@@ -178,9 +172,6 @@ export default function EmailTemplatesPage() {
         }
       />
 
-      {/* The table renders from the first paint: while `isLoading` it draws
-          skeleton rows inside its own real <thead>, derived from `columns`, so
-          the placeholder always has the right column count and alignment. */}
       {isLoading || templates.length > 0 ? (
         <DataTable
           columns={columns}
@@ -190,8 +181,6 @@ export default function EmailTemplatesPage() {
           serialOffset={(page - 1) * PAGE_SIZE}
           loading={isLoading}
           skeletonRows={PAGE_SIZE}
-          // Phone card: name + active switch on top (the switch is the one
-          // control you reach for in a list), then slug/subject/trigger.
           mobileCard={(template) => (
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-3">

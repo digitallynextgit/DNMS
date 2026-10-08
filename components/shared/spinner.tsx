@@ -15,16 +15,11 @@ interface SpinnerProps {
   className?: string
 }
 
-/**
- * The one spinner. Replaces the ~50 hand-copied
- * `<Loader2 className="mr-2 h-4 w-4 animate-spin" />` lines (which shipped in 5
- * different sizes). Inside a <Button>, prefer `<Button loading>` over this.
- */
+/** Inside a <Button>, prefer `<Button loading>`. */
 export function Spinner({ size = "md", className }: SpinnerProps) {
   return <Loader2 className={cn("animate-spin", SIZES[size], className)} aria-hidden="true" />
 }
 
-/** Centered spinner for a whole page/panel that is still loading. */
 export function PageSpinner({ label, className }: { label?: string; className?: string }) {
   return (
     <div

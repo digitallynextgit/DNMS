@@ -9,13 +9,8 @@ import {
 } from "@/features/projects/server/deliverables.service"
 import { AppError } from "@/lib/errors"
 
-// PATCH  /api/projects/[id]/deliverables/[deliverableId] - edit an entry, and
-//        optionally move it (body may carry `status`, plus `reason` / `note`)
-// DELETE /api/projects/[id]/deliverables/[deliverableId] - remove it (files stay)
-//
-// withProjectAccess resolves and authorises the PROJECT; the service then
-// checks the entry belongs to it and that this person may touch it (their own,
-// or their team's, or they run the project), and that the period is still open.
+// The service checks the entry belongs to the project, that this person may touch it, and that
+// the period is still open.
 export const dynamic = "force-dynamic"
 
 /** A refusal the form can act on: the prose to show, plus why it was refused. */
@@ -31,9 +26,7 @@ export const PATCH = withProjectAccess(
       const projectId = ctx.params.id!
       const id = ctx.params.deliverableId!
       await updateDeliverable(session, projectId, id, body)
-      // Hand the saved row back so the list can patch in place - a status change
-      // moves the row between tiles and a refetch of the whole ledger to learn
-      // that is a lot of round-trips for one click.
+      // Return the saved row so the list can patch in place instead of refetching.
       return NextResponse.json({ data: await getDeliverableRow(session, projectId, id) })
     } catch (err) {
       if (err instanceof AppError) return failure(err)

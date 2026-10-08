@@ -10,21 +10,14 @@ import { cn } from "@/lib/utils"
 export interface DataTableColumn<T> {
   header: React.ReactNode
   cell: (row: T, index: number) => React.ReactNode
-  /** td/th alignment. */
   align?: "left" | "right" | "center"
-  /** Extra classes for this column's body cells. */
   className?: string
-  /** Extra classes for this column's header cell. */
   headClassName?: string
-  /**
-   * What this column's cells show while `loading`, when a plain bar is the
-   * wrong shape - e.g. an avatar + two lines, so skeleton rows are as tall as
-   * the real ones and the table does not jump when the data lands.
-   */
+  /** Cell placeholder while `loading`, when a plain bar is the wrong shape (e.g. avatar + two lines). */
   skeleton?: React.ReactNode
 }
 
-/** Multi-select wiring - pass the result of `useRowSelection(pageIds)`. */
+/** Pass the result of `useRowSelection(pageIds)`. */
 export interface DataTableSelection {
   isSelected: (key: string) => boolean
   toggle: (key: string) => void
@@ -41,37 +34,20 @@ interface DataTableProps<T> {
   /** Min width for horizontal scroll on small screens, e.g. "min-w-[680px]". */
   minWidth?: string
   className?: string
-  /** Render a leading auto-numbered "S.No" column. */
   showSerial?: boolean
   /** Offset for the S.No when paginated, e.g. (page - 1) * pageSize. */
   serialOffset?: number
-  /** Enable multi-select checkboxes (header select-all + per-row). */
   selection?: DataTableSelection
-  /**
-   * Renders skeleton rows INSIDE the real table (real headers, real column count,
-   * real alignment, real S.No/checkbox columns) instead of the caller guessing
-   * `<TableSkeleton rows={5} cols={5} />`. The placeholder therefore always matches
-   * the table it is standing in for - it is derived from `columns`, so it can never
-   * drift when a column is added or removed.
-   */
+  /** Draws skeleton rows inside the real table, derived from `columns`, so they always match. */
   loading?: boolean
-  /** How many skeleton rows to draw while `loading` (default 8). */
+  /** Default 8. */
   skeletonRows?: number
   /**
-   * Phone rendering (below `md`). A wide table cannot work on a 390px screen -
-   * it either clips or scrolls sideways - so every table also renders as a stack
-   * of cards there.
-   *
-   * - omitted: each row becomes an automatic `header: value` card built from
-   *   `columns`, so a page gets a usable phone layout for free.
-   * - a function: bespoke card for that page (preferred - lets the page lead with
-   *   the two or three fields that matter and drop the rest).
-   * - `false`: keep the horizontally-scrolling table on phones too (for grids
-   *   that are genuinely spreadsheet-shaped).
+   * Phone layout (below md): omitted = automatic `header: value` cards; a function = a bespoke card;
+   * `false` = keep the scrolling table (for spreadsheet-shaped grids).
    */
   mobileCard?: ((row: T, index: number) => React.ReactNode) | false
-  /** Optional pagination bar rendered directly below the table. Pair `serialOffset`
-   *  with `(page - 1) * pageSize` so the S.No stays continuous across pages. */
+  /** Rendered below the table. Pair with `serialOffset` so S.No continues across pages. */
   pagination?: {
     page: number
     totalPages: number
@@ -81,19 +57,7 @@ interface DataTableProps<T> {
   }
 }
 
-/**
- * Shared table with the app's house styling (bordered `bg-card` panel,
- * `bg-muted/40` header, `divide-y` body, hover rows). Columns differ only in
- * their `cell` renderers. Optionally renders a leading **S.No** column
- * (`showSerial`) and **multi-select** checkboxes (`selection`, paired with
- * `useRowSelection` + `BulkActionBar`).
- */
-/**
- * Skeleton bar width per column. The first column is usually the "identity" cell
- * (name/avatar) so it gets the widest bar; trailing columns are usually short
- * (status pill, actions) so they get narrow ones. Keeps the placeholder visually
- * proportional to real content instead of every bar being the same length.
- */
+/** Widest bar for the first (identity) column, narrow ones for the trailing columns. */
 function skeletonWidth(index: number, total: number): string {
   if (index === 0) return "w-40"
   if (index === total - 1) return "w-12"
@@ -123,8 +87,6 @@ export function DataTable<T>({
 
   const cardsOn = mobileCard !== false
 
-  // Phone list: one card per row. Bespoke when the page supplies a renderer,
-  // otherwise an automatic label/value stack derived from `columns`.
   const cards = cardsOn ? (
     <div className="divide-border divide-y md:hidden">
       {loading
@@ -185,10 +147,7 @@ export function DataTable<T>({
                               <dt className="text-muted-foreground shrink-0 text-xs">
                                 {col.header}
                               </dt>
-                              {/* col.className is carried through: two callers
-                                  (holidays:186, wfh:80) rely on it for their
-                                  truncation, and dropping it here rendered
-                                  those values at full length on phones. */}
+                              {/* Keep col.className: some callers rely on it for truncation. */}
                               <dd className={cn("min-w-0 text-right", col.className)}>{value}</dd>
                             </div>
                           )
@@ -206,11 +165,7 @@ export function DataTable<T>({
   const table = (
     <div className={cn("bg-card rounded-sm border", className)}>
       {cards}
-      {/* overflow-x-auto is unconditional: `md` is the app's TIGHTEST content
-          column (cards stop at md, but the 224px sidebar starts at md, leaving
-          ~496px at 768px - narrower than the 358px phone case gets after cards).
-          Gating the scroller on `minWidth` left 16 tables clipped there with no
-          way to reach their right-hand columns. */}
+      {/* Always scrollable: at md the sidebar leaves the narrowest content column (~496px). */}
       <div className={cn("overflow-x-auto", cardsOn && "hidden md:block")}>
         <table className={cn("w-full text-sm", minWidth)}>
           <thead>

@@ -8,11 +8,7 @@ import { cn } from "@/lib/utils"
 import { HELP_SHOTS } from "../shots.generated"
 import type { HelpLang, HelpShot, HelpShotFile } from "../types"
 
-/**
- * A guide screenshot with its numbered highlight boxes drawn on top. The boxes
- * are stored as fractions of the image, so they stay on target at any width.
- * Click to see it full size.
- */
+/** Boxes are stored as fractions of the image, so they stay on target at any width. */
 export function HelpShotFigure({
   shot,
   alt,

@@ -1,9 +1,7 @@
 import { BarChart3 } from "lucide-react"
 import type { HelpGuide, HelpTarget } from "../../types"
 
-// Screens: features/projects/components/insights-tab.tsx and integration-tab.tsx
-// (the Connections dialog), features/seo/components/seo-tab.tsx,
-// site-form-dialog.tsx, setup-guide.tsx and seo-toolbar.tsx.
+// Screens: insights-tab.tsx, integration-tab.tsx (Connections) and features/seo/components/*.
 
 const INSIGHTS = "/projects/sunmeadow-organics-launch?tab=insights"
 const SEO = "/projects/urbannest-website-seo?tab=seo"

@@ -35,9 +35,7 @@ export function EmployeeAdminActions({
 }) {
   const [avatarOpen, setAvatarOpen] = useState(false)
   const { can, userId } = usePermissions()
-  // Photo upload is an admin (HR) action; Resign is self-service - an employee
-  // resigns themselves, so it only appears on your own profile, never when an
-  // admin views someone else.
+  // Photo upload is an HR action; Resign is self-service, so it only shows on your own profile.
   const canManage = can(PERMISSIONS.EMPLOYEE_WRITE)
   const isSelf = userId === employeeId
   const qc = useQueryClient()
@@ -200,8 +198,8 @@ export function EmployeeAdminActions({
         </div>
         <p className="text-muted-foreground text-xs">
           This sends a resignation request to your manager for approval. Once approved, your account
-          is deactivated and you'll be signed out. You can withdraw it from your profile while it's
-          still pending.
+          is deactivated and you&apos;ll be signed out. You can withdraw it from your profile while
+          it&apos;s still pending.
         </p>
       </FormDialog>
     </>

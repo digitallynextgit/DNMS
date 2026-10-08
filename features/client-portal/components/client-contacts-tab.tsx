@@ -1,16 +1,8 @@
 "use client"
 
 /**
- * Client → Contacts tab: the people at a client who can sign in, and which of
- * the client's projects each of them can see.
- *
- * The ONLY place portal access is managed (projects have no tab for it). A
- * person is the unit and their projects hang off them, so "give Priya the new
- * store too" is one click on her card.
- *
- * Types are declared here rather than imported from features/clients, because
- * that feature renders this tab: importing its hooks from here would make the
- * two features load each other.
+ * Client -> Contacts tab: who at the client can sign in, and which projects each can see.
+ * Types are local because features/clients renders this tab - importing back would be circular.
  */
 
 import * as React from "react"
@@ -276,8 +268,7 @@ export function ClientContactsTab({
                 )}
               </div>
 
-              {/* Their projects. Each grant is its own row with its own sections,
-                  so two projects can expose different things to the same person. */}
+              {/* Each grant has its own sections, so two projects can expose different things. */}
               <div className="mt-3 space-y-2 border-t pt-3">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground text-[11px] tracking-wide uppercase">
@@ -445,8 +436,6 @@ export function ClientContactsTab({
   )
 }
 
-// ─── Shared pieces ──────────────────────────────────────────────────────────
-
 /** The sections checklist, identical to the one on the project's tab. */
 function ModulePicker({
   value,
@@ -510,8 +499,6 @@ function ProjectSelect({
   )
 }
 
-// ─── Add / edit a contact ───────────────────────────────────────────────────
-
 interface ContactDialogProps {
   clientRef: string
   projects: ContactProjectOption[]
@@ -522,10 +509,7 @@ interface ContactDialogProps {
   onDone: () => void
 }
 
-/**
- * Remounted on every open (the key), so the fields seed from `contact` fresh
- * each time without an effect.
- */
+/** Remounted on every open (the key), so the fields seed fresh without an effect. */
 function ContactDialog(props: ContactDialogProps) {
   return <ContactForm key={props.open ? "open" : "closed"} {...props} />
 }
@@ -707,8 +691,6 @@ function ContactForm({
     </Dialog>
   )
 }
-
-// ─── Grant / edit sections ──────────────────────────────────────────────────
 
 interface GrantDialogProps {
   clientRef: string

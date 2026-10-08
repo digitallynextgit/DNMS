@@ -7,13 +7,7 @@ import { createNotifications } from "@/lib/notifications"
 import { employeeSlug } from "@/lib/utils"
 import type { Session } from "next-auth"
 
-/**
- * PUT /api/employees/[id]/roles
- * Replace an employee's assignable (global, non-hidden) role grants.
- * Hidden roles (e.g. admin_) are preserved untouched - they can never be
- * stripped or granted through this endpoint, so an admin can't accidentally
- * lock out the admin_ from the role picker.
- */
+// Hidden roles (e.g. admin_) are never granted or stripped here, so admin_ can't be locked out.
 export const PUT = withAuth(
   PERMISSIONS.ROLE_WRITE,
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
@@ -41,14 +35,11 @@ export const PUT = withAuth(
         return NextResponse.json({ error: "Employee not found" }, { status: 404 })
       }
 
-      // Snapshot the assignable roles BEFORE the swap so we can tell whether
-      // anything actually changed (and say what it changed to).
       const rolesBefore = await db.employeeRole.findMany({
         where: { employeeId: id, scopeType: null, role: { name: { notIn: [...HIDDEN_ROLES] } } },
         select: { role: { select: { displayName: true, name: true } } },
       })
 
-      // Validate every incoming role exists and is assignable (not hidden).
       if (uniqueIds.length > 0) {
         const roles = await db.role.findMany({
           where: { id: { in: uniqueIds } },
@@ -66,7 +57,6 @@ export const PUT = withAuth(
       }
 
       await db.$transaction(async (tx) => {
-        // Replace only assignable global grants - leave hidden + scoped grants intact.
         await tx.employeeRole.deleteMany({
           where: { employeeId: id, scopeType: null, role: { name: { notIn: [...HIDDEN_ROLES] } } },
         })
@@ -89,9 +79,7 @@ export const PUT = withAuth(
         include: { role: { select: { id: true, name: true, displayName: true } } },
       })
 
-      // A role change alters what someone can DO, so it shouldn't happen silently.
-      // Notify the employee (they also need to re-login for it to take effect) and
-      // every other admin, since this is a security-relevant event.
+      // Role changes are security events: notify the employee (who must re-login) and the other admins.
       try {
         const label = (r: { displayName: string | null; name: string }) => r.displayName || r.name
         const beforeNames = rolesBefore.map((r) => label(r.role)).sort()
@@ -108,7 +96,6 @@ export const PUT = withAuth(
 
           const recipients: Parameters<typeof createNotifications>[0] = []
 
-          // The employee themselves - unless they changed their own roles.
           if (id !== session.user.id) {
             recipients.push({
               employeeId: id,
@@ -119,7 +106,6 @@ export const PUT = withAuth(
             })
           }
 
-          // Other admins - role changes are security events worth witnessing.
           const admins = await db.employee.findMany({
             where: {
               isActive: true,

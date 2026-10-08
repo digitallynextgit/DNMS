@@ -16,8 +16,6 @@ export interface EmployeeCodeItem {
   profilePhoto: string | null
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export interface EmployeeListItem {
   id: string
   employeeNo: string
@@ -101,8 +99,6 @@ interface PaginatedResponse<T> {
     totalPages: number
   }
 }
-
-// ─── Fetch helpers ─────────────────────────────────────────────────────────────
 
 async function fetchEmployees(
   filters: EmployeeFilters,
@@ -188,22 +184,15 @@ async function fetchDesignations(): Promise<{ data: Designation[] }> {
   return { data: (await apiFetch<{ data: Designation[] }>("/api/designations")).data }
 }
 
-// ─── Hooks ─────────────────────────────────────────────────────────────────────
-
-/**
- * `enabled: false` skips the fetch for callers that mount the hook before they
- * need it - a dialog rendered closed, say. This endpoint requires the global
- * `employee:read`, so an eager fetch is not just wasted, it is a 403 in the
- * console for every project owner who is not also HR/admin.
- */
+/** `enabled: false` skips the fetch until needed (e.g. a closed dialog) - the endpoint needs
+ *  employee:read, so an eager fetch is a 403 for non-HR project owners. */
 export function useEmployees(filters: EmployeeFilters = {}, opts?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["employees", filters],
     queryFn: () => fetchEmployees(filters),
     staleTime: 30_000,
     enabled: opts?.enabled ?? true,
-    // Keep the previous page's rows on screen while the next page loads, so the
-    // list (and its pagination control) never collapses mid-transition.
+    // Keep the previous page on screen while the next one loads.
     placeholderData: keepPreviousData,
   })
 }
@@ -314,11 +303,7 @@ export function useOrgChart() {
   })
 }
 
-/**
- * Active departments in TREE order - each followed by its sub-departments -
- * with `label` holding the full path ("SMG › MSG › Content"), which is what
- * the dropdowns show.
- */
+/** Active departments in tree order; `label` is the full path ("SMG › MSG › Content"). */
 export function useDepartments() {
   return useQuery({
     queryKey: ["departments"],
@@ -340,42 +325,34 @@ export type EmailAvailability = "idle" | "invalid" | "checking" | "available" | 
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-/**
- * Debounced, real-time check that an email isn't already used (as a work OR
- * personal email) by another employee. `excludeId` skips the employee being
- * edited so their own current address reads as available.
- */
+/** Debounced "is this email used by another employee?" check; `excludeId` skips the edited one. */
 export function useEmailAvailability(
   rawValue: string | undefined,
   excludeId?: string,
 ): EmailAvailability {
   const value = (rawValue ?? "").trim()
   const debounced = useDebounce(value, 500)
-  const [status, setStatus] = useState<EmailAvailability>("idle")
+  // The answer for the current request; cleared when it is superseded, so a new one reads "checking".
+  const [checked, setChecked] = useState<EmailAvailability | null>(null)
 
   useEffect(() => {
-    if (!debounced) {
-      setStatus("idle")
-      return
-    }
-    if (!EMAIL_RE.test(debounced)) {
-      setStatus("invalid")
-      return
-    }
+    if (!debounced || !EMAIL_RE.test(debounced)) return
     let active = true
-    setStatus("checking")
     const qs = new URLSearchParams({ email: debounced })
     if (excludeId) qs.set("excludeId", excludeId)
     apiFetch<{ data: { available: boolean } }>(`/api/employees/check-email?${qs.toString()}`)
       .then((body) => {
         if (!active) return
-        setStatus(body.data.available ? "available" : "taken")
+        setChecked(body.data.available ? "available" : "taken")
       })
-      .catch(() => active && setStatus("idle"))
+      .catch(() => active && setChecked("idle"))
     return () => {
       active = false
+      setChecked(null)
     }
   }, [debounced, excludeId])
 
-  return status
+  if (!debounced) return "idle"
+  if (!EMAIL_RE.test(debounced)) return "invalid"
+  return checked ?? "checking"
 }

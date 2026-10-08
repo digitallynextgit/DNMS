@@ -9,20 +9,8 @@ import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import { openFirstStatusPeriod } from "@/features/projects/server/task-status-periods"
 import type { Session } from "next-auth"
 
-/**
- * What this caller manages: the project teams they run, and every person under
- * them. "Under them" is the union of two things, because either alone is wrong -
- * a team manager owns their team's tasks whether or not the HR reporting line
- * agrees, and a line manager owns their reports' work wherever it sits.
- *
- * Drives both the picker the client renders AND the authorisation for it: a
- * scope the caller does not manage simply is not in these lists, so it cannot
- * be selected and is rejected if asked for directly.
- *
- * `seesEveryone` widens that to the whole company. It is for project admins,
- * who already read every project and therefore every task inside it - this only
- * lets them ask the same question by PERSON instead of by project.
- */
+// What the caller manages: teams they run and everyone under them (team members + line reports). It drives
+// both the picker and its authorisation. `seesEveryone` widens it to the whole company for project admins.
 type PickablePerson = {
   id: string
   name: string
@@ -54,15 +42,11 @@ async function getManagedScope(userId: string, seesEveryone: boolean) {
     }),
     seesEveryone
       ? db.employee.findMany({
-          // Never the silent admin_ watch account (HIDDEN_ROLES).
           where: { isActive: true, ...VISIBLE_EMPLOYEE_FILTER },
           select: { id: true, firstName: true, lastName: true },
         })
       : [],
-    // People who have LEFT, but whose tasks the caller could open while they
-    // were here: an admin gets every deactivated employee, a manager their
-    // former direct reports. Offered under "archived", never mixed into the
-    // live lists, so past work stays readable after someone goes.
+    // Leavers whose tasks the caller could open (all for admins, former reports for managers) - archive only.
     db.employee.findMany({
       where: seesEveryone
         ? { isActive: false, ...VISIBLE_EMPLOYEE_FILTER }
@@ -70,7 +54,6 @@ async function getManagedScope(userId: string, seesEveryone: boolean) {
       select: { id: true, firstName: true, lastName: true },
     }),
   ])
-  // Only those who actually left tasks behind - an empty archive is noise.
   const leftWithTasks = new Set(
     left.length
       ? (
@@ -83,14 +66,10 @@ async function getManagedScope(userId: string, seesEveryone: boolean) {
       : [],
   )
 
-  // isReport separates the two ways someone can be "under" you. A DIRECT REPORT
-  // is your subordinate and belongs in the people picker unconditionally; a team
-  // member you merely manage the team of does not - they surface only once that
-  // team is selected. Both are still authorised for scope=all, which is why
-  // this is one list with a flag rather than two.
+  // isReport: direct reports always show in the picker; members of a team you manage only once that
+  // team is selected. Both are authorised for scope=all.
   const people = new Map<string, PickablePerson>()
-  // Seeded FIRST, so the two passes below still mark an admin's own team members
-  // and reports correctly rather than being skipped as already-present entries.
+  // Seeded first, so the passes below still flag an admin's own team members and reports.
   for (const e of everyone) {
     people.set(e.id, { id: e.id, name: `${e.firstName} ${e.lastName}`.trim(), isReport: false })
   }
@@ -103,20 +82,17 @@ async function getManagedScope(userId: string, seesEveryone: boolean) {
       })
     }
   }
-  // After the team pass, so a direct report who is also on a team you manage is
-  // still flagged as a report rather than being overwritten as a plain member.
+  // After the team pass, so a direct report on your team is still flagged as a report.
   for (const r of reports) {
     people.set(r.id, { id: r.id, name: `${r.firstName} ${r.lastName}`.trim(), isReport: true })
   }
   // You are not your own subordinate; "Me" is a separate option in the picker.
   people.delete(userId)
-  // The archive goes in last and never displaces a current entry.
   for (const e of left) {
     if (!leftWithTasks.has(e.id) || people.has(e.id)) continue
     people.set(e.id, {
       id: e.id,
       name: `${e.firstName} ${e.lastName}`.trim(),
-      // A former direct report still reads as yours; an admin sees all anyway.
       isReport: !seesEveryone,
       former: true,
     })
@@ -130,29 +106,15 @@ async function getManagedScope(userId: string, seesEveryone: boolean) {
       memberIds: t.members.map((m) => m.employeeId),
     })),
     people: [...people.values()].sort((a, b) => a.name.localeCompare(b.name)),
-    // Tells the client the list is the ROSTER, not a reporting line, so it can
-    // offer all of it instead of only the direct reports on it.
     seesEveryone,
   }
 }
 
-// Hard ceiling on one task-list response. High enough that no real person's
-// list is clipped; low enough that a project admin on scope=all cannot pull the
-// whole table into Node. Overflow is reported via meta.truncated, never silent.
+// Hard ceiling; overflow is reported via meta.truncated, never silent.
 const TASK_LIST_LIMIT = 2000
 
-// GET /api/tasks?mine=true[&scope=…] - the caller's task list.
-//
-//   scope=me            (default) just them
-//   scope=all           them plus everyone they manage
-//   scope=team:<teamId> one project team they manage
-//   scope=user:<empId>  one person they manage (a project admin: anyone)
-//   Deactivated people come back with former: true - openable one at a time
-//   as an archive of what they left behind, never part of scope=all.
-//
-// An unrecognised or unauthorised scope falls back to "me" rather than erroring:
-// the picker is built from the same data, so the only way to ask for something
-// else is by hand, and the safe answer to that is your own tasks.
+// scope=me (default) | all | team:<teamId> | user:<empId>. Deactivated people come back with
+// former: true, never in scope=all. An unknown or unauthorised scope falls back to "me".
 export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: Session) => {
   try {
     const { searchParams } = req.nextUrl
@@ -161,12 +123,8 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
     const status = searchParams.get("status") ?? undefined
     const userId = session.user.id
 
-    // Project admins answer for every account, so every person is theirs to
-    // look at - the same reach they already have through the project pages.
     const seesEveryone = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
 
-    // Resolved on every "mine" call: the client builds its picker from this, so
-    // it costs one pair of reads instead of a second endpoint and a round trip.
     const managed = mine
       ? await getManagedScope(userId, seesEveryone)
       : {
@@ -177,7 +135,6 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
 
     let assigneeIds: string[] = [userId]
     if (scope === "all") {
-      // The live view: current people only, never the archive.
       assigneeIds = [userId, ...managed.people.filter((p) => !p.former).map((p) => p.id)]
     } else if (scope.startsWith("team:")) {
       const team = managed.teams.find((t) => t.id === scope.slice(5))
@@ -187,33 +144,22 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
       if (person) assigneeIds = [person.id]
     }
 
-    // Without `mine`, `where` collapsed to `{}` - the ENTIRE project_tasks table
-    // for anyone who could call this. Every in-app caller passes mine=true, so
-    // that path was only reachable by hand. It now falls back to the caller's
-    // own tasks, which is the same safe default the scope handling above uses
-    // for an unrecognised scope.
+    // Without `mine`, fall back to the caller's own tasks - never the whole table.
     const tasks = await db.projectTask.findMany({
       where: {
         assigneeId: { in: assigneeIds },
         ...(status && { status: status as never }),
       },
       orderBy: [{ dueDate: "asc" }, { priority: "desc" }],
-      // A project admin on scope=all has `assigneeIds` = every active employee,
-      // so the assignee filter alone is not a real bound. Take one extra row to
-      // detect truncation and REPORT it (meta.truncated) rather than silently
-      // hiding someone's tasks.
+      // On scope=all an admin's assigneeIds is everyone, so take one extra row to detect truncation.
       take: TASK_LIST_LIMIT + 1,
-      // `description` is rendered by my-tasks, so it stays. `holdReason` and
-      // `discardReason` are @db.Text, read by no list consumer, and were
-      // shipping on every row via `include`.
+      // holdReason/discardReason are @db.Text and no list consumer reads them.
       omit: { holdReason: true, discardReason: true },
       include: {
         project: { select: { id: true, name: true, code: true, slug: true } },
-        // managerId rides along so the client can apply the same edit/delete
-        // rules the API enforces, instead of offering controls that 403.
+        // managerId lets the client apply the same edit/delete rules the API enforces.
         team: { select: { id: true, name: true, managerId: true } },
-        // managerId: adhoc work has no team, so the assignee's LINE manager is
-        // the authority on it - the client needs that to match the API's rules.
+        // Adhoc work has no team, so the assignee's line manager is the authority on it.
         assignee: {
           select: {
             id: true,
@@ -223,11 +169,7 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
             managerId: true,
           },
         },
-        // Drives the "Blocked" badge - a task waiting on a requirement should say
-        // so wherever it is listed, not only inside the project.
         requirement: { select: { id: true, title: true, status: true } },
-        // The goal this serves, and whether it has produced anything yet - the
-        // row shows the first and nudges on the second.
         goal: { select: { id: true, title: true } },
         _count: { select: { deliverables: true } },
       },
@@ -239,15 +181,10 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
     return NextResponse.json({
       data: tasks,
       meta: {
-        // True when the cap clipped the list, so the UI can say so instead of
-        // quietly presenting a partial task list as complete.
         truncated,
         limit: TASK_LIST_LIMIT,
-        // The picker's options, minus the member id lists (the client never
-        // needs them and they are only used to resolve the scope server-side).
         teams: managed.teams.map(({ id, name, projectName }) => ({ id, name, projectName })),
         people: managed.people,
-        // Whether that list is everyone or only the caller's own reports.
         seesEveryone: managed.seesEveryone,
       },
     })
@@ -257,15 +194,7 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
   }
 })
 
-// POST /api/tasks - raise an ADHOC task: work that belongs to no client.
-//
-// Meetings, interviews, internal QC. There is no project and no team to file it
-// under, which is the whole point - it used to be forced into a stand-in "ADHOC"
-// project that then behaved like a client account everywhere.
-//
-// Who may raise work on WHOM still follows the line manager, but nothing waits
-// for approval: adhoc work you raise on yourself is workable immediately, the
-// same as a project task.
+// Raises ADHOC work (meetings, interviews, QC) with no project or team. Nothing waits for approval.
 export const POST = withSession(async (req: NextRequest, _ctx: unknown, session: Session) => {
   try {
     const body = await req.json()
@@ -283,9 +212,7 @@ export const POST = withSession(async (req: NextRequest, _ctx: unknown, session:
       return NextResponse.json({ error: "Assignee not found" }, { status: 422 })
     }
 
-    // You may raise adhoc work on yourself, on someone who reports to you, or
-    // anywhere if you administer projects. Without this anyone could drop work
-    // onto anyone, which the project route is careful not to allow either.
+    // On yourself, on a direct report, or anyone if you administer projects.
     const isSelf = assigneeId === session.user.id
     const managesAssignee = assignee.managerId === session.user.id
     if (!isSelf && !managesAssignee && !isAdmin) {
@@ -295,11 +222,7 @@ export const POST = withSession(async (req: NextRequest, _ctx: unknown, session:
       )
     }
 
-    // One transaction: a task and its first status period are a single fact.
-    // Created separately, a failure between them left a task with NO open
-    // period, breaking the "exactly one open period" invariant that
-    // task-status-periods.ts depends on - and nothing repairs it afterwards.
-    // The PATCH path already did this correctly; the two create paths did not.
+    // One transaction: a task and its first status period are created together.
     const task = await db.$transaction(async (tx) => {
       const created = await tx.projectTask.create({
         data: {

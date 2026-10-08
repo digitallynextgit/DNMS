@@ -17,6 +17,5 @@ export const editMessageSchema = z.object({
 })
 export type EditMessageInput = z.infer<typeof editMessageSchema>
 
-/** Who a deletion applies to. */
 export const deleteScopeSchema = z.enum(["me", "everyone"])
 export type DeleteScope = z.infer<typeof deleteScopeSchema>

@@ -4,7 +4,6 @@ import {
   ListSkeleton,
 } from "@/components/shared/loading-skeleton"
 
-// Stock register: header + item cards + the issues table.
 export default function StockLoading() {
   return (
     <div className="space-y-6">

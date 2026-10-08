@@ -14,7 +14,6 @@ import type {
 const PAGE_SIZE = 10
 
 // Available now = accrued + carried − used − pending; annual entitlement = allocated + carried.
-// Mirrors the per-type LeaveBalanceCard so the numbers agree across the app.
 function computeCell(bal?: LeaveBalance) {
   if (!bal) return null
   const allocated = Number(bal.allocated) || 0
@@ -35,8 +34,7 @@ interface Props {
   leaveTypes: LeaveType[]
 }
 
-/** HR matrix (one row per employee, one column per leave type) built on the shared
- *  DataTable, so it gets S.No, pagination, and the app's table styling for free. */
+/** HR matrix: one row per employee, one column per leave type, on the shared DataTable. */
 export function LeaveBalanceDirectory({ employees, leaveTypes }: Props) {
   const types = leaveTypes.filter((t) => t.isActive)
   const [page, setPage] = useState(1)

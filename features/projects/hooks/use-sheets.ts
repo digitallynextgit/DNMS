@@ -15,32 +15,13 @@ import type {
   WorkbookTeam,
 } from "../lib/sheet-types"
 
-/**
- * Project sheets.
- *
- * Every mutation invalidates the whole sheet list rather than patching a cell in
- * place. A sheet is edited by several people at once, so a refetch is also how
- * this client finds out what everyone else did - a surgical cache update would
- * keep the screen consistent with itself and wrong about the sheet.
- *
- * Cell writes are the exception, and are handled in the grid: those are
- * optimistic locally and reconciled on the next refetch, because a round-trip
- * per keystroke-commit would make typing feel broken.
- */
+// Mutations refetch the whole sheet list: several people edit at once, and a refetch is how this
+// client sees their changes. Cell writes are the exception (optimistic, in the grid).
 const key = (projectId: string) => ["project-sheets", projectId] as const
-/** One edition's grid and plan. Separate from the index - see useWorkbook. */
 const bookKey = (projectId: string, workbookId: string | null) =>
   ["project-workbook", projectId, workbookId] as const
 
-/**
- * The PICKER's list: every calendar on the project, named and dated, with tab
- * names but no columns and no rows.
- *
- * Light on purpose. A calendar now has one edition per MONTH, so this list
- * grows by twelve a year per calendar; carrying each one's grid would make
- * opening the Calendars tab cost more every month the project runs. The open
- * edition is fetched on its own by useWorkbook.
- */
+/** The picker's list: names, months and tab names, no grids (it grows by twelve a year). */
 export function useWorkbookIndex(projectId: string) {
   return useQuery({
     queryKey: key(projectId),
@@ -50,12 +31,7 @@ export function useWorkbookIndex(projectId: string) {
   })
 }
 
-/**
- * ONE calendar in full: tabs, columns, rows, and the team plan.
- *
- * Keyed on the workbook, so stepping from September to October is a fresh
- * fetch of October rather than a re-read of every month the project has.
- */
+/** One calendar in full (tabs, columns, rows, team plan), keyed per workbook. */
 export function useWorkbook(projectId: string, workbookId: string | null) {
   return useQuery({
     queryKey: bookKey(projectId, workbookId),
@@ -80,15 +56,7 @@ const json = { "Content-Type": "application/json" }
 
 export function useSheetMutations(projectId: string) {
   const qc = useQueryClient()
-  /**
-   * Refresh both reads.
-   *
-   * The index draws the picker and the detail draws the grid, and almost every
-   * write moves one or the other - renaming a calendar changes the picker,
-   * adding a tab changes the grid, creating a month changes both. Refreshing
-   * the pair is one round trip more than the minimum and removes a whole class
-   * of "the dropdown still says the old name" bug.
-   */
+  /** Refresh both the picker index and the open grid - most writes move one or the other. */
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: key(projectId) })
     void qc.invalidateQueries({ queryKey: ["project-workbook", projectId] })
@@ -98,7 +66,7 @@ export function useSheetMutations(projectId: string) {
   const fail = (e: unknown, fallback: string) =>
     toast.error(e instanceof Error ? e.message : fallback)
 
-  // ── Workbooks: what the UI calls a "sheet" - a named set of tabs ────────────
+  // Workbooks: what the UI calls a "sheet" - a named set of tabs.
   const workbooks = `/api/projects/${projectId}/workbooks`
 
   const createWorkbook = useMutation({
@@ -192,11 +160,7 @@ export function useSheetMutations(projectId: string) {
     onError: (e) => fail(e, "Could not set the month"),
   })
 
-  /**
-   * Put a team on this month's plan, or change what it owes. Idempotent, and
-   * one write for the whole row - quantity, due date, links, notes, people -
-   * because that is how the form is filled in.
-   */
+  /** Put a team on this month's plan or change what it owes - one idempotent write for the row. */
   const saveTeamPlan = useMutation({
     mutationFn: ({
       workbookId,
@@ -229,8 +193,7 @@ export function useSheetMutations(projectId: string) {
       ),
     onSuccess: (res) => {
       void invalidate()
-      // Say what happened to the files, because "removed" on its own reads as
-      // "deleted" and somebody will go looking for them.
+      // Say what happened to the files: "removed" alone reads as "deleted".
       toast.success(
         res.detachedFiles > 0
           ? `Team removed. ${res.detachedFiles} file${res.detachedFiles === 1 ? "" : "s"} stayed in Files.`
@@ -250,7 +213,6 @@ export function useSheetMutations(projectId: string) {
     onError: (e) => fail(e, "Could not delete the sheet"),
   })
 
-  // ── Tabs: one grid inside a workbook ────────────────────────────────────────
   const createSheet = useMutation({
     mutationFn: (body: { workbookId: string; name: string; description?: string }) =>
       apiFetch<{ data: ProjectSheet }>(base, {
@@ -352,20 +314,10 @@ export function useSheetMutations(projectId: string) {
     onError: (e) => fail(e, "Could not delete the row"),
   })
 
-  /**
-   * Write cells.
-   *
-   * Deliberately NOT a useMutation: the grid already shows the new value, so
-   * there is nothing to await and no pending state worth rendering. It refetches
-   * quietly afterwards to pick up anyone else's edits, and only surfaces
-   * anything if the write actually failed - in which case the refetch is what
-   * puts the true value back on screen.
-   */
+  /** Not a useMutation: the grid already shows the value. Refetches quietly; only failures surface. */
   const saveCells = async (sheetId: string, position: number, cells: Record<string, unknown>) => {
     try {
-      // Addressed by ROW POSITION, not id: the grid draws a thousand rows and
-      // only the typed-in ones exist, so the client cannot know an id for a row
-      // it is about to bring into being. The server upserts.
+      // Addressed by ROW POSITION: an untyped row has no id yet. The server upserts.
       await apiFetch(`${base}/${sheetId}/cells`, {
         method: "PATCH",
         headers: json,
@@ -378,13 +330,7 @@ export function useSheetMutations(projectId: string) {
     }
   }
 
-  /**
-   * Persist a column width or a row height.
-   *
-   * Not a useMutation and not invalidating: the grid has already moved, and a
-   * refetch on every mouse-up would make the column jump as the server's copy
-   * arrives. The next natural refetch reconciles it.
-   */
+  /** Persist a column width / row height. No refetch, or the column would jump on mouse-up. */
   const saveLayout = async (
     sheetId: string,
     body:
@@ -398,15 +344,11 @@ export function useSheetMutations(projectId: string) {
         body: JSON.stringify(body),
       })
     } catch {
-      // A size that did not stick is a cosmetic loss, and a toast on a drag is
-      // worse than the problem.
+      // A size that didn't stick isn't worth a toast.
     }
   }
 
-  /**
-   * Append many rows at once (the file importer). Cells are keyed by column id;
-   * the server normalises values and skips fully empty rows.
-   */
+  /** Append many rows (file importer); the server normalises values and skips empty rows. */
   const importRows = useMutation({
     mutationFn: ({ sheetId, rows }: { sheetId: string; rows: Record<string, unknown>[] }) =>
       apiFetch<{ data: { imported: number; firstPosition: number } }>(`${base}/${sheetId}/import`, {

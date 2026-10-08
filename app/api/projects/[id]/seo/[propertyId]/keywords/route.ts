@@ -14,7 +14,6 @@ async function owned(projectId: string, propertyId: string) {
   return db.seoProperty.findFirst({ where: { id: propertyId, projectId }, select: { id: true } })
 }
 
-// GET - the prioritized keyword backlog for this site.
 export const GET = withAuth(
   PERMISSIONS.PROJECT_READ,
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
@@ -25,15 +24,14 @@ export const GET = withAuth(
   },
 )
 
-// POST - fill the backlog, either from our own Search Console queries (default)
-// or by mining the latest competitor crawl for the phrases they target.
+// From our own Search Console queries (default) or by mining the latest competitor crawl.
 export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _s: Session) => {
     const { id, propertyId } = ctx.params
     if (!(await owned(id!, propertyId!)))
       return NextResponse.json({ error: "Site not found" }, { status: 404 })
 
-    // Body is optional so the original "just generate it" call still works.
+    // The body is optional; a bare call just generates.
     const body = (await req.json().catch(() => ({}))) as { from?: string }
 
     if (body.from === "competitors") {

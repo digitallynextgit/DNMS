@@ -7,20 +7,8 @@ import { Spinner } from "@/components/shared/spinner"
 import { cn } from "@/lib/utils"
 import { useReferableRoles, type ReferableRole } from "../hooks/use-referrals"
 
-/**
- * Searchable role picker.
- *
- * A plain <Select> was unusable at 28 roles: finding "Video Editing Intern"
- * meant scrolling a list with no way to type at it.
- *
- * Rendered in NORMAL FLOW rather than a portalled popover, for the same reason
- * EmployeeCombobox is - a portalled list inside a Dialog fights the dialog for
- * focus, and can be clipped by its scroll container. The list expands in place,
- * so focus and scrolling just work.
- *
- * Filtering is client-side: the whole list is 28 rows and already in memory, so
- * a round trip per keystroke would be slower and worse.
- */
+/** Searchable role picker, rendered in normal flow like EmployeeCombobox (a portal fights the
+ *  Dialog for focus). Filtering is client-side - the list is small and already loaded. */
 export function RoleCombobox({
   value,
   onChange,
@@ -39,8 +27,7 @@ export function RoleCombobox({
   const inputRef = useRef<HTMLInputElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
-  // Close when the click lands anywhere else. `mousedown` rather than `click` so
-  // it settles before the next field takes focus.
+  // Close on outside mousedown (not click) so it settles before the next field takes focus.
   useEffect(() => {
     if (!open) return
     function onDown(e: MouseEvent) {
@@ -55,8 +42,7 @@ export function RoleCombobox({
 
   const selected = roles?.find((r) => r.id === value)
 
-  // Matches the department as well as the title, because people look for "the
-  // internship one" as readily as they look for a job title.
+  // Match the department too ("the internship one").
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return roles ?? []
@@ -66,8 +52,6 @@ export function RoleCombobox({
   }, [roles, search])
 
   const label = (r: ReferableRole) => `${r.title} · ${r.department}`
-  // Closed: show what is selected. Open: show what is being typed, so the field
-  // never argues with itself about which text it is displaying.
   const shown = open ? search : selected ? label(selected) : ""
 
   return (
@@ -101,8 +85,7 @@ export function RoleCombobox({
               setSearch("")
             }
           }}
-          // Inline style beats the app-wide unlayered :focus-visible outline,
-          // which Tailwind utilities cannot override.
+          // Inline style beats the app-wide unlayered :focus-visible outline (Tailwind can't).
           style={{ outline: "none", boxShadow: "none" }}
           className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm"
         />
@@ -154,8 +137,7 @@ export function RoleCombobox({
                 type="button"
                 role="option"
                 aria-selected={value === r.id}
-                // Commit on mousedown so the choice lands before the input's
-                // blur can close the list out from under the click.
+                // Commit on mousedown so it lands before the input's blur closes the list.
                 onMouseDown={(e) => {
                   e.preventDefault()
                   onChange(r.id)

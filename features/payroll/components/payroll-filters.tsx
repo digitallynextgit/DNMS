@@ -32,7 +32,6 @@ export function PayrollFilters({
 
   return (
     <FilterToolbar hasActiveFilters={hasActiveFilters} onClear={onClear}>
-      {/* Employee search */}
       <SearchInput
         value={employeeSearch}
         onChange={onEmployeeSearchChange}
@@ -40,7 +39,6 @@ export function PayrollFilters({
         className="max-w-xs min-w-[180px] flex-1"
       />
 
-      {/* Month filter */}
       <FilterSelect
         value={month}
         onChange={onMonthChange}
@@ -49,7 +47,6 @@ export function PayrollFilters({
         className="w-[150px]"
       />
 
-      {/* Year input */}
       <Input
         type="number"
         placeholder="Year"
@@ -61,7 +58,6 @@ export function PayrollFilters({
         className="h-9 w-[100px]"
       />
 
-      {/* Status filter */}
       <FilterSelect
         value={status}
         onChange={onStatusChange}

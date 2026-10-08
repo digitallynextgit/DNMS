@@ -1,12 +1,7 @@
 "use client"
 
-/**
- * How a picture, voice note or file looks inside a bubble.
- *
- * Shared by personal chat and project messages. Every attachment is fetched
- * through a membership-checked route rather than a public URL - these are
- * private messages either way - so the caller supplies the route via `urlFor`.
- */
+// Attachments inside a bubble, shared by chat and project messages. Files come through a
+// membership-checked route, which the caller supplies as `urlFor`.
 
 import * as React from "react"
 import { FileText, Download, X, Play, Pause, Mic, User } from "lucide-react"
@@ -33,7 +28,6 @@ export interface AttachmentAvatar {
   lastName: string
 }
 
-/** Where this surface serves its files from. */
 export type UrlFor = (id: string) => string
 
 const chatUrl: UrlFor = (id) => `/api/chat/attachments/${id}/file`
@@ -65,14 +59,9 @@ export function MessageAttachments({
 }: {
   attachments: Attachment[]
   fromMe: boolean
-  /** The sender's face, shown beside a voice note. */
   avatar?: AttachmentAvatar | null
   urlFor?: UrlFor
-  /**
-   * Hand the tap up to the thread, which owns the conversation-wide viewer.
-   * Without it this falls back to its own one-image lightbox - a bubble on its
-   * own cannot know what else was sent, so it cannot offer next/previous.
-   */
+  /** Opens the thread's conversation-wide viewer; without it, a one-image lightbox is used. */
   onOpenMedia?: (attachmentId: string) => void
 }) {
   const [lightbox, setLightbox] = React.useState<Attachment | null>(null)
@@ -83,9 +72,7 @@ export function MessageAttachments({
     <>
       <div className={cn("flex flex-col gap-1.5", attachments.length > 1 && "gap-1")}>
         {attachments.map((a) => {
-          // A sticker IS the message: no frame, no bubble tint behind it, and
-          // bigger than a thumbnail. Framing it like a photo would make it read
-          // as a tiny picture somebody sent by mistake.
+          // A sticker IS the message: no frame or tint, and bigger than a thumbnail.
           if (a.kind === "STICKER") {
             return (
               // eslint-disable-next-line @next/next/no-img-element
@@ -106,8 +93,7 @@ export function MessageAttachments({
                 src={urlFor(a.id)}
                 controls
                 preload="metadata"
-                // Reserve the real shape so the thread does not jump when the
-                // first frame arrives.
+                // Reserve the real shape so the thread doesn't jump.
                 width={a.width ?? undefined}
                 height={a.height ?? undefined}
                 className="max-h-72 w-full max-w-64 rounded-sm bg-black object-contain"
@@ -129,8 +115,6 @@ export function MessageAttachments({
                   src={urlFor(a.id)}
                   alt={a.fileName}
                   loading="lazy"
-                  // Reserve the real shape so the thread does not jump as
-                  // pictures arrive and push everything above them upward.
                   width={a.width ?? undefined}
                   height={a.height ?? undefined}
                   className="max-h-72 w-full max-w-64 object-cover"
@@ -154,10 +138,7 @@ export function MessageAttachments({
           return (
             <a
               key={a.id}
-              // ?download=1 makes the signed URL carry the original name. The
-              // `download` attribute alone cannot: the route redirects to
-              // storage, and a cross-origin redirect drops it - which is why
-              // these were saving as the raw object key.
+              // ?download=1 makes the signed URL carry the original name (`download` is lost on the redirect).
               href={`${urlFor(a.id)}?download=1`}
               download={a.fileName}
               className={cn(
@@ -212,11 +193,7 @@ export function MessageAttachments({
 
 const WAVE_BARS = 40
 
-/**
- * Fallback bars for audio that was uploaded rather than recorded here, so it
- * has no stored peaks. Derived from the id, so the same clip always draws the
- * same shape instead of reshuffling on every render.
- */
+/** Fallback bars for uploaded audio (no stored peaks), seeded by id so the shape is stable. */
 function placeholderWave(seed: string): number[] {
   let h = 0
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
@@ -228,7 +205,6 @@ function placeholderWave(seed: string): number[] {
   })
 }
 
-/** Reduce stored peaks to the number of bars the bubble draws. */
 function fitBars(peaks: number[]): number[] {
   if (peaks.length === 0) return []
   if (peaks.length === WAVE_BARS) return peaks
@@ -263,11 +239,7 @@ function VoiceNote({
     return stored.length ? stored : placeholderWave(a.id)
   }, [a.waveform, a.id])
 
-  /**
-   * Prefer the duration recorded at capture time. MediaRecorder's webm carries
-   * no duration header, so the element reports Infinity and every ratio built
-   * from it would be NaN.
-   */
+  /** Prefer the recorded duration: MediaRecorder webm reports Infinity. */
   const [elementDuration, setElementDuration] = React.useState(0)
   const duration = a.durationSec || elementDuration || 0
   const ratio = duration > 0 ? Math.min(1, position / duration) : 0
@@ -289,8 +261,7 @@ function VoiceNote({
     const box = track.getBoundingClientRect()
     const next = ((clientX - box.left) / box.width) * duration
     const clamped = Math.max(0, Math.min(duration, next))
-    // Update our own position too: with an Infinity-duration webm the element
-    // may not fire timeupdate until it actually plays.
+    // An Infinity-duration webm may not fire timeupdate until it plays.
     setPosition(clamped)
     try {
       el.currentTime = clamped
@@ -334,8 +305,7 @@ function VoiceNote({
         className="hidden"
       />
 
-      {/* Face plus a mic badge - the badge is the accent colour until the note
-          has been played, which is the only cue that it is still unheard. */}
+      {/* The mic badge stays accent-coloured until the note has been played. */}
       <span className="relative shrink-0">
         {avatar ? (
           <AvatarDisplay
@@ -378,9 +348,7 @@ function VoiceNote({
       </button>
 
       <div className="min-w-0 flex-1">
-        {/* One control for the whole trace: click or drag anywhere on it to
-            seek, arrows to nudge - the bars are the scrubber, not a picture
-            with a separate slider underneath. */}
+        {/* The bars are the scrubber: click or drag to seek, arrows to nudge. */}
         <div
           ref={trackRef}
           role="slider"
@@ -433,8 +401,7 @@ function VoiceNote({
             )
           })}
 
-          {/* The playhead. Sits on top of the bars rather than in the flow, so
-              moving it never reflows the trace. */}
+          {/* Absolutely positioned so moving it never reflows the trace. */}
           <span
             className={cn(
               "pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm shadow",
@@ -451,8 +418,7 @@ function VoiceNote({
           )}
           suppressHydrationWarning
         >
-          {/* Counts up while playing, shows the total when idle - so a note you
-              have not started still tells you how long it is. */}
+          {/* Counts up while playing; shows the total when idle. */}
           {clock(playing || position > 0 ? position : duration)}
         </span>
       </div>

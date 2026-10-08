@@ -6,7 +6,6 @@ import { isWithinEditWindow } from "@/lib/edit-window"
 import type { Session } from "next-auth"
 import { resolveProjectMemberIds } from "../route"
 
-// PATCH /api/projects/[id]/messages/[messageId]
 export const PATCH = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -25,8 +24,7 @@ export const PATCH = withProjectAccess(
       if (body.content?.trim()) data.content = body.content.trim()
       if (typeof body.isPinned === "boolean") data.isPinned = body.isPinned
 
-      // Rewriting the text closes after 15 minutes. Pinning does NOT - that is
-      // organising the chat list, not altering the record, so it stays available.
+      // Text edits close after 15 minutes; pinning doesn't (it organises the list, not the record).
       const editsText = data.title !== undefined || data.content !== undefined
       if (editsText && !isWithinEditWindow(msg.createdAt)) {
         return NextResponse.json(
@@ -74,7 +72,6 @@ export const PATCH = withProjectAccess(
   },
 )
 
-// DELETE /api/projects/[id]/messages/[messageId]
 export const DELETE = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {

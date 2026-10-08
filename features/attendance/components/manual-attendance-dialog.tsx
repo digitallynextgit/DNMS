@@ -36,16 +36,14 @@ function toLocalTime(iso: string | null): string {
   })
 }
 
-// Existing attendance row for an employee on a given day (so HR corrects rather
-// than re-enters). Returns null when there's no record yet.
+// Existing row for the day, so HR corrects rather than re-enters (null if none).
 async function fetchDayLog(employeeId: string, date: string): Promise<AttendanceLog | null> {
   const params = new URLSearchParams({ employeeId, dateFrom: date, dateTo: date, limit: "1" })
   const body = await apiFetch<{ data: AttendanceLog[] }>(`/api/attendance?${params.toString()}`)
   return body.data?.[0] ?? null
 }
 
-// Combine the picked date + "HH:MM" IST time into a UTC ISO string. The entered
-// time is interpreted as IST (the office timezone), not the browser's.
+// Picked date + "HH:MM" read as IST (not the browser timezone) -> UTC ISO string.
 function buildDatetime(date: string, time: string): string | null {
   if (!time) return null
   return new Date(`${date}T${time}:00.000+05:30`).toISOString()
@@ -57,11 +55,8 @@ function minutesBetween(checkIn: string, checkOut: string): number {
   return oh * 60 + om - (ih * 60 + im)
 }
 
-// Live preview of the status the server will derive from the punches. Returns an
-// ATTENDANCE status code so the pill renders from the shared ATTENDANCE_STATUS_*
-// maps - the preview can no longer drift from the colour the real row will use.
-// "INVALID" is not an attendance status (it's a validation error), so it falls
-// through to StatusBadge's fallbackColor.
+// Preview of the status the server will derive, as an ATTENDANCE status code so the pill
+// matches the real row. "INVALID" falls through to StatusBadge's fallbackColor.
 function previewStatus(
   checkIn: string,
   checkOut: string,
@@ -103,11 +98,15 @@ export function ManualAttendanceDialog({
   const updateLog = useUpdateAttendanceLog()
   const isPending = createLog.isPending || updateLog.isPending
 
-  // Tracks which (employee, date) we've already prefilled, so editing the times
-  // doesn't get clobbered on re-render.
+  // Which (employee, date) was prefilled, so editing the times isn't clobbered on re-render.
   const prefilledKey = useRef("")
 
-  useEffect(() => {
+  // Re-seeded whenever the dialog opens or closes, or the log changes.
+  const [seededFor, setSeededFor] = useState<{ log?: AttendanceLog | null; open: boolean }>({
+    open: false,
+  })
+  if (seededFor.log !== editLog || seededFor.open !== open) {
+    setSeededFor({ log: editLog, open })
     if (editLog) {
       setEmployeeId(editLog.employeeId)
       setDate(format(new Date(editLog.date), "yyyy-MM-dd"))
@@ -120,12 +119,13 @@ export function ManualAttendanceDialog({
       setCheckIn("")
       setCheckOut("")
       setNotes("")
-      prefilledKey.current = ""
     }
+  }
+
+  useEffect(() => {
+    if (!editLog) prefilledKey.current = ""
   }, [editLog, open])
 
-  // When HR picks an employee + date, pull any existing punches for that day and
-  // prefill them (so they correct what's there instead of starting blank).
   const { data: dayLog } = useQuery({
     queryKey: ["attendance-day", employeeId, date],
     queryFn: () => fetchDayLog(employeeId, date),
@@ -209,7 +209,6 @@ export function ManualAttendanceDialog({
         </div>
       </div>
 
-      {/* Auto-derived status + hours preview. */}
       {status && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">Status:</span>

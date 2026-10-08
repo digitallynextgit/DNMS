@@ -10,16 +10,7 @@ import { requirePermission, requireSession, getAuditMeta } from "@/server/action
 import { ok, fail, runAction, type ActionResult } from "@/server/action-result"
 import { SCORECARD_DAYS, SCORE_KEYS, isRecommendation, isScore } from "../lib/scorecard"
 
-// =============================================================================
-// The 15-day new-joinee scorecard.
-//
-//   read  - the employee themself, or anyone with onboarding:read / :write
-//   write - onboarding:write (HR managers and admins)
-//
-// A scorecard is started automatically when an employee is created (see
-// createEmployee) and can be started by hand for anyone who joined before.
-// Only raw 1-5 scores are stored; every average comes from lib/scorecard.ts.
-// =============================================================================
+// 15-day new-joinee scorecard. Only raw 1-5 scores are stored; averages come from lib/scorecard.ts.
 
 const PERSON = { select: { id: true, firstName: true, lastName: true } } as const
 
@@ -61,14 +52,10 @@ const SCORECARD_SELECT = {
 
 const NOT_FOUND = "Scorecard not found"
 
-/**
- * The first `count` working days from `start` (inclusive): no weekends, no
- * company holidays (floating ones still count as working days).
- */
+/** First `count` working days from `start`; floating holidays count as working days. */
 async function firstWorkingDays(start: Date, count: number): Promise<Date[]> {
   const from = startOfDayUTC(start)
-  // Three calendar days per working day is ample room for weekends plus a run
-  // of holidays; the slice below takes exactly `count`.
+  // 3 calendar days per working day leaves ample room for weekends and holidays.
   const to = addDays(from, count * 3)
   const holidays = await db.holiday.findMany({
     where: { isOptional: false, date: { gte: from, lte: to } },
@@ -78,12 +65,7 @@ async function firstWorkingDays(start: Date, count: number): Promise<Date[]> {
   return workingDaysBetween(from, to, keys).slice(0, count)
 }
 
-/**
- * Start an employee's scorecard: one row per working day from their joining
- * date (today, when none is set). No permission check - callers decide. Used
- * by employee creation, so it never throws on "already exists": it returns
- * the existing scorecard's id instead.
- */
+/** No permission check (callers decide). Returns the existing id rather than throwing. */
 export async function startScorecardFor(
   employeeId: string,
   opts: { actorId?: string | null; hrSpocId?: string | null } = {},
@@ -101,9 +83,7 @@ export async function startScorecardFor(
   if (!employee) return null
 
   const dates = await firstWorkingDays(employee.dateOfJoining ?? todayUtc(), SCORECARD_DAYS)
-  // The days are a SEPARATE top-level createMany, not a nested create: the
-  // tenant guard stamps tenantId on top-level writes only, so nested rows
-  // would land in the founding tenant (same reason as the HR checklists).
+  // Top-level createMany, not a nested create: the tenant guard only stamps top-level writes.
   const id = await db.$transaction(async (tx) => {
     const card = await tx.joineeScorecard.create({
       data: {
@@ -121,7 +101,6 @@ export async function startScorecardFor(
   return { id, created: true }
 }
 
-/** The caller's rights on `employeeId`'s scorecard. */
 function rightsFor(
   session: Awaited<ReturnType<typeof requireSession>>,
   employeeId: string,
@@ -134,7 +113,6 @@ function rightsFor(
   return { canRead, canEdit }
 }
 
-/** An employee's scorecard (or null when none was started) and whether the caller may edit it. */
 export async function getScorecard(employeeId: string): Promise<
   ActionResult<{
     scorecard: Prisma.JoineeScorecardGetPayload<{ select: typeof SCORECARD_SELECT }> | null
@@ -154,7 +132,7 @@ export async function getScorecard(employeeId: string): Promise<
   })
 }
 
-/** Start a scorecard by hand - for anyone who joined before scorecards existed. */
+/** For employees who joined before scorecards existed. */
 export async function createScorecard(input: {
   employeeId?: string
   hrSpocId?: string | null
@@ -180,7 +158,6 @@ export async function createScorecard(input: {
   })
 }
 
-/** HR SPOC, the two observations and the recommendation. */
 export async function updateScorecard(
   id: string,
   input: {
@@ -251,7 +228,6 @@ export async function updateScorecardDay(
   })
 }
 
-/** Throw a scorecard away (e.g. to start again from a corrected joining date). */
 export async function deleteScorecard(id: string): Promise<ActionResult<{ id: string }>> {
   return runAction(async () => {
     const session = await requirePermission(PERMISSIONS.ONBOARDING_WRITE)

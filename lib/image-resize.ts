@@ -1,22 +1,7 @@
 import "server-only"
 
-// =============================================================================
-// Image downscaling that cannot take the server down
-// =============================================================================
-// `sharp` is a NATIVE module. When its binary cannot load - a version conflict,
-// a missing DLL, a machine without the platform package - a top-level
-// `import sharp from "sharp"` throws while the route module is being evaluated,
-// and the dev server exits.
-//
-// That happened here: Next 16 bundles sharp 0.34.5 and this app had declared
-// 0.35.3. Both ship a file called libvips-42.dll, Windows keeps only one module
-// per DLL filename, so whichever loaded first won and the other's .node asked it
-// for a symbol it did not have. ERR_DLOPEN_FAILED, server dead.
-//
-// The versions are aligned now, but the shape of the failure is the lesson:
-// resizing is an OPTIMISATION. If it is unavailable, the right outcome is a
-// larger file, not a 500 and certainly not a dead process.
-// =============================================================================
+// sharp is a native module that can fail to load, so it's imported lazily. Resizing is only an
+// optimisation: if sharp is unavailable we store the original - never a 500 or a crash.
 
 export interface ResizeResult {
   bytes: Buffer
@@ -28,7 +13,7 @@ export interface ResizeResult {
   resized: boolean
 }
 
-/** Loaded once, lazily. `null` means sharp is unusable on this machine. */
+/** Loaded lazily. `null` means sharp is unusable here. */
 let sharpModule: typeof import("sharp") | null | undefined
 
 async function loadSharp(): Promise<typeof import("sharp") | null> {
@@ -36,22 +21,14 @@ async function loadSharp(): Promise<typeof import("sharp") | null> {
   try {
     sharpModule = (await import("sharp")).default as unknown as typeof import("sharp")
   } catch (err) {
-    // Logged ONCE, not per upload: a broken native module would otherwise fill
-    // the log with the same stack on every image.
+    // Logged once, not per upload.
     console.error("[image-resize] sharp unavailable - storing originals instead:", err)
     sharpModule = null
   }
   return sharpModule
 }
 
-/**
- * Downscale to fit `maxDim` and re-encode as JPEG.
- *
- * GIFs are returned untouched: sharp would flatten an animation to its first
- * frame, which is worse than a large file. Anything sharp cannot read is also
- * returned untouched rather than rejected - a photo somebody chose to upload
- * should not disappear because a codec was unexpected.
- */
+/** Downscale to fit `maxDim` as JPEG. GIFs (animation) and unreadable images are returned untouched. */
 export async function resizeImage(
   original: Buffer,
   originalType: string,
@@ -101,15 +78,7 @@ export interface ThumbResult {
   height: number | null
 }
 
-/**
- * A small WebP thumbnail for grid cells and covers, generated ALONGSIDE the
- * full-size master (never instead of it - the lightbox still needs the master).
- *
- * Returns null - not a fallback - when sharp is unavailable or the encode fails:
- * a missing thumb just means the grid falls back to the master for that one
- * image, which must never block the upload itself. Animated GIFs collapse to
- * their first frame, which is the right trade for a 200px cell.
- */
+/** WebP thumbnail made alongside the master. Null on failure - the grid falls back to the master. */
 export async function makeThumb(
   original: Buffer,
   opts: { maxDim?: number; quality?: number } = {},

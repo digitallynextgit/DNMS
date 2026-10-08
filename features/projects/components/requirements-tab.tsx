@@ -31,7 +31,6 @@ import { RequirementDialog } from "./requirement-dialog"
 
 const OPEN = ["OPEN", "IN_PROGRESS"]
 
-/** One side of the "who asked / who owes" pair on a requirement card. */
 function Person({
   person,
   caption,
@@ -63,7 +62,6 @@ function Person({
   )
 }
 
-/** Past its needed-by date and still not provided. */
 function isOverdue(r: ProjectRequirement): boolean {
   if (!r.neededBy || !OPEN.includes(r.status)) return false
   return new Date(r.neededBy) < new Date(new Date().toDateString())
@@ -134,8 +132,7 @@ export function RequirementsTab({
         <div className="space-y-2">
           {[...open, ...resolved].map((r) => {
             const late = isOverdue(r)
-            // The person it is requested from does the providing; the raiser can
-            // withdraw or close their own ask; an admin can do either.
+            // The requested-from person provides; the raiser can withdraw or close; admins can do either.
             const canAct = r.requestedFrom.id === currentUserId || canManage
             const canRemove = r.raisedBy.id === currentUserId || canManage
 
@@ -148,7 +145,6 @@ export function RequirementsTab({
                 )}
               >
                 <CardContent className="space-y-3 p-4">
-                  {/* Title left, deadline right - the two things you scan for. */}
                   <div className="flex items-start justify-between gap-3">
                     <p className="min-w-0 flex-1 text-base font-semibold">{r.title}</p>
                     {r.neededBy && (
@@ -170,8 +166,7 @@ export function RequirementsTab({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {/* Open needs no badge - it is the default state and every
-                        card would carry one. Anything else is worth calling out. */}
+                    {/* Open is the default state, so it gets no badge. */}
                     {r.status !== "OPEN" && (
                       <StatusBadge
                         status={r.status}
@@ -194,8 +189,6 @@ export function RequirementsTab({
                     <p className="text-muted-foreground text-xs whitespace-pre-line">{r.details}</p>
                   )}
 
-                  {/* Both people side by side, each with their role under the
-                      name, so "who asked / who owes" reads at a glance. */}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <Person
                       person={r.raisedBy}
@@ -287,8 +280,7 @@ export function RequirementsTab({
 
       <RequirementDialog open={raiseOpen} onOpenChange={setRaiseOpen} projectId={projectId} />
 
-      {/* A refusal has to say why - the raiser is otherwise left guessing, and the
-          server rejects a REJECTED status with no note. */}
+      {/* The server rejects a REJECTED status without a note. */}
       <FormDialog
         open={!!rejecting}
         onOpenChange={(o) => !o && setRejecting(null)}

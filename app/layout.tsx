@@ -5,12 +5,7 @@ import "./globals.css"
 import { Providers } from "@/components/providers/providers"
 import { siteConfig } from "@/lib/site"
 
-// Self-hosted via next/font (no render-blocking Google Fonts request, no FOUT,
-// no layout shift). Exposed as a CSS variable consumed by globals.css.
-// NO `weight` array: Inter is a VARIABLE font, so omitting it emits ONE woff2
-// covering every weight. Listing five static weights emitted seven files
-// (~218 KB) of which only latin-400 was preloaded - each further weight was a
-// separate late fetch that swapped text after first paint.
+// Inter is a VARIABLE font: no weight array, so one woff2 covers every weight.
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
@@ -29,9 +24,7 @@ export const metadata: Metadata = {
   authors: [{ name: siteConfig.company }],
   creator: siteConfig.company,
   publisher: siteConfig.company,
-  // The dashboard/portal are gated apps; only the public landing should be
-  // indexed. Per-route metadata under (dashboard)/(portal) can override, but the
-  // proxy already blocks crawlers from reaching authed routes.
+  // Only the public landing should be indexed.
   robots: {
     index: true,
     follow: true,
@@ -50,20 +43,12 @@ export const metadata: Metadata = {
     title: siteConfig.defaultTitle,
     description: siteConfig.description,
   },
-  // apple-touch-icon is a 180x180 derivative, not the 2505x2200 / 729 KB master:
-  // iOS downloads this whole file just to draw a home-screen icon.
+  // A 180x180 derivative - iOS downloads the whole file just for a home-screen icon.
   icons: { icon: "/favicon.ico", shortcut: "/favicon.ico", apple: "/apple-touch-icon.png" },
-  // NO canonical here. A canonical in the ROOT layout is inherited by every page
-  // that does not set its own, which told search engines that /signup, /login and
-  // every other un-overridden route were all duplicates of the homepage - while
-  // sitemap.xml was simultaneously submitting /signup as a page in its own right.
-  // The homepage sets `canonical: "/"` itself in (marketing)/page.tsx, as do the
-  // other eight marketing pages.
+  // No canonical here - every page would inherit it. Marketing pages set their own.
 }
 
-// themeColor lives on `viewport`, not `metadata` (Next 14+). Matches
-// --background in globals.css, so the browser chrome and the page agree in both
-// schemes; public/theme-boot.js applies the same palette before first paint.
+// Matches --background in globals.css; public/theme-boot.js applies the same palette before paint.
 export const viewport: Viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
@@ -71,31 +56,20 @@ export const viewport: Viewport = {
   ],
 }
 
-// NO auth() here. Reading the session cookie in the ROOT layout opted every
-// route in the app out of static prerendering - all nine marketing pages and
-// /login were server-rendered per request because of that one line. The public
-// pages render with session={null} (the marketing pages look it up themselves
-// via useMarketingSession), and the authed route groups re-provide their layouts' server
-// session through <SessionBridge> so permission-gated UI is still correct on
-// first paint. See components/providers/session-bridge.tsx.
+// No auth() here: reading the session cookie would opt every route out of static prerendering.
+// Authed route groups re-provide the session through <SessionBridge>.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
-        {/* Theme-boot applies the saved palette before paint (no flash). Loaded as
-            an external script (public/theme-boot.js) and render-blocking in <head>;
-            React 19 only warns about INLINE scripts, not src ones. */}
+        {/* Applies the saved palette before first paint (no flash). A src script, since React 19
+            only warns about INLINE scripts. */}
         {/* eslint-disable-next-line @next/next/no-sync-scripts -- blocking is the point: it must run before first paint */}
         <script src="/theme-boot.js" />
       </head>
-      {/* suppressHydrationWarning: browser extensions stamp attributes onto <body>
-          before React hydrates (Bitdefender's `bis_register` /
-          `__processed_<uuid>__`, password managers, Grammarly), and React reports
-          the server/client attribute diff as a hydration mismatch. It is the
-          extension, not our markup. This silences the warning for THIS element's
-          attributes only - a genuine mismatch inside the tree still reports. */}
+      {/* suppressHydrationWarning: browser extensions stamp attributes onto <body> before
+          hydration. Covers this element's attributes only. */}
       <body className="antialiased" suppressHydrationWarning>
-        {/* Navigation progress bar (perceived speed on route changes). */}
         <NextTopLoader color="#ef4444" height={3} showSpinner={false} shadow="0 0 8px #ef4444" />
         <Providers session={null}>{children}</Providers>
       </body>

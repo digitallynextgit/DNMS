@@ -9,14 +9,12 @@ import { createNotification } from "@/lib/notifications"
 import { createAuditLog } from "@/lib/audit"
 import type { Session } from "next-auth"
 
-// DELETE /api/projects/[id]/teams/[teamId]/members/[memberId]
-// Manager swap rule: if removing the manager and team has other members → 422
+// Removing the manager while the team has other members is refused (422).
 export const DELETE = withSession(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { teamId, memberId } = ctx.params
-      // The URL carries a slug now; every check below needs the real id. This
-      // route is not behind a slug-aware project guard, so resolve it here.
+      // Plain withSession, so resolve the slug here.
       const projectId = await resolveProjectId(ctx.params.id)
       if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
 
@@ -31,7 +29,6 @@ export const DELETE = withSession(
       const member = team.members.find((m) => m.id === memberId)
       if (!member) return NextResponse.json({ error: "Member not found" }, { status: 404 })
 
-      // Authorisation: project admin / Account Manager OR THIS team's manager
       if (!(await canStaffTeam(session, projectId, teamId))) {
         return NextResponse.json(
           { error: "Only a project admin, the Account Manager or this team's manager can do this" },
@@ -39,7 +36,6 @@ export const DELETE = withSession(
         )
       }
 
-      // Manager swap rule
       if (member.employeeId === team.managerId && team.members.length > 1) {
         return NextResponse.json(
           {
@@ -58,7 +54,6 @@ export const DELETE = withSession(
         }
       })
 
-      // Notify removed employee
       try {
         const projectName = (
           await db.project.findUnique({ where: { id: projectId }, select: { name: true } })

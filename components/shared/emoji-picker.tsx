@@ -1,29 +1,8 @@
 "use client"
 
 /**
- * The one emoji picker: every RGI emoji (1,914 of them, Unicode 17.0), grouped
- * and ordered the way Unicode orders them, with search by name.
- *
- * It used to be a curated 36 - twelve reactions, twelve faces, twelve work
- * glyphs - on the reasoning that a picker library ships hundreds of kilobytes to
- * solve a problem a work chat does not have. The full set is here now, but that
- * reasoning still holds, so the weight is handled rather than accepted:
- *
- *   - The dataset is a separate module, pulled in with a dynamic import. That
- *     import is WARMED on hover/focus of the trigger (which reliably precedes
- *     the click), so by the time the popover opens the grid paints directly with
- *     no "Loading emoji…" flash. A page that never touches the button downloads
- *     nothing; the button itself is a few bytes.
- *   - Only the ACTIVE group renders, and only a screenful of it at a time
- *     (progressive reveal on scroll), so the first commit is ~96 buttons, not
- *     the ~390 of a big group or all 1,914 at once. Mounting a whole group of
- *     DOM nodes behind a popover is what makes these pickers feel heavy to open.
- *   - Category switches and search run through startTransition / useDeferredValue
- *     so the tab highlight and the typed text stay responsive while the heavy
- *     grid work happens interruptibly in the background.
- *
- * No sprite sheets: these are text, drawn by the platform's own emoji font, so
- * they match what the recipient sees in their own client.
+ * Emoji picker with every RGI emoji and search by name. The dataset is a dynamic import warmed on
+ * hover/focus; only the active group renders, a screenful at a time.
  */
 
 import * as React from "react"
@@ -35,17 +14,13 @@ import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import type { EmojiEntry, EmojiGroup } from "./emoji-data"
 
-/** How many search hits to draw. Typing "f" matches hundreds; nobody scrolls
- *  past the first screen of them, and rendering the rest just costs frames. */
+/** Nobody scrolls past the first screen of hits. */
 const MAX_RESULTS = 96
 
-/** Initial buttons drawn for a group, and how many more each scroll reveals. A
- *  screenful is ~56 (7 rows × 8 cols in the h-56 scroll area); 96 covers it with
- *  buffer, so the first paint is a screenful even for a 390-emoji group. */
+/** Buttons per reveal step: a screenful is ~56 (7 x 8), so 96 covers it. */
 const PAGE = 96
 
-/** Shared, memoised dataset import - hover-warm and open share one in-flight
- *  promise, and every later mount is instant from the module cache. */
+/** Shared so hover-warm and open use one in-flight import. */
 let emojiDataPromise: Promise<readonly EmojiGroup[]> | null = null
 function loadEmojiData(): Promise<readonly EmojiGroup[]> {
   if (!emojiDataPromise) {
@@ -54,8 +29,7 @@ function loadEmojiData(): Promise<readonly EmojiGroup[]> {
   return emojiDataPromise
 }
 
-/** One glyph per group for the tab strip - shorter than "Smileys & Emotion" and
- *  recognisable at a glance. Keyed by Unicode's own group name. */
+/** Tab-strip glyph per Unicode group name. */
 const GROUP_ICON: Record<string, string> = {
   "Smileys & Emotion": "😀",
   "People & Body": "👋",
@@ -68,8 +42,7 @@ const GROUP_ICON: Record<string, string> = {
   Flags: "🏳️",
 }
 
-/** One emoji cell. Memoised so switching groups/queries only reconciles the
- *  cells that actually changed, not every button, as long as onPick is stable. */
+/** Memoised so only changed cells re-render (needs a stable onPick). */
 const EmojiButton = React.memo(function EmojiButton({
   emoji,
   name,
@@ -94,9 +67,7 @@ const EmojiButton = React.memo(function EmojiButton({
 
 export function EmojiPicker({
   onPick,
-  /** Close after one pick. Off by default: with a searchable full set, picking
-   *  two or three in a row is normal and reopening between each is the annoying
-   *  part. */
+  /** Off by default: picking a few in a row is normal. */
   closeOnPick = false,
   className,
   iconClassName,
@@ -118,8 +89,7 @@ export function EmojiPicker({
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const sentinelRef = React.useRef<HTMLDivElement>(null)
 
-  // Pull the dataset into state once it has loaded. Safe to call repeatedly - the
-  // import promise is shared and setGroups no-ops once populated.
+  // Safe to call repeatedly: the import is shared.
   const warm = React.useCallback(() => {
     if (groups) return
     let cancelled = false
@@ -131,15 +101,12 @@ export function EmojiPicker({
     }
   }, [groups])
 
-  // Fallback for keyboard-open without a preceding hover/focus. In practice the
-  // trigger's onMouseEnter/onFocus has usually already warmed it, so this rarely
-  // does the work - it just guarantees the grid appears.
+  // For keyboard opens with no prior hover/focus.
   React.useEffect(() => {
     if (open) warm()
   }, [open, warm])
 
-  // Type instantly (query drives the input); filter against the DEFERRED value so
-  // a keystroke never waits on scanning ~1,914 names + remounting the grid.
+  // Filter on the deferred value so typing never waits on the grid.
   const deferredQuery = React.useDeferredValue(query)
   const q = deferredQuery.trim().toLowerCase()
 
@@ -148,8 +115,6 @@ export function EmojiPicker({
     const hits: EmojiEntry[] = []
     for (const g of groups) {
       for (const e of g.emojis) {
-        // Name only. Matching the glyph itself would mean pasting an emoji to
-        // find that same emoji, which is not a thing anybody does.
         if (e[1].includes(q)) {
           hits.push(e)
           if (hits.length >= MAX_RESULTS) return hits
@@ -162,17 +127,19 @@ export function EmojiPicker({
   const shown = results ?? groups?.[active]?.emojis ?? []
   const visible = shown.slice(0, limit)
 
-  // Back to the top AND back to a single page when the grid's contents change out
-  // from under it - otherwise a new category opens scrolled halfway down the
-  // previous one, or with the previous one's reveal count still applied.
+  // New contents: back to the top and to a single page.
+  const [prevActive, setPrevActive] = React.useState(active)
+  const [prevQ, setPrevQ] = React.useState(q)
+  if (active !== prevActive || q !== prevQ) {
+    setPrevActive(active)
+    setPrevQ(q)
+    setLimit(PAGE)
+  }
   React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 })
-    setLimit(PAGE)
   }, [active, q])
 
-  // Progressive reveal: mount a screenful, then extend as the sentinel at the
-  // bottom scrolls into view. Caps the first commit at ~PAGE buttons instead of a
-  // whole 390-emoji group. Search results are already capped at MAX_RESULTS.
+  // Progressive reveal: extend as the bottom sentinel scrolls into view.
   React.useEffect(() => {
     if (limit >= shown.length) return
     const root = scrollRef.current
@@ -209,8 +176,6 @@ export function EmojiPicker({
           type="button"
           variant="ghost"
           size="icon"
-          // Warm the dataset before the click lands so the first open paints the
-          // grid directly, with no async state commit mid open-animation.
           onMouseEnter={warm}
           onFocus={warm}
           className={cn("text-muted-foreground hover:text-foreground shrink-0", className)}
@@ -235,8 +200,7 @@ export function EmojiPicker({
           </div>
         </div>
 
-        {/* Category strip. Hidden while searching - results span every group, so
-            a highlighted tab would be claiming something untrue. */}
+        {/* Hidden while searching - results span every group. */}
         {!q && groups && (
           <div className="flex items-center gap-0.5 border-b px-1.5 py-1">
             {groups.map((g, i) => (
@@ -246,8 +210,7 @@ export function EmojiPicker({
                 title={g.label}
                 aria-label={g.label}
                 aria-pressed={i === active}
-                // startTransition: the tab highlight paints immediately while the
-                // heavy grid swap happens interruptibly in the background.
+                // The tab highlight paints at once; the grid swap is interruptible.
                 onClick={() => React.startTransition(() => setActive(i))}
                 className={cn(
                   "hover:bg-muted flex h-7 flex-1 items-center justify-center rounded-sm text-base transition-colors",

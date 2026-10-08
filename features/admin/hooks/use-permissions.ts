@@ -6,11 +6,7 @@ import { SYSTEM_ROLES } from "@/lib/constants"
 export function usePermissions() {
   const { data: session, status } = useSession()
 
-  // While the session is resolving there are NO permissions yet, so every
-  // `can()` answers false. Screens that branch on a permission must wait for
-  // this rather than trusting that first answer - otherwise a manager renders
-  // the non-manager view for a beat, mounting components meant for someone else
-  // before flipping. See the progress page.
+  // No permissions while the session resolves, so every can() is false - wait for this before branching.
   const isLoading = status === "loading"
 
   const permissions = session?.user.permissions ?? []

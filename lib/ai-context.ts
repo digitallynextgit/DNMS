@@ -5,18 +5,8 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import type { Session } from "next-auth"
 
-// =============================================================================
-// Context snapshot for the AI assistant.
-//
-// SECURITY: the assistant can only ever see what THIS user is allowed to see.
-// We assemble a bounded snapshot here rather than letting the model query the
-// database, so there is no path to arbitrary reads.
-//
-// Deliberately EXCLUDED for everyone (never sent to the model):
-//   • payroll / salary / bank details        • personal contact (phone, address, DOB)
-//   • credentials, API keys, app settings    • documents & their contents
-// Those stay in the app behind their own permission gates.
-// =============================================================================
+// A bounded snapshot of what THIS user may see, for the AI assistant (the model never queries the DB).
+// Never included: payroll/bank, personal contact details, credentials/settings, document contents.
 
 const MAX_ROWS = 60
 
@@ -37,7 +27,6 @@ export async function buildAiContext(session: Session): Promise<string> {
   const weekEnd = new Date(todayStart)
   weekEnd.setUTCDate(weekEnd.getUTCDate() + 7)
 
-  // ── Who is asking ──────────────────────────────────────────────────────────
   const me = await db.employee.findUnique({
     where: { id: userId },
     select: {
@@ -59,7 +48,6 @@ export async function buildAiContext(session: Session): Promise<string> {
   out.push(`ACCESS: ${isAdmin ? "admin" : roles.join(", ") || "employee"}`)
   out.push("")
 
-  // ── People (directory-level only; no contact/payroll details) ─────────────
   if (canReadEmployees) {
     const people = await db.employee.findMany({
       where: { isActive: true, status: "ACTIVE" },
@@ -85,7 +73,6 @@ export async function buildAiContext(session: Session): Promise<string> {
     out.push("")
   }
 
-  // ── Projects (name/code/status/goal) ──────────────────────────────────────
   const projectWhere = canSeeAllProjects
     ? {}
     : {
@@ -121,7 +108,6 @@ export async function buildAiContext(session: Session): Promise<string> {
   }
   out.push("")
 
-  // ── Tasks (scoped the same way the performance page is) ───────────────────
   const taskWhere = canSeeAllProjects
     ? {}
     : {
@@ -149,15 +135,13 @@ export async function buildAiContext(session: Session): Promise<string> {
     orderBy: { createdAt: "desc" },
   })
 
-  // Always label people with their employee number - two employees can share a
-  // display name, so names alone are NOT a safe identifier.
+  // Label people with their employee number - display names aren't unique.
   const who = (t: (typeof tasks)[number]) =>
     t.assignee
       ? `${t.assignee.firstName} ${t.assignee.lastName} [${t.assignee.employeeNo}]`
       : "Unassigned"
   const active = (t: (typeof tasks)[number]) => t.status !== "DONE" && t.status !== "DISCARDED"
 
-  // Per-person tallies
   const per = new Map<string, { assigned: number; done: number; overdue: number; onHold: number }>()
   for (const t of tasks) {
     const k = who(t)
@@ -175,8 +159,6 @@ export async function buildAiContext(session: Session): Promise<string> {
   }
   out.push("")
 
-  // The asking user's OWN tasks, matched on employee id (never on name - other
-  // employees can share the same display name).
   const myTasks = tasks.filter((t) => t.assigneeId === userId)
   out.push(`TASKS ASSIGNED TO THE ASKING USER (${myTasks.length}):`)
   if (myTasks.length === 0) {
@@ -221,7 +203,6 @@ export async function buildAiContext(session: Session): Promise<string> {
   )
   listTasks("IN PROGRESS", inProgress)
 
-  // ── Performance evaluations (own + managed; all if HR/admin) ──────────────
   const evalWhere = canReviewPerf
     ? {}
     : { OR: [{ employeeId: userId }, { managerId: userId }, { controllerId: userId }] }
@@ -250,8 +231,7 @@ export async function buildAiContext(session: Session): Promise<string> {
   }
   out.push("")
 
-  // ── Documents the user can access (metadata only here; the chat route pulls
-  //    the TEXT of the ones relevant to a question). ─────────────────────────
+  // Metadata only; the chat route pulls the text of the relevant ones.
   const docs = await listAccessibleDocuments(session)
   out.push(`DOCUMENTS / FILES (${docs.length}) - title | file | category | owner:`)
   if (docs.length === 0) {
@@ -280,11 +260,7 @@ export interface AccessibleDoc {
   ownerName: string | null
 }
 
-/**
- * Every document THIS user is allowed to read, as a flat list. Company docs are
- * visible to all; personal/employee docs only to their owner - unless the user
- * has employee:read (HR/admin), who may see all. objectKey stays server-side.
- */
+/** Company docs are visible to all; employee docs only to their owner, or anyone with employee:read. */
 export async function listAccessibleDocuments(session: Session): Promise<AccessibleDoc[]> {
   const userId = session.user.id
   const canReadAll = hasPermission(session, PERMISSIONS.EMPLOYEE_READ)

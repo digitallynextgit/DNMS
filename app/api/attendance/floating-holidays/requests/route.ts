@@ -6,11 +6,8 @@ import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
 
-// HR roles see every request; a manager sees only their direct reports' requests.
 const HR_ROLES: string[] = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.ADMIN_]
 
-// GET /api/attendance/floating-holidays/requests?status=PENDING
-// Floating-holiday requests for an approver (manager of the employee, or HR).
 export const GET = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -25,7 +22,6 @@ export const GET = withSession(
 
       const where: Record<string, unknown> = {}
       if (status) where.status = status
-      // Managers (non-HR) only see requests from people who report to them.
       if (!isHr) where.employee = { managerId: session.user.id }
 
       const [requests, total] = await Promise.all([

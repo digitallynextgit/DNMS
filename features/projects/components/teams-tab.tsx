@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -46,7 +46,6 @@ interface Props {
   currentUserId: string
 }
 
-/** Overlapping avatars so a collapsed team still shows WHO is on it. */
 function AvatarStack({ members, max = 4 }: { members: ProjectTeam["members"]; max?: number }) {
   if (members.length === 0) return null
   const shown = members.slice(0, max)
@@ -79,16 +78,17 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [viewMode, setViewMode] = useViewMode(`project:${projectId}:teams`)
 
-  // Members are the point of this tab, so teams start OPEN. Past the first few
-  // that would be a wall of names, so collapse the rest.
-  useEffect(() => {
+  // Teams start open, except past the first few (that would be a wall of names).
+  const [prevTeams, setPrevTeams] = useState<ProjectTeam[] | null>(null)
+  if (teams !== prevTeams) {
+    setPrevTeams(teams)
     if (teams.length > 3) {
       setCollapsed((prev) => {
         if (Object.keys(prev).length > 0) return prev
         return Object.fromEntries(teams.slice(3).map((t) => [t.id, true]))
       })
     }
-  }, [teams])
+  }
 
   const totalPeople = useMemo(
     () => new Set(teams.flatMap((t) => t.members.map((m) => m.employeeId))).size,
@@ -167,7 +167,6 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
               </span>
             )}
           </h3>
-          {/* The six teams are the same on every project; only staffing changes. */}
           <p className="text-muted-foreground text-xs">
             Every project has the same six teams - add or remove people; the teams themselves
             don&apos;t change.
@@ -237,8 +236,7 @@ function TeamCard({
   const canStaff = canManage || isManager
   const [addOpen, setAddOpen] = useState(false)
 
-  // The manager is a member like anyone else - listed ONCE, badged. Showing them
-  // again in the header (as this used to) read as two different people.
+  // The manager is listed once among the members, badged.
   const members = [...team.members].sort((a, b) => {
     if (a.employeeId === team.managerId) return -1
     if (b.employeeId === team.managerId) return 1
@@ -424,10 +422,6 @@ function MemberRow({
   )
 }
 
-/**
- * Multi-select roster. Staffing a team used to mean reopening this dialog once
- * per person; now you tick everyone and add them in one go.
- */
 function AddMembersDialog({
   open,
   onClose,
@@ -445,17 +439,18 @@ function AddMembersDialog({
 }) {
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState<string[]>([])
-  // Project-scoped roster: /api/employees needs global `employee:read`, which an
-  // Account Manager (a plain employee who owns the project) doesn't have.
+  // Project-scoped: /api/employees needs global employee:read, which an Account Manager lacks.
   const { data: empsData } = useAssignableEmployees(projectId, open)
   const add = useAddTeamMembers(projectId, teamId)
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
     if (open) {
       setSelected([])
       setSearch("")
     }
-  }, [open])
+  }
 
   const employees = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -464,9 +459,7 @@ function AddMembersDialog({
       .filter((e) =>
         !q
           ? true
-          : // Name, employee number OR designation - people search by all three
-            // and only name used to match.
-            `${e.firstName} ${e.lastName} ${e.employeeNo} ${e.designation?.title ?? ""}`
+          : `${e.firstName} ${e.lastName} ${e.employeeNo} ${e.designation?.title ?? ""}`
               .toLowerCase()
               .includes(q),
       )

@@ -6,16 +6,11 @@ import {
   deleteRecipientsBulk,
 } from "@/features/project-mailer/server/project-mailer.service"
 
-// POST /api/projects/:id/mailer/recipients/bulk - paste-import a list.
 export const POST = withMailerAccess(async (req: NextRequest, { params }) =>
   respond(await addRecipientsBulk(params.id, await req.json()), 201),
 )
 
-// DELETE /api/projects/:id/mailer/recipients/bulk - remove the selected rows.
-//
-// The ids travel in the BODY, not the query string: a selection is routinely a
-// few hundred uuids, which is past what a URL can carry reliably, and they are
-// not a resource address - they are the argument to one operation.
+// Ids travel in the body: a selection can be hundreds of uuids, too many for a URL.
 export const DELETE = withMailerAccess(async (req: NextRequest, { params }) =>
   respond(await deleteRecipientsBulk(params.id, await req.json())),
 )

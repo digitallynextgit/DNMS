@@ -6,13 +6,7 @@ import { importRows, sheetBelongsToProject } from "@/features/projects/server/sh
 
 const MAX_ROWS = 2000
 
-/**
- * POST - append many rows at once.  body { rows: Record<columnId, value>[] }
- *
- * The file importer's endpoint: the browser parses the CSV/XLSX/Google Sheet,
- * maps its columns onto the sheet's, and sends the result here in batches.
- * Anyone on the project (same as typing into the grid).
- */
+// The browser parses the CSV/XLSX/Google Sheet, maps the columns and sends rows here in batches.
 export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, sheetId } = ctx.params

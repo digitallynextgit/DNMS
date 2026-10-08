@@ -1,5 +1,4 @@
-// Row shapes the checklist screens read. Declared here rather than inferred
-// from Prisma so the client bundle never reaches into generated server types.
+// Declared here, not inferred from Prisma, so the client bundle never reaches generated types.
 
 export type ChecklistKind = "ONBOARDING" | "EXIT"
 export type ChecklistItemKind = "TASK" | "CLEARANCE"

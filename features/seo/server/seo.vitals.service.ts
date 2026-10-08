@@ -5,35 +5,19 @@ import { fetchVitals, type FormFactor } from "@/lib/psi"
 import { fetchOrganicTraffic } from "@/lib/ga4"
 import { lastCompleteWindow } from "@/lib/gsc"
 
-// =============================================================================
-// Core Web Vitals + GA4 collection for a tracked site.
-// Both write into the store the scorecard reads; neither ever throws for a
-// single bad URL, since one unreachable page must not abort a whole run.
-// =============================================================================
+// Core Web Vitals + GA4 collection for the scorecard. One bad URL never aborts a run.
 
-const MAX_PAGES = 10 // the plan's "5-10 money pages"
+const MAX_PAGES = 10
 
-/**
- * How long a reading stays fresh enough to reuse.
- *
- * CrUX field data is a 28-day rolling average that Google refreshes once a day,
- * so measuring the same URL more often than this spends quota to learn nothing.
- * The weekly job uses the long window; an operator who clicked "measure now"
- * gets the short one, which still absorbs a double-click.
- */
+/** How long a reading stays reusable. CrUX refreshes daily, so re-measuring sooner wastes quota. */
 const FRESH_MS = { scheduled: 20 * 60 * 60 * 1000, manual: 15 * 60 * 1000 } as const
 
-// PSI allows 240 calls/minute with a key. Spacing calls keeps a multi-site run
-// clear of the burst limit instead of relying on the retry inside lib/psi.
+// PSI allows 240 calls/minute; spacing keeps multi-site runs under the burst limit.
 const GAP_MS = 300
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-/**
- * Which URLs to measure: the configured money pages, else the top pages by
- * clicks from the most recent snapshot (so a site with no config still gets
- * something useful), else the site root.
- */
+/** URLs to measure: configured money pages, else the latest top pages by clicks, else the root. */
 export async function resolveMoneyPages(propertyId: string): Promise<string[]> {
   const property = await db.seoProperty.findUnique({
     where: { id: propertyId },
@@ -66,12 +50,7 @@ export interface VitalsRunResult {
   green: number
   /** URLs whose last reading was still fresh, so no call was spent on them. */
   skipped: number
-  /**
-   * Set when the run stopped early because PSI refused us (quota gone, or the
-   * key is missing/rejected). Distinguishing this from `failed` matters: the
-   * pages are fine, the API is not, and the UI must say so rather than claim
-   * every money page is unreachable.
-   */
+  /** Set when PSI refused us (quota or key), so the UI blames the API, not the pages. */
   quotaError?: string
   urls: { url: string; verdict: string | null; source: string }[]
 }
@@ -93,8 +72,7 @@ export async function runVitalsCheck(
   }
   if (urls.length === 0) return out
 
-  // Reuse readings Google has not refreshed yet - one query for the whole page
-  // set rather than a round trip per URL.
+  // Reuse readings Google hasn't refreshed yet - one query for the whole set.
   const freshSince = new Date(Date.now() - FRESH_MS[opts.trigger ?? "scheduled"])
   const fresh = await db.seoVitals.findMany({
     where: { propertyId, formFactor, url: { in: urls }, checkedAt: { gte: freshSince } },
@@ -103,8 +81,7 @@ export async function runVitalsCheck(
   })
   const isFresh = new Set(fresh.map((r) => r.url))
 
-  // Sequential: PSI is slow (a real Lighthouse run) and rate-limits hard when
-  // hit in parallel.
+  // Sequential: PSI is slow and rate-limits hard in parallel.
   let first = true
   for (const url of urls) {
     if (isFresh.has(url)) {
@@ -116,8 +93,7 @@ export async function runVitalsCheck(
 
     const res = await fetchVitals(url, formFactor)
     if (!res.ok) {
-      // A quota refusal is not this page's fault and will not clear by trying
-      // the next one - stop, and let the caller report why.
+      // A quota refusal won't clear on the next URL - stop and report.
       if (res.reason === "QUOTA") {
         out.quotaError = res.message
         console.error("[psi] run aborted:", res.message)
@@ -160,10 +136,7 @@ export interface TrafficRunResult {
   error?: string
 }
 
-/**
- * Pull the last complete 28 days of organic traffic from GA4. Skipped (not
- * failed) when the site has no GA4 property id configured.
- */
+/** Last complete 28 days of organic traffic from GA4. Skipped when no GA4 property is set. */
 export async function runTrafficSync(propertyId: string): Promise<TrafficRunResult> {
   const property = await db.seoProperty.findUnique({
     where: { id: propertyId },
@@ -174,8 +147,7 @@ export async function runTrafficSync(propertyId: string): Promise<TrafficRunResu
     return { ok: false, propertyId, error: "No GA4 property id set for this site" }
   }
 
-  // Same 28-day window the scorecard uses, on the same Search Console lag so the
-  // two halves of the report describe the same days.
+  // Same 28-day window and lag as the scorecard, so both describe the same days.
   const period = lastCompleteWindow(28)
 
   try {

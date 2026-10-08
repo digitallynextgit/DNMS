@@ -6,12 +6,7 @@ import { withClient } from "@/features/clients/server/client-access"
 import { getClient } from "@/features/clients/server/clients.queries"
 import { updateClient, deleteClient } from "@/features/clients/server/clients.service"
 
-// GET    /api/clients/[id] - one client with its projects, people and grants
-// PATCH  /api/clients/[id] - edit the company
-// DELETE /api/clients/[id] - remove it (refused while anything hangs off it)
-//
-// withClient resolves the slug-or-id in the URL to a real client id and 404s
-// first, so the services can trust ctx.params.id.
+// withClient resolves the slug-or-id to a real client id (404 first), so services can trust params.id.
 export const GET = withClient(PERMISSIONS.CLIENT_READ, async (_req, { params }) =>
   respond(await getClient(params.id!)),
 )

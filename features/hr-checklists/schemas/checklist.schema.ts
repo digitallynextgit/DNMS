@@ -1,6 +1,5 @@
 import { z } from "zod"
 
-/** Which of the two processes. */
 export const checklistKindSchema = z.enum(["ONBOARDING", "EXIT"])
 export type ChecklistKindInput = z.infer<typeof checklistKindSchema>
 
@@ -11,13 +10,7 @@ export const startChecklistSchema = z.object({
 })
 export type StartChecklistInput = z.infer<typeof startChecklistSchema>
 
-/**
- * Tick or untick an item.
- *
- * `done` is explicit rather than a toggle: two people on the same checklist
- * would otherwise flip each other's work, and the client already knows the
- * state it is trying to reach.
- */
+/** Tick or untick. An explicit `done`, not a toggle, so two people can't flip each other's work. */
 export const setItemDoneSchema = z.object({
   done: z.boolean(),
   /** What the signer wrote - "laptop returned, asset tag DN-114". */
@@ -25,18 +18,13 @@ export const setItemDoneSchema = z.object({
 })
 export type SetItemDoneInput = z.infer<typeof setItemDoneSchema>
 
-/** Hand one item to a named person - a stand-in while a head is away. */
 export const reassignItemSchema = z.object({
   assigneeId: z.string().uuid().nullable(),
 })
 export type ReassignItemInput = z.infer<typeof reassignItemSchema>
 
 /**
- * Add an item to a live checklist.
- *
- * Exists mainly for the document's "other departments worked with": that is one
- * clearance per department the leaver actually touched, which is knowable only
- * once you know who is leaving.
+ * Add an item to a live checklist, e.g. a clearance for another department the leaver worked with.
  */
 export const addItemSchema = z.object({
   sectionTitle: z.string().trim().min(1, "Which step does this belong to?").max(120),
@@ -56,7 +44,6 @@ export const cancelChecklistSchema = z.object({
 })
 export type CancelChecklistInput = z.infer<typeof cancelChecklistSchema>
 
-/** Filters for the HR list screens. */
 export const checklistListQuerySchema = z.object({
   kind: checklistKindSchema,
   status: z.enum(["IN_PROGRESS", "COMPLETED", "CANCELLED", "ALL"]).default("IN_PROGRESS"),

@@ -19,21 +19,7 @@ interface PaginationMeta {
   totalPages: number
 }
 
-// ── READING THE ENVELOPE ─────────────────────────────────────────────────────
-// A service returning `ok(serialize({ data: rows }))` reaches the client as
-//
-//     { success: true, data: { data: rows } }
-//
-// because respond() puts ActionResult.data under `data`, and the service had
-// already wrapped its payload in a `data` key of its own. The array is at
-// `.data.data`, NOT `.data` - unwrapping one level too few hands the component
-// an object, which fails as "filter is not a function" rather than as a type
-// error, because apiFetch's generic is an assertion and nothing checks it.
-//
-// getMyPendingItemCount returns `ok({ count })` with no inner wrapper, so its
-// value is at `.data.count` - the same trap, one level shallower.
-//
-// features/leave/hooks/use-leave.ts spells the nesting out the same way.
+// Services wrap rows in { data }, so lists are at `.data.data` (the count at `.data.count`).
 
 const KEY = {
   list: (kind: ChecklistKind, status: string, page: number, search: string) =>
@@ -43,14 +29,7 @@ const KEY = {
   mineCount: ["clearances", "count"] as const,
 }
 
-/**
- * Everything a checklist mutation must refresh.
- *
- * Ticking one item changes the list's progress bar, the detail, the signer's
- * own inbox and the sidebar badge. Invalidating the roots rather than naming
- * each key means a new screen reading this data is covered without a new entry
- * here being remembered.
- */
+/** Invalidate the roots, so every screen reading checklist data refreshes after a mutation. */
 const INVALIDATE_ALL = [["hr-checklists"], ["clearances"]] as const
 
 export function useChecklists(
@@ -85,13 +64,7 @@ export function useChecklist(id: string | undefined) {
   })
 }
 
-/**
- * The caller's outstanding items.
- *
- * No poll. This changes when the viewer acts on it, and every mutation below
- * invalidates the key - a background poll would be asking a question it already
- * has the answer to.
- */
+/** The caller's outstanding items. No poll - every mutation invalidates this key. */
 export function useMyClearances() {
   return useQuery({
     queryKey: KEY.mine,
@@ -203,8 +176,6 @@ export function useCancelChecklist() {
   )
 }
 
-// ─── Exit clearance ──────────────────────────────────────────────────────────
-
 export interface ServingNoticeRow {
   resignationId: string
   resignedOn: string
@@ -243,10 +214,7 @@ export function useServingNotice() {
 }
 
 /**
- * HR's final sign-off. Issues relieving and closes the account.
- *
- * The server refuses with 409 and names the outstanding clearances, so the
- * error toast tells HR what to chase rather than only that it failed.
+ * HR's final sign-off: issues relieving and closes the account. A 409 names the missing clearances.
  */
 export function useCompleteExit() {
   const qc = useQueryClient()

@@ -13,9 +13,6 @@ interface Stage {
   accent?: boolean
 }
 
-/** Bespoke visual: a hiring pipeline as full-height lanes with count badges,
- *  sample candidate chips, a "+N more" footer and chevrons between stages;
- *  the Offer lane is accented. */
 function RecruitmentVisual() {
   const stages: Stage[] = [
     { name: "Applied", count: 128, chips: ["AR", "DP", "SK", "RV"] },
@@ -25,8 +22,7 @@ function RecruitmentVisual() {
     { name: "Hired", count: 3, chips: ["NP", "AA"] },
   ]
   return (
-    // Phones: stack the stages vertically (full-width, never cramped). Tablet+:
-    // horizontal lanes with chevrons, scrolling (bar hidden) if they overflow.
+    // Phones stack the stages; tablet+ uses horizontal lanes that scroll if they overflow.
     <div className="no-scrollbar flex h-full flex-col gap-2 sm:-mx-1 sm:flex-row sm:items-stretch sm:gap-1.5 sm:overflow-x-auto sm:px-1">
       {stages.map((s, i) => (
         <div key={s.name} className="flex sm:min-w-[64px] sm:flex-1 sm:items-stretch sm:gap-1.5">

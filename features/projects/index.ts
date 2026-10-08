@@ -1,7 +1,4 @@
-// Public API for the "projects" feature (CLAUDE.md §1, rule #2).
-// Cross-feature & app imports use THIS barrel; internals stay private.
-// NOTE: server-only modules (server/*.service-style, emails, IO clients) are
-// intentionally NOT re-exported here - API routes import those directly.
+// Server-only modules are deliberately not re-exported; API routes import them directly.
 export * from "./components/activity-tab"
 export * from "./components/brand-tab"
 export * from "./components/drive-tab"
@@ -50,8 +47,7 @@ export {
 } from "./components/deliverable-history-dialog"
 export { LogDeliverableButton } from "./components/log-deliverable-button"
 export * from "./hooks/use-deliverables"
-// The lifecycle's own definition rather than the hook's re-export: a consumer
-// that only needs the type should not have to reach through the data layer.
+// From the lifecycle, not the hook, so type-only consumers skip the data layer.
 export type { DeliverableStatus } from "./lib/deliverable-lifecycle"
 export * from "./components/progress-drilldown"
 export * from "./components/progress-task-list"

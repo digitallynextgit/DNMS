@@ -44,8 +44,7 @@ export function ContactForm({ className }: { className?: string }) {
         setStatus("success")
         form.reset()
       } else {
-        // Surface the server's reason when it gave one - "that email looks
-        // wrong" is actionable, "something went wrong" is not.
+        // Show the server's reason when there is one.
         setError(json?.error?.message ?? null)
         setStatus("error")
       }
@@ -77,8 +76,7 @@ export function ContactForm({ className }: { className?: string }) {
 
   return (
     <form onSubmit={onSubmit} className={cn("space-y-4", className)}>
-      {/* Honeypot: invisible to people, irresistible to naive bots. The server
-          silently accepts and discards anything that fills it in. */}
+      {/* Honeypot: hidden from people; the server silently discards anything that fills it. */}
       <div aria-hidden className="absolute -left-[9999px]">
         <label htmlFor="company_website">Do not fill this in</label>
         <input id="company_website" name="company_website" tabIndex={-1} autoComplete="off" />

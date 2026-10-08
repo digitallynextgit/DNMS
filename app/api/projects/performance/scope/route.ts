@@ -6,21 +6,13 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
-// GET /api/projects/performance/scope
-//
-// The option lists for the report builder: every project, team and person the
-// caller is allowed to report on. Deliberately NOT filtered by the page's
-// current selection - these are the things you can pick, so narrowing them by
-// what is already picked would strand you with one option and no way back.
-//
-// Lazy: the progress page only calls this when the options dialog opens.
+// Not filtered by the current selection, or picking one option would strand you with no way back.
 export const GET = withSession(
   async (_req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
 
-      // Same scope rule as the metrics route: managed teams, owned projects, own
-      // tasks. Expressed per-model because each has its own path to the user.
+      // Same scope rule as the metrics route, expressed per model.
       const projectWhere = isAdmin
         ? {}
         : {
@@ -38,8 +30,7 @@ export const GET = withSession(
       })
       const projectIds = projects.map((p) => p.id)
 
-      // Teams and people are constrained to the visible projects, so the pickers
-      // can never offer something the report would then refuse to include.
+      // Constrained to the visible projects, so the pickers never offer what the report would refuse.
       const teams = await db.projectTeam.findMany({
         where: { projectId: { in: projectIds } },
         select: {

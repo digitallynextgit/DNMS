@@ -7,7 +7,6 @@ import type { AdminCareerGroup } from "@/features/careers/careers.types"
 
 const TREE_KEY = ["careers-tree"]
 
-// ─── fetch helpers ───────────────────────────────────────────────────────────
 async function post(url: string, body: unknown) {
   return (
     await apiFetch<{ data: unknown }>(url, {
@@ -30,7 +29,6 @@ async function del(url: string) {
   return (await apiFetch<{ data: { message: string } }>(url, { method: "DELETE" })).data
 }
 
-// ─── query ───────────────────────────────────────────────────────────────────
 export function useCareersTree() {
   return useQuery({
     queryKey: TREE_KEY,
@@ -40,13 +38,11 @@ export function useCareersTree() {
   })
 }
 
-// ─── mutation factory ──────────────────────────────────────────────────────────
 function useCareerMutation<V>(fn: (vars: V) => Promise<unknown>, success: string) {
   const qc = useQueryClient()
   return useMutation(mutationWithToast(qc, { mutationFn: fn, invalidate: [TREE_KEY], success }))
 }
 
-// ─── Group ─────────────────────────────────────────────────────────────────────
 export const useCreateGroup = () =>
   useCareerMutation((body: Record<string, unknown>) => post("/api/careers", body), "Group created")
 export const useUpdateGroup = () =>
@@ -58,7 +54,6 @@ export const useUpdateGroup = () =>
 export const useDeleteGroup = () =>
   useCareerMutation((id: string) => del(`/api/careers/${id}`), "Group deleted")
 
-// ─── Sub-department ──────────────────────────────────────────────────────────
 export const useCreateSubDepartment = () =>
   useCareerMutation(
     (body: Record<string, unknown>) => post("/api/careers/sub-departments", body),
@@ -76,7 +71,6 @@ export const useDeleteSubDepartment = () =>
     "Sub-department deleted",
   )
 
-// ─── Role ──────────────────────────────────────────────────────────────────────
 export const useCreateRole = () =>
   useCareerMutation(
     (body: Record<string, unknown>) => post("/api/careers/roles", body),
@@ -91,7 +85,6 @@ export const useUpdateRole = () =>
 export const useDeleteRole = () =>
   useCareerMutation((id: string) => del(`/api/careers/roles/${id}`), "Role deleted")
 
-// ─── Opening ─────────────────────────────────────────────────────────────────
 export const useCreateOpening = () =>
   useCareerMutation(
     (body: Record<string, unknown>) => post("/api/careers/openings", body),

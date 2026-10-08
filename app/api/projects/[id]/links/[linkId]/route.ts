@@ -7,7 +7,6 @@ import { linkUpdateSchema } from "@/features/projects/schemas/files.schema"
 import { createAuditLog } from "@/lib/audit"
 import type { DocTag } from "@/features/projects/lib/doc-tag"
 
-// PATCH /api/projects/[id]/links/[linkId]  body { title?, url?, folderId?, tag?, description? }
 // Whoever added the link, or a project manager (enforced in the service).
 export const PATCH = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
@@ -28,7 +27,6 @@ export const PATCH = withProjectAccess(
   },
 )
 
-// DELETE /api/projects/[id]/links/[linkId]
 export const DELETE = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, linkId } = ctx.params

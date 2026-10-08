@@ -31,9 +31,7 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
-  // Pull the header/footer out of the children so they can be pinned while only
-  // the body scrolls. Anything else is treated as the (scrollable) body, so
-  // existing dialogs keep working without any changes.
+  // Pull out the header/footer so they stay pinned; everything else is the scrollable body.
   const items = React.Children.toArray(children)
   const header = items.find((c) => React.isValidElement(c) && c.type === DialogHeader)
   const footer = items.find((c) => React.isValidElement(c) && c.type === DialogFooter)
@@ -45,9 +43,7 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          // w-[calc(100%-2rem)] keeps a 1rem gutter on small viewports; on large
-          // screens the modal takes 80% of the viewport width. Flex column +
-          // overflow-hidden so the header and footer stay put and the body scrolls.
+          // 1rem gutter on small screens, 80vw on large; flex column so only the body scrolls.
           "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed top-[50%] left-[50%] z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden border p-0 shadow-lg duration-200 sm:rounded-sm lg:max-w-[80vw]",
           className,
         )}

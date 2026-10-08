@@ -15,8 +15,7 @@ import { createNotifications } from "@/lib/notifications"
 import { createAuditLog } from "@/lib/audit"
 import { getConfig } from "@/server/app-config"
 import { canAccessEmployee } from "@/lib/permissions"
-// Server-only cross-feature call (not the client barrel): seed leave balances
-// from the policy matrix when a new hire is created.
+// Server-only import (not the barrel): seeds leave balances for a new hire.
 import { allocateFromPolicy } from "@/features/leave/server/leave-accrual.service"
 import { instantiateAndNotify } from "@/features/hr-checklists/server/checklists.service"
 import { startScorecardFor } from "@/features/joinee-scorecard/server/scorecard.service"
@@ -25,8 +24,7 @@ import bcrypt from "bcryptjs"
 import { randomInt } from "crypto"
 import { departmentDescendantIds } from "../lib/department-tree"
 
-// Generate a readable, reasonably strong initial password to email to a new
-// hire. Avoids ambiguous characters (0/O, 1/l/I).
+// Readable initial password for a new hire (no ambiguous 0/O, 1/l/I).
 function generateInitialPassword(length = 12): string {
   const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$%"
   let out = ""
@@ -51,10 +49,8 @@ type EmployeeFilters = {
   limit?: number
 }
 
-// Enforce that every email is globally unique across employees: a work or
-// personal email may not match ANY other employee's work OR personal email
-// (case-insensitive), and one employee's own two emails must differ. Returns a
-// user-facing error string, or null when the emails are free to use.
+// Every email must be unique across all employees' work AND personal emails (case-insensitive).
+// Returns a user-facing error, or null when free.
 async function checkEmailUniqueness(
   email: string,
   personalEmail: string | null | undefined,
@@ -63,9 +59,7 @@ async function checkEmailUniqueness(
   const work = email.trim().toLowerCase()
   const personal = personalEmail?.trim().toLowerCase() || null
 
-  // A single employee may reuse the same address for both work and personal email
-  // (e.g. interns / contractors with only one inbox). We only block an email that
-  // belongs to a DIFFERENT employee, so collapse identical values to one candidate.
+  // One employee may use the same address for both (e.g. interns with one inbox).
   const candidates = personal && personal !== work ? [work, personal] : [work]
   const or = candidates.flatMap((value) => [
     { email: { equals: value, mode: "insensitive" as const } },
@@ -115,15 +109,12 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
       ]
     }
     if (departmentId) {
-      // A department includes everyone in its sub-departments: filtering on
-      // SMG lists the people in MSG and Content too.
+      // A department includes its sub-departments.
       const tree = await db.department.findMany({ select: { id: true, parentId: true } })
       where.departmentId = { in: [departmentId, ...departmentDescendantIds(tree, departmentId)] }
     }
     if (designationId) where.designationId = designationId
-    // "Active" / "Inactive" follow `isActive` - what the directory's badge shows.
-    // Deactivating someone only clears isActive and leaves status ACTIVE, so
-    // filtering on status alone listed deactivated people as active.
+    // Active/Inactive follow isActive (deactivation leaves status ACTIVE).
     if (status === "ACTIVE") where.isActive = true
     else if (status === "INACTIVE") where.isActive = false
     else if (status) where.status = status
@@ -133,7 +124,6 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
     const [employees, total] = await Promise.all([
       db.employee.findMany({
         where,
-        // Explicit select (not `include`) - see EMPLOYEE_LIST_SELECT.
         select: EMPLOYEE_LIST_SELECT,
         orderBy: { createdAt: "desc" },
         skip,
@@ -151,9 +141,7 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
   })
 }
 
-/** Turn changed DB field names into something a human wants to read.
- *  ("dateOfJoining" -> "Date of joining"; caps the list so a bulk edit doesn't
- *  produce a 40-field wall of text.) */
+/** Readable list of changed field names ("dateOfJoining" -> "Date of joining"), capped at max. */
 function humanFieldList(fields: string[], max = 4): string {
   const LABELS: Record<string, string> = {
     employeeNo: "Employee code",
@@ -188,9 +176,8 @@ function humanFieldList(fields: string[], max = 4): string {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-// Resolve a route param that is either a raw UUID or a "<code>-<name>" slug
-// (e.g. "8-diwakar-jha") to the employee's id. The code may itself contain
-// dashes (EMP-2026-0001), so we try every leading dash-prefix of the slug.
+// Resolve a UUID or a "<code>-<name>" slug (e.g. "8-diwakar-jha") to an id. Codes can contain
+// dashes (EMP-2026-0001), so every leading dash-prefix is tried.
 async function resolveEmployeeId(idOrSlug: string): Promise<string | null> {
   if (UUID_RE.test(idOrSlug)) return idOrSlug
   const segs = idOrSlug.split("-")
@@ -212,9 +199,7 @@ export async function getEmployee(idOrSlug: string): Promise<ActionResult<unknow
 
     const employee = await db.employee.findUnique({
       where: { id },
-      // passwordHash stays globally omitted (server/db.ts). gmailAppPassword is
-      // opted back IN only to derive the boolean flag below - the ciphertext is
-      // stripped again before this leaves the server.
+      // Opt gmailAppPassword back in only to derive a boolean; the ciphertext is stripped below.
       omit: { gmailAppPassword: false },
       include: {
         department: { select: { id: true, name: true, code: true } },
@@ -230,21 +215,17 @@ export async function getEmployee(idOrSlug: string): Promise<ActionResult<unknow
       },
     })
     if (!employee) return fail("Employee not found")
-    // Never expose the encrypted App Password ciphertext to the client - return
-    // only a boolean flag so the UI can show the "set / change / delete" state.
+    // Never send the App Password ciphertext to the client - only a boolean.
     const { gmailAppPassword, ...rest } = employee
     return ok(serialize({ data: { ...rest, hasGmailAppPassword: !!gmailAppPassword } }))
   })
 }
 
-// Lightweight list of every employee with their code, used by the create form to
-// show which codes are taken and to pre-fill the next free one.
+// Every employee code, so the create form can show taken codes and pre-fill the next free one.
 export async function getEmployeeCodes(): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     await requirePermission(PERMISSIONS.EMPLOYEE_WRITE)
     const employees = await db.employee.findMany({
-      // Hide the silent watch (admin_) account from the codes list, same as the
-      // directory, org chart, and analytics.
       where: { NOT: { employeeRoles: { some: { role: { name: { in: [...HIDDEN_ROLES] } } } } } },
       orderBy: { employeeNo: "asc" },
       select: EMPLOYEE_SUMMARY_SELECT,
@@ -253,10 +234,8 @@ export async function getEmployeeCodes(): Promise<ActionResult<unknown>> {
   })
 }
 
-// Live availability check for a single email value, used by the create/edit form
-// to flag duplicates as the user types. A value is unavailable if it matches any
-// other employee's work OR personal email (case-insensitive). `excludeId` skips
-// the employee being edited so their own current emails read as available.
+// Live duplicate check for one email (against all work and personal emails); `excludeId`
+// skips the employee being edited.
 export async function checkEmailAvailability(
   email: string,
   excludeId?: string,
@@ -288,8 +267,7 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
     const data = parsed.data
 
     try {
-      // Honor a provided employee code (the form now requires it); fall back to
-      // auto-generation only when blank. Provided codes must be unique.
+      // Use the provided code (must be unique); auto-generate only when blank.
       const providedNo = data.employeeNo?.trim()
       if (providedNo) {
         const existing = await db.employee.findFirst({
@@ -302,9 +280,7 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
       const emailError = await checkEmailUniqueness(data.email, data.personalEmail)
       if (emailError) return fail(emailError)
 
-      // Plan headcount ceiling (M5). Checked here rather than in the UI because
-      // this is the only path that actually creates an employee - the import
-      // flow and any future API both come through it.
+      // Plan headcount limit - checked here because every create path (form, import, API) ends here
       const planCheck = await checkTenantHeadcount()
       if (!planCheck.allowed)
         return fail(planCheck.message ?? "Employee limit reached", undefined, 402)
@@ -312,8 +288,7 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
       const totalCount = await db.employee.count()
       const employeeNo = providedNo || generateEmployeeNo(totalCount + 1)
 
-      // Auto-generate an initial password when none was supplied so we can email
-      // the new hire their first-login credentials.
+      // Generate a password when none is given, so the new hire can be emailed credentials.
       const plainPassword = data.password || generateInitialPassword()
       const passwordHash = await bcrypt.hash(plainPassword, 12)
       const gmailAppPassword = data.gmailAppPassword ? encrypt(data.gmailAppPassword) : null
@@ -349,8 +324,7 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
           employmentType: data.employmentType,
           dateOfJoining: data.dateOfJoining ? new Date(data.dateOfJoining) : null,
           probationEndDate: data.probationEndDate ? new Date(data.probationEndDate) : null,
-          // Probation + biometric fields are collected by the create form; persist
-          // them (DB defaults to onProbation=true / probationMonths=6 when omitted).
+          // DB defaults: onProbation=true, probationMonths=6.
           ...(data.onProbation !== undefined ? { onProbation: data.onProbation } : {}),
           ...(data.probationMonths !== undefined ? { probationMonths: data.probationMonths } : {}),
           deviceId: data.deviceId || null,
@@ -368,13 +342,8 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
         },
       })
 
-      // Give the new hire a platform identity (M2). Not best-effort: without a
-      // membership they cannot sign in at all, so a failure here has to fail the
-      // creation rather than leave a half-made employee behind.
-      //
-      // If the address already belongs to somebody on the platform - a client
-      // contact being hired, the same person at a second company - their
-      // existing credential is kept and only the STAFF membership is added.
+      // A platform identity is needed to sign in, so a failure here fails the creation. An address
+      // already on the platform keeps its credential and just gains a STAFF membership.
       await provisionIdentity({
         email: data.email,
         name: `${data.firstName} ${data.lastName}`,
@@ -407,19 +376,14 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
         })
       }
 
-      // Seed this year's leave balances from the policy matrix (monthly accrual
-      // pro-rates by join date). Best-effort - must not block employee creation.
+      // Seed this year's leave balances (pro-rated by join date). Best-effort.
       try {
         await allocateFromPolicy(employee.id, new Date().getFullYear())
       } catch (e) {
         console.error("[createEmployee] leave allocation failed", e)
       }
 
-      // Start their onboarding checklist from the tenant template, with due
-      // dates measured from the joining date. Best-effort for the same reason
-      // as the balances above: a tenant provisioned before this feature has no
-      // template yet, and a missing checklist must never cost somebody their
-      // employee record - HR can start one by hand from the Onboarding screen.
+      // Onboarding checklist from the tenant template. Best-effort: HR can start one by hand.
       try {
         await instantiateAndNotify({
           employeeId: employee.id,
@@ -430,9 +394,7 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
         console.error("[createEmployee] onboarding checklist failed", e)
       }
 
-      // And their 15-day joinee scorecard: one row per working day from the
-      // joining date, for the manager and HR to score. Best-effort likewise -
-      // HR can start one by hand from the employee's Scorecard tab.
+      // 15-day joinee scorecard (one row per working day). Best-effort.
       try {
         await startScorecardFor(employee.id, { actorId: session.user.id })
       } catch (e) {
@@ -449,9 +411,7 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
         ...meta,
       })
 
-      // Tell HR + admins someone was onboarded. Until now employee creation was
-      // the only major event that notified nobody internally - only the new hire
-      // got an email. Never notify the person who did the creating.
+      // Tell HR + admins about the new hire (never the person who created them).
       try {
         const staff = await db.employee.findMany({
           where: {
@@ -473,8 +433,6 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
               title: "New employee onboarded",
               message: `${fullName} (${employee.employeeNo}) was added${where ? ` as ${where}` : ""}.`,
               type: "info" as const,
-              // Deep-link straight to the profile. getEmployee() accepts a slug,
-              // which is what the directory links with.
               link: `/employees/${employeeSlug(employee.employeeNo, employee.firstName, employee.lastName)}`,
             })),
           )
@@ -484,8 +442,7 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
         console.error("[createEmployee] HR notification failed", e)
       }
 
-      // One branded welcome + credentials email to the work + personal address
-      // (both when available), via the notifications relay.
+      // One welcome + credentials email to the work and personal addresses.
       const recipients = [employee.email, employee.personalEmail].filter(Boolean).join(", ")
       if (recipients) {
         const appUrl = (await getConfig("APP_URL")) ?? "http://localhost:3000"
@@ -523,8 +480,7 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
     const before = await db.employee.findUnique({ where: { id } })
     if (!before) return fail("Employee not found")
 
-    // Re-check uniqueness whenever either email is being changed. Fall back to the
-    // stored value for the field that isn't part of this update.
+    // Re-check uniqueness when either email changes (the other falls back to the stored value).
     if (data.email !== undefined || data.personalEmail !== undefined) {
       const nextEmail = data.email !== undefined ? data.email : before.email
       const nextPersonal =
@@ -534,7 +490,6 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
     }
 
     const updateData: Record<string, unknown> = {}
-    // Employee code is editable; a changed value must stay unique across the table.
     if (data.employeeNo !== undefined) {
       const nextNo = data.employeeNo.trim()
       if (nextNo && nextNo !== before.employeeNo) {
@@ -570,14 +525,11 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
     if (data.deviceId !== undefined) updateData.deviceId = data.deviceId || null
     if (data.onProbation !== undefined) updateData.onProbation = data.onProbation
     if (data.probationMonths !== undefined) updateData.probationMonths = data.probationMonths
-    // Confirming probation early (toggling "on probation" off) records WHEN it
-    // happened, so leave starts accruing from that date instead of the original
-    // joining + probationMonths window.
+    // Confirming probation early records the date, so leave accrues from then.
     if (data.onProbation === false && before.onProbation && !before.confirmationDate) {
       updateData.confirmationDate = new Date()
     }
-    // Only overwrite the App Password when a new one is supplied; blank means
-    // "leave the existing value unchanged".
+    // Blank App Password = keep the existing one.
     if (data.gmailAppPassword) updateData.gmailAppPassword = encrypt(data.gmailAppPassword)
     if (data.currentAddress !== undefined)
       updateData.currentAddress = data.currentAddress
@@ -603,9 +555,7 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
         },
       })
 
-      // Keep the platform identity in step (M2). Not cosmetic: `users.email` is
-      // what the login form is matched against, so an employee whose work email
-      // is corrected here would otherwise still have to sign in with the old one.
+      // Keep the platform identity in step: users.email is what login matches against.
       if (data.email !== undefined || data.firstName !== undefined || data.lastName !== undefined) {
         await syncIdentityProfile(
           { employeeId: id },
@@ -618,9 +568,7 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
         )
       }
 
-      // Refresh this year's leave balances when something that drives accrual
-      // changed (confirmation, joining date, employment type), so it takes effect
-      // immediately rather than waiting for the monthly accrual cron. Best-effort.
+      // Recompute this year's balances when accrual inputs change (best-effort).
       if (
         [
           "onProbation",
@@ -655,9 +603,7 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
         ...meta,
       })
 
-      // Tell the employee their profile was edited, so an HR mistake surfaces
-      // immediately instead of silently. Skipped when nothing actually changed,
-      // or when they edited their own profile (they already know).
+      // Tell the employee their profile was edited (skipped if nothing changed or it was them).
       const fieldNames = Object.keys(changedFields)
       if (fieldNames.length > 0 && id !== session.user.id) {
         try {
@@ -686,11 +632,6 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
   })
 }
 
-// Self-service resignation: the signed-in employee marks themselves RESIGNED.
-// No special permission needed (it only ever affects the caller's own record).
-// Resignation is now a manager/HR-approved workflow. See applyResignation /
-// reviewResignation in features/resignations/server/resignations.service.ts.
-
 export async function deactivateEmployee(id: string): Promise<ActionResult<{ message: string }>> {
   return runAction(async () => {
     const session = await requirePermission(PERMISSIONS.EMPLOYEE_DELETE)
@@ -699,15 +640,10 @@ export async function deactivateEmployee(id: string): Promise<ActionResult<{ mes
     if (id === session.user.id) return fail("You can't deactivate your own account")
 
     await db.employee.update({ where: { id }, data: { isActive: false } })
-    // Mirror onto the membership (M2). Sign-in already checks employee.isActive,
-    // so this is not what locks them out - it keeps the membership flag honest
-    // for anything that reads it on its own.
+    // Mirror onto the membership (login already checks employee.isActive).
     await setMembershipActive({ employeeId: id }, false)
-    // Someone who has left is not on a team any more. Drop their project-team
-    // seats and step them down from any team they ran, so rosters, pickers and
-    // Drive sharing stop treating them as a current member the moment they go.
-    // Their tasks and deliverables keep pointing at them - that is the history,
-    // and My Tasks lists former employees under "archived" for exactly that.
+    // Leavers drop their team seats and team leadership; tasks and deliverables keep pointing
+    // at them as history.
     const [seats, teamsRun] = await db.$transaction([
       db.projectTeamMember.deleteMany({ where: { employeeId: id } }),
       db.projectTeam.updateMany({ where: { managerId: id }, data: { managerId: null } }),
@@ -854,11 +790,9 @@ function buildOrgTree(
 
 export async function getOrgChart(): Promise<ActionResult<{ data: OrgNode[] }>> {
   return runAction(async () => {
-    // Org chart is visible to every signed-in employee (matches the page route,
-    // which proxy.ts gates with `null`), not just those with employee:read.
+    // Org chart is open to every signed-in employee, not just employee:read.
     await requireSession()
     const employees = await db.employee.findMany({
-      // Exclude the hidden admin_ watch account from the org chart.
       where: {
         isActive: true,
         NOT: { employeeRoles: { some: { role: { name: { in: [...HIDDEN_ROLES] } } } } },
@@ -875,24 +809,8 @@ export async function getOrgChart(): Promise<ActionResult<{ data: OrgNode[] }>> 
   })
 }
 
-// =============================================================================
-// The colleague card
-// =============================================================================
-// getEmployee() above is the HR record: it is gated behind canAccessEmployee,
-// so a normal colleague cannot read it, and rightly - it carries addresses,
-// personal contact details, probation and exit dates.
-//
-// This is the OTHER thing people actually want when they click a name in chat:
-// how do I reach this person and where do they sit in the company. It is an
-// allow-list, never an omit-list. A field is absent unless it was deliberately
-// judged safe for every employee to see, so a column added to Employee next
-// month cannot leak by simply existing.
-//
-// Deliberately NOT here: personal email and phone, home and permanent address,
-// emergency contact, blood group, nationality, salary, documents, leave, and
-// anything about employment status - probation, resignation or last working day.
-// Whether somebody is on their way out is not directory information.
-// =============================================================================
+// The colleague card: what any employee may see about another. An allow-list, so a new Employee
+// column can't leak - personal contacts, address, salary and exit status stay out.
 
 /** Everything a colleague may see, listed once so the shape is reviewable. */
 const COLLEAGUE_SELECT = {
@@ -901,7 +819,6 @@ const COLLEAGUE_SELECT = {
   firstName: true,
   lastName: true,
   profilePhoto: true,
-  // The WORK address and number. personalEmail / personalPhone are not here.
   email: true,
   phone: true,
   workLocation: true,
@@ -924,8 +841,7 @@ const COLLEAGUE_SELECT = {
 
 export async function getColleagueProfile(idOrSlug: string): Promise<ActionResult<unknown>> {
   return runAction(async () => {
-    // Any signed-in employee. This is a staff directory, not an HR file - but it
-    // is still not public, so a session is required.
+    // Any signed-in employee (staff directory, not an HR file).
     await requireSession()
 
     const id = await resolveEmployeeId(idOrSlug)
@@ -934,7 +850,6 @@ export async function getColleagueProfile(idOrSlug: string): Promise<ActionResul
     const employee = await db.employee.findFirst({
       where: {
         id,
-        // Admin_ is a hidden watch account; it is not a colleague.
         NOT: { employeeRoles: { some: { role: { name: { in: [...HIDDEN_ROLES] } } } } },
       },
       select: COLLEAGUE_SELECT,
@@ -956,9 +871,7 @@ export async function getColleagueProfile(idOrSlug: string): Promise<ActionResul
                 designation: employee.manager.designation?.title ?? null,
               }
             : null,
-          // Day and month only - never the year. Same rule the birthday feed
-          // already follows: colleagues wish each other happy birthday, they do
-          // not need to work out how old someone is.
+          // Day and month only - never the year.
           birthday: dateOfBirth
             ? { day: dateOfBirth.getUTCDate(), month: dateOfBirth.getUTCMonth() + 1 }
             : null,

@@ -21,9 +21,7 @@ export const GET = withProjectAccess(
       const status = searchParams.get("status") ?? undefined
       const assigneeId = searchParams.get("assigneeId") ?? undefined
 
-      // Bounded, and the two @db.Text columns no list consumer reads are
-      // omitted - the board used to pull every task on the project with every
-      // wide column via `include`.
+      // Bounded, and skips the two @db.Text columns no list consumer reads.
       const rows = await db.projectTask.findMany({
         where: {
           projectId: ctx.params.id,
@@ -55,15 +53,8 @@ export const GET = withProjectAccess(
   },
 )
 
-/**
- * Raise a task on this project.
- *
- * TWO CALLERS, TWO RULES. With a `teamId` this is a team manager breaking their
- * own goal into work, so the guard is the staffing one - manage that team, or
- * the project. Without one the task belongs to the project itself rather than to
- * any team, which is an account-level decision and stays with the project
- * manager. The wrapper admits both; the branch below is what separates them.
- */
+// With a teamId: a team manager planning their team's work (staffing guard). Without one: a
+// project-level task, which stays with the project manager (the branch below).
 export const POST = withTeamStaffing(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -83,9 +74,7 @@ export const POST = withTeamStaffing(
         producesOutput,
       } = body
 
-      // The team this work sits under, when given: must be one of THIS
-      // project's, and one this person actually staffs. A team id from another
-      // project is a 404, not a task filed somewhere unexpected.
+      // The team must be on THIS project and staffed by this person.
       const team = teamId
         ? await db.projectTeam.findFirst({
             where: { id: String(teamId), projectId: ctx.params.id },
@@ -100,7 +89,6 @@ export const POST = withTeamStaffing(
           return NextResponse.json({ error: "You do not manage that team" }, { status: 403 })
         }
       } else if (!(await canManageProject(session, ctx.params.id))) {
-        // No team means the task hangs off the project itself - see above.
         return NextResponse.json(
           { error: "Only the Account Manager or a project admin can raise a project-level task" },
           { status: 403 },
@@ -120,9 +108,7 @@ export const POST = withTeamStaffing(
         return NextResponse.json({ error: "Goal not found on this project" }, { status: 404 })
       }
 
-      // One transaction - see the same fix in app/api/tasks/route.ts. A task and
-      // its first status period must be created together or the "exactly one
-      // open period" invariant can be left broken with no repair path.
+      // One transaction: a task and its first status period are created together.
       const task = await db.$transaction(async (tx) => {
         const created = await tx.projectTask.create({
           data: {
@@ -139,9 +125,7 @@ export const POST = withTeamStaffing(
             tags: tags ?? [],
             goalId: linkedGoalId,
             teamId: team?.id ?? null,
-            // The team's own vocabulary decides the default when there is one -
-            // see expectsOutput. A project-level task has nothing to infer from
-            // and is assumed to produce something unless the form says otherwise.
+            // The team's vocabulary decides the default (see expectsOutput); a project-level task assumes output.
             producesOutput:
               typeof producesOutput === "boolean"
                 ? producesOutput
@@ -168,7 +152,6 @@ export const POST = withTeamStaffing(
         return created
       })
 
-      // Notify assignee if assigned to someone other than the creator
       if (task.assigneeId && task.assigneeId !== session.user.id) {
         const project = await db.project.findUnique({
           where: { id: ctx.params.id },
@@ -179,8 +162,7 @@ export const POST = withTeamStaffing(
           title: "New Task Assigned",
           message: `You have been assigned "${task.title}" in project ${project?.name ?? "a project"}.`,
           type: "info",
-          // My Tasks, not the project page: the assignee's own list is the only
-          // view that actually shows the task they were just handed.
+          // My Tasks is the only view that shows the task they were just handed.
           link: "/projects/my-tasks",
         })
       }

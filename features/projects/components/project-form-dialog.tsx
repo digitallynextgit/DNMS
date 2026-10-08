@@ -21,9 +21,7 @@ import { DateField } from "@/components/shared/date-field"
 import { EmployeeCombobox } from "@/features/employees/components/employee-combobox"
 import { useEmployees } from "@/features/employees/hooks/use-employees"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
-// Concrete modules, not the clients barrel: the barrel reaches the client
-// detail page, which renders THIS form for "new project for Acme" - importing
-// it here would make the two features load each other.
+// Concrete module, not the clients barrel - the barrel would make the two features load each other.
 import { ClientCombobox } from "@/features/clients/components/client-combobox"
 import { ClientFormDialog } from "@/features/clients/components/client-form-dialog"
 import { ProjectLogoPicker } from "./project-logo-picker"
@@ -73,7 +71,6 @@ interface Props {
   mode: "create" | "edit"
   projectId?: string
   initial?: Partial<ProjectFormValues>
-  /** Current logo URL, so edit mode shows it instead of an empty placeholder. */
   logo?: string | null
   onSuccess?: (projectId: string) => void
 }
@@ -94,17 +91,11 @@ export function ProjectFormDialog({
   const canAddClient = can(PERMISSIONS.CLIENT_WRITE)
 
   const [form, setForm] = useState<ProjectFormValues>(EMPTY_FORM)
-  // Create mode only: the logo can't be uploaded until the project has an id, so
-  // it waits here and is POSTed the moment creation returns one.
+  // Create mode: the logo waits here and is POSTed once creation returns an id.
   const [pendingLogo, setPendingLogo] = useState<File | null>(null)
   const [newClientOpen, setNewClientOpen] = useState(false)
 
-  // Reset / hydrate ONLY on the open transition (UI-01). Depending on `initial`
-  // reset the form on every parent re-render, because both callers pass `initial`
-  // as an inline object literal (new identity each render) and the project page
-  // re-renders on a 15s unread-count poll / window-focus refetch - which silently
-  // wiped an admin's in-progress edits mid-typing. `initial` is read here but
-  // deliberately not a dependency: it is only meant to seed the form on open.
+  // Seed only when it opens: callers pass `initial` inline (new each render), which wiped edits mid-typing.
   const wasOpen = useRef(false)
   useEffect(() => {
     if (open && !wasOpen.current) {
@@ -115,8 +106,7 @@ export function ProjectFormDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  // Resolve the currently-selected manager's name so the combobox can show it
-  // before the user opens/searches (edit mode, where we only get an id).
+  // Resolve the selected manager's name for the combobox (edit mode only has an id).
   const { data: empsData } = useEmployees({ status: "ACTIVE", limit: 100 }, { enabled: open })
   const selectedManager = (empsData?.data ?? []).find((e) => e.id === form.accountManagerId)
   const managerLabel = useMemo(
@@ -125,8 +115,6 @@ export function ProjectFormDialog({
     [selectedManager],
   )
 
-  // apiFetch reads the `{ error: { message } }` envelope the route wrapper
-  // sends; reading `err.error` as a string toasted "[object Object]".
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       apiFetch<{ data?: { id?: string } }>("/api/projects", {
@@ -136,8 +124,7 @@ export function ProjectFormDialog({
       }),
     onSuccess: async (data) => {
       const newId = data?.data?.id as string | undefined
-      // Send the deferred logo now that there is something to attach it to. A
-      // failure here must not read as "the project wasn't created" - it was.
+      // A logo failure must not read as "the project wasn't created" - it was.
       if (newId && pendingLogo) {
         try {
           const body = new FormData()
@@ -193,8 +180,7 @@ export function ProjectFormDialog({
       startDate: form.startDate || null,
       accountManagerId: form.accountManagerId,
     }
-    // Only someone who can see the picker can change the client. Anyone else
-    // leaves the field out entirely, so an edit never silently clears it.
+    // Only someone who can see the picker sends clientId, so an edit never silently clears it.
     if (canSeeClients) payload.clientId = form.clientId || null
     if (canSeeBudget) {
       payload.budget = form.budget ? Number(form.budget) : null
@@ -252,8 +238,6 @@ export function ProjectFormDialog({
             )}
           </div>
 
-          {/* Client - the company this is delivered for. One project per
-              website or engagement, filed under the client it is for. */}
           {canSeeClients && (
             <div className="space-y-2">
               <Label>Client</Label>
@@ -262,8 +246,7 @@ export function ProjectFormDialog({
               </p>
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
-                  {/* Keyed on the id so a client created from the "New" button
-                      remounts the picker with its name already shown. */}
+                  {/* Keyed on the id so a client created via "New" remounts with its name shown. */}
                   <ClientCombobox
                     key={form.clientId}
                     value={form.clientId || undefined}
@@ -297,7 +280,6 @@ export function ProjectFormDialog({
             />
           </div>
 
-          {/* Account Manager */}
           <div className="space-y-2">
             <Label>Account Manager *</Label>
             <p className="text-muted-foreground text-xs">
@@ -372,9 +354,7 @@ export function ProjectFormDialog({
 
           <div className="space-y-2">
             <Label>Onboarding Date</Label>
-            {/* Shared shadcn calendar popover - the same picker the employee forms
-                use, so dates look and behave identically across the app. `modal`
-                because this sits inside a Dialog. */}
+            {/* `modal` because this sits inside a Dialog. */}
             <DateField
               value={form.startDate}
               onChange={(v) => setForm((f) => ({ ...f, startDate: v }))}
@@ -386,7 +366,6 @@ export function ProjectFormDialog({
             </p>
           </div>
 
-          {/* Budget - admin only */}
           {canSeeBudget && (
             <div className="space-y-2">
               <Label htmlFor="project-budget">
@@ -413,8 +392,7 @@ export function ProjectFormDialog({
         </div>
       </FormDialog>
 
-      {/* Stacked on top of the project form, so "the client isn't in the list
-          yet" does not mean abandoning a half-filled project. */}
+      {/* Stacked on the project form, so a missing client doesn't mean abandoning it. */}
       {canAddClient && (
         <ClientFormDialog
           open={newClientOpen}

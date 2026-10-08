@@ -9,8 +9,7 @@ import {
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
-// shadcn time picker (hour / minute / AM-PM) so we don't depend on the native
-// <input type="time">. Value is a 24-hour "HH:MM" string (or "" when unset).
+// Hour / minute / AM-PM picker. Value is a 24-hour "HH:MM" string ("" when unset).
 
 const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1))
 const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"))

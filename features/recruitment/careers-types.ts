@@ -1,10 +1,4 @@
-/**
- * Public Careers API contract.
- *
- * Shared between the DNMS (producer) and the marketing site (consumer).
- * Copy this file into the marketing site if you'd like - it has no runtime
- * dependencies on Next, Prisma, or anything else.
- */
+// Public Careers API contract, shared with the marketing site. No runtime dependencies - safe to copy.
 
 export type CareersTone = "red" | "teal"
 export type CareersMode = "full-time" | "internship"

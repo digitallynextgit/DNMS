@@ -22,8 +22,6 @@ export default async function PortalProductsPage({
     (g) => g.projectRef === projectRef || g.projectId === projectRef,
   )
   if (!grant) notFound()
-  // The API behind the grid re-checks the module independently, so a hand-typed
-  // URL renders nothing either way.
   if (!grant.modules.includes("products")) notFound()
 
   return (

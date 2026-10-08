@@ -22,8 +22,7 @@ export default async function PortalCalendarsPage({
     (g) => g.projectRef === projectRef || g.projectId === projectRef,
   )
   if (!grant) notFound()
-  // The API behind the page re-checks the module independently, so a hand-typed
-  // URL renders nothing either way.
+  // The API re-checks the module independently, so a hand-typed URL renders nothing either way.
   if (!grant.modules.includes("calendars")) notFound()
 
   return <PortalCalendars projectRef={projectRef} />

@@ -15,9 +15,7 @@ interface FileUploadProps {
   className?: string
 }
 
-// Map raw MIME types / extensions to short, human-readable labels so the
-// dropzone shows "PDF, DOC, DOCX, JPG, PNG, WEBP" instead of the verbose
-// comma-separated MIME string (e.g. application/vnd.openxmlformats-...).
+// Short labels ("PDF, DOCX") instead of the raw MIME string.
 const MIME_LABELS: Record<string, string> = {
   "application/pdf": "PDF",
   "application/msword": "DOC",
@@ -56,7 +54,7 @@ function formatAcceptedTypes(accept: string): string {
 
 export function FileUpload({
   accept,
-  maxSize = 20 * 1024 * 1024, // 20MB default
+  maxSize = 20 * 1024 * 1024,
   onFileSelect,
   isUploading = false,
   className,

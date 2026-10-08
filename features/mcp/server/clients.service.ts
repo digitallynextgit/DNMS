@@ -7,16 +7,8 @@ import { generateToken } from "./tokens"
 import { isAllowedRedirect } from "./redirects"
 import { UnsafeUrlError, assertPublicHost } from "./safe-fetch"
 
-// =============================================================================
-// OAuth clients - which AI app is asking.
-//
-// Two ways an app identifies itself (MCP spec 2026-07-28):
-//   CIMD (preferred) - client_id IS an https URL serving a JSON metadata
-//        document. Claude, ChatGPT and Claude Code all do this. We fetch it,
-//        check it names itself, and cache it for 24 hours.
-//   DCR (deprecated, kept for older agents) - the app POSTs its metadata to
-//        /api/oauth/register and gets a generated client_id back.
-// =============================================================================
+// OAuth clients. CIMD (preferred): client_id is an https URL serving JSON metadata, fetched and
+// cached for 24h. DCR (deprecated, for older agents): the app registers via /api/oauth/register.
 
 export interface ResolvedClient {
   clientId: string
@@ -65,8 +57,7 @@ export async function resolveClient(clientId: string): Promise<ResolvedClient> {
     try {
       return await fetchAndStoreCimd(clientId)
     } catch (err) {
-      // The app's metadata host is down: keep working from the last good copy
-      // rather than locking everyone out. A client we have never seen fails.
+      // Metadata host down: use the last good copy. A client we've never seen fails.
       if (existing) return toResolved(existing)
       throw err
     }
@@ -168,10 +159,7 @@ async function readCapped(res: Response, max: number): Promise<string> {
   return Buffer.concat(chunks).toString("utf8")
 }
 
-// ---------------------------------------------------------------------------
-// SSRF guard: the client_id URL is attacker-chosen, so never let it point the
-// server at itself or the private network (shared helper: ./safe-fetch).
-// ---------------------------------------------------------------------------
+// SSRF guard: the client_id URL is attacker-chosen (see ./safe-fetch).
 async function assertPublicClientHost(hostname: string): Promise<void> {
   try {
     await assertPublicHost(hostname)
@@ -183,12 +171,8 @@ async function assertPublicClientHost(hostname: string): Promise<void> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Dynamic Client Registration (RFC 7591). Deprecated by MCP 2026-07-28 but
-// still the path some agents take. Open by design - registering grants nothing
-// on its own: a person still has to sign in and click Allow, and every redirect
-// URI must pass the allowlist.
-// ---------------------------------------------------------------------------
+// Dynamic Client Registration (RFC 7591). Open by design: registering grants nothing - a person
+// still has to sign in and click Allow, and redirect URIs must pass the allowlist.
 const dcrSchema = z
   .object({
     redirect_uris: z.array(z.string().max(2000)).min(1).max(20),

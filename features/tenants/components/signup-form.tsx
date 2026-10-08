@@ -22,14 +22,7 @@ import {
 import { signupSchema, suggestSlug, type SignupInput } from "../schemas/signup.schema"
 import { checkSlugAvailable, createWorkspace } from "../server/signup.actions"
 
-/**
- * Create a company (M5).
- *
- * Signs the founder in immediately afterwards with the password they just
- * chose, rather than sending them to /login to type it again - they proved they
- * know it thirty seconds ago, and a signup that ends on a login form reads as a
- * failure.
- */
+/** Create a company, then sign the founder in with the password they just chose. */
 export function SignupForm() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
@@ -62,8 +55,7 @@ export function SignupForm() {
     form.setValue("slug", suggestSlug(companyName), { shouldValidate: false })
   }, [companyName, form])
 
-  // Availability, debounced. The regex lives in the schema; this answers the
-  // question a regex cannot - whether somebody already has it.
+  // Debounced availability check (the format regex lives in the schema).
   useEffect(() => {
     if (!slug || slug.length < 3) {
       setSlugState({ checking: false, available: null, reason: null })

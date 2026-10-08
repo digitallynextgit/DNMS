@@ -1,19 +1,12 @@
 /**
- * Takes the Help & Guides screenshots (features/help/guides) in the demo
- * workspace and records where each highlighted element sits.
+ * Takes the Help & Guides screenshots in the demo workspace.
  *
  *   pnpm help:shots                 every shot
  *   pnpm help:shots my-leave chat   only shots of those guides (or with those id prefixes)
  *   pnpm help:shots --missing       only shots not taken yet (resume a run)
  *
- * Needs:
- *   - the app running (HELP_BASE_URL, default http://localhost:3000)
- *   - the demo workspace (`pnpm db:demo`) and DEMO_PASSWORD in .env
- *   - Chrome or Edge installed (driven by playwright-core; nothing is downloaded)
- *
- * Writes public/help-shots/<id>.<hash>.webp and features/help/shots.generated.ts.
- * The content hash in the file name busts browser and image-optimiser caches
- * when a shot is retaken. A shot that fails keeps its previous picture.
+ * Needs the app running (HELP_BASE_URL, default http://localhost:3000), the demo workspace
+ * (`pnpm db:demo`) with DEMO_PASSWORD in .env, and Chrome or Edge installed.
  */
 import "dotenv/config"
 import { createHash } from "node:crypto"
@@ -50,12 +43,19 @@ const CROP_MARGIN = 16
 const BOX_PAD = 4
 /** The app's sticky top bar - anything scrolled under it is hidden. */
 const TOP_BAR = 64
+/** NEXTAUTH_URL: when the dev server runs on another port, requests to it are sent to BASE instead. */
+const APP_ORIGIN = (() => {
+  try {
+    return new URL(process.env.NEXTAUTH_URL ?? BASE).origin
+  } catch {
+    return BASE
+  }
+})()
 /** Shown instead of the local dev address (e.g. the AI connector URL). */
 const PUBLIC_ORIGIN = (process.env.HELP_PUBLIC_ORIGIN ?? "https://dnms.digitallynext.com").replace(
   /\/+$/,
   "",
 )
-/** Pages that are only reachable signed out. */
 const SIGNED_OUT = ["/login", "/forgot-password", "/signup", "/client-login"]
 
 /** Dev overlays, toasts and motion off - every capture should look the same. */
@@ -68,8 +68,6 @@ const CAPTURE_CSS = `
   }
   ::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
 `
-
-// ── Shots to take ────────────────────────────────────────────────────────────
 
 interface Job {
   guide: string
@@ -93,8 +91,6 @@ function collectJobs(filters: string[] = []): Job[] {
   }
   return jobs
 }
-
-// ── Browser ──────────────────────────────────────────────────────────────────
 
 async function launch(): Promise<Browser> {
   for (const channel of ["chrome", "msedge"] as const) {
@@ -130,8 +126,13 @@ async function newContext(browser: Browser, device: "desktop" | "mobile"): Promi
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", add)
     else add()
   }, CAPTURE_CSS)
-  // The demo workspace stores photo ROWS only - nothing is uploaded to real
-  // storage - so the picture requests are answered here with generated images.
+  if (APP_ORIGIN !== BASE) {
+    await context.route(
+      (url) => url.origin === APP_ORIGIN,
+      (route) => route.continue({ url: BASE + route.request().url().slice(APP_ORIGIN.length) }),
+    )
+  }
+  // Demo photos are rows only (nothing in real storage), so their files are generated here.
   await context.route(DEMO_FILE_ROUTES, async (route) => {
     const id = new URL(route.request().url()).pathname.split("/").at(-2) ?? "photo"
     await route.fulfill({ body: await placeholderPhoto(id), contentType: "image/webp" })
@@ -139,15 +140,11 @@ async function newContext(browser: Browser, device: "desktop" | "mobile"): Promi
   return context
 }
 
-/** Gallery photos and chat image attachments - served by the route above. */
 const DEMO_FILE_ROUTES = /\/api\/(gallery\/photos|chat\/attachments)\/[^/]+\/file/
 
 const photoCache = new Map<string, Buffer>()
 
-/**
- * A simple landscape picture (sky, sun, two hills), coloured from the id so
- * every photo differs but the same photo looks the same in every shot.
- */
+/** Coloured from the id, so each photo differs but looks the same in every shot. */
 async function placeholderPhoto(id: string): Promise<Buffer> {
   const cached = photoCache.get(id)
   if (cached) return cached
@@ -182,7 +179,6 @@ async function signIn(context: BrowserContext, persona: DemoPersona): Promise<vo
   await page.close()
 }
 
-/** One signed-in context per persona and device, made on first use. */
 class Sessions {
   private contexts = new Map<string, BrowserContext>()
   constructor(private browser: Browser) {}
@@ -202,8 +198,6 @@ class Sessions {
     for (const ctx of this.contexts.values()) await ctx.close()
   }
 }
-
-// ── Page helpers ─────────────────────────────────────────────────────────────
 
 function locate(page: Page, t: HelpTarget): Locator {
   let loc: Locator
@@ -242,7 +236,11 @@ async function runActions(page: Page, shot: HelpShot): Promise<void> {
     else if ("fill" in action) await locate(page, action.fill).fill(action.value)
     else if ("hover" in action) await locate(page, action.hover).hover()
     else if ("press" in action) await page.keyboard.press(action.press)
-    else if ("waitFor" in action) await locate(page, action.waitFor).waitFor({ state: "visible" })
+    else if ("waitFor" in action)
+      await locate(page, action.waitFor).waitFor({ state: "visible", timeout: action.timeout })
+    // File inputs are usually hidden behind a button, so no visibility filter here.
+    else if ("upload" in action)
+      await page.locator('input[type="file"]').first().setInputFiles(join(ROOT, action.upload))
     else await page.waitForTimeout(action.wait)
     await settle(page)
   }
@@ -266,10 +264,7 @@ const clampRect = (r: Rect, w: number, h: number): Rect => {
   }
 }
 
-/**
- * Scroll so every highlight is in the window: centre the group they form, or,
- * when it is taller than the window, start just above the first one.
- */
+/** Centre the highlights, or start just above the first when they're taller than the window. */
 async function frameHighlights(page: Page, targets: HelpTarget[], viewHeight: number) {
   const boxes = (
     await Promise.all(
@@ -292,7 +287,7 @@ async function frameHighlights(page: Page, targets: HelpTarget[], viewHeight: nu
   await page.waitForTimeout(300)
 }
 
-/** Scroll the panel holding `el` (the app scrolls a panel, not the window) by `dy` px. */
+/** The app scrolls a panel, not the window. */
 async function scrollAround(el: Locator, dy: number): Promise<void> {
   await el.evaluate((node, delta) => {
     let n = node.parentElement
@@ -308,11 +303,7 @@ async function scrollAround(el: Locator, dy: number): Promise<void> {
   }, dy)
 }
 
-/**
- * Last touches before the picture: the capture CSS back in place (hydration can
- * drop the early copy), Next's dev overlays removed, the local dev address shown
- * as the public site, and the mouse moved off the page so no stray hover shows.
- */
+/** Re-adds the capture CSS (hydration can drop the early copy) and moves the mouse off the page. */
 async function polish(page: Page, keepMouse: boolean): Promise<void> {
   await page.evaluate(
     ({ css, from, to }) => {
@@ -323,21 +314,25 @@ async function polish(page: Page, keepMouse: boolean): Promise<void> {
         document.body.appendChild(style)
       }
       document.querySelectorAll("nextjs-portal").forEach((n) => n.remove())
+      // No named helpers in here: the script runner wraps them in a __name()
+      // call that doesn't exist in the browser.
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
       for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-        if (n.nodeValue?.includes(from)) n.nodeValue = n.nodeValue.split(from).join(to)
+        let v = n.nodeValue ?? ""
+        for (const f of from) v = v.split(f).join(to)
+        if (v !== n.nodeValue) n.nodeValue = v
       }
-      document.querySelectorAll<HTMLInputElement>("input, textarea").forEach((i) => {
-        if (i.value.includes(from)) i.value = i.value.split(from).join(to)
-      })
+      for (const i of Array.from(document.querySelectorAll<HTMLInputElement>("input, textarea"))) {
+        let v = i.value
+        for (const f of from) v = v.split(f).join(to)
+        if (v !== i.value) i.value = v
+      }
     },
-    { css: CAPTURE_CSS, from: BASE, to: PUBLIC_ORIGIN },
+    { css: CAPTURE_CSS, from: [BASE, APP_ORIGIN], to: PUBLIC_ORIGIN },
   )
   if (!keepMouse) await page.mouse.move(1, 1)
   await page.waitForTimeout(200)
 }
-
-// ── One shot ─────────────────────────────────────────────────────────────────
 
 async function capture(
   sessions: Sessions,
@@ -418,6 +413,11 @@ async function capture(
       })
     }
 
+    for (const target of shot.hide ?? []) {
+      await locate(page, target)
+        .evaluate((el) => ((el as HTMLElement).style.display = "none"))
+        .catch(() => warnings.push(`hide target not found: ${describe(target)}`))
+    }
     const last = shot.actions?.at(-1)
     await polish(page, !!last && "hover" in last)
     const png = await page.screenshot({ clip, type: "png" })
@@ -443,8 +443,6 @@ async function capture(
   }
 }
 
-// ── Manifest ─────────────────────────────────────────────────────────────────
-
 async function writeManifest(shots: Record<string, HelpShotFile>): Promise<void> {
   const sorted = Object.fromEntries(Object.entries(shots).sort(([a], [b]) => a.localeCompare(b)))
   const source = `// AUTO-GENERATED by scripts/help-screenshots.ts - DO NOT EDIT BY HAND.
@@ -455,14 +453,11 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = ${JSON.stringi
 `
   const formatted = await format(source, { ...(await resolveConfig(MANIFEST)), filepath: MANIFEST })
   writeFileSync(MANIFEST, formatted)
-  // Now that the manifest is saved, drop superseded versions of retaken shots.
   for (const name of readdirSync(OUT_DIR)) {
     const id = name.split(".")[0]!
     if (shots[id] && shots[id].src !== `/help-shots/${name}`) unlinkSync(join(OUT_DIR, name))
   }
 }
-
-// ── Main ─────────────────────────────────────────────────────────────────────
 
 /** Fail fast if HELP_BASE_URL is not DNMS (another app on the port, or nothing). */
 async function assertDnmsServer(): Promise<void> {

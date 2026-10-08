@@ -8,15 +8,8 @@ import { requireSession, requirePermission } from "@/server/action-guard"
 import { ok, fail, runAction, type ActionResult } from "@/server/action-result"
 import { departmentDescendantIds, departmentParentError } from "../lib/department-tree"
 
-// Departments nest: Department → Sub-department → Sub-sub-department, through
-// Department.parentId. The tree rules (depth, no loops) live in
-// lib/department-tree.ts so the page's dropdowns and this service agree.
-//
-// Two invariants this file keeps:
-//   - an ACTIVE department never sits under an inactive one. Deactivating
-//     takes everything below it along; reactivating brings its parents back.
-//   - a department is only ever deleted for good once nothing - employees,
-//     job postings, sub-departments - points at it.
+// Invariants: an active department never sits under an inactive one (deactivating takes the
+// subtree along; reactivating brings parents back), and a hard delete needs nothing pointing at it.
 
 const DEPT_SELECT = {
   id: true,
@@ -47,16 +40,11 @@ type DepartmentRow = {
 
 const NAME_TAKEN = "A department with this name already exists"
 
-/**
- * The `code` column is still required and unique in the database, but nothing
- * shows or reads it any more - departments are known by name. Fill it with
- * something unique so the row can be written.
- */
+/** `code` is still required and unique in the DB but unused - fill it with something unique. */
 function hiddenCode(): string {
   return randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()
 }
 
-/** The whole tree's shape - a handful of rows, so one cheap read. */
 function loadTree() {
   return db.department.findMany({ select: { id: true, parentId: true, isActive: true } })
 }
@@ -87,9 +75,7 @@ export async function getDepartments(opts?: {
         orderBy: { name: "asc" },
         select: DEPT_SELECT,
       }),
-      // The headcount people see: active, and not the hidden watch accounts -
-      // exactly who the directory lists, so a count and the list it links to
-      // agree. `_count.employees` (everyone) still guards hard deletes.
+      // Headcount = active, non-hidden employees, as the directory lists them.
       db.employee.groupBy({
         by: ["departmentId"],
         where: {
@@ -179,7 +165,6 @@ export async function updateDepartment(
       data.careersJobsLabel = label.length > 0 ? label : null
     }
 
-    // Where it will sit after this update.
     let parentId = current.parentId
     if (input.parentId !== undefined) {
       parentId = input.parentId || null
@@ -198,8 +183,6 @@ export async function updateDepartment(
     )
       return fail("Activate the parent department first")
 
-    // Deactivating takes everything below along; reactivating brings back the
-    // parents above, so an active department never hangs off an inactive one.
     const below = input.isActive === false ? [...departmentDescendantIds(tree, id)] : []
     const above = input.isActive === true ? ancestorIds(tree, parentId) : []
 
@@ -217,11 +200,8 @@ export async function updateDepartment(
   })
 }
 
-/**
- * Soft-deactivate (isActive=false, along with every sub-department) by
- * default, or hard-delete with permanent=true - only when no employees, job
- * postings or sub-departments reference the department.
- */
+/** Soft-deactivate (with the subtree) by default; permanent=true hard-deletes only when nothing
+ *  references the department. */
 export async function deleteDepartment(
   id: string,
   permanent = false,

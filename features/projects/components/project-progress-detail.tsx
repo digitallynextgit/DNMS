@@ -29,17 +29,9 @@ import {
   type SeoSiteProgress,
 } from "../hooks/use-projects"
 
-// =============================================================================
-// Project progress: delivery, people, and search in one view.
-//
-// Every rate here can be null, meaning "nothing to measure yet". Those render as
-// a dash rather than 0%, because a team that has not finished anything is not
-// performing at zero percent, it is simply unmeasured.
-// =============================================================================
-
 const num = (v: number) => v.toLocaleString("en-IN")
 
-/** Rate pill coloured by band. Null renders as a dash, never as zero. */
+/** Coloured by band. Null means "nothing to measure yet" and renders as a dash, never 0%. */
 function Rate({ value, invert = false }: { value: number | null; invert?: boolean }) {
   if (value == null) return <span className="text-muted-foreground text-xs">no data</span>
   const good = invert ? value <= 15 : value >= 85
@@ -56,7 +48,6 @@ function Rate({ value, invert = false }: { value: number | null; invert?: boolea
   )
 }
 
-/** Stacked bar of the status mix. Widths are shares of the whole. */
 function StatusBar({ b }: { b: ProgressBucket }) {
   if (b.total === 0) return null
   const seg = [
@@ -72,8 +63,7 @@ function StatusBar({ b }: { b: ProgressBucket }) {
 
   return (
     <div className="space-y-1.5">
-      {/* Wide segments carry their own percentage; a narrow one would only
-          collide with its own label, so those fall back to the legend. */}
+      {/* Only wide segments show a percentage; a narrow one would collide with its label. */}
       <div className="bg-muted flex h-5 w-full gap-0.5 overflow-hidden rounded-sm">
         {seg.map((s) => (
           <div
@@ -102,7 +92,6 @@ function StatusBar({ b }: { b: ProgressBucket }) {
   )
 }
 
-/** The same status split as a donut: the bar reads proportions, this reads shape. */
 function StatusDonut({ b }: { b: ProgressBucket }) {
   if (b.total === 0) return null
   const seg = [
@@ -168,9 +157,7 @@ export function ProjectProgressDetail({
   const { summary, byTeam, byMember, trend, upcoming, seo, seoTotals } = data
   const filtered = !!(range?.from || range?.to)
 
-  // With a filter on, "no tasks" means none DUE in that window, which is a
-  // different statement from "this project has no tasks" - and a full report
-  // built from zero tasks would contradict the headline numbers above it.
+  // With a filter on, "no tasks" means none due in the window, not an empty project.
   if (summary.total === 0) {
     return (
       <EmptyState
@@ -187,8 +174,7 @@ export function ProjectProgressDetail({
 
   const peakWeek = Math.max(1, ...trend.map((t) => Math.max(t.completed, t.due)))
 
-  // People read as members of a team, not one undifferentiated list. Teamless
-  // members fall into a trailing bucket rather than being dropped.
+  // Grouped by team; teamless members go in a trailing bucket.
   const memberGroups = Object.values(
     byMember.reduce<Record<string, { team: string; members: MemberProgress[]; total: number }>>(
       (acc, m) => {
@@ -204,7 +190,6 @@ export function ProjectProgressDetail({
 
   return (
     <div className="space-y-4">
-      {/* Headline delivery numbers */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <HeadStat
           label="Completion"
@@ -258,7 +243,6 @@ export function ProjectProgressDetail({
         />
       </div>
 
-      {/* Status mix + weekly pace */}
       <div className="grid gap-3 lg:grid-cols-2">
         <Card>
           <CardContent className="space-y-3 p-4">
@@ -299,7 +283,6 @@ export function ProjectProgressDetail({
         </Card>
       </div>
 
-      {/* Team performance */}
       <Card>
         <CardContent className="p-0">
           <div className="border-border border-b px-4 py-3">
@@ -365,7 +348,6 @@ export function ProjectProgressDetail({
         </CardContent>
       </Card>
 
-      {/* Member performance */}
       {byMember.length > 0 && (
         <Card>
           <CardContent className="p-0">
@@ -449,7 +431,6 @@ export function ProjectProgressDetail({
         </Card>
       )}
 
-      {/* Search performance */}
       {seo.length > 0 && (
         <Card>
           <CardContent className="p-0">
@@ -478,7 +459,6 @@ export function ProjectProgressDetail({
         </Card>
       )}
 
-      {/* What is due next */}
       {upcoming.length > 0 && (
         <Card>
           <CardContent className="p-0">
@@ -525,7 +505,7 @@ export function ProjectProgressDetail({
   )
 }
 
-/** One tracked site's search numbers. Exported for the Progress drill-down. */
+/** Exported for the Progress drill-down. */
 export function SeoRow({ site }: { site: SeoSiteProgress }) {
   const BAND: Record<string, string> = {
     HEALTHY: "text-emerald-600",

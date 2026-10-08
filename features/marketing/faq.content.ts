@@ -1,18 +1,8 @@
 import { siteConfig } from "@/lib/site"
 import { PLANS } from "@/features/tenants"
 
-// =============================================================================
-// FAQ content.
-//
-// ONE source for both surfaces: the homepage section shows a short, deliberately
-// chosen selection, and /faq shows everything grouped by topic. Keeping two
-// lists would guarantee they drift, and the homepage would end up answering a
-// question the real page had since corrected.
-//
-// Answers that quote a number read it from the thing that enforces it (PLANS,
-// siteConfig) rather than restating it. A FAQ that contradicts the pricing page
-// is worse than no FAQ.
-// =============================================================================
+// FAQ content - one source for the homepage selection and /faq. Numbers are read from what
+// enforces them (PLANS, siteConfig), never restated.
 
 export interface FaqItem {
   q: string
@@ -163,10 +153,4 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
 /** Every question, flattened. Used for the page's counter. */
 export const ALL_FAQS: FaqItem[] = FAQ_CATEGORIES.flatMap((c) => c.items)
 
-/**
- * The homepage selection.
- *
- * Drawn from the same source as /faq rather than kept as a second list, so the
- * short version can never contradict the long one.
- */
 export const FEATURED_FAQS: FaqItem[] = ALL_FAQS.filter((f) => f.featured)

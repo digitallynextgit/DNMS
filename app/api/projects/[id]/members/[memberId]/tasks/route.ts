@@ -3,14 +3,7 @@ import { db } from "@/server/db"
 import { withProjectAccess } from "@/features/projects/server/project-access"
 import type { Session } from "next-auth"
 
-// GET /api/projects/[id]/members/[memberId]/tasks
-//
-// One person's tasks on ONE project, for the member drill-down on the progress
-// view. Guarded by withProjectAccess, so it only ever answers for a project the
-// caller can already see - deliberately narrower than /api/tasks.
-//
-// Accepts the same optional from/to due-date window as the rest of the progress
-// surface, so the drill-down agrees with the row you clicked.
+// For the progress view's member drill-down; takes the same from/to due-date window so the numbers agree.
 export const GET = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {

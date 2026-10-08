@@ -1,76 +1,53 @@
 export const PERMISSIONS = {
-  // Employee
   EMPLOYEE_READ: "employee:read",
   EMPLOYEE_WRITE: "employee:write",
   EMPLOYEE_DELETE: "employee:delete",
-  // Document
   DOCUMENT_READ: "document:read",
   DOCUMENT_WRITE: "document:write",
   DOCUMENT_DELETE: "document:delete",
-  // Role/PBAC
   ROLE_READ: "role:read",
   ROLE_WRITE: "role:write",
-  // Audit
   AUDIT_READ: "audit:read",
-  // Email templates
   EMAIL_TEMPLATE_READ: "email_template:read",
   EMAIL_TEMPLATE_WRITE: "email_template:write",
-  // Integrations / app settings (SMTP, HR inbox, branding) - sensitive
+  // SMTP, HR inbox, branding - sensitive
   SETTINGS_WRITE: "settings:write",
-  // Dashboard
   DASHBOARD_READ: "dashboard:read",
-  // Attendance
   ATTENDANCE_READ: "attendance:read",
   ATTENDANCE_WRITE: "attendance:write",
-  // Leave
   LEAVE_READ: "leave:read",
   LEAVE_WRITE: "leave:write",
   LEAVE_APPROVE: "leave:approve",
-  // Leave types + the entitlement matrix. Split out of `leave:approve` so
-  // approving someone's leave no longer implies rewriting company leave policy.
+  // Separate from leave:approve so approving leave doesn't imply editing leave policy.
   LEAVE_POLICY: "leave:policy",
-  // Company holiday calendar (was borrowing `attendance:write`).
   HOLIDAY_WRITE: "holiday:write",
-  // Resignations (was borrowing employee:read / employee:write).
   RESIGNATION_READ: "resignation:read",
   RESIGNATION_APPROVE: "resignation:approve",
-  // Onboarding and exit-clearance checklists. Separate scopes on purpose: the
-  // people who welcome a joiner are not always the people who may issue a
-  // relieving letter, and exit:write is the one that can deactivate an account.
+  // Separate scopes on purpose: exit:write can deactivate an account.
   ONBOARDING_READ: "onboarding:read",
   ONBOARDING_WRITE: "onboarding:write",
   EXIT_READ: "exit:read",
   EXIT_WRITE: "exit:write",
-  // Work From Home
   WFH_READ: "wfh:read",
   WFH_WRITE: "wfh:write",
   WFH_APPROVE: "wfh:approve",
-  // Payroll
   PAYROLL_READ: "payroll:read",
   PAYROLL_WRITE: "payroll:write",
   PAYROLL_PROCESS: "payroll:process",
-  // Projects
   PROJECT_READ: "project:read",
   PROJECT_WRITE: "project:write",
   PROJECT_DELETE: "project:delete",
-  // Clients: the companies projects are delivered for, and their portal contacts.
-  // Separate from project:* so a project manager who may run projects cannot
-  // necessarily mint client logins or read the whole client book.
+  // Separate from project:* so a PM can't necessarily mint client logins or read the client book.
   CLIENT_READ: "client:read",
   CLIENT_WRITE: "client:write",
-  // Performance
   PERFORMANCE_READ: "performance:read",
   PERFORMANCE_WRITE: "performance:write",
   PERFORMANCE_REVIEW: "performance:review",
-  // Recruitment
   RECRUITMENT_READ: "recruitment:read",
   RECRUITMENT_WRITE: "recruitment:write",
-  // Analytics
   ANALYTICS_READ: "analytics:read",
 
-  // Company noticeboard. READ is deliberately absent: announcements and the
-  // photo gallery are visible to every signed-in employee, so gating reads would
-  // only create a way to accidentally hide the noticeboard from the company.
+  // No READ scope on purpose: every employee sees announcements and the gallery.
   ANNOUNCEMENT_WRITE: "announcement:write",
   GALLERY_WRITE: "gallery:write",
 } as const
@@ -78,9 +55,7 @@ export const PERMISSIONS = {
 export type PermissionScope = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
 
 export const SYSTEM_ROLES = {
-  /** Hidden role reserved for the CEO. Never shown in any UI listing or
-   *  dropdown, and actions performed by accounts with this role are not
-   *  written to the audit log. */
+  /** Hidden CEO role: never listed in any UI, and its actions skip the audit log. */
   ADMIN_: "admin_",
   ADMIN: "admin",
   HR_MANAGER: "hr_manager",
@@ -88,10 +63,9 @@ export const SYSTEM_ROLES = {
   EMPLOYEE: "employee",
 } as const
 
-/** Role names that must never appear in any user-facing listing or selector. */
 export const HIDDEN_ROLES = ["admin_"] as const
 
-/** Role display labels for UIs (admin_ intentionally omitted). */
+// admin_ intentionally omitted.
 export const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
   hr_manager: "HR Manager",
@@ -117,8 +91,7 @@ export const MODULES = [
   "analytics",
   "company",
   "settings",
-  // Modules that only appear as audit-log entry values (no permission scope of
-  // their own). Listed so the audit-log module filter can select them.
+  // Audit-log-only modules (no permission scope), listed for the module filter.
   "admin",
   "asc",
   "holiday",
@@ -184,10 +157,6 @@ export const PERMISSION_DEFINITIONS = [
     action: "write",
     description: "Create and edit email templates",
   },
-  // Gates Admin -> Integrations and Admin -> Storage. This was declared in
-  // PERMISSIONS above and enforced in the routes/sidebar, but was missing from
-  // this catalogue - so the row was never seeded, no role could hold it, and only
-  // `admin_` (which short-circuits hasPermission) could reach those pages.
   {
     scope: "settings:write",
     module: "settings",
@@ -360,10 +329,6 @@ export const PERMISSION_DEFINITIONS = [
     action: "read",
     description: "View analytics and reports",
   },
-  // Company noticeboard. These were enforced by routes (announcements POST/PATCH/
-  // DELETE, gallery album delete) but were MISSING from this catalogue, so no
-  // permission row was seeded and only admin_ could pass - HR could not manage
-  // announcements or delete gallery albums. Reads stay open to all staff.
   {
     scope: "announcement:write",
     module: "company",
@@ -393,45 +358,14 @@ export const EMPLOYEE_STATUS_LABELS: Record<string, string> = {
   TERMINATED: "Terminated",
 }
 
-/**
- * ─── The status-pill palette ────────────────────────────────────────────────
- * ONE formula for every status colour in the app. Previously there were FIVE
- * competing families (bordered+opaque, borderless+alpha, emerald-500/30, ...),
- * so an amber "PENDING" leave pill and an amber "ON_HOLD" project pill looked
- * nothing alike on adjacent pages.
- *
- * This is the borderless/alpha family: the /10 tint works on any background and
- * needs only a text override in dark mode - no per-shade dark bg/border to keep
- * in sync. Every *_COLORS map below is built from these tones. Add a tone here
- * rather than writing raw classes in a map.
- */
-/**
- * The header row of a split-pane messaging surface (personal Chat, and a
- * project's Messages tab): list on the left, open thread on the right.
- *
- * Both headers MUST be the same height or their bottom borders don't meet at the
- * divider and the split reads as broken. Left to their own content they never
- * are - the list side is sized by a 36px search input, the thread side by a 32px
- * avatar beside two lines of text, which lands a few pixels short. A fixed height
- * on both is the only thing that keeps them level, so it lives here rather than
- * as two paddings in two files that have to be nudged in step by hand.
- */
+/** Fixed height so the list and thread headers meet level at the divider. */
 export const SPLIT_PANE_HEADER = "flex h-14 shrink-0 items-center border-b"
 
-/**
- * One row in that list: a conversation in personal Chat, a thread in a project's
- * Messages tab.
- *
- * The height is FIXED rather than left to the content. Both rows draw the same
- * two lines over an avatar, but personal Chat used a 40px avatar against
- * Messages' 32px, so its rows came out 60px to Messages' 56px - close enough to
- * look like a rendering bug rather than a choice, and liable to drift again the
- * moment either side gains a badge or a second icon. Pinning it at h-14 makes
- * every row in both lists exactly one header tall.
- */
+/** Fixed height so rows in Chat and project Messages match (one header tall). */
 export const SPLIT_PANE_ROW =
   "flex h-14 w-full items-center gap-3 border-b px-3 text-left transition-colors"
 
+/** The one status-pill palette. Every *_COLORS map uses these; add a tone here, not raw classes. */
 export const TONE = {
   green: "bg-green-500/10 text-green-600 dark:text-green-400",
   emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
@@ -472,17 +406,12 @@ export const ALLOWED_FILE_TYPES = [
   "image/webp",
 ]
 
-/** The same set by extension, for the uploads that arrive with no MIME type.
- *  See lib/upload-rules.ts for why a blank type must not skip the check. */
+/** Extension fallback for uploads with no MIME type (see lib/upload-rules.ts). */
 export const ALLOWED_FILE_EXTENSIONS = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".webp"]
 
-export const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
+export const MAX_FILE_SIZE = 20 * 1024 * 1024
 
-// ── Video assets ──────────────────────────────────────────────────────────────
-// Deliberately NOT folded into ALLOWED_FILE_TYPES / MAX_FILE_SIZE above: those
-// two are shared by the employee-document, company-document, client-document and
-// employee-form uploads, and widening them to 250 MB of video would open all
-// four. Video is a content-plan concern, so it gets its own pair.
+// Separate from ALLOWED_FILE_TYPES / MAX_FILE_SIZE, which four document uploads share.
 
 export const ALLOWED_VIDEO_TYPES = [
   "video/mp4",
@@ -492,16 +421,10 @@ export const ALLOWED_VIDEO_TYPES = [
   "video/x-msvideo", // .avi
 ]
 
-/** Extension fallback: browsers routinely send an EMPTY file.type, and a MIME-only
- *  check would then either reject a real video or wave anything through. */
+/** Browsers often send an empty file.type, so check the extension too. */
 export const ALLOWED_VIDEO_EXTENSIONS = [".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v"]
 
-/**
- * 250 MB. Not a preference - the ceiling is set by the stack: proxyClientMaxBodySize
- * is 260mb in next.config.mjs and nginx's client_max_body_size is 250M. Above that
- * the multipart body is TRUNCATED rather than rejected, and req.formData() dies on
- * the missing boundary. Matches the staff upload routes for the same reason.
- */
+/** Set by the stack (proxyClientMaxBodySize 260mb, nginx 250M): bigger bodies get truncated, not rejected. */
 export const MAX_VIDEO_SIZE = 250 * 1024 * 1024
 
 export const ATTENDANCE_STATUS_LABELS: Record<string, string> = {
@@ -515,7 +438,6 @@ export const ATTENDANCE_STATUS_LABELS: Record<string, string> = {
   MISSING_PUNCH: "Missing punch",
 }
 
-/** Active / inactive pill - used for devices, employees, holidays, roles… */
 export const ACTIVE_STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Active",
   INACTIVE: "Inactive",
@@ -551,41 +473,21 @@ export const LEAVE_STATUS_COLORS: Record<string, string> = {
   CANCELLED: TONE.neutral,
 }
 
-// ── Deliverables / content plan ──────────────────────────────────────────────
-// The labels live with the state machine (features/projects/lib/
-// deliverable-lifecycle.ts) because the rules there depend on them. Only the
-// palette belongs here, on TONE like every other status map.
+// Deliverable labels live in features/projects/lib/deliverable-lifecycle.ts.
 
-// ── One colour per state, all seven distinguishable ──────────────────────────
-// Read as a traffic system: grey is nothing yet, blue is moving, amber has
-// stopped, green exists, red is gone. No two states share a tone, because the
-// colour is the first thing read on a row and two states wearing one tone means
-// the badge is decoration rather than information.
+// Grey = nothing yet, blue = moving, amber = stopped, green = exists, red = gone. No shared tones.
 export const DELIVERABLE_STATUS_COLORS: Record<string, string> = {
-  // Nothing has happened yet, so nothing to draw the eye.
   PLANNED: TONE.neutral,
   IN_PROGRESS: TONE.blue,
-  // Green: it exists. Was purple, which said nothing about the state.
   DELIVERED: TONE.green,
-  // The deeper green of the same family - signed off is "made, and settled",
-  // so it should read as related to made rather than as a different idea.
   ACCEPTED: TONE.emerald,
-  // Orange, not amber: it is the neighbour of STUCK below and the two used to
-  // be the same colour. Both mean "somebody has to do something", so they stay
-  // warm - but they are different somebodies, and the row has to say which.
+  // Orange, not amber, so it can't be confused with STUCK.
   REJECTED: TONE.orange,
   STUCK: TONE.amber,
-  // Red: called off. Not a fault, but it IS the one state where the work is
-  // gone, and that is worth seeing at a glance.
   DISCARDED: TONE.red,
 }
 
-/**
- * The same seven as a solid dot, for menus where a full badge would be noise.
- *
- * Kept beside the badge map on purpose: a dot and a badge for the same status
- * disagreeing is exactly the kind of drift that makes colour untrustworthy.
- */
+/** Dot versions of the badge colours above, for menus. Keep the two in sync. */
 export const DELIVERABLE_STATUS_DOTS: Record<string, string> = {
   PLANNED: "bg-muted-foreground/40",
   IN_PROGRESS: "bg-blue-500",
@@ -595,8 +497,6 @@ export const DELIVERABLE_STATUS_DOTS: Record<string, string> = {
   STUCK: "bg-amber-500",
   DISCARDED: "bg-red-500",
 }
-
-// ── HR checklists (onboarding / exit clearance) ──────────────────────────────
 
 export const CHECKLIST_STATUS_LABELS: Record<string, string> = {
   IN_PROGRESS: "In progress",
@@ -615,11 +515,7 @@ export const CHECKLIST_KIND_LABELS: Record<string, string> = {
   EXIT: "Exit clearance",
 }
 
-/**
- * An item's state, derived rather than stored: done, overdue, or waiting.
- * Overdue is amber and not red - a checklist item running late is a nudge, and
- * colouring routine lateness as an error teaches people to ignore red.
- */
+/** Derived, not stored. Overdue is amber, not red: lateness is a nudge, not an error. */
 export const CHECKLIST_ITEM_STATE_LABELS: Record<string, string> = {
   DONE: "Done",
   OVERDUE: "Overdue",
@@ -714,8 +610,6 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
   DISCARDED: "Discarded",
 }
 
-// ── Project requirements (things a team is waiting on) ───────────────────────
-
 export const REQUIREMENT_TYPE_LABELS: Record<string, string> = {
   DOCUMENT: "Document",
   CREDENTIAL: "Credential",
@@ -743,7 +637,6 @@ export const REQUIREMENT_STATUS_COLORS: Record<string, string> = {
   CLOSED: TONE.neutral,
 }
 
-/** Statuses that still need chasing. */
 export const REQUIREMENT_OPEN_STATUSES = ["OPEN", "IN_PROGRESS"] as const
 
 export const TASK_STATUS_COLORS: Record<string, string> = {
@@ -756,8 +649,7 @@ export const TASK_STATUS_COLORS: Record<string, string> = {
   DISCARDED: TONE.red,
 }
 
-/** The task phases offered in the UI, in workflow order. Legacy IN_REVIEW /
- *  CANCELLED still render (see labels above) but aren't offered as new choices. */
+/** In workflow order. Legacy IN_REVIEW / CANCELLED still render but aren't offered. */
 export const TASK_WORKFLOW_STATUSES = [
   "TODO",
   "IN_PROGRESS",
@@ -812,8 +704,6 @@ export const APPLICANT_STAGE_COLORS: Record<string, string> = {
   REJECTED: TONE.red,
 }
 
-// ─── Centralized maps (were previously duplicated/inline in pages) ──────────
-
 export const EVALUATION_STATUS_LABELS: Record<string, string> = {
   PENDING: "Pending",
   SELF_DONE: "Self done",
@@ -839,7 +729,6 @@ export const EVALUATION_STATUS_COLORS: Record<string, string> = {
   COMPLETED: TONE.green,
 }
 
-/** Single amber pill for the "on probation" flag (unifies 4 hand-copied variants). */
 export const PROBATION_BADGE = TONE.amber
 
 export const DOC_ROLE_LABELS: Record<string, string> = {
@@ -864,10 +753,7 @@ export const RESOURCE_CATEGORY_COLORS: Record<string, string> = {
   OTHER: TONE.neutral,
 }
 
-/**
- * Holiday type pill. The DB models this as `isOptional: boolean`, so callers map
- * `h.isOptional ? "FLOATING" : "FIXED"` before handing it to <StatusBadge>.
- */
+/** The DB stores `isOptional`; callers map it to "FLOATING" / "FIXED". */
 export const HOLIDAY_TYPE_LABELS: Record<string, string> = {
   FIXED: "Fixed",
   FLOATING: "Floating",
@@ -878,14 +764,10 @@ export const HOLIDAY_TYPE_COLORS: Record<string, string> = {
   FLOATING: TONE.amber,
 }
 
-/** How many floating (optional) holidays an employee may avail per year. */
+/** Per employee, per year. */
 export const FLOATING_HOLIDAY_LIMIT = 3
 
-/**
- * Status of an employee's floating-holiday request.
- * CANCELLED is deliberately absent: a withdrawn request shows no pill at all
- * (the cell falls back to "-"), exactly as if the employee had never applied.
- */
+/** No CANCELLED on purpose: a withdrawn request shows no pill at all. */
 export const FLOATING_REQUEST_STATUS_LABELS: Record<string, string> = {
   PENDING: "Pending",
   APPROVED: "Approved",
@@ -898,7 +780,6 @@ export const FLOATING_REQUEST_STATUS_COLORS: Record<string, string> = {
   REJECTED: TONE.red,
 }
 
-/** Status of a post in a project's content calendar (Brand tab). */
 export const CONTENT_CALENDAR_STATUS_LABELS: Record<string, string> = {
   PLANNED: "Planned",
   IN_PROGRESS: "In progress",

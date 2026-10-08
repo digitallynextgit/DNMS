@@ -17,30 +17,21 @@ interface FormDialogProps {
   onOpenChange: (open: boolean) => void
   title: string
   description?: string
-  /** Whether the form is in edit (vs. create) mode - drives the default submit label. */
+  /** Drives the default submit label. */
   isEdit?: boolean
-  /** Mutation pending state - disables the footer + shows a spinner. */
+  /** Disables the footer and shows a spinner. */
   isPending?: boolean
-  /** Extra condition to disable submit (e.g. invalid form). */
   submitDisabled?: boolean
-  /** Override the submit label (default: isEdit ? "Save Changes" : "Create"). */
+  /** Default: isEdit ? "Save Changes" : "Create". */
   submitLabel?: string
-  /** Submit button variant - use "destructive" for irreversible actions (e.g. resign). */
+  /** "destructive" for irreversible actions. */
   submitVariant?: "default" | "destructive"
   cancelLabel?: string
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void
-  /** Field markup. */
   children: React.ReactNode
-  /**
-   * Dialog width. Three sanctioned sizes instead of the 12 ad-hoc `sm:max-w-*`
-   * values that used to be sprinkled across the app.
-   *   sm - a few short fields (confirm-ish forms)
-   *   md - the default create/edit form
-   *   lg - wide/two-column forms
-   * (DialogContent already caps at 80vw on large screens.)
-   */
+  /** sm: a few short fields; md: the default; lg: wide or two-column forms. */
   size?: "sm" | "md" | "lg"
-  /** Escape hatch for a one-off DialogContent className. Prefer `size`. */
+  /** One-off escape hatch; prefer `size`. */
   contentClassName?: string
 }
 
@@ -50,15 +41,7 @@ const SIZES = {
   lg: "sm:max-w-4xl",
 } as const
 
-/**
- * Standard create/edit dialog shell: header (title/description), a `<form>`,
- * and a footer (Cancel + submit with spinner/edit-label). Each feature dialog
- * supplies only its fields as `children`. Replaces the ~8 hand-rolled
- * `*-form-dialog` scaffolds.
- *
- * The header and footer are pinned and only the fields scroll - that comes from
- * DialogContent, so it applies to every form dialog automatically.
- */
+/** Standard create/edit dialog shell; feature dialogs supply only their fields. */
 export function FormDialog({
   open,
   onOpenChange,
@@ -75,9 +58,8 @@ export function FormDialog({
   size = "md",
   contentClassName,
 }: FormDialogProps) {
-  // DialogContent pins the header and footer and scrolls only the body, so the
-  // footer is rendered OUTSIDE the <form>. The HTML `form` attribute links the
-  // submit button back across that boundary - without it, submit does nothing.
+  // The footer sits outside the <form> (DialogContent pins it), so the `form` attribute links the
+  // submit button back - without it, submit does nothing.
   const formId = React.useId()
 
   return (

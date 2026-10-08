@@ -32,29 +32,8 @@ import type { ProjectTeam } from "../../hooks/use-projects"
 import { MemberAvatars } from "./person-bits"
 import { TeamPeopleDialog } from "./team-people-dialog"
 
-// =============================================================================
-// Editing what each team owes for one month.
-//
-// A right-side Sheet rather than an inline panel: the strip above the grid is
-// for READING and must stay one line tall, and six teams of form fields would
-// push the spreadsheet off the screen.
-//
-// ── WIDTH: USE THE SPACING SCALE, NOT max-w-2xl ──────────────────────────────
-// app/globals.css redefines --container-2xl to 1400px, so `sm:max-w-2xl` is not
-// Tailwind's 672px here - it is very nearly the whole screen, which is exactly
-// what this panel first shipped as. `max-w-180` reads off the SPACING scale
-// (180 × 0.25rem = 45rem = 720px) and so cannot be moved by a container
-// override. task-detail-sheet.tsx uses max-w-120 for the same reason.
-//
-// ── TWO PERMISSIONS, NOT ONE ─────────────────────────────────────────────────
-//   canPlan     - the account manager, the calendar's manager, or a team's own
-//                 manager: who is on the row, how many, by when.
-//   contribute  - anybody on that team: LINKS and FILES on their own row.
-//
-// The second is the point of putting the plan here at all. An employee who
-// reads "DESIGN owes 12 by the 19th" and then has to walk to the Files tab to
-// hand the work in is an employee who does not hand the work in.
-// =============================================================================
+// max-w-180 (720px) on purpose: app/globals.css makes max-w-2xl 1400px here.
+// Planners edit the row; anyone on the team may add links and files to it.
 
 const TONE_CLASS: Record<DueTone, string> = {
   overdue: "text-destructive",
@@ -64,11 +43,7 @@ const TONE_CLASS: Record<DueTone, string> = {
   none: "text-muted-foreground/60",
 }
 
-/**
- * Status colour. Muted for the states that are simply "in flight" - only the
- * two that mean somebody has to DO something carry a colour, or the panel turns
- * into a traffic light and none of it reads.
- */
+/** Only the two states that need action carry a colour. */
 const STATUS_CLASS: Record<WorkbookTeamStatus, string> = {
   TODO: "text-muted-foreground",
   IN_PROGRESS: "text-sky-600 dark:text-sky-400",
@@ -85,14 +60,7 @@ function localToday(): string {
 const handedInTitle = (p: TeamProgress) =>
   `${p.handedIn} link${p.handedIn === 1 ? "" : "s"} and files handed in, of ${p.quantity} promised`
 
-/**
- * The status of one team's month.
- *
- * A Select for anyone on the team, plain text for everyone else. DONE is
- * offered but DISABLED while the row is short of its quantity, rather than
- * hidden: "why can't I finish this" is a question the list should answer
- * itself, and a missing option answers nothing.
- */
+/** DONE is shown but disabled while the row is short of its quantity, rather than hidden. */
 function StatusControl({
   status,
   progress,
@@ -153,7 +121,6 @@ function StatusControl({
   )
 }
 
-/** One labelled row inside a team card. Keeps every label column the same width. */
 function Field({
   label,
   children,
@@ -198,7 +165,6 @@ export interface TeamPlanSheetProps {
   }) => void
   onRemove: (teamId: string) => void
   pending: boolean
-  /** Re-read the calendar after an upload or a detach. */
   onFilesChanged: () => void
 }
 
@@ -208,11 +174,7 @@ export function TeamPlanSheet(props: TeamPlanSheetProps) {
 
   const onPlan = React.useMemo(() => new Set(workbook.teams.map((t) => t.teamId)), [workbook.teams])
 
-  /**
-   * Teams this viewer may put on the plan - which is NOT simply "the ones not
-   * on it". A team manager may add their OWN team and nobody else's, the same
-   * rule the server applies per row.
-   */
+  /** A team manager may add only their own team (the server applies the same rule). */
   const canAdd = React.useMemo(() => {
     const free = projectTeams.filter((t) => !onPlan.has(t.id))
     return sortProjectTeams(canPlanAll ? free : free.filter((t) => t.id === managedTeamId))
@@ -227,7 +189,7 @@ export function TeamPlanSheet(props: TeamPlanSheetProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex w-full flex-col gap-0 overflow-hidden border-l p-0 sm:max-w-180">
-        {/* Header. pr-12 leaves room for the close button Radix parks top-right. */}
+        {/* pr-12 leaves room for Radix's close button. */}
         <div className="bg-muted/30 space-y-2 border-b px-5 pt-4 pr-12 pb-3">
           <div className="flex items-center gap-2">
             <SheetTitle className="text-base leading-none font-semibold tracking-tight">
@@ -245,7 +207,6 @@ export function TeamPlanSheet(props: TeamPlanSheetProps) {
               ` · managed by ${workbook.assignedTo.firstName} ${workbook.assignedTo.lastName}`}
           </SheetDescription>
 
-          {/* The three numbers worth knowing before reading a single row. */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
             <span className="text-muted-foreground">
               <span className="text-foreground font-medium tabular-nums">
@@ -267,7 +228,6 @@ export function TeamPlanSheet(props: TeamPlanSheetProps) {
           </div>
         </div>
 
-        {/* Body */}
         <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
           {workbook.teams.length === 0 && (
             <div className="border-border/60 rounded-sm border border-dashed px-4 py-8 text-center">
@@ -295,9 +255,6 @@ export function TeamPlanSheet(props: TeamPlanSheetProps) {
               <span className="text-muted-foreground mr-1 text-[11px] font-medium">
                 {canPlanAll ? "Not on the plan" : "Add your team"}
               </span>
-              {/* Ghost buttons rather than six always-present empty rows - a
-                  project that uses two teams should not scroll past four rows
-                  of nothing. */}
               {canAdd.map((t) => (
                 <Button
                   key={t.id}
@@ -333,7 +290,6 @@ function TeamPlanRow({
   projectTeams,
 }: TeamPlanSheetProps & { team: WorkbookTeam; today: string; autoFocus: boolean }) {
   const canPlan = canPlanAll || managedTeamId === team.teamId
-  // Links and files: anyone actually ON this team, plus everyone who can plan it.
   const canContribute = canPlan || myTeamId === team.teamId
   const isMine = myTeamId === team.teamId
 
@@ -346,7 +302,11 @@ function TeamPlanRow({
   const fileInput = React.useRef<HTMLInputElement | null>(null)
   const ref = React.useRef<HTMLElement | null>(null)
 
-  React.useEffect(() => setQty(String(team.quantity || "")), [team.quantity])
+  const [prevQuantity, setPrevQuantity] = React.useState(team.quantity)
+  if (team.quantity !== prevQuantity) {
+    setPrevQuantity(team.quantity)
+    setQty(String(team.quantity || ""))
+  }
   React.useEffect(() => {
     if (autoFocus) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" })
   }, [autoFocus])
@@ -362,8 +322,7 @@ function TeamPlanRow({
   }
 
   async function upload(files: File[]) {
-    // Checked here as well as on the server: pushing 300 MB up an agency
-    // connection to be told no is a minutes-long mistake.
+    // Checked here too, so an oversized upload fails fast.
     const tooBig = files.filter((f) => f.size > MAX_UPLOAD_BYTES)
     for (const f of tooBig) {
       toast.error(`"${f.name}" is ${formatFileSize(f.size)} - the limit is ${MAX_UPLOAD_MB} MB`)
@@ -371,16 +330,14 @@ function TeamPlanRow({
     const queue = files.filter((f) => f.size <= MAX_UPLOAD_BYTES)
     if (queue.length === 0) return
 
-    // One at a time: the server buffers each file whole, so parallel uploads of
-    // large video are how you run it out of memory.
+    // One at a time: the server buffers each file whole.
     let done = 0
     for (const file of queue) {
       setUploading(`${done + 1}/${queue.length}`)
       const body = new FormData()
       body.append("file", file)
       body.append("workbookTeamId", team.id)
-      // Sent as well, and NOT redundant: it sets the storage prefix and the
-      // resource's own team, which is what the Files tab filters on.
+      // Not redundant: sets the storage prefix and the resource's team (what the Files tab filters on).
       body.append("teamId", team.teamId)
       body.append("category", "DELIVERABLES")
       try {
@@ -422,7 +379,6 @@ function TeamPlanRow({
         isMine && "ring-primary/30 ring-1",
       )}
     >
-      {/* Card header: who, and the one-line summary of what they owe. */}
       <header className="bg-muted/40 flex flex-wrap items-center gap-2 border-b px-3 py-2">
         <h3 className="text-sm font-semibold tracking-tight">{team.teamName}</h3>
         {isMine && (
@@ -432,9 +388,6 @@ function TeamPlanRow({
         )}
 
         <span className="ml-auto flex items-center gap-2">
-          {/* What has actually been handed over, against what was promised.
-              This is the number the status is measured by, so it sits beside
-              it rather than buried among the fields below. */}
           {progress.quantity > 0 && (
             <span
               className={cn(
@@ -446,8 +399,6 @@ function TeamPlanRow({
               {progress.handedIn}/{progress.quantity}
             </span>
           )}
-          {/* Only when there IS a date, and only while the work is still owed -
-              a finished row does not need a deadline shouting at it. */}
           {tone !== "none" && isOutstanding(team.status) && (
             <span className={cn("flex items-center gap-1 text-xs", TONE_CLASS[tone])}>
               {(tone === "overdue" || tone === "today" || tone === "soon") && (
@@ -496,8 +447,6 @@ function TeamPlanRow({
                 onClick={() => setPeopleOpen(true)}
               >
                 <Plus className="h-3 w-3" />
-                {/* Says the picker takes more than one. A bare "Change" beside
-                    a single avatar read as though the row held one person. */}
                 {team.members.length > 0 ? "Add or change people" : "Add people"}
               </Button>
             )}
@@ -507,8 +456,7 @@ function TeamPlanRow({
         <Field label="Due">
           <div className="flex flex-wrap items-center gap-3">
             {canPlan ? (
-              // `modal` is mandatory inside a Sheet - it is a Dialog underneath,
-              // and without it the calendar popover renders behind the panel.
+              // `modal` is required inside a Sheet, or the calendar popover renders behind it.
               <DateField
                 modal
                 value={team.dueOn ?? ""}
@@ -548,9 +496,7 @@ function TeamPlanRow({
         </Field>
 
         <Field label="Links">
-          {/* The task URL lives here. TaskResources already owns http(s)
-              validation, de-duplication and the chip rendering, so a third
-              caller keeps that logic in one place instead of forking it. */}
+          {/* Reuses TaskResources for URL validation, dedupe and chips. */}
           {team.links.length === 0 && !canContribute ? (
             <span className="text-muted-foreground/60 text-xs">No links</span>
           ) : (
@@ -581,8 +527,6 @@ function TeamPlanRow({
                       <button
                         type="button"
                         onClick={() => void detach(f.id)}
-                        // Said plainly, because "remove" reads as "delete" and
-                        // somebody will go looking for the file afterwards.
                         title="Remove from this plan - the file stays in Files"
                         className="text-muted-foreground hover:text-destructive shrink-0"
                       >
@@ -632,10 +576,7 @@ function TeamPlanRow({
         </Field>
       </div>
 
-      {/* The rule, stated rather than only enforced.
-          A team that promised four items needs four things handed over - links
-          and files together - before the row can read Done. Hiding that until
-          somebody tries to finish would make the disabled option look broken. */}
+      {/* States the Done rule up front, so the disabled option doesn't look broken. */}
       {progress.quantity > 0 && team.status !== "DISCARDED" && (
         <div className="bg-muted/20 flex items-center gap-2 border-t px-3 py-1.5">
           <div

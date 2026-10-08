@@ -32,7 +32,6 @@ export const GET = withAuth(
         return NextResponse.json({ error: "Employee not found" }, { status: 404 })
       }
 
-      // Build date range for the month (UTC)
       const dateFrom = new Date(Date.UTC(year, month - 1, 1))
       const dateTo = new Date(Date.UTC(year, month, 0)) // last day of month
 

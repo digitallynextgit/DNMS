@@ -20,56 +20,20 @@ import {
 } from "../hooks/use-deliverables"
 import { fmtWhen } from "./goal-status"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// What happened to one deliverable, and who did it.
-//
-// A ledger that can be quietly edited is not a ledger. Every write appends an
-// event server-side; this is where they are read - the day a client asks "you
-// said this went out on the 3rd", or a member's completed date is corrected by
-// a manager after the period closed and somebody wants to know by whom.
-//
-// Modelled on the goals HistoryDialog: a modal rather than an inline panel, so
-// reading why ONE row changed does not rearrange the list you were reading it
-// against.
-//
-// ── THE STATUS PILL LIVES HERE ───────────────────────────────────────────────
-// Both the row and this trail render a status, and two private class records
-// is how a state ends up amber in the list and grey in the history. The history
-// is the lower-level of the two modules (the list imports it, never the other
-// way), so the record lives here and the list takes it.
-// ─────────────────────────────────────────────────────────────────────────────
+// Every write appends an event server-side; this reads them. The status colours live here (the list imports this).
 
-/**
- * One colour per state. Semantic, and in step with the goals palette: blue is
- * work in flight, emerald is settled, amber is "somebody has to do something",
- * muted is "nothing exists yet".
- *
- * Three additions since: GREEN for made (it exists, and is the step before
- * settled - so green next to emerald), ORANGE for sent back, RED for discarded.
- *
- * ── WHY DELIVERED IS NO LONGER `primary` ─────────────────────────────────────
- * `primary` is the brand colour, which says "this is ours", not "this is done".
- * It also left made and discarded reading as the only two states with no colour
- * opinion at all, on a row where the colour is the first thing looked at.
- *
- * MUST stay in step with DELIVERABLE_STATUS_COLORS in lib/constants.ts, which is
- * the same seven for the portal. A row that is green on the client's screen and
- * purple on the team's is the same row telling two stories.
- */
+/** Must stay in step with DELIVERABLE_STATUS_COLORS in lib/constants.ts (the portal's copy). */
 export const DELIVERABLE_STATUS_CHIP: Record<DeliverableStatus, string> = {
   PLANNED: "bg-muted text-muted-foreground",
   IN_PROGRESS: "bg-blue-500/12 text-blue-500",
   DELIVERED: "bg-green-500/12 text-green-500",
   ACCEPTED: "bg-emerald-500/12 text-emerald-500",
-  // Orange, not amber: it sat on the same colour as STUCK below, and "the team
-  // has to redo it" and "it is blocked on somebody else" are different jobs.
+  // Orange, not amber: "redo it" is a different job from STUCK's "blocked on someone".
   REJECTED: "bg-orange-500/12 text-orange-500",
   STUCK: "bg-amber-500/12 text-amber-500",
-  // Red and struck through: the work is gone, which is worth seeing at a glance.
   DISCARDED: "bg-red-500/12 text-red-500 line-through",
 }
 
-/** The same set, as a solid dot for the trail's timeline and the tracker's legend. */
 export const DELIVERABLE_STATUS_DOT: Record<DeliverableStatus, string> = {
   PLANNED: "bg-muted-foreground/40",
   IN_PROGRESS: "bg-blue-500",
@@ -80,14 +44,7 @@ export const DELIVERABLE_STATUS_DOT: Record<DeliverableStatus, string> = {
   DISCARDED: "bg-red-500",
 }
 
-/**
- * The same five again as chart fills.
- *
- * Charts cannot take a Tailwind class, and a donut whose slices do not match
- * the pills beside them is a second colour language to learn. Muted keeps the
- * CSS variable so it follows the theme; the rest are the literal palette
- * values those classes compile to.
- */
+/** Chart fills: the literal values of the classes above (charts can't take Tailwind); muted stays a CSS var. */
 export const DELIVERABLE_STATUS_FILL: Record<DeliverableStatus, string> = {
   PLANNED: "hsl(var(--muted-foreground) / 0.35)",
   IN_PROGRESS: "#3b82f6", // blue-500
@@ -98,7 +55,6 @@ export const DELIVERABLE_STATUS_FILL: Record<DeliverableStatus, string> = {
   DISCARDED: "#ef4444", // red-500
 }
 
-/** The same colour again as plain text, for the from → to line. */
 export const DELIVERABLE_STATUS_TEXT: Record<DeliverableStatus, string> = {
   PLANNED: "text-muted-foreground",
   IN_PROGRESS: "text-blue-500",
@@ -138,7 +94,6 @@ const EVENT_LABEL: Record<DeliverableEventRow["type"], string> = {
   LOCKED_EDIT: "Edited after the period closed",
 }
 
-/** Column names as people say them, not as the database spells them. */
 const FIELD_LABEL: Record<string, string> = {
   type: "Type",
   title: "Title",
@@ -158,7 +113,6 @@ const FIELD_LABEL: Record<string, string> = {
   verified: "Verified",
 }
 
-/** Whatever the column held, in one line. Empty reads as a dash, not "null". */
 function show(v: unknown): string {
   if (v === null || v === undefined || v === "") return "-"
   if (Array.isArray(v)) return v.length === 0 ? "-" : v.join(", ")
@@ -234,11 +188,7 @@ function EventList({ events }: { events: DeliverableEventRow[] }) {
   )
 }
 
-/**
- * One row's trail. The events query only runs while this is open - a per-row
- * fetch on a ledger of two hundred lines is two hundred requests nobody asked
- * for.
- */
+/** The events query only runs while this is open. */
 export function DeliverableHistoryDialog({
   projectId,
   row,

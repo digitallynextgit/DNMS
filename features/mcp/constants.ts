@@ -1,7 +1,4 @@
-// =============================================================================
-// AI connector (MCP + OAuth 2.1) - shared constants. See docs/mcp-connector-plan.md.
-// Client-safe: no server imports.
-// =============================================================================
+// AI connector (MCP + OAuth 2.1) constants. Client-safe: no server imports.
 
 /** OAuth scopes DNMS issues. What a token can do = these ∩ the person's own DNMS permissions. */
 export const MCP_SCOPES = {
@@ -45,10 +42,8 @@ export const LIFETIME = {
 } as const
 
 /**
- * Where tokens may be delivered. Anything else is refused before a redirect is
- * ever issued, so a DNMS token can only reach Claude, ChatGPT, or a program on
- * the person's own machine (Claude Code, Codex, MCP Inspector - loopback).
- * Add more with the MCP_ALLOWED_REDIRECT_ORIGINS env var (comma separated).
+ * Where tokens may be delivered: Claude, ChatGPT, or loopback (CLI agents). Anything else is
+ * refused before any redirect. Extend with MCP_ALLOWED_REDIRECT_ORIGINS (comma separated).
  */
 export const DEFAULT_REDIRECT_ORIGINS: readonly string[] = [
   "https://claude.ai",

@@ -1,11 +1,6 @@
 import { PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-/**
- * Resignations review skeleton: header + a stack of resignation request cards
- * (avatar + name/designation/applied lines on the left, Decline / Approve
- * buttons on the right), mirroring the real card so nothing reflows on load.
- */
 export default function Loading() {
   return (
     <div className="space-y-6">

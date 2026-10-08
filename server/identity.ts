@@ -4,47 +4,17 @@ import bcrypt from "bcryptjs"
 import { db } from "@/server/db"
 import { runUnscoped } from "@/server/tenant-context"
 
-// =============================================================================
-// Platform identity (M2).
-//
-// One `users` row per human, keyed by email. `memberships` binds a user to a
-// tenant in one capacity (STAFF or CLIENT) and points at the profile row that
-// carries their data - an `employees` row or a `client_users` row.
-//
-// ── THE DUAL-WRITE, AND WHY IT EXISTS ────────────────────────────────────────
-// The build running on the VPS right now authenticates against
-// employees.password_hash / client_users.password_hash. Those columns are still
-// there and still authoritative FOR THAT BUILD. So every password write has to
-// land in both places, or one of these happens:
-//
-//   - deploy the new build, someone changes their password, roll back → they
-//     are locked out, and so is anyone else whose password changed meanwhile
-//   - run both builds side by side during a rolling deploy → half the requests
-//     check a stale hash
-//
-// `setPassword()` below is the ONLY function permitted to write a password
-// hash. Nothing else in the codebase should call bcrypt.hash for a credential.
-// When the legacy columns are dropped in M4, this file is the single place that
-// changes.
-// =============================================================================
+// One `users` row per human (by email); `memberships` binds a user to a tenant as STAFF or CLIENT
+// and points at the profile row (employees / client_users).
+// setPassword() is the ONLY place allowed to write a password hash.
 
-/** Bcrypt cost. Matches what every existing hash in the database was made with. */
+/** Matches every existing hash in the database. */
 const BCRYPT_ROUNDS = 12
 
-/**
- * The canonical form of an email address for identity purposes.
- *
- * `users.email` has a case-SENSITIVE unique index (Postgres default), so the
- * "one address, one row" invariant is the application's to keep. Every read and
- * every write of that column goes through here.
- */
+/** `users.email` has a case-sensitive unique index, so every read and write goes through here. */
 export function normalizeEmail(raw: string): string {
   return raw.trim().toLowerCase()
 }
-
-// ---------------------------------------------------------------------------
-// Reads
-// ---------------------------------------------------------------------------
 
 export interface LoginCandidate {
   id: string
@@ -55,14 +25,7 @@ export interface LoginCandidate {
   isActive: boolean
 }
 
-/**
- * Look up a user for a sign-in attempt, WITH the password hash.
- *
- * `passwordHash` is stripped from every query by default (see server/db.ts).
- * Naming it in an explicit `select` is what opts back in - Prisma refuses
- * `select` and `omit` in the same call - and this is one of the few places
- * allowed to do it.
- */
+/** WITH the password hash - the global omit in server/db.ts is bypassed by the explicit select. */
 export async function findLoginUser(email: string): Promise<LoginCandidate | null> {
   return db.user.findUnique({
     where: { email: normalizeEmail(email) },
@@ -83,29 +46,17 @@ export interface ActiveMembership {
   tenantId: string
   tenantSlug: string
   tenantName: string
-  /** The profile row id - an employee id or a client_user id. */
+  /** An employee id or a client_user id. */
   profileId: string
-  /**
-   * The USER's flag, carried here so the token re-check does not need a second
-   * query for it. The membership query already joins `users` to test isActive.
-   */
+  /** The user's flag, carried here to save the JWT re-check a query. */
   mustChangePassword: boolean
-  /**
-   * When the credential was last written (null = never under this regime).
-   * The JWT re-check compares it against the token's issue time to revoke
-   * sessions that predate a password change. Carried here for the same
-   * no-second-query reason as mustChangePassword.
-   */
+  /** The JWT re-check revokes sessions issued before this. */
   passwordChangedAt: Date | null
 }
 
 /**
- * Every membership this user can currently sign in through.
- *
- * Filtered on all three levels that can revoke access independently: the user,
- * the membership, and the tenant. A tenant that is SUSPENDED or READ_ONLY, or
- * whose trial has lapsed, yields no membership - so a lapsed customer's staff
- * simply cannot sign in, without any code in the login path knowing about plans.
+ * Checks the user, the membership and the tenant: a suspended, read-only or lapsed-trial tenant
+ * yields no membership, so its people simply cannot sign in.
  */
 export async function loadActiveMemberships(userId: string): Promise<ActiveMembership[]> {
   return runUnscoped("sign-in: which companies does this person belong to", async () => {
@@ -115,7 +66,7 @@ export async function loadActiveMemberships(userId: string): Promise<ActiveMembe
         isActive: true,
         user: { isActive: true },
         tenant: { status: "ACTIVE" },
-        // The profile row has its own switch, and it is the one HR actually uses.
+        // The profile row's own switch is the one HR actually uses.
         OR: [{ employee: { isActive: true } }, { clientUser: { isActive: true } }],
       },
       select: {
@@ -155,12 +106,7 @@ export async function loadActiveMemberships(userId: string): Promise<ActiveMembe
   })
 }
 
-/**
- * One membership by id, re-checked against the same three switches.
- *
- * Unscoped for the same reason as above: this runs in the JWT callback, which is
- * what DECIDES the tenant. Scoping it by the tenant would be circular.
- */
+/** Unscoped: this runs in the JWT callback, which is what decides the tenant. */
 export async function loadMembershipIfStillValid(
   membershipId: string,
 ): Promise<ActiveMembership | null> {
@@ -204,7 +150,6 @@ export async function loadMembershipIfStillValid(
   })
 }
 
-/** The user id behind a profile row, for code that only holds the old identifier. */
 export async function userIdForEmployee(employeeId: string): Promise<string | null> {
   const m = await db.membership.findUnique({ where: { employeeId }, select: { userId: true } })
   return m?.userId ?? null
@@ -215,27 +160,11 @@ export async function userIdForClientUser(clientUserId: string): Promise<string 
   return m?.userId ?? null
 }
 
-// ---------------------------------------------------------------------------
-// Writes
-// ---------------------------------------------------------------------------
-
 export type PasswordTarget = { employeeId: string } | { clientUserId: string } | { userId: string }
 
 /**
- * Set someone's password. THE ONLY sanctioned way to write a credential.
- *
- * Writes `users.password_hash` AND the legacy profile column in one
- * transaction, so the two can never disagree - see the dual-write note at the
- * top of this file for why the legacy column still matters.
- *
- * Accepts whichever identifier the caller happens to hold; the others are
- * resolved from the membership. Passing `{ userId }` for someone who has both a
- * staff and a client membership updates both legacy columns, which is correct:
- * it is one password.
- *
- * @param plainPassword  Pre-validated by the caller's zod schema. Hashed here.
- * @param mustChangePassword  Defaults to false - the common case is a person
- *   choosing their own password. Pass true for an issued or admin-reset one.
+ * THE ONLY sanctioned way to write a credential. Writes `users` and the legacy profile
+ * column(s) in one transaction. Pass mustChangePassword: true for an issued or admin-reset one.
  */
 export async function setPassword(
   target: PasswordTarget,
@@ -244,7 +173,6 @@ export async function setPassword(
 ): Promise<{ userId: string }> {
   const hash = await bcrypt.hash(plainPassword, BCRYPT_ROUNDS)
 
-  // Resolve every identifier this password belongs to.
   const memberships = await db.membership.findMany({
     where:
       "userId" in target
@@ -257,16 +185,12 @@ export async function setPassword(
 
   const userId = memberships[0]?.userId ?? ("userId" in target ? target.userId : null)
   if (!userId) {
-    // No membership and no user id means the identity row was never created -
-    // a backfill gap, not a user error. Fail loudly rather than write a
-    // password that no login path will ever read.
+    // Fail loudly rather than write a password no login path will ever read.
     throw new Error(
-      `setPassword: no platform identity for ${JSON.stringify(target)} - ` +
-        `run prisma/verify-identity.ts, the M2 backfill has a gap`,
+      `setPassword: no platform identity (users row + membership) for ${JSON.stringify(target)}`,
     )
   }
 
-  // Every membership found shares this user, but be explicit rather than trust it.
   const employeeIds = memberships.filter((m) => m.employeeId).map((m) => m.employeeId as string)
   const clientUserIds = memberships
     .filter((m) => m.clientUserId)
@@ -275,12 +199,10 @@ export async function setPassword(
   await db.$transaction([
     db.user.update({
       where: { id: userId },
-      // passwordChangedAt is what revokes every session issued before this
-      // write (see the JWT re-check in server/auth.ts).
+      // passwordChangedAt revokes every session issued before this write.
       data: { passwordHash: hash, mustChangePassword, passwordChangedAt: new Date() },
     }),
-    // TRANSITIONAL: the legacy columns the deployed build still authenticates
-    // against. Delete these two updates in M4, with the columns.
+    // TRANSITIONAL: legacy columns; remove together with them.
     ...(employeeIds.length
       ? [
           db.employee.updateMany({
@@ -303,15 +225,8 @@ export async function setPassword(
 }
 
 /**
- * Create the platform identity for a NEW employee or client, or attach an
- * existing one when the address is already known to the platform.
- *
- * Idempotent: safe to call for someone who already has a membership.
- *
- * The `users` row is only created when the address is new. When it already
- * exists - the same person joining a second company, or a staff member being
- * given portal access - the existing credential is kept and a second membership
- * is added. That is the whole point of the split: one password, many roles.
+ * Idempotent. A known email keeps its existing user and credential and just gains a membership:
+ * one password, many roles.
  */
 export async function provisionIdentity(input: {
   email: string
@@ -320,7 +235,7 @@ export async function provisionIdentity(input: {
   kind: "STAFF" | "CLIENT"
   employeeId?: string
   clientUserId?: string
-  /** Hash to seed a brand-new user row with. Ignored if the user already exists. */
+  /** Ignored if the user already exists. */
   passwordHash?: string | null
   mustChangePassword?: boolean
 }): Promise<{ userId: string; membershipId: string }> {
@@ -328,9 +243,7 @@ export async function provisionIdentity(input: {
 
   const user = await db.user.upsert({
     where: { email },
-    // Do NOT overwrite an existing person's name or credential from a new
-    // profile row - they own their platform identity, not whichever record
-    // referenced them last.
+    // Never overwrite an existing person's name or credential from a new profile row.
     update: {},
     create: {
       email,
@@ -360,20 +273,8 @@ export async function provisionIdentity(input: {
 }
 
 /**
- * TRANSITIONAL: build the missing identity for someone who can prove the legacy
- * password, and return them. Delete in M4 together with the legacy columns.
- *
- * The gap this closes: between the moment the M2 migration runs and the moment
- * the new build is deployed, the OLD build is still live and can create
- * employees and client users. Those rows get no `users` row and no membership,
- * because only the new code knows to make one - so without this they would be
- * unable to sign in to the new build at all.
- *
- * It is not a weaker check. The same bcrypt comparison runs, against the same
- * hash the deployed build authenticates with; all this does is write down the
- * identity that should already have existed.
- *
- * Returns null when there is no such legacy account, or the password is wrong.
+ * TRANSITIONAL: create the missing identity for an account with only a legacy password hash, after
+ * the same bcrypt check. Null when there is no such account or the password is wrong.
  */
 export async function adoptLegacyLogin(
   rawEmail: string,
@@ -463,7 +364,6 @@ async function adoptLegacyLoginUnscoped(
   return null
 }
 
-/** Mirror a profile row's active flag onto its membership. */
 export async function setMembershipActive(
   target: { employeeId: string } | { clientUserId: string },
   isActive: boolean,

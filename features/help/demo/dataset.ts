@@ -1,14 +1,8 @@
 import { DEMO_EMAIL_DOMAIN } from "@/lib/demo"
 import type { DemoPersona } from "../types"
 
-// =============================================================================
-// The demo company - made-up people and work, used ONLY for Help screenshots.
-//
-// Read by prisma/seed-demo.ts (which creates it) and by the guides' screenshot
-// steps (which navigate it), so a name used in a guide is a name that exists.
-// Nothing here is a real person. Emails are on an undeliverable domain
-// (lib/demo.ts) and the mailer drops them.
-// =============================================================================
+// Made-up people for Help screenshots only (seeded by prisma/seed-demo.ts). Emails use an
+// undeliverable domain (lib/demo.ts) that the mailer drops.
 
 const email = (local: string) => `${local}@${DEMO_EMAIL_DOMAIN}`
 
@@ -31,7 +25,6 @@ export interface DemoPerson {
   monthlyGross: number
 }
 
-/** The four accounts the screenshots are taken as. */
 export const DEMO_PERSONAS: Record<DemoPersona, string> = {
   admin: "aarav",
   hr: "neha",

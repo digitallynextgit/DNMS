@@ -12,12 +12,8 @@ export const metadata: Metadata = {
 }
 
 /**
- * Project picker. One grant → straight into it, so most clients never see this
- * page. None → an honest empty state; a client with no grant must not see a
- * project list, an id, or any hint that other projects exist.
- *
- * Standalone rather than inside the app shell: the shell's nav is per-project,
- * and there is no project chosen yet.
+ * One grant goes straight into it; none gets an empty state with no hint that other projects
+ * exist. Standalone: the shell's nav is per-project and none is chosen yet.
  */
 export default async function PortalHomePage() {
   const session = await auth()

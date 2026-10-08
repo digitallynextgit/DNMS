@@ -21,12 +21,7 @@ import {
 } from "@/features/resignations"
 import { formatDate } from "@/lib/utils"
 
-/**
- * Placeholder card built from the real resignation card's layout (bordered
- * panel, avatar + name/designation/applied lines on the left, Decline / Approve
- * buttons on the right) rather than a flat grey bar, so nothing reflows when
- * the requests arrive.
- */
+/** Matches the real card's layout, so nothing reflows when the requests arrive. */
 function ResignationCardSkeleton() {
   return (
     <div className="bg-card flex flex-col gap-4 rounded-sm border p-4 sm:flex-row sm:items-start sm:justify-between">
@@ -61,8 +56,7 @@ export default function ResignationsPage() {
   const pagination = data?.pagination
   const authorized = data?.authorized
 
-  // Only HR/admin or managers with reports may review resignations. Send anyone
-  // else back to where they came from (falling back to the dashboard).
+  // Only HR/admin or managers with reports may review resignations.
   useEffect(() => {
     if (data && authorized === false) {
       toast.error("You don't have access to that page")
@@ -188,7 +182,6 @@ export default function ResignationsPage() {
         />
       )}
 
-      {/* Approve confirmation */}
       <ConfirmDialog
         open={!!approveTarget}
         onOpenChange={(o) => !o && setApproveTarget(null)}
@@ -203,7 +196,6 @@ export default function ResignationsPage() {
         onConfirm={confirmApprove}
       />
 
-      {/* Decline dialog with optional note */}
       <RejectReasonDialog
         open={!!rejectTarget}
         onOpenChange={(o) => !o && setRejectTarget(null)}

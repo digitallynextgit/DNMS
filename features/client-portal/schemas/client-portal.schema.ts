@@ -3,8 +3,7 @@ import { CLIENT_MODULES } from "../modules"
 
 const MODULE_KEYS = CLIENT_MODULES.map((m) => m.key) as [string, ...string[]]
 
-/** At least one module: a grant that unlocks nothing produces an account that
- *  can sign in and stare at a blank portal. */
+/** At least one module - a grant that unlocks nothing is a blank portal. */
 const modulesSchema = z.array(z.enum(MODULE_KEYS)).min(1, "Pick at least one section")
 
 export const clientPasswordSchema = z
@@ -38,9 +37,7 @@ export const productListQuerySchema = z.object({
 })
 export type ProductListQuery = z.infer<typeof productListQuerySchema>
 
-// ─── Client book (features/clients) → contacts and grants ────────────────────
-// Portal access is managed ONLY from the client's own page: the client is fixed
-// by the URL, so a grant names a project and a person, never a client.
+// Contacts and grants: the client is fixed by the URL, so a grant names a project and a person.
 
 export const clientContactCreateSchema = z.object({
   name: z.string().trim().min(2, "Name is required").max(120),

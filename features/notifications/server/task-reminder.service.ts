@@ -2,9 +2,7 @@ import "server-only"
 
 import { db } from "@/server/db"
 import { createNotification } from "@/lib/notifications"
-// Imported from the module rather than the projects barrel on purpose (as
-// my-tasks/page.tsx does): the barrel re-exports every project COMPONENT, and a
-// cron job has no business pulling those in to build one URL.
+// Direct import, not the projects barrel: the barrel pulls in every project component.
 import { projectHref } from "@/features/projects/lib/project-href"
 import { taskReminderPreferenceSchema } from "../schemas/task-reminder.schema"
 import { getTaskReminderPreferences, preferenceFor } from "./task-reminder.queries"
@@ -17,10 +15,7 @@ import {
 } from "../lib/reminder-schedule"
 import type { ReminderPreference } from "../types"
 
-/**
- * Save an employee's own settings. Upsert rather than update: the row is created
- * lazily on first save, so nothing has to seed a preference per employee.
- */
+/** Save the employee's own settings (the row is created lazily on first save). */
 export async function saveTaskReminderPreference(
   employeeId: string,
   input: unknown,
@@ -43,45 +38,23 @@ export async function saveTaskReminderPreference(
 export interface ReminderRunResult {
   /** Running tasks considered this pass. */
   scanned: number
-  /** Reminders actually delivered. */
   sent: number
   /** Spent states removed. */
   pruned: number
 }
 
-/**
- * How long a finished run's state is kept before pruning. Comfortably longer
- * than any single stretch of work, so a state is never deleted out from under a
- * task that is still running and could otherwise be re-reminded from zero.
- */
+/** How long a finished run's state is kept - longer than any stretch of work, so a running
+ *  task is never re-reminded from zero. */
 const STATE_RETENTION_DAYS = 7
 
-/**
- * The cron runs every minute, but a 7-day retention means the prune has nothing
- * to do on all but a handful of those passes. Rate-limiting it to hourly turns
- * ~1440 pointless DELETEs a day into 24. Process-local on purpose: it is a
- * throttle, not a lock, so a restart or a second instance simply prunes once
- * more than strictly needed - which costs nothing and cannot lose data.
- */
+/** Prune at most hourly (the cron runs every minute). A process-local throttle, not a lock. */
 const PRUNE_INTERVAL_MS = 3_600_000
 let lastPrunedAt = 0
 
 /**
- * Send whatever "your time on this task is nearly up" reminders are due.
- *
- * Meant to be run every minute by the cron route. Everything it needs is derived
- * from live task state, so a missed run costs at most a late reminder, never a
- * duplicated or a lost one:
- *
- *  - A task qualifies while it is IN_PROGRESS with hours booked and an assignee.
- *    Nothing is scheduled ahead of time, so re-estimating a task or handing it to
- *    someone else takes effect on the very next pass.
- *  - Progress is stored per RUN (task + inProgressSince). Pausing and restarting
- *    a task starts a fresh set of reminders, which matches what the employee
- *    sees: the clock restarted.
- *  - At most ONE reminder per task per pass, always the latest one due. A cron
- *    that was down for an hour therefore delivers a single current "you are 20
- *    minutes over" rather than replaying a schedule nobody can act on.
+ * Send the "time on this task is nearly up" reminders that are due (cron, every minute). State is
+ * derived from live tasks, so a missed run only delays a reminder. Progress is tracked per run
+ * (task + inProgressSince), and only the latest due reminder is sent per task per pass.
  */
 export async function runTaskReminders(now: Date = new Date()): Promise<ReminderRunResult> {
   const running = await db.projectTask.findMany({
@@ -106,8 +79,6 @@ export async function runTaskReminders(now: Date = new Date()): Promise<Reminder
     },
   })
 
-  // Nobody is working: the common case outside office hours, and there is
-  // nothing left to look up. One query and out.
   if (running.length === 0) {
     return { scanned: 0, sent: 0, pruned: await prune(now) }
   }
@@ -116,9 +87,7 @@ export async function runTaskReminders(now: Date = new Date()): Promise<Reminder
     Array.from(new Set(running.map((t) => t.assigneeId).filter((id): id is string => !!id))),
   )
 
-  // The open state row for each running task, in one query rather than one per
-  // task. Keyed by `${taskId}|${runStartedAt}` so a state left over from an
-  // earlier run of the same task cannot be mistaken for this one's.
+  // Open state rows for all running tasks, keyed by run so an earlier run's state can't match.
   const states = await db.taskReminderState.findMany({
     where: { taskId: { in: running.map((t) => t.id) } },
     select: { taskId: true, runStartedAt: true, sentCount: true },
@@ -149,15 +118,12 @@ export async function runTaskReminders(now: Date = new Date()): Promise<Reminder
     const alreadySent = sentByRun.get(runKey(task.id, inProgressSince)) ?? 0
     if (due <= alreadySent) continue
 
-    // Claim the reminder BEFORE sending it. Two overlapping cron passes race on
-    // the same row, and the loser's conditional update matches nothing - so the
-    // employee gets one notification, not two.
+    // Claim before sending: of two overlapping passes only one wins, so one notification.
     const claimed = await claimReminder(task.id, inProgressSince, alreadySent, due, now)
     if (!claimed) continue
 
     const minutesLeft = minutesUntil(deadline, now)
-    // A task carrying only a team still belongs to that team's project; the id
-    // stands in when the project row was not selected (no slug to prefer).
+    // A team-only task still belongs to the team's project.
     const projectId = task.project?.id ?? task.team?.projectId ?? task.projectId
 
     await createNotification({
@@ -190,11 +156,8 @@ function runKey(taskId: string, runStartedAt: Date): string {
   return `${taskId}|${runStartedAt.getTime()}`
 }
 
-/**
- * Move a run's sent counter from `expected` to `next`, returning whether this
- * caller won it. `updateMany` with `sentCount: expected` in the WHERE is the
- * whole lock: it reports 0 rows changed when another pass got there first.
- */
+/** Move a run's sent counter from `expected` to `next`; the conditional updateMany is the lock
+ *  (0 rows when another pass won). */
 async function claimReminder(
   taskId: string,
   runStartedAt: Date,
@@ -209,8 +172,7 @@ async function claimReminder(
       })
       return true
     } catch {
-      // Unique violation - a concurrent pass created the row first. Fall through
-      // to the conditional update, which will claim it only if it is still behind.
+      // Unique violation: a concurrent pass created the row; the conditional update decides.
     }
   }
 

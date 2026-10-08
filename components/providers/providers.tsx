@@ -15,25 +15,15 @@ export function Providers({
   session,
 }: {
   children: React.ReactNode
-  /**
-   * Server-resolved session. Without it, next-auth fires a client-side
-   * GET /api/auth/session on mount - and until that lands, `usePermissions().can()`
-   * returns false for everything, so every permission-gated button (nav items,
-   * "Add Employee", edit/delete icons) renders ABSENT and then pops in. Passing it
-   * makes permissions correct on the very first paint.
-   */
+  /** Server-resolved session, so permission-gated UI is right on first paint (no pop-in). */
   session: Session | null
 }) {
   const pathname = usePathname()
-  // The public marketing site is dark-only. `forcedTheme` pins the class for
-  // these routes without writing to storage, so the user's own dashboard
-  // preference survives a trip to the homepage and back.
+  // Marketing is dark-only; forcedTheme doesn't overwrite the user's stored dashboard preference.
   const forcedTheme = isMarketingPath(pathname) ? "dark" : undefined
 
   return (
     <SessionProvider session={session}>
-      {/* Dev-only: drops hydration warnings caused by browser extensions
-          (Bitdefender's bis_skin_checked et al). Our own mismatches still log. */}
       <ExtensionHydrationFilter />
       <ThemeProvider
         attribute="class"

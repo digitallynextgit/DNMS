@@ -7,32 +7,13 @@ import { requireAnyRole } from "@/server/action-guard"
 import { createAuditLog } from "@/lib/audit"
 import { ok, runAction, serialize, type ActionResult } from "@/server/action-result"
 
-// =============================================================================
-// Leave allocation & monthly accrual
-// =============================================================================
-// Entitlement comes from the LeavePolicy matrix (employmentType -> leaveType ->
-// daysPerYear), falling back to LeaveType.maxDaysPerYear when no row exists.
-//
-// `allocated` on a balance = the annual entitlement (the cap; HR may override it
-// and that override sticks). `accrued` = how much of that has become available so
-// far this year. Availability = accrued + carried - used - pending.
-//
-//   - allocateFromPolicy(): seeds/refreshes `allocated` from policy. Runs on
-//     employee create, annual rollover, and the manual HR "re-sync". Overwrites
-//     `allocated`, so it is an explicit action, never the routine monthly job.
-//   - recomputeAccrued(): updates only `accrued` from the existing `allocated`.
-//     This is the idempotent, self-healing monthly job; it never touches
-//     `allocated`, so HR overrides survive.
-//
-// Accrual starts once probation is COMPLETED (no leave accrues during probation).
-// All paid types - including Earned Leave - begin accruing right at probation end,
-// whether probation is 3 or 6 months. Contract staff accrue after 6 months service.
-// Accrued days are rounded to the nearest half-day (the smallest takeable unit).
-// =============================================================================
+// Entitlement comes from LeavePolicy (employmentType -> leaveType -> daysPerYear), else
+// LeaveType.maxDaysPerYear. `allocated` = the annual cap (HR overrides stick); `accrued` = what is
+// available so far. allocateFromPolicy() overwrites `allocated` (create, rollover, HR re-sync);
+// recomputeAccrued() only updates `accrued` (idempotent monthly job), so overrides survive.
+// Nothing accrues during probation; EL starts 6 months after it ends. Days round to half-days.
 
-// Admins (and the hidden admin_ watch account) don't take leave, so they're
-// excluded from allocation, monthly accrual, and rollover - no balances are
-// ever created for them.
+// Admins (and the hidden admin_ account) don't take leave - no balances are ever created.
 const LEAVE_EXEMPT_ROLES = [SYSTEM_ROLES.ADMIN_, SYSTEM_ROLES.ADMIN]
 const NOT_LEAVE_EXEMPT = {
   NOT: { employeeRoles: { some: { role: { name: { in: LEAVE_EXEMPT_ROLES } } } } },
@@ -45,12 +26,7 @@ type EmployeeAccrualInfo = {
   probationMonths: number
 }
 
-/**
- * When the employee completes probation - no leave accrues before this date.
- * Mirrors the canonical probation rule (features/employees/probation.ts):
- * confirmed early -> the recorded confirmation date; otherwise joining +
- * probationMonths.
- */
+/** Probation end: the confirmation date if confirmed early, else joining + probationMonths. */
 function probationCompletion(emp: EmployeeAccrualInfo): Date | null {
   if (emp.confirmationDate) return emp.confirmationDate
   if (emp.dateOfJoining) {
@@ -70,9 +46,7 @@ function accrualStartDate(emp: EmployeeAccrualInfo): Date | null {
     d.setMonth(d.getMonth() + 6)
     return d
   }
-  // Everyone else: leave accrues once probation is COMPLETED - including Earned
-  // Leave, which now starts right at probation end (3- or 6-month probation
-  // alike), not a further 6 months later.
+  // Everyone else: once probation is completed.
   const completion = probationCompletion(emp)
   return completion ?? emp.dateOfJoining
 }
@@ -104,12 +78,8 @@ function addMonths(d: Date, n: number): Date {
   return x
 }
 
-/**
- * Eligible months in `year` = from accrual start to year-end (Dec). Used to
- * PRORATE the annual entitlement for someone eligible only part of the year, e.g.
- * probation ending 01 Jun → eligible Jun-Dec = 7 months → 7/12 of the entitlement.
- * Confirmed for the whole year → 12.
- */
+/** Eligible months from accrual start to December, to pro-rate the entitlement
+ *  (probation ending 01 Jun -> 7/12). */
 export function eligibleMonthsInYear(year: number, startDate: Date | null): number {
   let startMonth = 1
   if (startDate) {
@@ -120,12 +90,8 @@ export function eligibleMonthsInYear(year: number, startDate: Date | null): numb
   return Math.max(0, Math.min(12, 12 - startMonth + 1))
 }
 
-/**
- * Days that should have accrued so far: the (already prorated) annual allocation
- * spread evenly over the months the employee is eligible this year. Upfront types
- * make the whole allocation available at once; monthly types release
- * allocated / eligibleMonths per elapsed month, capped at the allocation.
- */
+/** Days accrued so far: upfront types get the whole allocation; monthly types release
+ *  allocated / eligibleMonths per elapsed month, capped at the allocation. */
 function accruedTarget(
   accrualMethod: string,
   allocated: number,
@@ -146,10 +112,7 @@ function entitlementFor(
   return fromPolicy !== undefined ? fromPolicy : type.maxDaysPerYear
 }
 
-// ─── Shared policy context ───────────────────────────────────────────────────
-// The leave-type table and the policy matrix are the SAME for every employee, so
-// a bulk run (resync / rollover) loads them ONCE and passes them down instead of
-// re-reading them per employee.
+// Leave types and the policy matrix are the same for every employee, so bulk runs load them once.
 type LeaveTypeRow = {
   id: string
   code: string
@@ -164,7 +127,6 @@ export type AccrualContext = {
   policyByEmploymentType: Map<string, Map<string, number>>
 }
 
-/** Load the leave types + full policy matrix once, for a bulk accrual run. */
 export async function loadAccrualContext(): Promise<AccrualContext> {
   const [types, policies] = await Promise.all([
     db.leaveType.findMany({
@@ -189,14 +151,8 @@ export async function loadAccrualContext(): Promise<AccrualContext> {
 
 type EmployeePolicyInfo = EmployeeAccrualInfo & { gender: string | null }
 
-/**
- * Seed/refresh an employee's balances for a year from the policy matrix.
- * Sets `allocated` (entitlement) and `accrued` (pro-rated by elapsed months).
- * Skips types with zero entitlement (unlimited / not granted).
- *
- * `opts` lets a bulk caller supply the already-loaded employee row and the
- * shared leave-type/policy context so this does no per-employee lookup reads.
- */
+/** Seed/refresh an employee's balances for a year from the policy matrix (zero-entitlement types
+ *  are removed). Bulk callers pass `opts` to skip the per-employee lookups. */
 export async function allocateFromPolicy(
   employeeId: string,
   year: number,
@@ -221,16 +177,13 @@ export async function allocateFromPolicy(
   const policyMap =
     ctx.policyByEmploymentType.get(employee.employmentType) ?? new Map<string, number>()
 
-  // No paid leave accrues until accrual begins (probation completed; contract
-  // staff after 6 months). While accrual hasn't started, the employee is "on
-  // probation" and only unpaid leave (e.g. LWP) applies.
+  // Until accrual starts the employee counts as on probation: unpaid leave only.
   const start = accrualStartDate(employee)
   const onProbation = !!start && new Date() < start
-  // Earned Leave unlocks only 6 months AFTER probation ends (policy G).
+  // Earned Leave starts 6 months after probation ends.
   const elStart = start ? addMonths(start, 6) : null
 
-  // Existing rows for this employee/year, read once so the writes below can be
-  // batched (was: an upsert or deleteMany PER leave type).
+  // Read existing rows once so the writes below can be batched.
   const existing = await db.leaveBalance.findMany({
     where: { employeeId, year },
     select: { id: true, leaveTypeId: true, allocated: true, accrued: true },
@@ -253,20 +206,14 @@ export async function allocateFromPolicy(
   let count = 0
   for (const type of types) {
     const entitlement = entitlementFor(type, policyMap)
-    // EL accrues from probation + 6 months; every other type from probation end.
     const typeStart = type.code === "EL" ? elStart : start
     const eligibleMonths = eligibleMonthsInYear(year, typeStart)
     const monthsElapsed = monthsAccrued(year, typeStart)
-    // Prorate the annual entitlement to the months the employee is eligible this
-    // year (probation ending 01 Jun → 7/12; confirmed all year → full).
     const allocated = roundToHalf((entitlement / 12) * eligibleMonths)
-    // Maternity Leave is granted to female employees only.
     const maternityBlocked = type.code === "ML" && employee.gender !== "FEMALE"
-    // Paid leave is not granted during probation - only unpaid leave.
     const paidBlockedOnProbation = type.isPaid && onProbation
     if (allocated <= 0 || maternityBlocked || paidBlockedOnProbation) {
-      // Not granted (0 entitlement / not yet eligible this year; maternity for a
-      // non-female; any paid leave during probation) - remove any lingering row.
+      // Not granted - remove any lingering row.
       toDelete.push(type.id)
       continue
     }
@@ -284,7 +231,6 @@ export async function allocateFromPolicy(
         carried: 0,
       })
     } else if (row.allocated !== allocated || row.accrued !== accrued) {
-      // Same result as the old unconditional upsert-update, minus the no-op writes.
       toUpdate.push({ id: row.id, allocated, accrued })
     }
     count++
@@ -307,8 +253,7 @@ export async function allocateFromPolicy(
   }
   if (writes.length > 0) await db.$transaction(writes)
 
-  // Never let accrued fall below what's already used. A bulk caller passes
-  // `skipUsedFloor` and runs the identical statement ONCE for all its employees.
+  // Never let accrued fall below used (bulk callers do this once via applyUsedFloor).
   if (!opts?.skipUsedFloor) {
     await db.$executeRaw`UPDATE "leave_balances" SET "accrued" = "used" WHERE "employee_id" = ${employeeId} AND "year" = ${year} AND "accrued" < "used"`
   }
@@ -321,9 +266,7 @@ async function applyUsedFloor(employeeIds: string[], year: number): Promise<void
   await db.$executeRaw`UPDATE "leave_balances" SET "accrued" = "used" WHERE "year" = ${year} AND "accrued" < "used" AND "employee_id" IN (${Prisma.join(employeeIds)})`
 }
 
-/** Update only `accrued` from the current `allocated` (idempotent monthly job).
- *  Pass `preloaded` to skip the per-employee re-fetch when the caller already has
- *  the accrual fields (PERF-10 - the monthly cron loops over every employee). */
+/** Update only `accrued` from the current `allocated` (idempotent monthly job). */
 export async function recomputeAccrued(
   employeeId: string,
   year: number,
@@ -354,8 +297,7 @@ export async function recomputeAccrued(
 
   let count = 0
   for (const b of balances) {
-    // Drop balances that shouldn't exist: maternity for a non-female, or any
-    // paid leave while still on probation (only unpaid leave applies then).
+    // Drop balances that shouldn't exist (ML for non-female, paid leave during probation).
     if (
       (b.leaveType.code === "ML" && employee.gender !== "FEMALE") ||
       (b.leaveType.isPaid && onProbation)
@@ -386,8 +328,6 @@ export async function recomputeAccrued(
 export async function runMonthlyAccrual(
   year: number,
 ): Promise<{ employees: number; updated: number }> {
-  // Select the accrual fields up front and hand them to recomputeAccrued so it
-  // does not re-query each employee (PERF-10).
   const employees = await db.employee.findMany({
     where: { isActive: true, status: { in: ["ACTIVE", "ON_LEAVE"] }, ...NOT_LEAVE_EXEMPT },
     select: {
@@ -409,7 +349,6 @@ export async function rolloverYear(
   toYear: number,
 ): Promise<{ employees: number; carried: number }> {
   const fromYear = toYear - 1
-  // Leave types + policy matrix are employee-independent - load them once.
   const [employees, ctx] = await Promise.all([
     db.employee.findMany({
       where: { isActive: true, status: { in: ["ACTIVE", "ON_LEAVE"] }, ...NOT_LEAVE_EXEMPT },
@@ -448,13 +387,10 @@ export async function rolloverYear(
   return { employees: employees.length, carried: carriedCount }
 }
 
-// ─── Public action: HR "re-sync balances" ────────────────────────────────────
 export async function resyncLeaveBalances(year?: number): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireAnyRole([SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN])
     const resolvedYear = year ?? new Date().getFullYear()
-    // Employees + the (employee-independent) leave types & policy matrix are read
-    // ONCE; allocateFromPolicy then does zero lookup queries per employee.
     const [employees, ctx] = await Promise.all([
       db.employee.findMany({
         where: { isActive: true, status: { in: ["ACTIVE", "ON_LEAVE"] }, ...NOT_LEAVE_EXEMPT },
@@ -477,7 +413,6 @@ export async function resyncLeaveBalances(year?: number): Promise<ActionResult<u
         skipUsedFloor: true,
       })
     }
-    // One `accrued >= used` floor pass for every employee we just touched.
     await applyUsedFloor(
       employees.map((e) => e.id),
       resolvedYear,

@@ -20,14 +20,7 @@ import type { DateRangeValue } from "@/components/shared/date-range-field"
 import { apiFetch } from "@/lib/api-fetch"
 import { formatDate } from "@/lib/utils"
 
-// =============================================================================
-// Deliverables slides
-//
-// Picks WHAT the deck is about; the server decides what the caller may pick.
-// A team manager sees their team and its members, an account manager every
-// team on the projects they own, an admin everything, and a plain member gets
-// no pickers at all - the deck is theirs and only theirs.
-// =============================================================================
+// The server decides what each role may pick; a plain member gets no pickers (the deck is theirs).
 
 type Role = "admin" | "account_manager" | "team_manager" | "member"
 
@@ -142,7 +135,6 @@ function ReportForm({
   const data = scope.data
   const role = data?.role ?? "member"
 
-  // Scope label for current view
   const scopeDesc =
     employeeId && filterSummary?.personLabel && filterSummary.personLabel !== "Whole team"
       ? `Person: ${filterSummary.personLabel}`
@@ -222,7 +214,6 @@ function ReportForm({
         </div>
       ) : (
         <div className="space-y-4 py-2">
-          {/* Summary of current active view */}
           <div className="bg-muted/40 space-y-2 rounded-lg border p-3.5 text-xs">
             <div className="text-foreground text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
               Current View to Export

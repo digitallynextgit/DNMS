@@ -34,7 +34,6 @@ export function AttendanceFilters({
 
   return (
     <FilterToolbar hasActiveFilters={hasActiveFilters} onClear={onClear} className="items-end">
-      {/* Employee search */}
       <div className="flex max-w-xs min-w-[180px] flex-1 flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs">Employee</Label>
         <SearchInput
@@ -44,7 +43,6 @@ export function AttendanceFilters({
         />
       </div>
 
-      {/* Date from */}
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs">From</Label>
         <DateField
@@ -55,7 +53,6 @@ export function AttendanceFilters({
         />
       </div>
 
-      {/* Date to */}
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs">To</Label>
         <DateField
@@ -66,7 +63,6 @@ export function AttendanceFilters({
         />
       </div>
 
-      {/* Status filter */}
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs">Status</Label>
         <FilterSelect

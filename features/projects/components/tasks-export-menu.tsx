@@ -16,17 +16,7 @@ import { exportToCsv } from "@/lib/export-csv"
 import { exportToXlsx } from "@/lib/export-xlsx"
 import { TASK_STATUS_LABELS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Taking the task list out of the app.
-//
-// EXPORTS WHAT IS ON SCREEN, filters and all. An export that quietly ignored
-// the project and status filters would hand somebody a different answer from
-// the one they were looking at, which is the kind of thing people only notice
-// after they have sent it on.
-//
-// The row shape is declared structurally rather than imported, so this stays
-// usable from any task list without dragging that page's model along with it.
-// ─────────────────────────────────────────────────────────────────────────────
+// Exports exactly what's on screen, filters and all.
 
 /** The fields the export reads. A page's own task type satisfies it as-is. */
 export interface ExportableTask {
@@ -147,16 +137,12 @@ export function TasksExportMenu({
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuItem onClick={() => void run("xlsx")} className="flex-col items-start gap-0.5">
           <span>Excel (.xlsx)</span>
-          {/* "Header frozen" was untrue under SheetJS, which silently ignores
-              freeze panes; it is true again now the writer is ExcelJS. */}
           <span className="text-muted-foreground text-[11px]">Sized columns, header frozen</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => void run("csv")} className="flex-col items-start gap-0.5">
           <span>CSV</span>
           <span className="text-muted-foreground text-[11px]">Opens anywhere</span>
         </DropdownMenuItem>
-        {/* Says what is in the file BEFORE it is opened, because the filters
-            above are the difference between 6 rows and 340. */}
         <p className="text-muted-foreground border-t px-2 py-1.5 text-[11px]">
           {tasks.length} {tasks.length === 1 ? "task" : "tasks"} - what the filters show
         </p>

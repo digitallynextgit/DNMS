@@ -1,20 +1,6 @@
-// =============================================================================
-// Probation rules (Digitally Next)
-//
-// An employee is on probation until `probationMonths` after their joining date.
-// Admin controls two fields (see Employee model):
-//   - onProbation     (toggle)  : ON = apply the date rule, OFF = confirmed early
-//   - probationMonths (3 | 6)   : length of the probation window
-//
-// Effective status = onProbation AND today < (dateOfJoining + probationMonths).
-//
-// During probation an employee LOSES (per BFG/DN policy):
-//   - Leave: all leave types are blocked (no CL/SL/EL/PL/ML/Short).
-//   - WFH:   Tier 1 - blocked except emergencies needing Manager + HR approval.
-// Earned Leave additionally unlocks only 6 months AFTER probation ends.
-//
-// Pure functions - safe to import in both server and client components.
-// =============================================================================
+// Probation rules (pure, client-safe). On probation = onProbation AND today < joining +
+// probationMonths. During probation all leave is blocked and WFH needs Manager + HR approval;
+// Earned Leave unlocks 6 months after probation ends.
 
 // 0 = confirmed immediately (no probation window: end date == joining date).
 export const PROBATION_MONTHS_OPTIONS = [0, 1, 2, 3, 4, 5, 6] as const
@@ -36,7 +22,6 @@ export function getProbationEndDate(emp: ProbationInput): Date | null {
   return end
 }
 
-/** Whether the employee is currently on probation. */
 export function isOnProbation(emp: ProbationInput, now: Date = new Date()): boolean {
   if (!emp.onProbation) return false // admin toggled off → confirmed
   const end = getProbationEndDate(emp)

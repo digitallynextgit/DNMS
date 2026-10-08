@@ -7,9 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
-// A chip based list editor. Replaces the "one per line" textareas, which gave no
-// feedback about what was actually saved and silently kept blank lines.
-// Type and press Enter (or comma) to add, click the x to remove.
+// Chip list editor: Enter or comma adds, x removes.
 
 export function TagListInput({
   values,

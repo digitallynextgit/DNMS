@@ -1,10 +1,6 @@
 "use client"
 
-/**
- * The small pieces the Repository's table view and card grid both draw: the
- * type icon set, the tag chip, the person cell and the storage badge. Kept
- * here so neither view owns them and the two stay identical.
- */
+/** Pieces shared by the Repository's table and card views so the two stay identical. */
 import { FileText, Folder, Link2, Sheet as SheetIcon } from "lucide-react"
 
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -13,7 +9,7 @@ import { cn } from "@/lib/utils"
 import { DOC_TAG_LABEL, DOC_TAG_STYLE, type DocTag } from "../../lib/doc-tag"
 import type { FileType, Person, UnifiedFile } from "../../lib/file-row"
 
-/** Icon + tint per type; the label lives in `lib/file-row.ts` (`TYPE_LABEL`). */
+/** Labels are `TYPE_LABEL` in ../lib/file-row.ts. */
 export const TYPE_META: Record<FileType, { icon: React.ElementType; tint: string }> = {
   doc: { icon: FileText, tint: "text-blue-500" },
   sheet: { icon: SheetIcon, tint: "text-emerald-500" },
@@ -47,8 +43,7 @@ export function TagChip({ tag, muted }: { tag: DocTag; muted?: boolean }) {
       className={cn(
         "inline-flex shrink-0 items-center rounded-sm px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
         DOC_TAG_STYLE[tag],
-        // A derived tag is shown at reduced weight: it is a guess about a file
-        // we do not own a row for, and it cannot be corrected here.
+        // A derived tag is a guess we can't correct here, so it's dimmed.
         muted && "opacity-60",
       )}
     >
@@ -63,8 +58,7 @@ export function PersonCell({ p, compact }: { p: Person | null; compact?: boolean
   return (
     <span className="flex min-w-0 items-center gap-2" title={p.name}>
       {p.photo ? (
-        // Profile photos come from our own storage with per-user URLs, so a
-        // plain img is fine here.
+        // Our own storage with per-user URLs, so a plain img is fine.
         // eslint-disable-next-line @next/next/no-img-element
         <img src={p.photo} alt="" className={cn(size, "shrink-0 rounded-full object-cover")} />
       ) : (

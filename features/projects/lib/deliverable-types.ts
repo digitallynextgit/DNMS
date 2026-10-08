@@ -1,19 +1,5 @@
-// =============================================================================
-// What KIND of thing a deliverable is - "Video", "Reel", "Product page".
-//
-// FREE TEXT WITH A MEMORY, not an enum. Teams here are ad-hoc names per project
-// (WEB, DESIGN, VIDEO, SMO, MAP, CONTENT, MVP) and the video team's vocabulary
-// is nothing like the web team's. A fixed list would need a migration every
-// time a team invented a word for what it makes, and the half-answer ("Other")
-// is exactly the value that makes a count untrustworthy.
-//
-// So: a team-aware STARTER set offered as type-ahead, plus whatever the project
-// already uses, and anything typed is accepted. The server snaps a typed value
-// onto an existing type's casing when they differ only by case (see
-// deliverables.service.ts), so "reel" and "Reel" cannot split a count.
-//
-// Pure and dependency-free: the form and the server share it.
-// =============================================================================
+// Deliverable type is free text, not an enum: teams invent their own words. A team-aware starter
+// set is offered as type-ahead; the server snaps case-only differences onto the existing type.
 
 export const MAX_TYPE_LENGTH = 40
 export const MAX_QUANTITY = 999
@@ -50,27 +36,14 @@ const BY_TEAM: { match: RegExp; types: string[] }[] = [
 /** Offered on every team, after the team-specific ones. */
 export const GENERIC_TYPES = ["Asset", "Document", "Report", "Other"] as const
 
-/**
- * The starter list for a team - its own vocabulary first, then the generic
- * tail. A team with no recognisable name gets the tail alone; the type-ahead
- * still fills in from what the project already uses.
- */
 export function suggestTypes(teamName?: string | null): string[] {
   const own = teamName ? (BY_TEAM.find((t) => t.match.test(teamName))?.types ?? []) : []
   return [...own, ...GENERIC_TYPES.filter((g) => !own.includes(g))]
 }
 
-/**
- * Does work on this team normally produce something you can point at?
- *
- * Decides the default for a new task's `producesOutput`: production teams yes,
- * an unrecognised team name yes (the safe default - a nudge costs nothing),
- * adhoc work with no team no. Only a default; every task can flip it.
- */
+/** Default for a new task's `producesOutput`: any named team yes, no team (adhoc) no. */
 export function expectsOutput(teamName?: string | null): boolean {
-  // Every named team defaults to "yes": the cost of a wrong yes is one nudge
-  // somebody skips; the cost of a wrong no is output that never gets counted.
-  // The per-team vocabulary above still shapes the SUGGESTIONS, not this.
+  // A wrong yes costs one skipped nudge; a wrong no leaves output uncounted.
   return Boolean(teamName)
 }
 

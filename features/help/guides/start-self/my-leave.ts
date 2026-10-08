@@ -1,11 +1,7 @@
 import { CalendarDays } from "lucide-react"
 import type { HelpAction, HelpGuide } from "../../types"
 
-/**
- * In an open date picker (react-day-picker in a popover): go to next month, so
- * every day is in the future whenever the shots are taken, and click its first
- * Monday-Friday that can be picked (grid columns 2-6, weeks start on Sunday).
- */
+/** Next month (so every day is future), then its first pickable Mon-Fri (grid columns 2-6). */
 const pickWeekdayNextMonth: HelpAction[] = [
   { click: { role: "button", name: "Go to the Next Month" } },
   {
@@ -80,8 +76,7 @@ export const myLeaveGuide: HelpGuide = {
             id: "my-leave-apply-form",
             as: "employee",
             path: "/leave/apply",
-            // A filled-in form, so the email preview shows a real leave type,
-            // date and day count instead of "0 days".
+            // A filled-in form, so the email preview shows real values instead of "0 days".
             actions: [
               { click: { label: "Leave Type" } },
               { click: { role: "option", name: "Casual Leave" } },

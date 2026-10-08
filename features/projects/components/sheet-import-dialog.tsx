@@ -40,19 +40,8 @@ import {
   type WorkbookIndexEntry,
 } from "../lib/sheet-types"
 
-// =============================================================================
-// Import rows into project sheets from a CSV / Excel file or a Google Sheet.
-//
-// Everything is parsed in the browser (xlsx handles all three; a Google Sheet
-// is first exported to .xlsx by the server). Two modes:
-//   • ALL TABS  - every workbook tab becomes a TAB inside one sheet (the open
-//                 one, or a new sheet named after the file), with the tab's
-//                 headers as its columns. The default for a multi-tab file,
-//                 because a calendar workbook IS its tabs.
-//   • ONE TAB   - a chosen tab is mapped column-by-column into the open tab,
-//                 with a preview.
-// Rows are appended in batches through the same normaliser a typed edit uses.
-// =============================================================================
+// Parsed in the browser (a Google Sheet is first exported to .xlsx by the server). ALL TABS makes
+// every file tab a tab of one sheet; ONE TAB maps a chosen tab column-by-column into the open tab.
 
 type Raw = string | number | boolean | Date | null
 interface Tab {
@@ -60,29 +49,15 @@ interface Tab {
   rows: Raw[][]
 }
 type Mode = "all" | "one"
-/** Where the caller came from - see the `intent` prop. */
 type Intent = "new-tab" | "new-sheet"
 type Target = "current" | "new"
 
-/**
- * Create the workbook as another MONTH of a calendar that already exists,
- * rather than as a new sheet of its own.
- *
- * A calendar is one NAME with one edition per month, so October of
- * "SEO_AEO_GEO_Calendar" must be created under the SAME name with a different
- * periodMonth. That is why `name` is used verbatim here and the usual
- * "… (2)" de-duplication is skipped: suffixing would file October as a
- * different calendar, which is the bug this exists to avoid.
- */
+/** Create as another month of an existing calendar; `name` is used verbatim (no "(2)") so it stays one calendar. */
 interface CreateAs {
-  /** The calendar's name, used EXACTLY as given - never suffixed. */
   name: string
   /** First of the month: "2026-10-01". */
   periodMonth: string
-  /**
-   * Carry the TEAM PLAN over from an existing edition. Never the structure -
-   * the whole point of arriving by file is that the file brings its own.
-   */
+  /** Carry over only the team plan - the file brings its own structure. */
   copyFrom?: { workbookId: string; teamPlan: boolean } | null
 }
 
@@ -133,8 +108,7 @@ async function parseWorkbook(buf: ArrayBuffer): Promise<Tab[]> {
 const pad = (n: number) => String(n).padStart(2, "0")
 const isoDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
-/** Dates arrive as Date objects (xlsx with cellDates), "2026-03-01", or
- *  "01/03/2026" - day first, this app is en-GB. */
+/** Dates arrive as Date objects, "2026-03-01", or "01/03/2026" (day first: this app is en-GB). */
 function toIsoDate(v: Raw): string | null {
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : isoDate(v)
   if (v === null || v === "" || typeof v === "boolean") return null
@@ -166,8 +140,7 @@ function coerce(
   people: PeopleIndex,
 ): { value: string | number | boolean | null; issue?: string } {
   if (raw === null || raw === undefined) return { value: null }
-  // A Date landing in a text-ish column reads better as a date than as
-  // "Tue Mar 01 2026 00:00:00 GMT…".
+  // A Date in a text-ish column reads better as a date than as "Tue Mar 01 2026 00:00:00 GMT…".
   const v: Raw = raw instanceof Date && type !== "DATE" ? isoDate(raw) : raw
   switch (type) {
     case "NUMBER": {
@@ -203,7 +176,6 @@ function coerce(
   }
 }
 
-/** For a column created or claimed by the import: what the values look like. */
 function guessType(samples: Raw[]): SheetColumnType {
   const vals = samples.filter((s) => s !== null && s !== "")
   if (vals.length === 0) return "TEXT"
@@ -232,7 +204,6 @@ function guessType(samples: Raw[]): SheetColumnType {
   return vals.some((s) => typeof s === "string" && s.length > 80) ? "LONG_TEXT" : "TEXT"
 }
 
-/** Google Sheets URL or bare id -> file id. */
 function driveIdFrom(input: string): string | null {
   const s = input.trim()
   const m = s.match(/\/spreadsheets\/d\/([\w-]+)/)
@@ -240,7 +211,6 @@ function driveIdFrom(input: string): string | null {
   return /^[\w-]{20,}$/.test(s) ? s : null
 }
 
-/** A tab's header row and data rows, given the header setting. */
 function split(tab: Tab, hasHeader: boolean): { headers: Raw[]; rows: Raw[][] } {
   const width = tab.rows.reduce((w, r) => Math.max(w, r.length), 0)
   const headers = Array.from({ length: width }, (_, i) =>
@@ -249,11 +219,7 @@ function split(tab: Tab, hasHeader: boolean): { headers: Raw[]; rows: Raw[][] } 
   return { headers, rows: hasHeader ? tab.rows.slice(1) : tab.rows }
 }
 
-/**
- * Default mapping: a header that matches a sheet column by name goes there;
- * anything else takes the next unnamed default column (A, B, C…) and will
- * rename it; once those run out, a new column is created.
- */
+/** A header matching a column name maps there; else the next unnamed default column (renamed); else a new one. */
 function autoMap(headers: Raw[], columns: SheetColumn[]): Record<number, string> {
   const used = new Set<string>()
   const map: Record<number, string> = {}
@@ -278,7 +244,6 @@ function autoMap(headers: Raw[], columns: SheetColumn[]): Record<number, string>
   return map
 }
 
-/** "calendar-v3.xlsx" -> "calendar-v3". */
 const stripExt = (name: string) => name.replace(/\.[^.]+$/, "").trim()
 
 export function SheetImportDialog({
@@ -297,22 +262,13 @@ export function SheetImportDialog({
   projectId: string
   /** The open sheet (workbook of tabs); null when the project has none yet. */
   workbook: SheetWorkbook | null
-  /** The open tab; null when the sheet has none. */
   sheet: ProjectSheet | null
   /** Employee id -> display name, the grid's own map for PERSON cells. */
   people: Map<string, string>
-  /**
-   * Why it was opened, which decides where the file lands.
-   *
-   * From the tab strip ("new-tab") or the New sheet dialog ("new-sheet") the
-   * answer is always NEW TABS - mapping a single-tab file into the tab you are
-   * standing on would overwrite the thing you meant to add to. Unset is the
-   * plain Import button, which keeps its own judgement.
-   */
+  /** From the tab strip or New sheet dialog the file lands as new tabs; unset = the Import button. */
   intent?: Intent
   /** Create the workbook as a MONTH of an existing calendar - see CreateAs. */
   createAs?: CreateAs
-  /** Fired with the new workbook's id once `createAs` has made it. */
   onCreated?: (workbookId: string) => void
 }) {
   return (
@@ -339,7 +295,6 @@ export function SheetImportDialog({
 interface Progress {
   done: number
   total: number
-  /** Set in ALL TABS mode: which tab is being written. */
   tab?: number
   tabs?: number
 }
@@ -372,22 +327,13 @@ function Body({
   const [sourceName, setSourceName] = useState<string | null>(null)
   const [tabs, setTabs] = useState<Tab[] | null>(null)
   const [mode, setMode] = useState<Mode>("one")
-  // Creating a month from a file has exactly one destination: the month being
-  // made. There is no "current" to add to - the open calendar is September, and
-  // adding October's tabs to it is the opposite of what was asked.
+  // Creating a month from a file has one destination: the month being made.
   const [target, setTarget] = useState<Target>(
     createAs || intent === "new-sheet" || !workbook ? "new" : "current",
   )
   const [newSheetName, setNewSheetName] = useState("")
   const [tabIndex, setTabIndex] = useState(0)
-  /**
-   * Which tabs of the file to bring in, by index.
-   *
-   * A workbook is rarely all wanted: a calendar file carries a notes tab, a
-   * lookup tab, last quarter's sheet. Importing the lot and deleting the rest
-   * afterwards is worse than choosing here, and until now that was the only
-   * option the dialog offered.
-   */
+  /** Which file tabs to bring in, by index (calendar files often carry notes and lookup tabs). */
   const [chosen, setChosen] = useState<Set<number>>(new Set())
   const [hasHeader, setHasHeader] = useState(true)
   const [mapping, setMapping] = useState<Record<number, string>>({})
@@ -416,14 +362,10 @@ function Body({
     setSourceName(name)
     setTabs(nextTabs)
     setTabIndex(0)
-    // Asked for a new tab or a new sheet, every tab in the file becomes one,
-    // however few there are. Otherwise: a file with several tabs is almost
-    // always "several tabs of one sheet", not "one tab and some clutter".
-    // A month built from a file is always ALL TABS - the file IS the month.
+    // New tab / sheet / month always imports all tabs; otherwise several tabs usually mean "tabs of one sheet".
     setMode(createAs || intent || nextTabs.length > 1 || !sheet ? "all" : "one")
     setNewSheetName(stripExt(name) || "Imported sheet")
-    // Everything with rows in it, to start - the common case is "all of it",
-    // and unticking two is less work than ticking six.
+    // Every tab with rows starts ticked.
     setChosen(new Set(nextTabs.flatMap((t, i) => (split(t, hasHeader).rows.length > 0 ? [i] : []))))
     if (sheet) setMapping(autoMap(split(nextTabs[0]!, hasHeader).headers, sheet.columns))
   }
@@ -465,12 +407,7 @@ function Body({
     }
   }
 
-  /**
-   * The shared pipeline: claim/create columns for the mapped headers, coerce
-   * every value, extend SELECT options, append rows in batches. Used by both
-   * modes - the single-tab import with the person's mapping, and the all-tabs
-   * import with an automatic one per new tab.
-   */
+  /** Shared by both modes: claim/create columns, coerce values, extend SELECT options, append in batches. */
   async function importInto(
     targetSheet: ProjectSheet,
     hs: Raw[],
@@ -482,9 +419,7 @@ function Body({
     let columns = targetSheet.columns
     const columnsById = new Map(columns.map((c) => [c.id, { ...c }]))
 
-    // 1. Columns the import creates or claims. Placeholder (A, B, C…) columns
-    //    are renamed to the header and typed from the data; NEW ones are
-    //    created, then re-read so we learn their ids.
+    // 1. Placeholder columns are renamed and typed from the data; new ones are created, then re-read for ids.
     const created: number[] = []
     for (let i = 0; i < targets.length; i++) {
       const t = targets[i]!
@@ -527,9 +462,7 @@ function Body({
       for (const c of columns) if (!columnsById.has(c.id)) columnsById.set(c.id, { ...c })
     }
 
-    // 2. Values, through the same coercion the grid stores. SELECT values that
-    //    are not options yet become options (matching the existing spelling
-    //    when one differs only in case).
+    // 2. Coerce values; unknown SELECT values become options (matching existing spelling case-insensitively).
     const issues: Record<string, number> = {}
     const selectAdds = new Map<string, Map<string, string>>()
     const out: Record<string, unknown>[] = []
@@ -565,8 +498,7 @@ function Body({
       })
     }
 
-    // 3. Append in batches so a long file shows progress and a hiccup loses
-    //    at most one batch.
+    // 3. Append in batches, so a long file shows progress and a hiccup loses one batch at most.
     let done = 0
     onRows(0, out.length)
     for (let i = 0; i < out.length; i += BATCH) {
@@ -586,7 +518,6 @@ function Body({
       : ""
   }
 
-  // ── ONE TAB -> the open tab ────────────────────────────────────────────────
   const rowCount = dataRows.length
   const tooMany = rowCount > MAX_ROWS
   const mappedCount = headers.filter((_, i) => (mapping[i] ?? SKIP) !== SKIP).length
@@ -603,20 +534,17 @@ function Body({
       )
       onClose()
     } catch {
-      // Each mutation already toasted its own reason; the dialog stays open so
-      // nothing chosen in the mapping is lost.
+      // Mutations toast their own errors; the dialog stays open so the mapping isn't lost.
     } finally {
       setProgress(null)
     }
   }
 
-  // ── ALL TABS -> tabs inside one sheet ──────────────────────────────────────
   const tabPlans = (tabs ?? []).map((t, i) => {
     const { rows } = split(t, hasHeader)
     return { index: i, name: t.name.trim() || `Tab ${i + 1}`, rows: rows.length }
   })
-  // Only what is ticked can be too big, or be imported: an oversized tab you
-  // did not ask for should not block the ones you did.
+  // Only ticked tabs count, so an unwanted oversized tab doesn't block the rest.
   const oversized = tabPlans.filter((p) => p.rows > MAX_ROWS && chosen.has(p.index))
   const importableTabs = tabPlans.filter((p) => p.rows > 0 && chosen.has(p.index))
   const selectableTabs = tabPlans.filter((p) => p.rows > 0)
@@ -644,24 +572,18 @@ function Body({
     try {
       let workbookId: string
       let takenTabs: Set<string>
-      // In a NEW sheet the first import tab rides along with the sheet's
-      // creation (a sheet always opens with one tab), so it is not made twice.
+      // A new sheet always opens with one tab, so the first import tab rides along with its creation.
       let firstTab: ProjectSheet | null = null
       if (target === "new") {
         let body: Record<string, unknown>
         if (createAs) {
-          // The name is used VERBATIM: same name + different month is exactly
-          // what makes this another edition of the same calendar rather than a
-          // new one, so the "… (2)" de-duplication below must not run. A month
-          // that already exists is caught by the DB's unique index and comes
-          // back as "That calendar already has an edition for that month".
+          // Verbatim (no "(2)" suffix): same name + new month = another edition; the DB rejects a duplicate month.
           sheetName = createAs.name
           body = {
             name: createAs.name,
             firstTab: importableTabs[0]!.name,
             periodMonth: createAs.periodMonth,
-            // structure:false - the file brings its own tabs and columns, so
-            // merging last month's in would defeat the point of uploading.
+            // structure:false - the file brings its own tabs and columns.
             copyFrom: createAs.copyFrom
               ? {
                   workbookId: createAs.copyFrom.workbookId,
@@ -687,10 +609,7 @@ function Body({
         workbookId = created.data.id
         firstTab = created.data.sheets[0] ?? null
         takenTabs = new Set(created.data.sheets.map((s) => normalise(s.name)))
-        // Only for a month: the caller opens it, so the grid fills in front of
-        // the person who uploaded it and a failure part-way through still leaves
-        // them looking at what was made. The ordinary "new sheet" import is left
-        // exactly as it was - it does not move you off the calendar you are on.
+        // Only for a month: the caller opens it, so the grid fills in front of the uploader.
         if (createAs) onCreated?.(workbookId)
       } else {
         workbookId = workbook!.id
@@ -734,8 +653,7 @@ function Body({
       )
       onClose()
     } catch (error) {
-      // A failure mid-way leaves the tabs made so far - say so, rather than let
-      // a partial import look like nothing happened.
+      // A mid-way failure keeps the tabs made so far - say so.
       if (made.length > 0) {
         toastError(
           error,
@@ -857,11 +775,7 @@ function Body({
           </div>
         </div>
       ) : (
-        // A focused Input draws ring-2 + ring-offset-2, i.e. 4px OUTSIDE its
-        // own box, and overflow-y:auto clips on both axes - so the ring was
-        // being sliced off on the left, top and bottom. The negative margin
-        // widens the scroll box by that 4px and the padding puts the content
-        // back where it was, so nothing moves and the ring has room.
+        // -mx-1/px-1 gives a focused Input's ring room, since overflow-y:auto clips both axes.
         <div className="-mx-1 max-h-[65vh] space-y-4 overflow-y-auto px-1 py-1">
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="inline-flex min-w-0 items-center gap-1.5 font-medium">
@@ -884,8 +798,7 @@ function Body({
             </label>
           </div>
 
-          {/* Not offered when building a month from a file: "one tab" would map
-              October's file onto a tab of the September that happens to be open. */}
+          {/* Not when building a month: "one tab" would map the file onto the open (other) month. */}
           {sheet && !createAs && (
             <div className="grid gap-2 sm:grid-cols-2">
               <ModeCard
@@ -911,9 +824,6 @@ function Body({
 
           {mode === "all" ? (
             <div className="space-y-3">
-              {/* With createAs the destination was decided in the New month
-                  dialog, so there is nothing to choose here - just a reminder of
-                  where this file is about to land. */}
               {createAs ? (
                 <div className="flex items-start gap-3 rounded-sm border p-3">
                   <CalendarPlus className="text-primary mt-0.5 h-4 w-4 shrink-0" />
@@ -1025,8 +935,6 @@ function Body({
                   })}
                 </div>
 
-                {/* What is actually about to happen, in one line, so the button
-                    is never the first place you learn the count. */}
                 <p className="text-muted-foreground text-xs">
                   {importableTabs.length === 0
                     ? "Pick at least one tab."

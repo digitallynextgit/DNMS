@@ -4,14 +4,8 @@ import { db } from "@/server/db"
 import { auditPage, checkRobots } from "@/lib/crawl"
 import { resolveMoneyPages } from "./seo.vitals.service"
 
-// =============================================================================
-// The daily accident monitor (plan step 9, "Daily: uptime + robots/noindex
-// accident check"). Unlike the weekly technical audit, this only looks for the
-// few things that silently kill a site overnight: a money page that stopped
-// returning 200, a money page that went noindex, or robots.txt blanket-blocking
-// crawlers. It stores each run so the cron can alert on a CHANGE of state rather
-// than repeating the same warning every day.
-// =============================================================================
+// Daily accident monitor: money pages not returning 200 or gone noindex, or robots.txt blocking
+// everything. Each run is stored so alerts fire only on a change of state.
 
 const MAX_PAGES = 6
 
@@ -40,8 +34,7 @@ export interface MonitorResult {
   error?: string
 }
 
-/** A stable signature of the current problem set, so we can tell "same as
- *  yesterday" (stay quiet) from "something new broke" (alert). */
+/** Signature of the problem set, to tell "same as yesterday" from "something new broke". */
 function signature(issues: MonitorIssue[]): string {
   return issues
     .map((i) => `${i.url}|${i.code}`)
@@ -103,7 +96,6 @@ export async function runDailyMonitor(propertyId: string): Promise<MonitorResult
 
   const status: "OK" | "ISSUES" = issues.length > 0 ? "ISSUES" : "OK"
 
-  // Compare with the previous run to alert only on change.
   const prev = await db.seoMonitorRun.findFirst({
     where: { propertyId },
     orderBy: { createdAt: "desc" },

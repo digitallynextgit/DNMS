@@ -1,8 +1,5 @@
 import { PageHeaderSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
 
-// HR/admin WFH inbox: a plain header (no actions) over the requests table.
-// The inbox table has 7 columns (Employee, Date, Reason, Type, Manager,
-// Status, Action).
 export default function WfhRequestsLoading() {
   return (
     <div className="space-y-6">

@@ -47,9 +47,7 @@ export function generateEmployeeNo(sequence: number, year = new Date().getFullYe
   return `EMP-${year}-${String(sequence).padStart(4, "0")}`
 }
 
-// Human-readable profile URL slug: "<employeeCode>-<first>-<last>", e.g.
-// "8-diwakar-jha". The employee code stays verbatim (it's the unique lookup key);
-// the name is slugified for readability. getEmployee() resolves this back to an id.
+// "<employeeCode>-<first>-<last>", e.g. "8-diwakar-jha". getEmployee() resolves it back to an id.
 export function employeeSlug(employeeNo: string, firstName: string, lastName: string): string {
   const name = `${firstName} ${lastName}`
     .trim()
@@ -94,15 +92,11 @@ export function getAvatarColor(name: string): string {
   return colors[Math.abs(hash) % colors.length]
 }
 
-/**
- * Clean a leave-type name for use inside a request letter. Drops parentheticals
- * and payroll qualifiers so "Leave Without Pay (Unpaid)" reads simply as "leave",
- * while ordinary types stay natural (e.g. "Casual Leave" -> "casual leave").
- */
+/** For request letters: "Leave Without Pay (Unpaid)" -> "leave", "Casual Leave" -> "casual leave". */
 export function cleanLeaveTypeForLetter(name?: string | null): string {
   const cleaned = (name ?? "leave")
     .replace(/\([^)]*\)/g, " ") // drop "(Unpaid)", "(Paid)" etc.
-    .replace(/without pay/gi, " ") // drop the payroll qualifier
+    .replace(/without pay/gi, " ")
     .replace(/unpaid/gi, " ")
     .replace(/\s+/g, " ")
     .trim()

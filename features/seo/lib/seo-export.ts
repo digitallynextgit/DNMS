@@ -12,14 +12,8 @@ import type {
   TechnicalAuditView,
 } from "../types"
 
-// =============================================================================
-// Report exports. Every SEO tab can hand its data to a client and this is where
-// the shape of each file is defined - one builder per tab, all going through the
-// shared toCsv/downloadCsv helpers so escaping stays consistent.
-//
-// CSV rather than PDF on purpose: these are working files an account manager
-// pastes into a client deck or a spreadsheet, not a finished document.
-// =============================================================================
+// CSV exports for each SEO tab, via the shared toCsv/downloadCsv helpers. CSV, not PDF: these
+// are working files for decks and spreadsheets.
 
 const stamp = () => new Date().toISOString().slice(0, 10)
 

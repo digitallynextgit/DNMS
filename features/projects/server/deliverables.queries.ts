@@ -18,31 +18,9 @@ import {
   type DeliverableStatus,
 } from "../lib/deliverable-lifecycle"
 
-// =============================================================================
-// Reading what was produced - one project's ledger, or the whole portfolio.
-//
-// Every count here SUMS `quantity` and GROUPS BY THE LOWER-CASED TYPE, so "10
-// product pages" logged as one row counts as ten, and "reel"/"Reel" are one row
-// in every breakdown. The first-seen casing is what gets displayed.
-//
-// ── WHICH ROWS COUNT ─────────────────────────────────────────────────────────
-// The headline tallies cover what the team MADE (delivered, accepted, or sent
-// back), not what it was asked for: an owed row is a promise and counting it as
-// output would flatter every number on the page. Owed work gets its own tile
-// (`planned`) and the full status split (`byStatus`) sits alongside, so "we made
-// 40 and owe 6, two of them late" is one response. A caller that asks for
-// specific statuses gets the tallies over exactly those.
-//
-// ── HOURS AGAINST OUTPUT ─────────────────────────────────────────────────────
-// Hours live on the TASK and output lives here, so effort per thing is a join:
-// a task's hours are split across its deliverables by quantity. The denominator
-// is the task's WHOLE output, fetched independently of the date filter, so
-// looking at one reel from a four-reel task still reads 2h and not 8h.
-//
-// Scope for the portfolio mirrors canAccessProject across the whole table:
-// global readers see everything, everyone else the projects they own or sit on
-// a team for. Kept in step with project-access.ts deliberately.
-// =============================================================================
+// Deliverables ledger reads. Counts SUM `quantity` and group by lower-cased type (first casing
+// shown). Headline tallies cover MADE work only; a task's hours are split across its deliverables
+// by quantity over its WHOLE output. Portfolio scope mirrors canAccessProject.
 
 export interface DeliverableFile {
   id: string
@@ -71,7 +49,7 @@ export interface DeliverableRow {
   deliveredQuantity: number
   status: DeliverableStatus
   startedOn: string | null
-  /** Null only while the row is owed - there is nothing to date yet. */
+  /** Null only while the row is owed. */
   completedOn: string | null
   dueOn: string | null
   /** The window this covers. Both set, or both null. */
@@ -83,20 +61,10 @@ export interface DeliverableRow {
   acceptedByName: string | null
   /** The client signed it off themselves, rather than staff recording their word. */
   acceptedByClient: boolean
-  /**
-   * Stage one: checked by the maker's manager, before the account manager
-   * sees it. Null when it went straight to the account manager - who is
-   * allowed to accept without it, which is why this is separate from
-   * `acceptedByName` rather than folded into one 'approved by'.
-   */
+  /** Stage one: the maker's manager checked it. Null if it went straight to the account manager. */
   verifiedByName: string | null
   verifiedAt: string | null
-  /**
-   * Who last sent it back, and why. Read from the event log rather than a
-   * column: a rejection is a moment in the row's history, and the row only
-   * ever holds the CURRENT state - once it is redelivered, the columns would
-   * have forgotten that it ever bounced.
-   */
+  /** Who last sent it back, and why - from the event log, since the row only holds current state. */
   sentBack: {
     by: string | null
     reason: string | null
@@ -124,7 +92,6 @@ export interface DeliverableEventRow {
   changes: Record<string, [unknown, unknown]> | null
   reason: string | null
   actorName: string | null
-  /** The actor was the client, through the portal, not a member of staff. */
   actorIsClient: boolean
   createdAt: string
 }
@@ -149,7 +116,6 @@ export interface TypeCount {
 }
 
 export interface DeliverablesOverview {
-  /** Sum of quantity across every matching entry. */
   total: number
   entries: number
   byType: TypeCount[]
@@ -169,11 +135,7 @@ export interface DeliverablesOverview {
     count: number
     byType: TypeCount[]
   }[]
-  /**
-   * Team output, portfolio-wide as well as inside one project. A team name is
-   * only unique WITHIN its project - half the accounts have a "WEB" - so every
-   * row carries the project it belongs to and the UI labels them "WEB · Acme".
-   */
+  /** Per team, portfolio-wide; rows carry the project since "WEB" repeats across projects. */
   byTeam: {
     /** The team's id, or `__no_team__:<projectId>` for output logged team-less. */
     id: string
@@ -190,11 +152,7 @@ export interface DeliverablesOverview {
   byStatus: { status: DeliverableStatus; entries: number; quantity: number }[]
   /** Owed work: promised, nothing made yet. `overdue` counts entries past due. */
   planned: { entries: number; quantity: number; overdue: number }
-  /**
-   * Effort behind the output. `coverage` is the share of counted units that had
-   * a task to take hours from - a per-unit figure over 20% coverage is a
-   * measurement, under it a rumour.
-   */
+  /** Effort behind the output. `coverage` = share of counted units with a task to take hours from. */
   hours: { attributed: number; attributedUnits: number; perUnit: number | null; coverage: number }
   /** Every type in use across the scope, first-seen casing, for filters. */
   types: string[]
@@ -270,13 +228,11 @@ const ROW_SELECT = {
   employee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
   loggedBy: { select: { firstName: true, lastName: true } },
   acceptedBy: { select: { firstName: true, lastName: true } },
-  // The portal's side of the same three questions. Exactly one of each pair is
-  // ever set, so the row mapper falls back from staff to client.
+  // Portal side of the same questions; exactly one of each pair is set.
   loggedByClient: { select: { name: true } },
   acceptedByClient: { select: { name: true } },
   verifiedBy: { select: { firstName: true, lastName: true } },
-  // Only the latest bounce, as a lateral join - a full event history per row
-  // would be a needless payload on a list that can run to hundreds of rows.
+  // Only the latest bounce - full history per row would bloat a long list.
   events: {
     where: { toStatus: "REJECTED" },
     orderBy: { createdAt: "desc" },
@@ -305,12 +261,7 @@ const ROW_SELECT = {
 
 type RawRow = Prisma.ProjectDeliverableGetPayload<{ select: typeof ROW_SELECT }>
 
-/**
- * The last time this was sent back for revision, if ever.
- *
- * Kept even after the row moves on: somebody looking at an ACCEPTED item is
- * entitled to see that it took two goes, and the reason is the useful half.
- */
+/** The last send-back, kept after the row moves on - it shows the item took two goes, and why. */
 function bounce(
   events: readonly {
     reason: string | null
@@ -321,8 +272,7 @@ function bounce(
 ): { by: string | null; reason: string | null; at: string; byClient: boolean } | null {
   const last = events[0]
   if (!last) return null
-  // A client bounce and a team-manager bounce mean different things to whoever
-  // reads the row, so the name alone is not enough - say which it was.
+  // A client bounce and a manager bounce read differently, so say which.
   const byClient = !last.actor && !!last.actorClient
   return {
     by: fullName(last.actor) ?? last.actorClient?.name ?? null,
@@ -334,11 +284,7 @@ function bounce(
 const fullName = (p: { firstName: string; lastName: string | null } | null) =>
   p ? `${p.firstName} ${p.lastName ?? ""}`.trim() : null
 
-/**
- * How much of each task's output exists in total, so one row's share of its
- * task's hours does not change when the view is filtered. Deliberately NOT
- * constrained by the caller's date range or person filter.
- */
+/** Each task's total output, NOT date/person filtered, so a row's hour share is stable. */
 export async function quantityByTask(taskIds: string[]): Promise<Map<string, number>> {
   if (taskIds.length === 0) return new Map()
   const grouped = await db.projectDeliverable.groupBy({
@@ -353,7 +299,6 @@ export async function quantityByTask(taskIds: string[]): Promise<Map<string, num
   return map
 }
 
-/** A row's share of its task's hours, or null when there is nothing to split. */
 function rowHours(
   r: { taskId: string | null; quantity: number; task: { loggedHours: number } | null },
   qtyByTask: Map<string, number>,
@@ -375,10 +320,8 @@ async function toRow(
       fileName: f.fileName,
       fileSize: f.fileSize,
       mimeType: f.mimeType,
-      // Inline-viewable for an hour, served from the signed-URL cache: a ledger
-      // page lists many files and re-signing each on every load is wasted
-      // round-trips to B2. A Drive-hosted video has no signed url - its Drive
-      // viewer link is already durable, so it is used as-is.
+      // Signed URLs come from the cache (re-signing on every load wastes B2 calls). Drive videos use
+      // their durable viewer link.
       url: f.objectKey
         ? await getCachedSignedUrl(f.objectKey, 3600).catch(() => "")
         : (f.driveWebViewLink ?? ""),
@@ -398,8 +341,7 @@ async function toRow(
         }
       : null,
     loggedByName: fullName(r.loggedBy) ?? r.loggedByClient?.name ?? null,
-    // The client asked for this one. The board marks it, because "who wanted
-    // this" changes how a team manager reads an unassigned row.
+    // The board marks client-requested rows.
     plannedByClient: !r.loggedBy && !!r.loggedByClient,
     task: r.task ? { id: r.task.id, title: r.task.title } : null,
     goal: r.goal,
@@ -416,7 +358,6 @@ async function toRow(
     revisionCount: r.revisionCount,
     acceptedAt: r.acceptedAt?.toISOString() ?? null,
     acceptedByName: fullName(r.acceptedBy) ?? r.acceptedByClient?.name ?? null,
-    /** The client signed it off themselves, rather than staff recording it. */
     acceptedByClient: !r.acceptedBy && !!r.acceptedByClient,
     verifiedByName: fullName(r.verifiedBy),
     verifiedAt: r.verifiedAt?.toISOString() ?? null,
@@ -432,10 +373,7 @@ async function toRow(
   }
 }
 
-/**
- * Tally helper: sums quantity per lower-cased type, remembers first casing, and
- * carries the hours attributed to that type so the UI can show "≈ 2.5h a reel".
- */
+/** Sums quantity per lower-cased type (first casing kept) plus the hours attributed to it. */
 class TypeTally {
   private counts = new Map<string, { type: string; count: number; hours: number; units: number }>()
   add(type: string, qty: number, hours: number | null) {
@@ -461,23 +399,10 @@ class TypeTally {
 
 const MAX_ROWS = 300
 
-/**
- * Output logged without a team is still output, so it gets a bar of its own
- * rather than quietly dropping out of the team split - team bars that do not
- * add up to the project's total are a bug report. Same sentinel the task-side
- * byTeam uses (app/api/projects/performance/route.ts), suffixed with the
- * project because these rows span clients: two projects' teamless work is two
- * bars, not one merged one. It is a synthetic id, so a click on it opens the
- * PROJECT - there is no "team is null" filter to hand the drill-down.
- */
+/** Team-less output gets its own bar per project (synthetic id; clicking opens the project). */
 const NO_TEAM = "__no_team__"
 
-/**
- * Everything about deliverables in a scope, in one response: the numbers the
- * charts need and the rows the lists need. One query for the rows; the tallies
- * are built from them in memory, so the by-type / by-person / by-team counts can
- * never disagree with the list they sit above.
- */
+/** Everything about deliverables in a scope; tallies are built from the same rows as the list. */
 export async function getDeliverablesOverview(
   session: Session,
   filters: DeliverableFilters,
@@ -487,8 +412,7 @@ export async function getDeliverablesOverview(
   }
   const today = todayUtc()
 
-  // Tallies come from EVERY matching row (slim select); the rendered list is
-  // capped. So a person with 400 entries still counts 400 in the donut.
+  // Tallies use EVERY matching row (slim select); only the rendered list is capped.
   const [slim, raw] = await Promise.all([
     db.projectDeliverable.findMany({
       where,
@@ -596,8 +520,6 @@ export async function getDeliverablesOverview(
     p.tally.add(r.type, r.quantity, hours)
     projects.set(r.projectId, p)
 
-    // Unassigned rows are owed, never made, so they cannot reach here through
-    // `counted` - but a per-PERSON tally has no bucket for "nobody" either way.
     if (!r.employeeId || !r.employee) continue
     const who = people.get(r.employeeId) ?? {
       id: r.employeeId,
@@ -611,10 +533,7 @@ export async function getDeliverablesOverview(
     who.tally.add(r.type, r.quantity, hours)
     people.set(r.employeeId, who)
 
-    // Team output is built for EVERY scope, not just one project: an admin
-    // asking "how much did each team make" is the whole point of the split.
-    // Keyed by team id (unique across the estate - teams belong to a project)
-    // and carrying the project, so "WEB" from two clients stays two bars.
+    // Keyed by team id with the project attached, so two clients' "WEB" teams stay two bars.
     const teamKey = r.teamId ?? `${NO_TEAM}:${r.projectId}`
     const t = teams.get(teamKey) ?? {
       id: teamKey,
@@ -638,10 +557,7 @@ export async function getDeliverablesOverview(
     }
   }
 
-  // Type-ahead: the project's own vocabulary plus the team's starter set. The
-  // team is the named person's, or failing that the CALLER's - the person
-  // opening the form is nearly always the one who made the thing, and the
-  // Deliverables tab asks without naming anyone.
+  // Starter set from the named person's team, else the caller's (usually the maker).
   let suggested: string[] = []
   if (filters.projectId) {
     const who = filters.employeeId ?? session.user.id
@@ -693,11 +609,7 @@ export async function getDeliverablesOverview(
   }
 }
 
-/**
- * One row, shaped exactly like a row in the ledger - what the write endpoints
- * hand back so a status change or a verify can patch the list in place instead
- * of forcing a refetch of the whole overview.
- */
+/** One row shaped like the ledger's, so writes can patch the list in place. */
 export async function getDeliverableRow(
   session: Session,
   projectId: string,
@@ -712,11 +624,7 @@ export async function getDeliverableRow(
   return toRow(raw, qtyByTask, todayUtc())
 }
 
-/**
- * The row's history, oldest first - who moved it, when, and what changed.
- * Append-only by construction, so this is the whole answer to "why does this
- * number look different to the one I sent last month".
- */
+/** The row's append-only history, oldest first. */
 export async function listDeliverableEvents(
   session: Session,
   projectId: string,
@@ -755,19 +663,7 @@ export async function listDeliverableEvents(
   }))
 }
 
-// ─── What one person owes ─────────────────────────────────────────────────────
-
-/**
- * The owed work in front of ONE person, across every project.
- *
- * Two kinds, because the handoff has two stages: rows with their name on them,
- * and rows their team owes that nobody has picked up yet. Without the second
- * kind the account manager's commitment to a team would sit where only a
- * manager ever looks, and "the video team owes four reels" would reach the
- * people who make reels by word of mouth.
- *
- * Ordered by urgency: overdue first, then soonest due, then undated.
- */
+/** Owed work for ONE person: their rows + unclaimed rows of their teams. Most urgent first. */
 export async function getMyOwedDeliverables(
   session: Session,
   opts: { limit?: number } = {},
@@ -788,8 +684,6 @@ export async function getMyOwedDeliverables(
       ],
     },
     select: ROW_SELECT,
-    // Undated work sorts last: a due date is the only thing that makes one
-    // owed row more urgent than another.
     orderBy: [{ dueOn: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
     take: opts.limit ?? 100,
   })

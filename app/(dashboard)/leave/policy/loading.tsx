@@ -1,6 +1,5 @@
 import { PageHeaderSkeleton, ListSkeleton } from "@/components/shared/loading-skeleton"
 
-// Policy page: header + policy sections as a list.
 export default function LeavePolicyLoading() {
   return (
     <div className="space-y-8">

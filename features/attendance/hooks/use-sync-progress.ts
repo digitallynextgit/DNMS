@@ -6,7 +6,7 @@ import { toast } from "sonner"
 
 export interface SyncProgressState {
   phase: "idle" | "probing" | "fetching" | "writing" | "done" | "error"
-  /** 0-100. Real, not a fake animation: the total window count is known up front. */
+  /** 0-100, from the known total window count. */
   percent: number
   windowsDone: number
   windowsTotal: number
@@ -37,15 +37,8 @@ export function formatDuration(ms: number | null | undefined): string {
   return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`
 }
 
-/**
- * Runs a device sync against the STREAMING endpoint and exposes live progress.
- *
- * A full backfill walks hundreds of device windows and can take minutes; the plain
- * POST route returns nothing until it is completely finished, so the UI could only
- * show an indeterminate spinner. This reads the NDJSON stream and reports a real
- * percentage, elapsed time and ETA - the server knows the total window count before
- * it starts walking, and measures the average window time as it goes.
- */
+/** Runs a device sync via the streaming (NDJSON) endpoint, exposing real percent, elapsed time
+ *  and ETA. */
 export function useSyncProgress() {
   const qc = useQueryClient()
   const [progress, setProgress] = useState<SyncProgressState>(IDLE)
@@ -76,9 +69,7 @@ export function useSyncProgress() {
           { method: "POST", signal: controller.signal },
         )
         if (!res.ok || !res.body) {
-          // Only trust a JSON error body. When the server hands back an HTML page
-          // (a Next error/404 page), dumping it here floods the UI with markup and
-          // hides the status - so fall back to a clean, actionable message.
+          // Only trust a JSON error body; an HTML error page would flood the UI with markup.
           const contentType = res.headers.get("content-type") ?? ""
           let msg = ""
           if (contentType.includes("application/json")) {
@@ -94,8 +85,7 @@ export function useSyncProgress() {
         const decoder = new TextDecoder()
         let buffer = ""
 
-        // NDJSON: one JSON object per line. A chunk can split a line in half, so we
-        // only parse up to the last newline and keep the remainder buffered.
+        // NDJSON: parse up to the last newline and buffer the rest (chunks can split lines).
         for (;;) {
           const { done, value } = await reader.read()
           if (done) break
@@ -138,7 +128,6 @@ export function useSyncProgress() {
               if (msg.completed === false) {
                 toast.warning("Some device windows failed - re-run the sync to fill the gaps.")
               }
-              // Refresh everything the sync could have changed.
               qc.invalidateQueries({ queryKey: ["attendance-devices"] })
               qc.invalidateQueries({ queryKey: ["employee-sync-summary"] })
               qc.invalidateQueries({ queryKey: ["attendance-logs"] })

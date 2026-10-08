@@ -18,45 +18,10 @@ import {
   type ProjectGoalsSummary,
 } from "../lib/goal-derivation"
 
-// =============================================================================
-// Project goals: reading, writing, and the history behind both.
-//
-// A project has main goals; a main goal has sub-goals. ONE level, and no more.
-// Arbitrary nesting reads fine in a schema and badly on a screen, so the depth
-// limit is enforced here rather than left to whoever calls it.
-//
-// ── THE ARITHMETIC LIVES NEXT DOOR ───────────────────────────────────────────
-// Everything that turns rows into numbers - the SELECT shapes, the weighting,
-// the derived status, the slipping check - is in ../lib/goal-derivation.ts,
-// which is PURE and therefore testable and shareable with the portfolio
-// roll-up. This file is the half that needs a database: it fetches, validates
-// and writes. The whole derivation module is re-exported below so the existing
-// importers of this file (the API routes, goals-portfolio.queries.ts) did not
-// have to move.
-//
-// ── HISTORY IS APPEND-ONLY ───────────────────────────────────────────────────
-// Every status change, deactivation and edit writes a ProjectGoalEvent. The
-// current row cannot answer "when did this slip, and what did they say at the
-// time", and that answer is worth more than the row the moment anyone asks why
-// a date moved.
-//
-// ── TAGS ARE THE TEAM'S WORDS, NOT OURS ──────────────────────────────────────
-// A goal carries free-text tags - "weekly", "primary", "q4 push" - typed by
-// whoever set it. No enum, no admin screen to add one: a fixed list would need
-// a migration every time somebody named a cadence they already run, and the
-// half-answer ("Other") is exactly the value that makes a filter untrustworthy.
-//
-// What IS enforced here is the small set of rules that keep a free-text field
-// from becoming unfilterable: trimmed, whitespace-collapsed, deduplicated
-// CASE-INSENSITIVELY, capped in length and in count. "Weekly" and "weekly" must
-// not become two rows in the filter list, or the filter starts lying by
-// omission. Casing is otherwise preserved, because "Q4 Push" lower-cased reads
-// like a typo.
-// =============================================================================
+// Project goals: fetch, validate, write. Main goals have ONE level of sub-goals. The maths is in
+// ../lib/goal-derivation.ts; every change appends a ProjectGoalEvent (history is append-only).
 
-// The derivation module, re-exported wholesale. Callers ask this file for
-// GOAL_SELECT, GoalNode, summariseGoalRows and friends exactly as they always
-// did; where those live is an implementation detail of the feature.
+// Re-exported so callers keep importing GOAL_SELECT, GoalNode etc. from here.
 export * from "../lib/goal-derivation"
 
 /** Statuses that must be accompanied by a reason. */
@@ -65,19 +30,10 @@ const REASON_REQUIRED: ReadonlySet<GoalStatusValue> = new Set<GoalStatusValue>([
   "DISCARDED",
 ])
 
-/** Long enough for "quarterly review", short enough to stay a chip on a row. */
 const MAX_TAG_LENGTH = 24
-/** Past this a row is a wall of chips and the tag stops being a signal. */
 const MAX_TAGS_PER_GOAL = 6
 
-/**
- * Clean one goal's tags into something a filter can be trusted with.
- *
- * The case-insensitive dedupe is the important line. Tags are typed by hand on
- * every goal, so "Weekly" and "weekly" WILL both get typed, and a filter list
- * holding both is a filter that quietly hides half the matches behind the entry
- * the user did not click.
- */
+/** Trim, cap and dedupe tags case-insensitively, so "Weekly"/"weekly" don't split the filter. */
 function normaliseTags(raw: unknown): string[] {
   if (!Array.isArray(raw)) throw new ValidationError("Tags must be a list of words.")
 
@@ -104,18 +60,7 @@ function normaliseTags(raw: unknown): string[] {
   return out
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// What came OUT of a goal
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * The columns a target tally needs, and nothing else.
- *
- * `task.goalId` is here because a deliverable can reach a goal two ways - set
- * on the row itself, or inherited from the task it came out of - and the
- * attribution has to happen in one place or a row that has both would be
- * counted twice.
- */
+/** Includes `task.goalId`: a deliverable reaches a goal via its own goalId or its task's. */
 export const GOAL_OUTPUT_SELECT = {
   goalId: true,
   type: true,
@@ -125,18 +70,8 @@ export const GOAL_OUTPUT_SELECT = {
 } satisfies Prisma.ProjectDeliverableSelect
 
 /**
- * Every delivered thing attributed to a goal on these projects, of the types
- * some target actually measures.
- *
- * ONE QUERY FOR THE WHOLE SWEEP. The portfolio summarises dozens of projects
- * and hands each group the SAME map, so the outcome figures cost one round trip
- * rather than one per project. Returns an empty map the moment there is nothing
- * to look for - a project with no targets pays nothing for the feature.
- *
- * ONLY DELIVERED AND ACCEPTED COUNT. A PLANNED row is a promise, not output,
- * and counting owed work towards a target would let a goal report itself done
- * on the strength of things nobody has made yet. REJECTED is excluded for the
- * same reason from the other end: the client sent it back.
+ * Delivered output per goal across these projects, for the types some target measures - one query
+ * for the whole sweep. Only DELIVERED/ACCEPTED count: planned work is a promise, rejected came back.
  */
 export async function loadGoalOutputs(
   projectIds: string[],
@@ -149,8 +84,7 @@ export async function loadGoalOutputs(
       projectId: { in: projectIds },
       status: { in: ["DELIVERED", "ACCEPTED"] },
       completedOn: { not: null },
-      // Case-insensitive because the type is free text: a target for "Reels"
-      // must find rows somebody typed as "reels".
+      // Case-insensitive: the type is free text.
       type: { in: typeKeys, mode: "insensitive" },
       OR: [{ goalId: { not: null } }, { task: { is: { goalId: { not: null } } } }],
     },
@@ -159,8 +93,7 @@ export async function loadGoalOutputs(
 
   const map = new Map<string, GoalOutput[]>()
   for (const r of rows) {
-    // Single attribution: the row's own goal wins, the task's goal is the
-    // fallback. This is what makes a parent's subtree tally disjoint.
+    // Single attribution - the row's goal wins over its task's - so subtree tallies stay disjoint.
     const goalId = r.goalId ?? r.task?.goalId
     if (!goalId || !r.completedOn) continue
     const entry: GoalOutput = {
@@ -175,13 +108,7 @@ export async function loadGoalOutputs(
   return map
 }
 
-/**
- * Every goal on a project, nested, with progress rolled up and history attached.
- *
- * `includeInactive` decides whether deactivated goals come back at all. They
- * never affect the maths either way - the flag only controls visibility, so the
- * board can offer "show deactivated" without the numbers moving underneath it.
- */
+/** A project's goals, nested, with progress + history. `includeInactive` only changes visibility. */
 export async function getProjectGoals(
   projectId: string,
   includeInactive = false,
@@ -191,8 +118,6 @@ export async function getProjectGoals(
     orderBy: GOAL_ORDER,
     select: GOAL_SELECT,
   })
-  // Both extra reads depend only on the rows already in hand, so they go out
-  // together rather than one after the other.
   const [outputs, unlinkedOpenTasks] = await Promise.all([
     loadGoalOutputs([projectId], targetTypeKeys(rows)),
     countUnlinkedOpenTasks(projectId),
@@ -239,7 +164,6 @@ async function normaliseOwner(raw: string | null | undefined): Promise<string | 
   return who.id
 }
 
-/** Trim, cap, and insist on one where the status demands it. */
 function normaliseReason(
   status: GoalStatusValue | undefined,
   raw: string | null | undefined,
@@ -278,8 +202,7 @@ export async function createGoal(
 
   const status = input.status ?? "NOT_STARTED"
   const reason = normaliseReason(status, input.reason)
-  // Validated before the transaction opens, so a bad tag costs a 422 rather
-  // than a rolled-back write.
+  // Validated before the transaction, so a bad tag is a 422, not a rollback.
   const tags = input.tags === undefined ? [] : normaliseTags(input.tags)
   const ownerId = await normaliseOwner(input.ownerId)
 
@@ -364,8 +287,7 @@ export async function updateGoal(
   }
   if (input.tags !== undefined) {
     const tags = normaliseTags(input.tags)
-    // Compared as a set, not a list: re-saving the same tags in a different
-    // order is not a change worth a line in the history.
+    // Compared as a set: reordering isn't a change.
     const before = new Set(existing.tags.map((t) => t.toLowerCase()))
     const after = new Set(tags.map((t) => t.toLowerCase()))
     if (before.size !== after.size || [...after].some((t) => !before.has(t))) {
@@ -384,12 +306,8 @@ export async function updateGoal(
   const statusChanged = input.status !== undefined && input.status !== existing.status
   let reason: string | null = null
   if (input.status !== undefined) {
-    // A DERIVED goal - one with sub-goals or linked tasks - gets NOT_STARTED /
-    // IN_PROGRESS / DONE from them, and a value set by hand would be overwritten
-    // on the next read. Refused with the reason, rather than silently ignored.
-    // AT_RISK and DISCARDED stay manual (they are judgements, not arithmetic),
-    // and clearing one of those back to a working state is allowed so the
-    // derivation can take over again.
+    // A goal with sub-goals or tasks derives NOT_STARTED/IN_PROGRESS/DONE, so setting one by hand is
+    // refused. AT_RISK and DISCARDED stay manual, and clearing them lets the derivation take over.
     const derived = existing._count.children > 0 || existing._count.tasks > 0
     const clearingFlag = existing.status === "AT_RISK" || existing.status === "DISCARDED"
     if (derived && !REASON_REQUIRED.has(input.status) && !clearingFlag) {
@@ -399,9 +317,7 @@ export async function updateGoal(
     }
     reason = normaliseReason(input.status, input.reason)
     data.status = input.status
-    // The reason belongs to the status that needed it. Moving to a status that
-    // needs none clears it, so a stale "blocked on the client" cannot linger
-    // beside a goal that is now done.
+    // Clear the reason when the new status needs none, so a stale one can't linger.
     data.statusReason = REASON_REQUIRED.has(input.status) ? reason : null
   }
 
@@ -429,14 +345,7 @@ export async function updateGoal(
   })
 }
 
-/**
- * Take a goal off the board without destroying it.
- *
- * The default behind the delete button, and the reason that button opens a
- * dialog at all: "delete" on a goal somebody spent a quarter working towards
- * should be a decision, not a reflex. Deactivated goals keep their history and
- * count for nothing.
- */
+/** Soft-delete (the delete button's default): history kept, counts for nothing. */
 export async function setGoalActive(
   projectId: string,
   goalId: string,
@@ -456,8 +365,7 @@ export async function setGoalActive(
       where: { id: goalId },
       data: { isActive, deactivatedAt: isActive ? null : new Date() },
     })
-    // Sub-goals follow their parent: a deactivated goal whose children still
-    // showed on the board would be half-hidden, which is worse than either.
+    // Sub-goals follow their parent, so nothing is half-hidden.
     await tx.projectGoal.updateMany({
       where: { parentId: goalId },
       data: { isActive, deactivatedAt: isActive ? null : new Date() },

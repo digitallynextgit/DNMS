@@ -74,7 +74,6 @@ export const PATCH = withAuth(
         include: { jobPosting: { select: { title: true } } },
       })
 
-      // Send stage-change email if email is available and stage changed
       if (
         body.stage &&
         body.stage !== prevApplicant?.stage &&

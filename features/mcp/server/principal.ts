@@ -18,16 +18,8 @@ import { TOKEN_PREFIX } from "../constants"
 import { mcpResource, resourceMetadataUrl } from "./config"
 import { sha256Hex } from "./tokens"
 
-// =============================================================================
-// Access token → the person behind it.
-//
-// Runs on EVERY MCP request, so a change in DNMS applies to the AI app on its
-// very next call:
-//   - disconnected in DNMS, or the app revoked it      → 401
-//   - employee deactivated / offboarded / company suspended → 401
-//   - password changed after connecting                → 401 (and grant revoked)
-//   - roles or permissions changed                     → new ones apply at once
-// =============================================================================
+// Access token -> the person behind it. Runs on every MCP request, so disconnects, deactivation,
+// password changes (grant revoked) and permission changes apply on the next call.
 
 export interface Principal {
   session: Session
@@ -47,9 +39,7 @@ export interface Principal {
 const LAST_USED_EVERY_MS = 5 * 60 * 1000
 
 /**
- * The resource-server token check, in the MCP SDK's verifier shape. Anything
- * not valid throws invalid_token, which the SDK's bearer gate turns into
- * 401 + WWW-Authenticate pointing at our Protected Resource Metadata.
+ * Resource-server token check (MCP SDK verifier shape). Invalid tokens throw invalid_token -> 401.
  */
 export const tokenVerifier: OAuthTokenVerifier = {
   async verifyAccessToken(bearer: string): Promise<AuthInfo> {
@@ -70,8 +60,7 @@ export const tokenVerifier: OAuthTokenVerifier = {
 }
 
 export async function resolvePrincipal(bearer: string): Promise<Principal | null> {
-  // Everything up to "which company" is unscoped by necessity - the token is
-  // what decides it (same as sign-in).
+  // Unscoped until the token decides the company (same as sign-in).
   return runUnscoped("ai connector: the access token decides the company", async () => {
     const token = await db.oAuthToken.findUnique({
       where: { tokenHash: sha256Hex(bearer) },
@@ -85,11 +74,8 @@ export async function resolvePrincipal(bearer: string): Promise<Principal | null
 }
 
 /**
- * The same person, found from a connection id instead of an access token - for
- * the one-time file-download links (features/mcp/server/download-links.ts),
- * which are opened in a browser that holds no bearer token. Every check a token
- * gets still applies: connection live, account active, password unchanged,
- * permissions loaded fresh.
+ * The same person, from a connection id - for download links opened in a browser with no bearer
+ * token. Every token check still applies.
  */
 export async function resolvePrincipalByGrant(grantId: string): Promise<Principal | null> {
   return runUnscoped("ai connector: a download link names its connection", async () => {
@@ -175,11 +161,7 @@ export function principalFrom(authInfo: AuthInfo | undefined): Principal {
   return p
 }
 
-/**
- * Run `fn` as the principal: inside their company (tenant guard) AND as them
- * (getSession → their session). Everything DNMS already enforces - withAuth,
- * requirePermission, per-record checks, audit logging - then applies unchanged.
- */
+/** Run `fn` inside the principal's company and as them, so every existing DNMS check applies. */
 export function runAsPrincipal<T>(principal: Principal, fn: () => Promise<T>): Promise<T> {
   return runWithTenant({ tenantId: principal.tenantId, slug: principal.tenantSlug }, () =>
     runAsDelegate(principal.session, fn),

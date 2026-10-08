@@ -1,12 +1,5 @@
-// =============================================================================
-// Recruitment: the careers tree (Careers page), applications in every pipeline
-// state (Applications page), referrals (Referrals + My Referrals), and a few
-// legacy job postings/applicants/interviews, which the Analytics page still
-// counts.
-//
-// Candidates are made up; every address is on the demo domain and every link
-// points at example.com (reserved, never a real profile).
-// =============================================================================
+// Demo recruitment: the careers tree, applications in every state, referrals, and a few legacy job postings
+// (Analytics still counts them). Candidates are made up; links point at example.com.
 
 import { randomUUID } from "node:crypto"
 import { DEMO_EMAIL_DOMAIN } from "@/lib/demo"
@@ -238,7 +231,6 @@ const TREE: GroupDef[] = [
 const mail = (local: string) => `${local}@${DEMO_EMAIL_DOMAIN}`
 
 export async function seedRecruitment(ctx: DemoContext): Promise<void> {
-  // ── careers tree ───────────────────────────────────────────────────────────
   const roleIndex = new Map<string, { id: string; group: GroupDef; sub: SubDef; role: RoleDef }>()
   let groups = 0
   let roles = 0
@@ -293,7 +285,6 @@ export async function seedRecruitment(ctx: DemoContext): Promise<void> {
   ctx.summary.add(M, "careers roles", roles)
   ctx.summary.add(M, "careers openings", openings)
 
-  // ── applications (careers site) ────────────────────────────────────────────
   type App = {
     name: string
     role: string
@@ -310,8 +301,7 @@ export async function seedRecruitment(ctx: DemoContext): Promise<void> {
     closed?: { slug: string; title: string }
     time?: string
   }
-  // GUIDE REQUIREMENT (review): page 1 shows one "Re-applied" and one "Role
-  // closed" application (isRepeat / !roleResolved, as the careers API sets them).
+  // Guide requirement: page 1 shows one "Re-applied" and one "Role closed" application.
   const apps: App[] = [
     {
       name: "Rhea Kulkarni",
@@ -428,11 +418,8 @@ export async function seedRecruitment(ctx: DemoContext): Promise<void> {
     })
   }
 
-  // ── internal referrals by Priya (raised inside DNMS) ───────────────────────
-  // GUIDE REQUIREMENT (self-service): one HIRED referral (Rahul, joined days
-  // ago -> reward "pending" for a year) and one still in the pipeline.
-  // Reward AMOUNTS need REFERRAL_REWARD_PERCENT, a platform-wide AppSetting
-  // shared with the real company - deliberately NOT set, so no amount shows.
+  // Internal referrals by Priya (guide requirement): one HIRED (Rahul, reward pending for a year), one in the
+  // pipeline. REFERRAL_REWARD_PERCENT is platform-wide (shared with the real company), so it stays unset.
   const internal = [
     {
       role: "ui-ux-designer",
@@ -495,7 +482,6 @@ export async function seedRecruitment(ctx: DemoContext): Promise<void> {
   ctx.summary.add(M, "career applications", appRows.length)
   ctx.summary.add(M, "  of which referrals (Priya x2 incl. Rahul hired, Karthik, Vikram)", 4)
 
-  // ── legacy job postings (Analytics counts these) ───────────────────────────
   const neha = idOf(ctx, "neha")
   const postings = [
     {

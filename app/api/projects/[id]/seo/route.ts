@@ -28,14 +28,7 @@ const CONFIG_SELECT = {
   lastSyncError: true,
 } as const
 
-// GET - every site tracked under this project, plus whether Search Console
-// credentials exist at all so the tab can explain what's missing.
-//
-// withProjectAccess, NOT withAuth: the project arrives in the URL as a slug, and
-// only the project guards resolve that to the real id before the handler runs.
-// With withAuth this queried seo_properties for a row whose projectId was the
-// literal slug, always found nothing, and reported "No sites tracked yet" while
-// POST - which does resolve - had written the row under the real id.
+// withProjectAccess, not withAuth: only the project guards resolve the URL slug to the real id.
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     const [properties, gscConfigured, serviceAccount] = await Promise.all([
@@ -47,7 +40,6 @@ export const GET = withProjectAccess(
   },
 )
 
-// POST - track another site under this project (e.g. one of KYG's subdomains).
 export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     const projectId = ctx.params.id

@@ -4,23 +4,8 @@ import { db } from "@/server/db"
 import { createNotifications } from "@/lib/notifications"
 import { setMembershipActive } from "@/server/identity"
 
-// =============================================================================
-// The backstop for an exit nobody finished.
-// =============================================================================
-// Approval no longer deactivates anybody - it starts a notice period, and the
-// account closes at HR's final sign-off. That is the right shape, but it moves
-// the close from something guaranteed (a transaction) to something a person has
-// to remember, and the failure mode is severe: a departed employee keeps a
-// working login indefinitely.
-//
-// This sweep is what makes the notice period safe to have. Anyone whose last
-// working day has PASSED and who is somehow still active is deactivated, and HR
-// is told their clearance was never completed.
-//
-// It never completes the checklist. The clearances still have to be signed by
-// the people who owe them, and marking an exit "done" because a date went by
-// would forge exactly the record the gate exists to protect.
-// =============================================================================
+// Backstop for unfinished exits: deactivates anyone still active after their last working day
+// and tells HR. Never completes the checklist - the clearances still need real signatures.
 
 export interface ExitSweepResult {
   checked: number
@@ -28,8 +13,7 @@ export interface ExitSweepResult {
 }
 
 export async function sweepOverdueExits(now: Date = new Date()): Promise<ExitSweepResult> {
-  // Date-only: the last working day is itself a working day, so somebody is
-  // only overdue from the day AFTER it.
+  // Date-only: overdue only from the day after the last working day.
   const cutoff = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
 
   const overdue = await db.resignation.findMany({
@@ -55,8 +39,7 @@ export async function sweepOverdueExits(now: Date = new Date()): Promise<ExitSwe
           where: { id: e.id },
           data: { status: "RESIGNED", isActive: false },
         }),
-        // Same cleanup the deliberate paths perform - rosters and pickers must
-        // stop treating a leaver as current.
+        // Same cleanup as the normal exit path, so rosters and pickers drop the leaver.
         db.projectTeamMember.deleteMany({ where: { employeeId: e.id } }),
         db.projectTeam.updateMany({ where: { managerId: e.id }, data: { managerId: null } }),
       ])
@@ -76,8 +59,7 @@ export async function sweepOverdueExits(now: Date = new Date()): Promise<ExitSwe
     }
   }
 
-  // Tell HR, because a sweep firing means the process was not followed: these
-  // people left without their clearance being signed off.
+  // Tell HR: a sweep firing means someone left without clearance sign-off.
   if (result.deactivated.length > 0) {
     const hr = await db.employee.findMany({
       where: {

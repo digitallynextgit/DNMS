@@ -20,12 +20,11 @@ import { workbookTeamForProject } from "@/features/projects/server/sheets.servic
 import { canContributeToWorkbookTeam } from "@/features/projects/server/project-access"
 import type { Session } from "next-auth"
 
-const MAX_SIZE_BYTES = 250 * 1024 * 1024 // 250 MB
+const MAX_SIZE_BYTES = 250 * 1024 * 1024
 const BLOCKED_EXTENSIONS = [".exe", ".bat", ".sh", ".cmd", ".msi", ".com", ".scr", ".ps1"]
 const ALLOWED_CATEGORIES = ["BRIEFS", "ASSETS", "DELIVERABLES", "REFERENCES", "OTHER"] as const
 type Category = (typeof ALLOWED_CATEGORIES)[number]
 
-// Project participant check (any team member, or owner)
 async function isProjectParticipant(projectId: string, employeeId: string): Promise<boolean> {
   const m = await db.projectTeamMember.findFirst({
     where: { projectId, employeeId },
@@ -36,14 +35,13 @@ async function isProjectParticipant(projectId: string, employeeId: string): Prom
   return p?.ownerId === employeeId
 }
 
-// Helper: pull a file extension safely. "myfile.pdf" → ".pdf"; "README" → ""; "x.tar.gz" → ".gz"
+// "myfile.pdf" -> ".pdf", "README" -> "", "x.tar.gz" -> ".gz"
 function fileExtension(name: string): string {
   const idx = name.lastIndexOf(".")
   if (idx < 0 || idx === name.length - 1) return ""
   return name.slice(idx).toLowerCase()
 }
 
-// GET /api/projects/[id]/resources - list resources (filterable)
 export const GET = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
@@ -61,9 +59,7 @@ export const GET = withProjectAccess(
         where,
         include: {
           uploadedBy: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
-          // Null for a staff upload; set when the file arrived from the client
-          // portal. isClientVisible and reviewStatus are scalars and ride along
-          // with `include` automatically.
+          // Null for staff uploads; set when the file came from the client portal.
           uploadedByClient: { select: { id: true, name: true } },
           team: { select: { id: true, name: true } },
         },
@@ -78,17 +74,13 @@ export const GET = withProjectAccess(
   },
 )
 
-// POST /api/projects/[id]/resources - upload file (multipart/form-data)
 export const POST = withSession(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
-      // The URL carries a slug now; this route is behind plain withSession, not
-      // a slug-aware project guard, so resolve it here. The id is written onto
-      // the stored resource, so an unresolved slug would corrupt the row.
+      // Plain withSession, so resolve the slug here - the id is written onto the stored row.
       const projectId = await resolveProjectId(ctx.params.id)
       if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
 
-      // 1. Verify project exists
       const project = await db.project.findUnique({
         where: { id: projectId },
         select: { id: true },
@@ -97,7 +89,6 @@ export const POST = withSession(
         return NextResponse.json({ error: "Project not found" }, { status: 404 })
       }
 
-      // 2. Auth: project participant OR admin
       const isAdmin = await canManageProject(session, projectId)
       const isParticipant = isAdmin || (await isProjectParticipant(projectId, session.user.id))
       if (!isParticipant) {
@@ -107,7 +98,6 @@ export const POST = withSession(
         )
       }
 
-      // 3. Parse form data
       let formData: FormData
       try {
         formData = await req.formData()
@@ -121,39 +111,29 @@ export const POST = withSession(
       const categoryRaw = formData.get("category")
       const descriptionRaw = formData.get("description")
       const tagRaw = formData.get("tag")
-      // A file can be the OUTPUT of a logged deliverable. It is still an
-      // ordinary resource (so it shows on the Files tab), just linked back.
+      // A file can be the output of a logged deliverable (it still shows on the Files tab).
       const deliverableIdRaw = formData.get("deliverableId")
       const deliverableId =
         typeof deliverableIdRaw === "string" && deliverableIdRaw ? deliverableIdRaw : null
-      // A file can equally be a team's output against a MONTHLY CALENDAR's
-      // plan. Same shape as deliverableId one line up, and deliberately so:
-      // reusing the column pattern is what lets calendar attachments reuse this
-      // whole route - the size cap, the extension allowlist, and the
-      // video-to-Drive / everything-else-to-Backblaze split below.
+      // Or a team's output against a monthly calendar plan - same pattern, so it reuses this whole route.
       const workbookTeamIdRaw = formData.get("workbookTeamId")
       const workbookTeamId =
         typeof workbookTeamIdRaw === "string" && workbookTeamIdRaw ? workbookTeamIdRaw : null
 
-      // Files-tab folder to land in; absent/"null" = the project's top level.
+      // Absent/"null" = the project's top level.
       const folderIdRaw = formData.get("folderId")
       const folderId =
         typeof folderIdRaw === "string" && folderIdRaw && folderIdRaw !== "null"
           ? folderIdRaw
           : null
 
-      // Normalise form values (FormData entries are FormDataEntryValue)
       const teamId =
         typeof teamIdRaw === "string" && teamIdRaw && teamIdRaw !== "null" ? teamIdRaw : null
       const category = typeof categoryRaw === "string" && categoryRaw ? categoryRaw : "OTHER"
       const description = typeof descriptionRaw === "string" ? descriptionRaw : null
-      // An explicit tag wins; otherwise it is guessed from the file below, once
-      // the name and MIME type are known. Never left null on a new upload - an
-      // unclassified row is invisible to the tag filter, and the whole point of
-      // guessing is that the filter covers everything.
+      // An explicit tag wins; otherwise it is guessed below. Never null on upload, or the tag filter misses it.
       const explicitTag = isDocTag(tagRaw) ? tagRaw : null
 
-      // 4. Validate file
       if (!fileEntry || typeof fileEntry === "string") {
         return NextResponse.json({ error: "File is required" }, { status: 400 })
       }
@@ -162,12 +142,10 @@ export const POST = withSession(
         return NextResponse.json({ error: "Uploaded file is empty" }, { status: 400 })
       }
 
-      // 5. Validate category
       if (!ALLOWED_CATEGORIES.includes(category as Category)) {
         return NextResponse.json({ error: `Invalid category "${category}"` }, { status: 400 })
       }
 
-      // 6. Size check
       if (file.size > MAX_SIZE_BYTES) {
         return NextResponse.json(
           {
@@ -177,7 +155,6 @@ export const POST = withSession(
         )
       }
 
-      // 7. Extension check
       const fileName = file.name || "upload"
       const ext = fileExtension(fileName)
       if (ext && BLOCKED_EXTENSIONS.includes(ext)) {
@@ -187,7 +164,6 @@ export const POST = withSession(
         )
       }
 
-      // 8. Validate team belongs to project, if provided
       if (teamId) {
         const team = await db.projectTeam.findUnique({ where: { id: teamId } })
         if (!team || team.projectId !== projectId) {
@@ -195,7 +171,6 @@ export const POST = withSession(
         }
       }
 
-      // 8a. The folder, if any, must be one of this project's.
       if (folderId) {
         const folder = await db.projectFolder.findFirst({
           where: { id: folderId, projectId },
@@ -206,8 +181,7 @@ export const POST = withSession(
         }
       }
 
-      // 8b. A deliverable link must name an entry on THIS project that the
-      //     uploader may edit - their own, their team's, or they run the project.
+      // A deliverable link must be an entry on this project that the uploader may edit.
       if (deliverableId) {
         const entry = await db.projectDeliverable.findFirst({
           where: { id: deliverableId, projectId },
@@ -227,9 +201,7 @@ export const POST = withSession(
         }
       }
 
-      // 8c. A calendar link must name a plan row on a calendar of THIS project
-      //     that the uploader may edit - the same rule that governs changing
-      //     what that team owes.
+      // A calendar link must be a plan row on this project that the uploader may edit.
       if (workbookTeamId) {
         const row = await workbookTeamForProject(workbookTeamId, projectId)
         if (!row) {
@@ -248,9 +220,7 @@ export const POST = withSession(
 
       const resourceId = randomUUID()
 
-      // 9. Pick the store. Video goes to Drive - the same rule the client portal
-      //    applies - so a finished video has a link that can be sent to someone
-      //    with no login here. Everything else stays on Backblaze.
+      // Video goes to Drive (shareable without a login, as in the portal); everything else to Backblaze.
       let storage: {
         objectKey: string | null
         driveFileId: string | null
@@ -280,7 +250,6 @@ export const POST = withSession(
           return NextResponse.json({ error: msg }, { status: 500 })
         }
       } else {
-        // Make sure the storage bucket exists (no-op if it already does)
         await ensureBucket()
 
         const prefix = teamId
@@ -314,7 +283,6 @@ export const POST = withSession(
         }
       }
 
-      // 12. DB record
       const resource = await db.projectResource.create({
         data: {
           id: resourceId,
@@ -338,10 +306,7 @@ export const POST = withSession(
         },
       })
 
-      // 12a. A file attached to a deliverable is work handed over, so "Made"
-      //      moves with it - the same rule the portal applies, from lib so the
-      //      two sides cannot drift. Read AFTER the insert, so the new row is
-      //      included and `before` is one less.
+      // A file attached to a deliverable is work handed over, so "Made" moves with it (shared lib rule).
       if (deliverableId) {
         const entry = await db.projectDeliverable.findUnique({
           where: { id: deliverableId },
@@ -353,7 +318,6 @@ export const POST = withSession(
         }
       }
 
-      // 13. Audit log
       await createAuditLog(session, {
         action: "UPLOAD",
         module: "project",

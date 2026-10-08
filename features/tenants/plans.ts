@@ -1,29 +1,9 @@
-// =============================================================================
-// Plans (M5).
-//
-// The four tiers the product is sold on. Kept as data, in one place, so the
-// signup page, the platform console and the enforcement check cannot disagree
-// about what a plan includes.
-//
-// PRICING IS PER EMPLOYEE PER MONTH. That is the honest unit for this product:
-// what it does - attendance, payroll, leave, performance - scales with headcount
-// and with nothing else. A flat fee would overcharge a five-person studio and
-// undercharge a two-hundred-person agency for the same work.
-//
-// No framework imports: the marketing page, the console and the server all read
-// this.
-// =============================================================================
+// The plan tiers as data, shared by signup, the platform console and enforcement. Priced per
+// employee per month. No framework imports - the marketing page reads this too.
 
 export type PlanKey = "TRIAL" | "STARTER" | "RED" | "ENTERPRISE"
 
-/**
- * GST applied on top of every listed price.
- *
- * Prices in PLANS are EXCLUSIVE of tax - that is the number a buyer compares
- * against a competitor, and the number an invoice line carries before tax is
- * added. Anything that shows a price to a customer must show this too, or the
- * figure on the page and the figure on the invoice disagree.
- */
+/** GST on top of every listed price - PLANS prices exclude tax, so show it wherever a price is. */
 export const GST_RATE = 0.18
 
 export interface Plan {
@@ -124,13 +104,7 @@ export interface HeadcountCheck {
   message: string | null
 }
 
-/**
- * May this company add another active employee?
- *
- * Called before an employee is created. Returns a message written for the HR
- * admin who hits it, not for a log: it says what the limit is and what to do,
- * because "Forbidden" from a headcount ceiling is indistinguishable from a bug.
- */
+/** May this company add another active employee? The message is written for the HR admin. */
 export function checkHeadcount(plan: string, activeEmployees: number): HeadcountCheck {
   const limit = planOf(plan).maxEmployees
   if (limit === null || activeEmployees < limit) {

@@ -20,8 +20,7 @@ import { INK, LINE, MUTED, TEXT, WARN, ZEBRA, personStyle } from "./theme"
 import { dayLabel, formatHoursRound, formatHoursShort } from "../../lib/report-format"
 import type { DayRow, PersonReport, WorkReport } from "../../types"
 
-// The work report as a Word document: the same content as the slides, laid out
-// to read top to bottom and to be edited before it is sent. A4 portrait.
+// The work report as an editable Word document (same content as the slides), A4 portrait.
 
 const PAGE_CONTENT_DXA = 9900 // A4 width minus 0.7in margins, in twentieths of a point
 const FONT = "Calibri"
@@ -387,7 +386,6 @@ export async function renderWorkReportDocx(r: WorkReport): Promise<Uint8Array<Ar
 
   people.forEach((p, i) => children.push(...personSection(p, i)))
 
-  // ── Appendix ──
   const holidays = r.holidays.length
     ? ` and holidays (${r.holidays.map((h) => `${h.name}, ${fmtDay(h.date)}`).join("; ")})`
     : " and company holidays"

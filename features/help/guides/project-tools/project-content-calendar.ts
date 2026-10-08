@@ -1,10 +1,7 @@
 import { CalendarDays } from "lucide-react"
 import type { HelpGuide } from "../../types"
 
-// Screens: features/projects/components/project-sheet.tsx (the Calendars tab),
-// calendar/calendar-picker.tsx, calendar/month-dialogs.tsx,
-// calendar/team-plan-strip.tsx, calendar/team-plan-sheet.tsx and
-// sheet-import-dialog.tsx.
+// Screens: features/projects/components/project-sheet.tsx (Calendars tab) and calendar/*.
 
 const CALENDARS = "/projects/sunmeadow-organics-launch?tab=calendar"
 
@@ -153,8 +150,7 @@ export const projectContentCalendarGuide: HelpGuide = {
               { fill: { css: "#col-name" }, value: "Hashtags" },
             ],
             highlight: [
-              // By id: grid columns carry their own name as a label, and a
-              // content calendar often has one called "Type".
+              // By id: grid columns carry their own name as a label (often "Type").
               { css: "#col-name" },
               { css: "#col-type" },
               { role: "button", name: "Add column" },
@@ -243,8 +239,7 @@ export const projectContentCalendarGuide: HelpGuide = {
             id: "project-content-calendar-share",
             as: "manager",
             path: CALENDARS,
-            // Rendered only once the open month has loaded. Not exact, so it
-            // also finds the button if the month is already "Shared".
+            // Only once the month has loaded. Not exact, so it also matches "Shared".
             actions: [{ waitFor: { role: "button", name: "Share" } }],
             highlight: [{ role: "button", name: "Share" }],
           },

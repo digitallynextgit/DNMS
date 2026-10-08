@@ -10,7 +10,6 @@ import { myTasksGuide } from "./my-tasks"
 import { progressGuide } from "./progress"
 import { workReportsGuide } from "./work-reports"
 
-/** My Projects, the project workspace, My Tasks, Progress, Work Report. In the order they are listed. */
 export const projectGuides: HelpGuide[] = [
   myProjectsGuide,
   projectWorkspaceGuide,

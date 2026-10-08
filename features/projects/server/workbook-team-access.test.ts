@@ -1,17 +1,10 @@
 import { describe, expect, it, vi } from "vitest"
 import type { Session } from "next-auth"
 
-// project-access.ts opens with `import "server-only"`, which throws outside a
-// React Server Component, and it pulls in the route guards, which pull in
-// next-auth. Both are stubbed so that a POLICY can be unit-tested at all: the
-// predicate under test is pure decision-making, and neither the build-time
-// guard nor the session machinery has anything to say about it.
+// Stub server-only and the route guards (next-auth) so the policy can be unit-tested.
 vi.mock("server-only", () => ({}))
 vi.mock("@/server/api-handler", () => ({ withSession: (h: unknown) => h }))
 
-// The three tables the predicate touches, and nothing else. A fake rather than
-// the real client: this is a POLICY test, and the policy is the only thing that
-// should be able to fail it.
 const state = {
   /** projectId -> the Account Manager's employee id. */
   owners: {} as Record<string, string>,
@@ -32,8 +25,7 @@ vi.mock("@/server/db", () => ({
     projectWorkbook: {
       findFirst: async ({ where }: { where: { id: string; projectId: string } }) => {
         const w = state.workbooks[where.id]
-        // The projectId filter is the point of the query, not decoration: an id
-        // from another project must not resolve.
+        // The projectId filter matters: an id from another project must not resolve.
         return w && w.projectId === where.projectId ? { assignedToId: w.assignedToId } : null
       },
     },
@@ -66,9 +58,7 @@ vi.mock("@/server/db", () => ({
   },
 }))
 
-// Nobody in these tests holds the global project:write permission; the ones who
-// are allowed are allowed because of who they are ON THIS PROJECT, which is the
-// distinction worth testing.
+// Nobody has project:write here; access comes from their role on this project.
 vi.mock("@/lib/permissions", () => ({ hasPermission: () => false }))
 
 import { canContributeToWorkbookTeam, canEditWorkbookTeam } from "./project-access"
@@ -124,9 +114,7 @@ describe("canEditWorkbookTeam", () => {
 
   it("does NOT let a team manager edit another team's row", async () => {
     setup()
-    // The whole reason this is not withTeamStaffing: that guard would answer
-    // "do they manage any team here", and let the design lead rewrite the video
-    // team's deadline.
+    // Unlike withTeamStaffing, managing some team here is not enough to edit another team's row.
     expect(await canEditWorkbookTeam(session("design-lead"), PROJECT, "sep", "video")).toBe(false)
   })
 
@@ -144,9 +132,7 @@ describe("canEditWorkbookTeam", () => {
 
   it("refuses a calendar belonging to another project", async () => {
     setup()
-    // Even for the Account Manager of THIS project: the workbook lookup is
-    // scoped, so an id from p2 resolves to nothing here. (The AM short-circuit
-    // is checked first, so use a team manager to reach the lookup.)
+    // The workbook lookup is project-scoped, so an id from p2 resolves to nothing here.
     expect(await canEditWorkbookTeam(session("video-lead"), PROJECT, "elsewhere", "video")).toBe(
       false,
     )
@@ -159,8 +145,7 @@ describe("canEditWorkbookTeam", () => {
 
   it("does not treat an unmanaged calendar as everyone's", async () => {
     setup()
-    // assignedToId is null here; a null === null comparison against a missing
-    // session id would hand the calendar to nobody in particular.
+    // assignedToId is null; null === null must not hand the calendar to a session with no id.
     expect(await canEditWorkbookTeam(session("a-designer"), PROJECT, "unowned", "design")).toBe(
       false,
     )
@@ -171,10 +156,7 @@ describe("canEditWorkbookTeam", () => {
 })
 
 describe("canContributeToWorkbookTeam", () => {
-  // The split that makes the plan worth putting on the calendar: a plain team
-  // member cannot decide what their team owes, but they can record delivering
-  // it. Without the second half they would read "DESIGN owes 12 by the 19th"
-  // and then have to walk to the Files tab to hand it in.
+  // A plain member can't change what the team owes, but can record delivering it.
   it("lets a plain team member hand work in against their own team's row", async () => {
     setup()
     expect(await canContributeToWorkbookTeam(session("a-designer"), PROJECT, "sep", "design")).toBe(

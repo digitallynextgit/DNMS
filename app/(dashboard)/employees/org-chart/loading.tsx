@@ -1,7 +1,6 @@
 import { PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-/** A single org node card placeholder (matches the real w-36 node card). */
 function OrgCardSkeleton() {
   return (
     <div className="bg-card border-border flex w-36 flex-col items-center gap-1.5 rounded-sm border px-3 py-2.5 shadow-sm">
@@ -12,8 +11,6 @@ function OrgCardSkeleton() {
   )
 }
 
-/** Mirrors the org chart: a bordered canvas holding a top-down tree (a root node,
- *  a connector, then a row of child nodes) so navigation is instant. */
 export default function OrgChartLoading() {
   return (
     <div className="space-y-6">

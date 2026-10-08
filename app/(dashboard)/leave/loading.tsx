@@ -5,8 +5,6 @@ import {
   ListSkeleton,
 } from "@/components/shared/loading-skeleton"
 
-// Landing page: header + "Leave Balances" card grid + "Recent Requests" list,
-// mirroring the non-manager My Leave view so nothing reflows on load.
 export default function LeaveLoading() {
   return (
     <div className="space-y-8">

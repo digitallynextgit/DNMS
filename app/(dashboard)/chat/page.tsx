@@ -9,9 +9,6 @@ export const metadata: Metadata = {
   description: "Private team chat with attachments, voice notes and reactions.",
 }
 
-// A two-pane placeholder so the chat area is not blank until ChatView mounts:
-// a column of conversation-row bars beside an empty thread panel, sized to the
-// same shell the real view fills.
 function ChatSkeleton() {
   return (
     <div className="flex h-full min-h-96 overflow-hidden rounded-sm border">

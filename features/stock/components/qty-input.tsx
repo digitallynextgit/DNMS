@@ -6,11 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
-/**
- * A quantity field with -/+ steppers. The value stays a STRING so HR can
- * clear the box and type; the steppers clamp at `min` and the dialogs
- * validate on save exactly as before.
- */
+/** The value stays a STRING so HR can clear the box and type; the steppers clamp at `min`. */
 export function QtyInput({
   id,
   value,

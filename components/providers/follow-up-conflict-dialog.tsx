@@ -18,13 +18,8 @@ import { apiFetch } from "@/lib/api-fetch"
 import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
 
 /**
- * Asks what to do with a hold follow-up whose original task has already been
- * picked up again.
- *
- * Mounted ONCE in the dashboard shell: the question can be raised from the task
- * sheet, the kanban, the detail panel or My Tasks, and one dialog answering for
- * all of them is what keeps the wording and the two outcomes identical
- * everywhere.
+ * Asks what to do with a hold follow-up whose original task was already picked up again. Mounted
+ * once in the dashboard shell so every surface gets the same wording and outcomes.
  */
 export function FollowUpConflictDialog() {
   const conflict = useFollowUpConflictStore((s) => s.conflict)

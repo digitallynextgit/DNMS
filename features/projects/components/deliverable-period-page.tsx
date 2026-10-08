@@ -17,15 +17,7 @@ const labelOf = (key: string) => {
   return start && end ? formatPeriod(day(start), day(end)) : key
 }
 
-/**
- * One deliverable on its own page.
- *
- * The board lists the periods; the eye on a row lands here, where the lines
- * are shown in full with every action on them - assign, log delivery, accept -
- * instead of folded under the row. It is the board component underneath,
- * narrowed to one key, so the permissions and the dialogs are the board's and
- * not a second copy that could drift.
- */
+/** One period on its own page: the board narrowed to one key, so permissions and dialogs stay shared. */
 export function DeliverablePeriodPage({
   projectId,
   periodSlug,
@@ -43,8 +35,7 @@ export function DeliverablePeriodPage({
   const key = periodKeyFromSlug(periodSlug)
   const back = `/projects/${projectId}?tab=deliverables`
 
-  // The title IS the period - read straight off the URL, so it is right
-  // before any data arrives and never says "Deliverable" as a placeholder.
+  // Read from the URL, so the title is right before any data arrives.
   const label = key === null ? null : key === UNPLANNED_KEY ? UNPLANNED_LABEL : labelOf(key)
   const title = label ? (projectName ? `${projectName} · ${label}` : label) : "Deliverable"
 
@@ -73,9 +64,7 @@ export function DeliverablePeriodPage({
       canManage={canManage}
       currentUserId={currentUserId}
       periodKey={key}
-      // The header is the page to draw; its actions are the board to supply,
-      // since Add lines and Delete need the dialogs the board owns. Handing
-      // the slot over puts them beside the title instead of inside the table.
+      // The board supplies the header actions, since Add lines and Delete need its dialogs.
       renderHeader={(actions) => (
         <PageHeader
           title={title}

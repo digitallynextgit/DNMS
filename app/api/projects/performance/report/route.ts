@@ -16,11 +16,7 @@ import type { Session } from "next-auth"
 
 export const runtime = "nodejs"
 
-/**
- * The prompt is assembled per request rather than fixed, because the caller
- * chooses the report type and the sections. Only the invariants live here - the
- * section list and the analytical lens are appended from the request.
- */
+/** Only the invariants live here; the section list and lens are appended per request. */
 function buildSystemPrompt(type: ReportType, sections: ReportSection[]): string {
   const def = reportType(type)
   const chosen = sections
@@ -52,10 +48,7 @@ What each section must contain:
 ${rules}`
 }
 
-// POST /api/projects/performance/report
-// Generate an AI briefing. The caller picks the report type, the scope (which
-// projects / teams / people) and which sections it contains; the date window
-// comes from the page filter. Advisory only - nothing is stored.
+// Advisory only - nothing is stored.
 export const POST = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     if (!isAiConfigured()) {
@@ -75,9 +68,7 @@ export const POST = withSession(
 
       const body = await req.json().catch(() => ({}))
 
-      // Everything from the client is untrusted: the type and sections are
-      // snapped to the known vocabulary so a hand-rolled body cannot inject
-      // instructions into the prompt.
+      // Type and sections are snapped to known values, so a hand-rolled body can't inject into the prompt.
       const type: ReportType = reportType(body?.type).key
       const allowed = new Set(sectionsFor(type).map((s) => s.key))
       const asIds = (v: unknown): string[] =>
@@ -109,8 +100,7 @@ export const POST = withSession(
             }
           : {}
 
-      // Filters compose INSIDE the scope clause, so they can only ever narrow
-      // what this user was already allowed to see.
+      // Filters compose inside the scope clause, so they can only narrow it.
       const where = {
         AND: [
           scopeWhere,
@@ -150,8 +140,7 @@ export const POST = withSession(
         })
       }
 
-      // Name the scope in the prompt. Without it the model describes a filtered
-      // slice as though it were the whole portfolio.
+      // Name the scope, or the model describes a filtered slice as the whole portfolio.
       const [projectNames, teamNames, peopleNames] = await Promise.all([
         projectIds.length > 0
           ? db.project.findMany({ where: { id: { in: projectIds } }, select: { name: true } })
@@ -189,8 +178,7 @@ export const POST = withSession(
       const who = (t: (typeof tasks)[number]) =>
         t.assignee ? `${t.assignee.firstName} ${t.assignee.lastName}`.trim() : "Unassigned"
 
-      // The grouping dimension IS the report type - a team report that tallies
-      // per person answers the wrong question.
+      // The grouping dimension is the report type.
       const groupKey = (t: (typeof tasks)[number]): string => {
         switch (def.groupBy) {
           case "project":
@@ -277,8 +265,7 @@ export const POST = withSession(
         )
       }
 
-      // Detail blocks cost prompt tokens, so each one is only sent when a
-      // section that needs it was actually requested.
+      // Detail blocks cost tokens, so each is sent only when a section needs it.
       const push = (title: string, rows: string[]) => {
         lines.push("")
         lines.push(`${title} (${rows.length}):`)
@@ -358,8 +345,7 @@ export const POST = withSession(
         temperature: 0.3,
         // Longer reports need room; the cap scales with the section count.
         maxTokens: Math.min(1600, 300 + active.length * 160),
-        // This is the longest prompt in the app and asks for the most tokens back;
-        // it measures 8-12s, which leaves no room under the 20s default.
+        // The longest prompt in the app (8-12s measured), so the 20s default is too tight.
         timeoutMs: 35_000,
       })
 

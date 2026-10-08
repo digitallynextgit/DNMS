@@ -1,8 +1,6 @@
 import { PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-/** Mirrors the employee documents page: header + a stack of document rows
- *  (icon + name/meta + action buttons), matching DocumentList's own skeleton. */
 export default function EmployeeDocumentsLoading() {
   return (
     <div className="flex flex-col gap-6">

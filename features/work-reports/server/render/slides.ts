@@ -18,12 +18,8 @@ import { dayLabel, formatHoursRound, formatHoursShort } from "../../lib/report-f
 import { round1 } from "../../lib/work-hours"
 import type { DayRow, OpenItem, PersonReport, WorkReport } from "../../types"
 
-// =============================================================================
-// The work report as slides: the same sequence whether it ends up as a .pptx
-// or a .pdf. Title, the month at a glance, where the hours went, what was
-// delivered, then each person (summary + every working day), open items and an
-// appendix that says how the numbers were made.
-// =============================================================================
+// The work report as slides (same for .pptx and .pdf): title, at a glance, where the hours
+// went, impact, each person (summary + every working day), open items, appendix.
 
 const MX = 0.6
 const TABLE_Y = 1.5
@@ -61,7 +57,6 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
   const byId = new Map(people.map((p) => [p.id, p]))
   const slides: SlideFn[] = []
 
-  // ── chrome ────────────────────────────────────────────────────────────────
   const footer = (c: Canvas, page: number, total: number, dark = false) => {
     const color = dark ? "8B90AA" : MUTED
     c.text(
@@ -139,7 +134,6 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
     return parts.length ? `Working days (${parts.join(", ")})` : "Working days"
   }
 
-  // ── 1. Title ──────────────────────────────────────────────────────────────
   slides.push((c, page, total) => {
     c.addSlide(INK)
     c.text(
@@ -219,7 +213,6 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
     footer(c, page, total, true)
   })
 
-  // ── 2. At a glance ────────────────────────────────────────────────────────
   const clientProjects = r.team.projects.filter((p) => p.total > 0)
   const personCard = (c: Canvas, p: Person, x: number, y: number, w: number, h: number) => {
     const compact = h < 3
@@ -287,7 +280,6 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
     })
   }
 
-  // ── 3. Where the hours went ───────────────────────────────────────────────
   slides.push((c, page, total) => {
     c.addSlide(WHITE)
     header(c, "Time allocation", "Where the hours went")
@@ -365,7 +357,6 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
     footer(c, page, total)
   })
 
-  // ── 4. Impact ─────────────────────────────────────────────────────────────
   if (r.impact.length) {
     slides.push((c, page, total) => {
       c.addSlide(WHITE)
@@ -410,7 +401,6 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
     })
   }
 
-  // ── 5. Each person ────────────────────────────────────────────────────────
   const dayRowLines = (c: Canvas, row: DayRow) =>
     row.kind !== "work"
       ? 1
@@ -429,8 +419,7 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
 
   for (const p of people) {
     slides.push((c, page, total) => personSummary(c, p, page, total))
-    // Pagination needs text measurement, which needs the canvas - so it is done
-    // once, up front, against the same canvas the slides will be drawn on.
+    // Paginate up front, measuring text on the same canvas the slides use.
     const pages = paginateDays(c, p.days)
     pages.forEach((rows, i) =>
       slides.push((c, page, total) => dayTable(c, p, rows, i, pages.length, page, total)),
@@ -627,7 +616,6 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
     footer(c, page, total)
   }
 
-  // ── 6. Open items ─────────────────────────────────────────────────────────
   for (const group of chunk(people, 3)) {
     slides.push((c, page, total) => {
       c.addSlide(WHITE)
@@ -701,7 +689,6 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
     })
   }
 
-  // ── 7. Appendix ───────────────────────────────────────────────────────────
   const holidayText = r.holidays.length
     ? ` and holidays (${r.holidays.map((h) => `${h.name}, ${fmtDay(h.date)}`).join("; ")})`
     : " and company holidays"

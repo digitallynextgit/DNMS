@@ -5,8 +5,6 @@ import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 import type { HikvisionDevice } from "@prisma/client"
 
-// The device admin password is server-only (used by the sync path, which reads
-// its own rows). Never ship it to the browser; expose a boolean instead.
 function redactDevice({ password, ...rest }: HikvisionDevice) {
   return { ...rest, hasPassword: !!password }
 }

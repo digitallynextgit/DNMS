@@ -1,12 +1,6 @@
 import type { DeliverableStatus } from "./deliverable-lifecycle"
 
-// =============================================================================
-// Deliverables progress - the numbers behind the "My Progress" page
-//
-// Shared by the API route that computes them and the page that draws them, so
-// the two cannot drift. Everything here is plain JSON: dates are YYYY-MM-DD
-// strings, no Prisma types, nothing the browser cannot import.
-// =============================================================================
+// "My Progress" numbers, shared by the API route and the page. Plain JSON; dates are YYYY-MM-DD.
 
 /** One line of a "by project" or "by person" breakdown. */
 export interface ProgressGroup {

@@ -33,44 +33,10 @@ import {
   type ClientPlanLinkInput,
 } from "../schemas/plan.schema"
 
-// =============================================================================
-// The content plan, from the CLIENT side.
-// =============================================================================
-// Same rows as the team's deliverables board - not a parallel table. A plan the
-// client cannot see the team working against is a spreadsheet, and two tables
-// both holding "what we owe you" would disagree within a week.
-//
-// What differs is the VIEW and the VERBS:
-//
-//   sees     what was planned, what is made, what is waiting on them. Never
-//            hours, never who made it, never the internal note.
-//   plans    adds rows between two dates, with a brief. They land PLANNED and
-//            unassigned - the account manager routes them and the team manager
-//            puts names to them, exactly as when staff plan a period.
-//   attaches a finished link or file to an item.
-//   decides  finalises a delivered item, or sends it back with a reason.
-//   withdraws a request they made that nobody has started yet.
-//
-// Everything else - starting work, marking it delivered, deleting a row,
-// re-opening something already finalised - is refused, and refused by the same
-// transition table the staff board obeys (allowedTransition as "client"), so a
-// button the portal draws is never one the server then declines.
-//
-// Every entry point starts with requireClientModule(projectRef, "plan"), which
-// re-proves the session, the grant and the module. The projectRef in the URL is
-// a lookup key, never an authorisation: queries filter on grant.projectId.
-// =============================================================================
+// The client's view of the deliverables board. projectRef is only a lookup key;
+// every query filters on grant.projectId.
 
-/**
- * What the portal is allowed to know about one item.
- *
- * Hand-written and deliberately short. Absent entirely: hours, the maker, the
- * QC verifier, the task it came out of, and the team that owes it.
- *
- * `notes` and `loggedById` ARE read, but only so the list can work out whether
- * the note on a row is the client's own brief. Neither is returned - see the
- * mapping in listClientPlan.
- */
+/** What the portal may see of one item: never hours, maker, QC, source task or team. */
 const PORTAL_ITEM_SELECT = {
   id: true,
   type: true,
@@ -87,8 +53,6 @@ const PORTAL_ITEM_SELECT = {
   acceptedAt: true,
   acceptanceNote: true,
   createdAt: true,
-  // Which internal team owes it is not the client's business, and naming them
-  // would expose the company's structure for no gain - the AM routes the work.
   loggedByClient: { select: { id: true, name: true } },
   // Read, but NEVER returned as-is: see the mapping below.
   notes: true,
@@ -96,38 +60,23 @@ const PORTAL_ITEM_SELECT = {
   loggedByClientId: true,
   acceptedByClient: { select: { id: true, name: true } },
   files: {
-    // Only files shared with the client. A deliverable can carry internal
-    // working files too, and the portal must not list them.
+    // Only client-shared files - a deliverable can carry internal ones too.
     where: { isClientVisible: true },
     select: {
       id: true,
       fileName: true,
       fileSize: true,
       mimeType: true,
-      // Read to BUILD the share url below, never returned under its own name -
-      // see the mapping in listClientPlan, same treatment as `notes`.
-      // driveWebViewLink is deliberately absent: it is the internal Drive link
-      // and only asks an outsider to request access.
+      // Used to build the share url, never returned. driveWebViewLink is internal-only.
       shareToken: true,
       isPublicLink: true,
-      // Turned into `isMine` below. The UI needs to know which assets carry a
-      // delete button, and it must be the SAME question the server asks when the
-      // delete arrives - a button that 404s is worse than no button.
+      // Becomes `isMine`: the same check the delete endpoint makes.
       uploadedByClientId: true,
     },
   },
 } as const
 
-/**
- * A DATE column as the browser needs it: "2026-09-14", not a timestamp.
- *
- * serialize() turns a Date into a full ISO string, and every date helper on the
- * other side - the period grouping, the week headings - parses "yyyy-MM-dd" by
- * appending its own time part. Handed a full timestamp they build
- * "2026-09-14T00:00:00.000ZT00:00:00.000Z", which is an Invalid Date, and a
- * period reads "NaN undefined NaN". The staff row mapper has always trimmed
- * these; this one has to as well.
- */
+/** A DATE column as "yyyy-MM-dd": the browser date helpers append their own time part. */
 const asDay = (d: Date | null): string | null => (d ? d.toISOString().slice(0, 10) : null)
 
 /** The plan for one project: every item, and whether planning is possible yet. */
@@ -144,28 +93,16 @@ export async function listClientPlan(projectRef: string): Promise<ActionResult<u
       db.projectTeam.count({ where: { projectId: grant.projectId } }),
     ])
 
-    // ── `notes` NEVER leaves this function under its own name ─────────────────
-    // That column is where the TEAM talks to itself about the work. On a row
-    // the client wrote, it holds their own brief and is theirs to read back;
-    // on any other row it is internal. Renaming it on the way out makes that
-    // distinction structural: there is no `notes` field in the response for a
-    // future change to accidentally start populating.
+    // `notes` is internal except on rows the client wrote, so it never leaves under its own name.
     const items = rows.map(({ notes, loggedById, loggedByClientId, ...row }) => ({
       ...row,
-      // Same treatment as `notes` above: the raw token never leaves under its
-      // own name. It is turned into the finished url here, so there is no
-      // `shareToken` field in the response for a future change to start
-      // populating somewhere it should not go.
+      // Same for shareToken: only the finished url goes out.
       files: row.files.map(({ shareToken, uploadedByClientId, ...f }) => ({
         ...f,
         shareUrl: shareToken ? shareUrlFor(shareToken) : null,
         isMine: uploadedByClientId === session.user.id,
       })),
-      // What the row has attached against what was planned, so the UI can label
-      // the buttons and disable them at the ceiling instead of letting someone
-      // sit through an upload that the server was always going to refuse.
       attached: row.files.length + row.links.length,
-      // Dates as days, never timestamps - see asDay.
       dueOn: asDay(row.dueOn),
       periodStart: asDay(row.periodStart),
       periodEnd: asDay(row.periodEnd),
@@ -177,8 +114,7 @@ export async function listClientPlan(projectRef: string): Promise<ActionResult<u
       ),
     }))
 
-    // Grouping into periods happens in the browser, from the same pure helper
-    // the staff board uses, so the two cannot drift apart.
+    // Period grouping happens in the browser, with the helper the staff board uses.
     return ok(
       serialize({
         data: { items, canPlan: teamCount > 0, projectName: grant.projectName },
@@ -209,17 +145,8 @@ async function projectSlug(projectId: string): Promise<string> {
 }
 
 /**
- * The team a client-planned row is filed under until somebody routes it.
- *
- * The client is not asked which team should do the work - they should not have
- * to know the company's internal structure to ask for a video. But the row
- * cannot be team-less either: `project_deliverables_owner_check` permits a row
- * with no employee ONLY while it is PLANNED or IN_PROGRESS and names a team.
- *
- * So it lands with the account-management team, which is where an unrouted
- * client request belongs anyway, and the AM moves it. ADMIN by name where the
- * project has one; otherwise the first team, so the row still lands somewhere
- * real rather than failing in front of the client.
+ * Team a client-planned row is filed under until the AM routes it - the DB check needs a
+ * team on unassigned rows. ADMIN if the project has one, else the first team.
  */
 async function intakeTeamId(projectId: string): Promise<string | null> {
   const teams = await db.projectTeam.findMany({
@@ -231,15 +158,7 @@ async function intakeTeamId(projectId: string): Promise<string | null> {
   return admin?.id ?? teams[0]?.id ?? null
 }
 
-/**
- * The client plans a period: N of this, M of that, between two dates, each
- * with a brief.
- *
- * Rows land PLANNED and UNASSIGNED. That is the same two-step handoff staff
- * planning uses - somebody says what is wanted, a manager decides who makes
- * it - with one extra step in front: the account manager also decides WHICH
- * TEAM, because the client was not asked.
- */
+/** Client plans a period. Rows land PLANNED and unassigned; the AM picks the team. */
 export async function createClientPlanLines(
   projectRef: string,
   body: ClientPlanCreateInput,
@@ -250,15 +169,12 @@ export async function createClientPlanLines(
 
     const start = new Date(`${input.periodStart}T00:00:00.000Z`)
     const end = new Date(`${input.periodEnd}T00:00:00.000Z`)
-    // The same validator the staff planner runs, so a range accepted on one
-    // side is accepted on the other.
     const problem = periodProblem(start, end)
     if (problem) return fail(problem, undefined, 422)
 
     const teamId = await intakeTeamId(grant.projectId)
     if (!teamId) {
-      // Nothing to hang the row on, and the CHECK constraint would refuse it.
-      // Said without internal vocabulary: "team" is our word, not theirs.
+      // No team to file the row under, and the CHECK constraint would refuse it.
       return fail(
         "This project is not set up for planning yet - your account manager can sort that out.",
         undefined,
@@ -266,8 +182,7 @@ export async function createClientPlanLines(
       )
     }
 
-    // Match the project's existing vocabulary case-insensitively, so a client
-    // typing "reel" cannot split the count away from the team's "Reel".
+    // Case-insensitive, so "reel" doesn't split from the team's "Reel".
     const existingTypes = await db.projectDeliverable.findMany({
       where: { projectId: grant.projectId },
       select: { type: true },
@@ -282,17 +197,14 @@ export async function createClientPlanLines(
     const rows = input.lines.map((l) => ({
       projectId: grant.projectId,
       teamId,
-      // Nobody is on it yet - that is the team manager's call.
       employeeId: null,
-      // The client wrote this entry. loggedById stays null: it is a foreign key
-      // to employees, and this was not an employee.
+      // loggedById is an employee FK, so the client author goes in loggedByClientId.
       loggedById: null,
       loggedByClientId: session.user.id,
       type: canonical(l.type),
       title: l.title,
       quantity: l.quantity,
-      // The brief lands in `notes`, which the staff board already renders - so
-      // the team reads what was asked for without any extra plumbing.
+      // The brief goes in `notes`, which the staff board already shows.
       notes: l.description?.trim() || null,
       status: "PLANNED" as const,
       dueOn: end,
@@ -347,13 +259,8 @@ export async function createClientPlanLines(
 }
 
 /**
- * A short-lived signed URL for one asset hanging off a plan item.
- *
- * Three conditions, all of them load-bearing: the file is on THIS project, it
- * is shared with the client, and it belongs to a deliverable. That last one
- * keeps this endpoint to plan assets alone - a document shared through the
- * Documents module is not reachable here, so holding "plan" does not quietly
- * grant a second module's contents.
+ * Signed URL for a plan asset: on this project, shared with the client, and attached to a
+ * deliverable (so Documents files aren't reachable through "plan").
  */
 export async function getClientPlanAssetUrl(
   projectRef: string,
@@ -378,22 +285,16 @@ export async function getClientPlanAssetUrl(
         driveWebViewLink: true,
       },
     })
-    // Indistinguishable from "does not exist": an id from another project, an
-    // unshared file, or a document that is not a plan asset must all read the
-    // same way.
+    // Same answer for another project's id, an unshared file, or a non-plan asset.
     if (!file) return fail("File not found", undefined, 404)
 
-    // Drive-hosted (video): point at OUR authenticated stream route, never at
-    // Drive's own webViewLink. A portal client has no Google account in that
-    // Workspace, so Drive would answer them with a request-access page rather
-    // than the video - and the file is deliberately not public there.
+    // Drive video goes through our authenticated stream route - the client has no Drive access.
     let url: string
     if (file.driveFileId) {
       url = `/api/portal/projects/${projectRef}/plan/assets/${file.id}/stream`
     } else {
       if (!isB2Configured()) return fail("File storage is not configured", undefined, 503)
-      // Non-null by the table's CHECK constraint: a row has one store or the
-      // other, so no objectKey here means it is Drive-hosted, handled above.
+      // CHECK constraint: no objectKey means Drive-hosted, handled above.
       url = await getSignedUrl(file.objectKey!, 3600, {
         downloadFileName: opts.download ? file.fileName : undefined,
       })
@@ -421,8 +322,6 @@ async function findItem(projectId: string, deliverableId: string) {
       title: true,
       status: true,
       links: true,
-      // quantity + the attachment count are what the capacity rule below reads:
-      // an item asking for 2 videos takes 2 attachments, not 2 files AND 2 links.
       quantity: true,
       loggedById: true,
       loggedByClientId: true,
@@ -431,41 +330,14 @@ async function findItem(projectId: string, deliverableId: string) {
   })
 }
 
-/**
- * How many attachments an item already holds, against how many were planned.
- *
- * Files and links are counted TOGETHER because they are two ways of delivering
- * the same thing - a reel handed over as an upload or as a YouTube link is one
- * reel either way. Counting them separately would let a "2 videos" item quietly
- * accumulate four.
- */
+/** Attachments used vs planned - files and links count together. */
 function capacity(item: { quantity: number; links: string[]; _count: { files: number } }) {
   const used = item._count.files + item.links.length
   return { used, limit: item.quantity, full: used >= item.quantity }
 }
 
 /**
- * Paste a link onto an item.
- *
- * "Upload or paste a link" is one feature with two doors; this is the cheap
- * one. The link JOINS whatever is already there rather than replacing it, so
- * two people attaching work at once cannot erase each other.
- */
-/**
- * Remove an asset the client attached to a plan item.
- *
- * Scoped to THEIR OWN uploads (`uploadedByClientId`), which is the same rule the
- * documents module enforces: a file the team published to the client is not the
- * client's to delete.
- *
- * Deliberately NOT gated on review or acceptance state. The portal is used to
- * keep an event's files tidy rather than to run an approval loop, so refusing to
- * remove a wrong file because a status column says "approved" would block the
- * only thing the person is actually trying to do.
- *
- * Deletes the stored object as well as the row - and for a shared video that
- * means revoking the public link first, or the thing they just deleted keeps
- * playing for everyone holding the URL.
+ * Delete the client's own upload, in any review state. A shared video's public link is revoked too.
  */
 export async function deleteClientPlanAsset(
   projectRef: string,
@@ -493,8 +365,7 @@ export async function deleteClientPlanAsset(
     // Someone else's upload reads exactly like one that does not exist.
     if (!file) return fail("File not found", undefined, 404)
 
-    // Row first: an orphaned object is a cleanup job, but a row pointing at
-    // bytes that are already gone is a dead link in the UI.
+    // Row first: an orphaned object is only cleanup; a row with no bytes is a dead link.
     await db.projectResource.delete({ where: { id: file.id } })
     try {
       if (file.driveFileId) await deleteVideoAsset(file.driveFileId)
@@ -504,10 +375,7 @@ export async function deleteClientPlanAsset(
     }
 
     if (file.deliverable) {
-      // One fewer thing exists. Read AFTER the delete above, so this is the new
-      // total and `before` is one more. syncMadeCount leaves a count already
-      // running ahead of the attachments alone, so removing a file cannot wipe
-      // out work staff recorded but never uploaded.
+      // Read after the delete. syncMadeCount won't lower a count staff set above the attachments.
       const attachedAfter = await attachmentCount(file.deliverable.id)
       await syncMadeCount(file.deliverable, attachedAfter + 1, attachedAfter)
 
@@ -534,17 +402,7 @@ export async function deleteClientPlanAsset(
   })
 }
 
-/**
- * Withdraw a video's public share link.
- *
- * The whole argument for serving share links ourselves rather than publishing to
- * Drive is that they can be taken back, so this is not a nicety - it is the half
- * that makes the design defensible. Clearing the token kills the URL on the next
- * request; the video itself stays in Drive and in the portal, untouched.
- *
- * Idempotent: revoking an already-revoked file succeeds rather than 404ing, so a
- * double click cannot leave the person unsure whether the link is dead.
- */
+/** Withdraw a video's public share link (the video itself stays). Idempotent. */
 export async function revokeClientPlanShare(
   projectRef: string,
   fileId: string,
@@ -601,11 +459,9 @@ export async function attachClientPlanLink(
     if (item.status === "ACCEPTED") {
       return fail("That item is finalised - ask the team to re-open it first.", undefined, 409)
     }
-    // Already there is not a failure; it is the same outcome the person wanted.
     if (item.links.includes(input.link)) {
       return ok(serialize({ data: { id: item.id, links: item.links } }))
     }
-    // Same combined budget the upload path checks - see capacity().
     const cap = capacity(item)
     if (cap.full) {
       return fail(
@@ -614,15 +470,14 @@ export async function attachClientPlanLink(
         422,
       )
     }
-    // Still a hard ceiling, for the case where someone plans a quantity of 500.
+    // Hard ceiling, for when someone plans a quantity of 500.
     if (item.links.length >= MAX_LINKS) {
       return fail(`An item holds at most ${MAX_LINKS} links.`, undefined, 422)
     }
 
     const links = [...item.links, input.link]
     await db.projectDeliverable.update({ where: { id: item.id }, data: { links } })
-    // A pasted link is a delivery too - the cheap half of "upload or link" - so
-    // it counts toward Made exactly as a file does.
+    // A link counts toward Made just like a file.
     const attachedAfter = await attachmentCount(item.id)
     await syncMadeCount(item, attachedAfter - 1, attachedAfter)
     await db.projectDeliverableEvent.create({
@@ -648,14 +503,7 @@ export async function attachClientPlanLink(
   })
 }
 
-/**
- * Upload a file against an item.
- *
- * The other door. The file is a ProjectResource like any other, shared and
- * IN_REVIEW: the client put it there for the team to look at, so hiding it
- * would be pointless and marking it approved would let one side approve its
- * own submission.
- */
+/** Upload against an item. Lands shared and IN_REVIEW, so the client can't approve it. */
 export async function uploadClientPlanFile(
   projectRef: string,
   deliverableId: string,
@@ -674,8 +522,7 @@ export async function uploadClientPlanFile(
     if (!(file instanceof File)) return fail("Choose a file to upload", undefined, 400)
     if (file.size === 0) return fail("That file is empty", undefined, 400)
 
-    // Checked BEFORE the bytes move: refusing a 200 MB upload after it has
-    // already been pushed to Drive wastes the wait and leaves a file to clean up.
+    // Checked before the bytes move, not after pushing 200 MB to Drive.
     const cap = capacity(item)
     if (cap.full) {
       return fail(
@@ -688,8 +535,7 @@ export async function uploadClientPlanFile(
     const id = crypto.randomUUID()
     const fileName = file.name.slice(0, 200)
 
-    // Where the bytes go decides everything below, so resolve it first. Video is
-    // the Drive case: too big for the cap below, and meant to be shareable.
+    // Video goes to Drive: too big for the cap below, and meant to be shareable.
     const video = isVideoUpload(file)
 
     let stored: {
@@ -708,8 +554,7 @@ export async function uploadClientPlanFile(
       try {
         uploaded = await uploadVideoAsset(grant.projectId, file)
       } catch (e) {
-        // Size / not-configured are the user's problem to act on, so they come
-        // back as a message rather than a 500.
+        // Size / not-configured are the user's to fix, so a message rather than a 500.
         if (e instanceof VideoUploadError) return fail(e.message, undefined, e.status)
         throw e
       }
@@ -717,8 +562,7 @@ export async function uploadClientPlanFile(
         objectKey: null,
         driveFileId: uploaded.driveFileId,
         driveWebViewLink: uploaded.webViewLink,
-        // Video is shareable the moment it lands - that is what the client
-        // uploaded it for. The link is revocable per file from the row.
+        // Shared on upload; revocable per file.
         isPublicLink: true,
         shareToken: uploaded.shareToken,
         sharedPubliclyAt: new Date(),
@@ -734,9 +578,7 @@ export async function uploadClientPlanFile(
           413,
         )
       }
-      // Checked on extension when the browser sent no MIME type. Testing
-      // `file.type &&` alone waved through every type-less file, which is most of
-      // what a determined uploader would send.
+      // Also checks the extension, so files with no MIME type aren't waved through.
       if (!isAllowedDocument(file)) {
         return fail("That file type is not accepted", undefined, 415)
       }
@@ -764,8 +606,7 @@ export async function uploadClientPlanFile(
           fileName,
           fileSize: file.size,
           ...stored,
-          // The client is the uploader - uploadedById stays null. The CHECK
-          // constraint on the table enforces exactly one of the two.
+          // The client is the uploader; the CHECK constraint allows only one of the two.
           uploadedById: null,
           uploadedByClientId: session.user.id,
           isClientVisible: true,
@@ -775,16 +616,12 @@ export async function uploadClientPlanFile(
         select: { id: true },
       })
     } catch (e) {
-      // The object is up but the row failed. Leaving it behind would be an
-      // orphan nobody can reach and nobody will ever come back to clean up -
-      // and for a published video, one nobody can un-publish either.
+      // Don't leave an orphaned object (or a published video nobody can un-publish).
       await undoUpload().catch(() => {})
       throw e
     }
 
-    // One more thing exists than a moment ago, so Made moves with it. Counted
-    // from the table rather than from `cap.used` - that one deliberately sees
-    // only client-visible files, and Made counts the team's internal ones too.
+    // From the table: `cap.used` sees only client-visible files; Made counts internal ones too.
     const attachedAfter = await attachmentCount(item.id)
     await syncMadeCount(item, attachedAfter - 1, attachedAfter)
 
@@ -816,8 +653,6 @@ export async function uploadClientPlanFile(
         data: {
           id: item.id,
           isVideo: video,
-          // The finished link, handed back once so the UI can offer it straight
-          // away rather than making them hunt for the row.
           shareUrl: stored.shareToken ? shareUrlFor(stored.shareToken) : null,
         },
       }),
@@ -825,28 +660,7 @@ export async function uploadClientPlanFile(
   })
 }
 
-/**
- * The verdict: finalise a delivered item, or send it back with a reason.
- *
- * Routed through the SAME transition table the staff board obeys, asked as the
- * "client" actor. That table is where the rules live, so this function never
- * restates them - including the one that matters most: a client cannot re-open
- * what they already finalised. Their word is meant to be the last one, and the
- * account manager's ability to re-open it is what makes giving them that word
- * safe in the first place.
- */
-/**
- * Move one item to another state, from the portal.
- *
- * Replaces the old finalise / request-changes pair. The portal is used to track
- * an event's work rather than to run sign-off, so the client says where a thing
- * has got to - to do, underway, made, blocked, dropped - and the verdict states
- * (ACCEPTED / REJECTED) stay with the staff side where they started.
- *
- * Every rule still comes from `allowedTransition(..., "client")`, the same table
- * the buttons are drawn from, so the portal can never offer a move this then
- * refuses.
- */
+/** Move an item to another state, by allowedTransition(..., "client") - same as the buttons. */
 export async function setClientPlanStatus(
   projectRef: string,
   deliverableId: string,
@@ -862,7 +676,7 @@ export async function setClientPlanStatus(
 
     const check = allowedTransition(item.status, to, "client")
     if (!check.ok) {
-      // A 403 and a 422 are different answers: wrong person, versus not a move.
+      // 403 = wrong person, 422 = not an allowed move.
       return fail(check.why, undefined, check.reason === "actor" ? 403 : 422)
     }
     const reason = input.reason?.trim() || null
@@ -876,22 +690,16 @@ export async function setClientPlanStatus(
 
     const madeNow = to === "DELIVERED"
     const claimed = await db.projectDeliverable.updateMany({
-      // Conditional on the status just read, so two people moving the same row
-      // at once cannot both win - the same guard the document review uses.
+      // Conditional on the status just read, so two concurrent moves can't both win.
       where: { id: item.id, status: item.status },
       data: {
         status: to,
-        // Cleared on every move that does not need one, so a stale "waiting on
-        // the venue" cannot outlive the block it described.
+        // Cleared on moves that don't need it, so a stale reason can't outlive its block.
         statusReason: check.needs.includes("reason") ? reason : null,
-        // Marking it made fills the count: a row reading "Made" beside "0 of 8"
-        // is the mismatch this whole column was confusing people with. The
-        // portal is never asked for a date, so the server supplies today.
+        // Marking it made fills the count; the portal never asks for a date, so use today.
         ...(madeNow
           ? { deliveredQuantity: item.quantity, completedOn: todayUtc() }
-          : // Leaving it behind would date work that is no longer finished -
-            // and the CHECK constraint only permits a null here off the made
-            // states, which is exactly where these moves land.
+          : // Not made any more, so clear the date (the CHECK constraint allows null only here).
             { completedOn: null }),
       },
     })
@@ -910,9 +718,7 @@ export async function setClientPlanStatus(
       },
     })
 
-    // Only the states somebody needs to act on. A row ticking from to-do to in
-    // progress is not news, and a digest nobody trusts is one that pinged them
-    // for every keystroke.
+    // Only states someone must act on; to-do -> in progress isn't news.
     const NOTIFY: Partial<Record<typeof to, { title: string; type: "success" | "warning" }>> = {
       DELIVERED: { title: "Client marked an item made", type: "success" },
       STUCK: { title: "Client flagged an item as stuck", type: "warning" },
@@ -953,15 +759,7 @@ export async function setClientPlanStatus(
 }
 
 /**
- * Withdraw a request the client made and nobody has picked up.
- *
- * Deliberately narrow - see mayWithdraw for why each condition is there. The
- * refusal says WHICH condition failed, because "you cannot delete this" with no
- * reason is the kind of message people raise a ticket about.
- *
- * Files attached to the item are NOT deleted. The foreign key is SET NULL, so
- * they stay on the project and remain in Documents & assets: a withdrawn plan
- * line must not take real work product with it.
+ * Withdraw a request the client made that nobody has started. Attached files stay (FK is SET NULL).
  */
 export async function deleteClientPlanItem(
   projectRef: string,
@@ -974,8 +772,6 @@ export async function deleteClientPlanItem(
     if (!item) return fail("Item not found", undefined, 404)
 
     if (!mayWithdraw(item, session.user.id)) {
-      // Not theirs at all reads as missing, the way it does everywhere else -
-      // an id from elsewhere must not be confirmed as real by a 403.
       if (item.loggedById || item.loggedByClientId !== session.user.id) {
         return fail("Only the person who asked for an item can withdraw it", undefined, 403)
       }
@@ -986,8 +782,7 @@ export async function deleteClientPlanItem(
       )
     }
 
-    // Conditional on the status just read: if the team starts work between the
-    // check above and this line, the delete must not go through.
+    // Conditional on PLANNED, in case the team started work since the check above.
     const removed = await db.projectDeliverable.deleteMany({
       where: { id: item.id, projectId: grant.projectId, status: "PLANNED" },
     })

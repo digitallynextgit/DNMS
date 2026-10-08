@@ -4,13 +4,10 @@ import { withSession } from "@/server/api-handler"
 import { canAccessTask } from "@/features/projects/server/project-access"
 import type { Session } from "next-auth"
 
-// GET /api/tasks/[id]/checklist
 export const GET = withSession(
   async (_req: NextRequest, ctx: { params: Promise<{ id: string }> }, _session: Session) => {
     try {
       const { id: taskId } = await ctx.params
-      // Same boundary the [itemId] route enforces: a checklist is only visible to
-      // someone who may see the task's project (adhoc tasks stay open to staff).
       if (!(await canAccessTask(_session, taskId))) {
         return NextResponse.json({ error: "Not found" }, { status: 404 })
       }
@@ -26,15 +23,12 @@ export const GET = withSession(
   },
 )
 
-// POST /api/tasks/[id]/checklist
 export const POST = withSession(
   async (req: NextRequest, ctx: { params: Promise<{ id: string }> }, _session: Session) => {
     try {
       const { id: taskId } = await ctx.params
       const task = await db.projectTask.findUnique({ where: { id: taskId }, select: { id: true } })
       if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 })
-      // Appending an item is a write on the task - gate it on access, not just
-      // existence, matching the [itemId] PATCH/DELETE handlers.
       if (!(await canAccessTask(_session, taskId))) {
         return NextResponse.json({ error: "Not found" }, { status: 404 })
       }

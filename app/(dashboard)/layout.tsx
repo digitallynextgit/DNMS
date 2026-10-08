@@ -12,30 +12,22 @@ import { AccountDeactivated } from "@/features/auth"
 import { TenantProvider } from "@/components/tenant-link"
 import { currentTenantSlugOrFounding, tenantScopedSession } from "@/server/tenant-request"
 
-/**
- * Nothing under here may be indexed. The proxy already bounces a crawler to
- * /login, and robots.txt now denies by default, but neither covers the case this
- * guards against: a page that somehow renders for a crawler would otherwise
- * inherit `index: true` from the root layout. Declared once for the whole group,
- * so a section added later is covered the day it is created.
- */
+/** Nothing under here may be indexed - covers any page that somehow renders for a crawler. */
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  // Establishes the tenant context for everything this layout renders (M4).
+  // Establishes the tenant context for everything this layout renders.
   const session = await tenantScopedSession()
   if (!session) redirect("/login")
 
-  // The tenant for every <Link> below (M3). Read from the request rather than
-  // the URL so the server and the browser agree on it - proxy.ts rewrites
-  // /{tenant}/x to /x, so the two see different addresses.
+  // The tenant for every <Link> below. Read from the request, not the URL - proxy.ts rewrites
+  // /{tenant}/x to /x, so the server and the browser see different addresses.
   const tenantSlug = await currentTenantSlugOrFounding()
 
-  // Sessions are stateless JWTs, so a user deactivated mid-session (e.g. an
-  // approved resignation) still holds a valid cookie. Re-check isActive on every
-  // dashboard navigation and force a sign-out the moment the account goes inactive.
+  // Sessions are stateless JWTs, so re-check isActive on every navigation and sign out a user
+  // deactivated mid-session (e.g. an approved resignation).
   const account = await db.employee.findUnique({
     where: { id: session.user.id },
     select: { isActive: true },
@@ -45,18 +37,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    // SessionBridge: the root layout no longer resolves the session (that made
-    // every page dynamic), so the layout's server session is re-provided here
-    // to keep permission-gated UI correct on first paint.
+    // Re-provides the server session (the root layout doesn't read it) for gated UI on first paint.
     <SessionBridge session={session}>
       <TenantProvider slug={tenantSlug}>
         <div className="dashboard-shell bg-background fixed inset-0 grid grid-cols-1 overflow-hidden md:grid-cols-[auto_1fr]">
           <RealtimeNotifications />
-          {/* Mounted once for the whole app: the "keep or remove this follow-up?"
-            question can be raised from any screen that changes a task's status. */}
+          {/* Mounted once: any screen that changes a task's status can raise the follow-up question. */}
           <FollowUpConflictDialog />
-          {/* Phones get the bottom tab bar instead: the rail alone would eat 56px
-            of a 390px viewport, leaving too little for the content column. */}
+          {/* Phones get the bottom tab bar instead - the rail would eat 56px of a 390px screen. */}
           <div className="hidden md:contents">
             <Sidebar session={session} />
           </div>

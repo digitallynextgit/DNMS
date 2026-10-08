@@ -8,8 +8,6 @@ import {
   revokeClientGrant,
 } from "@/features/client-portal/server/client-contacts.service"
 
-// PATCH  /api/clients/[id]/grants/[grantId] - change sections, or pause / resume
-// DELETE /api/clients/[id]/grants/[grantId] - take the project away
 export const PATCH = withClient(
   PERMISSIONS.CLIENT_WRITE,
   async (req: NextRequest, { params }, session: Session) =>

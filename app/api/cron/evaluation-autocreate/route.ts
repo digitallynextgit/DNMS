@@ -5,11 +5,7 @@ import { DEFAULT_SECTION_A_LABEL, DEFAULT_SECTION_B_LABEL } from "@/features/per
 import { buildEvaluationCriteria } from "@/features/performance/server/evaluation.service"
 import { HIDDEN_ROLES } from "@/lib/constants"
 
-// Auto-create the current period's performance evaluations for every active
-// employee. Built to run TWICE A MONTH (≈ every 15 days) - schedule it on
-// cron-job.org for the 1st and 16th. Idempotent: skips anyone who already has an
-// evaluation for the computed period, so re-running is safe.
-// Auth: Authorization: Bearer <CRON_SECRET>
+// Run on the 1st and 16th. Idempotent: skips anyone who already has an evaluation for the period.
 export const GET = withCron("evaluation-autocreate", async () => {
   try {
     const now = new Date()
@@ -18,7 +14,7 @@ export const GET = withCron("evaluation-autocreate", async () => {
     const yy = String(now.getFullYear()).slice(-2)
     const periodLabel = `${monthShort} ${day <= 15 ? "1 to 15" : "16-EOM"} '${yy}`
 
-    // Active employees, excluding the invisible admin_ account.
+    // Excludes the invisible admin_ account.
     const employees = await db.employee.findMany({
       where: {
         isActive: true,
@@ -77,7 +73,6 @@ export const GET = withCron("evaluation-autocreate", async () => {
     return { periodLabel, created, skipped, total: employees.length }
   } catch (error) {
     console.error("[cron/evaluation-autocreate]", error)
-    // Rethrown so forEachTenant records it against this tenant and continues.
     throw error
   }
 })

@@ -1,18 +1,7 @@
 "use client"
 
-/**
- * The "+" menu on a composer: everything you can put in a message that is not
- * typed text.
- *
- * Shared by personal chat and project messages, because the menu is the same
- * menu. The three entries that produce FILES live here in full - a pre-filtered
- * picker, the camera, and stickers - while polls, events and contacts are just
- * callbacks, since their composers are cards rather than uploads.
- *
- * Document / Photos / Audio are separate entries rather than one "Attach"
- * because the `accept` filter is the whole point: picking a spreadsheet out of a
- * folder of four hundred photos is the problem being solved.
- */
+// The composer "+" menu, shared by chat and project messages. Separate Document / Photos / Audio
+// entries so the file dialog opens pre-filtered.
 
 import * as React from "react"
 import {
@@ -40,7 +29,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
-/** What the picker will accept for each kind, so the file dialog opens narrowed. */
 const ACCEPT = {
   document:
     ".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.rtf,.odt,.ods,.zip,.rar,.7z,application/pdf",
@@ -52,7 +40,7 @@ const ACCEPT = {
 type PickerKind = keyof typeof ACCEPT
 
 export interface AttachmentMenuProps {
-  /** Files chosen by any route into this menu. `asSticker` changes how they render. */
+  /** `asSticker` changes how they render. */
   onFiles: (files: File[], opts?: { asSticker?: boolean }) => void | Promise<void>
   onPoll: () => void
   onEvent: () => void
@@ -69,19 +57,16 @@ export function AttachmentMenu({
   disabled,
   busy,
 }: AttachmentMenuProps) {
-  const inputRef = React.useRef<HTMLInputElement>(null)
-  // Which entry opened the picker, so the change handler knows whether what
-  // comes back is a sticker or an ordinary file.
-  const pendingRef = React.useRef<PickerKind>("document")
-  const [accept, setAccept] = React.useState<string>(ACCEPT.document)
+  // State, not refs: the menu items below call pick() and are built during render.
+  const [input, setInput] = React.useState<HTMLInputElement | null>(null)
+  // Which entry opened the picker: sets `accept` and decides sticker vs ordinary file.
+  const [pending, setPending] = React.useState<PickerKind>("document")
   const [cameraOpen, setCameraOpen] = React.useState(false)
 
   function pick(kind: PickerKind) {
-    pendingRef.current = kind
-    setAccept(ACCEPT[kind])
-    // The input's `accept` is state, so it has to be committed to the DOM before
-    // the dialog opens - otherwise the first pick uses the previous filter.
-    requestAnimationFrame(() => inputRef.current?.click())
+    setPending(kind)
+    // Wait a frame so the new `accept` reaches the DOM before the dialog opens.
+    requestAnimationFrame(() => input?.click())
   }
 
   const ITEMS: { icon: React.ElementType; label: string; tone: string; run: () => void }[] = [
@@ -121,17 +106,17 @@ export function AttachmentMenu({
       </DropdownMenu>
 
       <input
-        ref={inputRef}
+        ref={setInput}
         type="file"
         multiple
-        accept={accept}
+        accept={ACCEPT[pending]}
         className="hidden"
         aria-hidden
         onChange={(e) => {
           const files = Array.from(e.target.files ?? [])
           e.target.value = ""
           if (files.length === 0) return
-          void onFiles(files, { asSticker: pendingRef.current === "sticker" })
+          void onFiles(files, { asSticker: pending === "sticker" })
         }}
       />
 
@@ -147,14 +132,7 @@ export function AttachmentMenu({
   )
 }
 
-/**
- * Take a photo without leaving the conversation.
- *
- * Built on getUserMedia rather than `<input capture>`: the capture attribute
- * only does anything on a phone, and this has to work at a desk too. The stream
- * is stopped on every exit path - a camera light left on after the dialog closes
- * is alarming in a way a stuck spinner is not.
- */
+/** getUserMedia, not `<input capture>`, so it works on desktops too. The stream is stopped on every exit path. */
 function CameraDialog({
   open,
   onOpenChange,
@@ -169,9 +147,7 @@ function CameraDialog({
   const [facing, setFacing] = React.useState<"user" | "environment">("user")
   const [shot, setShot] = React.useState<{ blob: Blob; url: string } | null>(null)
   const [error, setError] = React.useState<string | null>(null)
-  // Bumped by Retake to re-run the acquire effect (which has the cancelled guard),
-  // instead of a second hand-rolled getUserMedia that could leave a live stream
-  // if the dialog closed mid-acquire (UI-05).
+  // Bumped by Retake to re-run the acquire effect, whose cancelled guard stops stray streams.
   const [restartNonce, setRestartNonce] = React.useState(0)
 
   const stop = React.useCallback(() => {
@@ -179,18 +155,24 @@ function CameraDialog({
     streamRef.current = null
   }, [])
 
+  // Each acquire below starts with no error showing.
+  const acquireKey = `${open}|${facing}|${restartNonce}`
+  const [prevAcquireKey, setPrevAcquireKey] = React.useState(acquireKey)
+  if (acquireKey !== prevAcquireKey) {
+    setPrevAcquireKey(acquireKey)
+    if (open) setError(null)
+  }
+
   React.useEffect(() => {
     if (!open) {
       stop()
       return
     }
     let cancelled = false
-    setError(null)
     navigator.mediaDevices
       .getUserMedia({ video: { facingMode: facing }, audio: false })
       .then((stream) => {
-        // The dialog may have closed while permission was being granted; without
-        // this the tracks would stay live with nothing to stop them.
+        // Closed while permission was pending: stop the tracks.
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop())
           return
@@ -236,9 +218,6 @@ function CameraDialog({
   function retake() {
     if (shot) URL.revokeObjectURL(shot.url)
     setShot(null)
-    // Re-acquire through the effect (UI-05): it stops the old stream in cleanup,
-    // re-acquires, and its `cancelled` guard stops the new stream if the dialog
-    // closes mid-acquire - which the previous inline getUserMedia did not.
     setRestartNonce((n) => n + 1)
   }
 

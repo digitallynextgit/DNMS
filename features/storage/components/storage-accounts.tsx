@@ -1,14 +1,5 @@
 "use client"
 
-/**
- * The storage picker: one card per connected bucket, then the full contents of
- * whichever you open.
- *
- * These credentials used to be a single block on the Integrations page, which
- * could only ever describe one bucket. They live here now, next to the files
- * they explain.
- */
-
 import * as React from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { toast } from "sonner"
@@ -107,11 +98,6 @@ export function StorageAccountGrid({
 
   return (
     <div className="space-y-6">
-      {/* The grid owns the page header, so the view toggle and the primary action
-          sit on the title line - the same arrangement as the Projects page. The
-          old helper paragraph is gone: the "Default" badge on the card already
-          says which bucket new uploads go to, and a line of prose repeating it
-          was pushing the controls onto a row of their own. */}
       <PageHeader
         title="Storage"
         description="Buckets connected to DNMS. Open one to browse its files."
@@ -201,7 +187,6 @@ export function StorageAccountGrid({
   )
 }
 
-/** The same form for adding and editing - one shape to learn. */
 function AccountDialog({
   account,
   onClose,

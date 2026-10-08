@@ -5,10 +5,6 @@ import {
   deleteEmployeeDocument,
 } from "@/features/documents/server/employee-documents.service"
 
-/**
- * GET /api/employees/[id]/documents/[docId] - short-lived presigned download URL
- * (?download=1 forces a download instead of an inline view).
- */
 export const GET = withErrorHandler(
   async (req: NextRequest, ctx: { params: { id: string; docId: string } }) => {
     const { id, docId } = ctx.params
@@ -17,9 +13,6 @@ export const GET = withErrorHandler(
   },
 )
 
-/**
- * DELETE /api/employees/[id]/documents/[docId] - delete a personal document.
- */
 export const DELETE = withErrorHandler(
   async (_req: NextRequest, ctx: { params: { id: string; docId: string } }) => {
     const { id, docId } = ctx.params

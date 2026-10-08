@@ -1,10 +1,4 @@
-// =============================================================================
-// Client self-service (portal side)
-// =============================================================================
-// The only writes a client account can perform on itself. Deliberately tiny:
-// a client can change their password and nothing else. Name/email/company are
-// staff-managed, because they are how staff identify who a grant belongs to.
-// =============================================================================
+// Client self-service: a client can change only their own password.
 
 import "server-only"
 
@@ -32,9 +26,7 @@ export async function changeClientPassword(
     const valid = await bcrypt.compare(input.currentPassword, user.passwordHash)
     if (!valid) return fail("Your current password is incorrect", undefined, 400)
 
-    // Writes the platform credential AND client_users.password_hash (M2 dual-write).
-    // Clearing mustChangePassword releases the gate in proxy.ts; the client must
-    // refresh their session (session.update()) for the new flag to reach their token.
+    // Clearing the flag releases the proxy.ts gate once the client refreshes their session.
     await setPassword({ clientUserId: session.user.id }, input.newPassword)
 
     return ok({ changed: true })

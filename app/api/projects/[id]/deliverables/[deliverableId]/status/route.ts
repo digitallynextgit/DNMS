@@ -6,13 +6,7 @@ import { getDeliverableRow } from "@/features/projects/server/deliverables.queri
 import { setDeliverableStatus } from "@/features/projects/server/deliverables.service"
 import { AppError } from "@/lib/errors"
 
-// POST /api/projects/[id]/deliverables/[deliverableId]/status
-//      { status, reason?, completedOn?, note? }
-//
-// The row actions - Start, Mark delivered, Accept, Request revision, Un-accept.
-// One click each, so they get their own endpoint rather than a PATCH carrying
-// the whole form. Who may make which move, and what each one needs, is the
-// lifecycle table; the service enforces it and answers with the saved row.
+// One-click row actions. The service enforces the lifecycle table and returns the saved row.
 export const dynamic = "force-dynamic"
 
 export const POST = withProjectAccess(

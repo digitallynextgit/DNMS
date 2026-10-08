@@ -1,16 +1,6 @@
-// =============================================================================
-// What the AI connector may NOT reach, even though the person could.
-//
-// Karan's rule (2026-10-02): an AI app connected through MCP can do everything
-// the connected person can do in DNMS - every module, read and write, bounded
-// only by that person's own permissions - EXCEPT the superadmin / platform
-// layer. On top of that, a few machine-only surfaces simply make no sense for an
-// AI, and a handful of endpoints would hand stored secrets out of DNMS.
-//
-// Imported by scripts/generate-mcp-api-map.ts (so excluded routes never enter
-// the catalogue) AND by the dispatcher at runtime (defence in depth). No
-// server-only imports here - the generator runs outside Next.js.
-// =============================================================================
+// What the AI connector may NOT reach, even though the person could: the superadmin/platform
+// layer, machine-only routes, and endpoints that hand out stored secrets. Also imported by
+// scripts/generate-mcp-api-map.ts, so no server-only imports.
 
 export const EXCLUDED_API_PATHS: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/api\/auth(\/|$)/, "sign-in internals"],

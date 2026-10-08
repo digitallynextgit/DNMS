@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 
 import { FormDialog } from "@/components/shared/form-dialog"
 import { Input } from "@/components/ui/input"
@@ -23,12 +23,7 @@ import {
   useProjectAllTasks,
 } from "@/features/projects/hooks/use-projects"
 
-/**
- * Raise a requirement: something the team needs from someone else before work
- * can continue. Reachable from the Requirements tab and from a blocked task,
- * which is why `defaultBlockedTaskId` exists - raising it from the task that is
- * stuck should not make you find that task again in a list.
- */
+/** Raise a requirement: something the team needs from someone else before work can continue. */
 export function RequirementDialog({
   open,
   onOpenChange,
@@ -47,7 +42,6 @@ export function RequirementDialog({
 
   const accountManager = projectData?.data?.owner
   const members = useMemo(() => membersData?.data ?? [], [membersData])
-  // Only unfinished work can be blocked by something.
   const openTasks = useMemo(
     () => (tasksData?.data ?? []).filter((t) => t.status !== "DONE" && t.status !== "DISCARDED"),
     [tasksData],
@@ -60,17 +54,24 @@ export function RequirementDialog({
   const [neededBy, setNeededBy] = useState("")
   const [blockedTaskIds, setBlockedTaskIds] = useState<string[]>([])
 
-  // Reset each time it opens, and default the recipient to the Account Manager -
-  // documents and credentials are theirs to chase, being the client contact.
-  useEffect(() => {
-    if (!open) return
-    setType("DOCUMENT")
-    setTitle("")
-    setDetails("")
-    setNeededBy("")
-    setRequestedFromId(accountManager?.id ?? "")
-    setBlockedTaskIds(defaultBlockedTaskId ? [defaultBlockedTaskId] : [])
-  }, [open, accountManager?.id, defaultBlockedTaskId])
+  // Default the recipient to the Account Manager, as the client contact.
+  const managerId = accountManager?.id
+  const [seeded, setSeeded] = useState({ open: false, managerId, defaultBlockedTaskId })
+  if (
+    open !== seeded.open ||
+    managerId !== seeded.managerId ||
+    defaultBlockedTaskId !== seeded.defaultBlockedTaskId
+  ) {
+    setSeeded({ open, managerId, defaultBlockedTaskId })
+    if (open) {
+      setType("DOCUMENT")
+      setTitle("")
+      setDetails("")
+      setNeededBy("")
+      setRequestedFromId(managerId ?? "")
+      setBlockedTaskIds(defaultBlockedTaskId ? [defaultBlockedTaskId] : [])
+    }
+  }
 
   const toggleTask = (id: string) =>
     setBlockedTaskIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))

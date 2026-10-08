@@ -1,14 +1,11 @@
 import { PageHeaderSkeleton, StatCardSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Calendar (default view: Holiday Calendar): header with the calendar picker, a
-// toolbar, a 2-up stat strip, then a month stepper above the month grid.
 export default function CalendarLoading() {
   return (
     <div className="space-y-6">
       <PageHeaderSkeleton withActions />
 
-      {/* The view's toolbar: its tabs, and the year. */}
       <div className="flex items-center justify-between gap-2">
         <Skeleton className="bg-muted h-9 w-72 animate-pulse rounded-sm" />
         <Skeleton className="bg-muted h-9 w-28 animate-pulse rounded-sm" />

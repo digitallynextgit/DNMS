@@ -3,12 +3,7 @@ import { db } from "@/server/db"
 import { withProjectAccess, withProjectManager } from "@/features/projects/server/project-access"
 import { getSignedUrl, deleteFile } from "@/lib/storage"
 
-// GET - redirect to a short-lived signed download URL for the asset.
-//
-// withProjectAccess for the same reason as the parent route: the ownership check
-// below compares `asset.projectId` (a uuid) against `ctx.params.id`, and under
-// withAuth that was the URL slug - so every asset looked like it belonged to
-// another project and 404'd.
+// withProjectAccess resolves the slug to the project uuid that the ownership check compares against.
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
     const asset = await db.brandAsset.findUnique({ where: { id: ctx.params.assetId } })
@@ -19,7 +14,6 @@ export const GET = withProjectAccess(
   },
 )
 
-// DELETE - remove the asset from storage + DB.
 export const DELETE = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
     const asset = await db.brandAsset.findUnique({ where: { id: ctx.params.assetId } })

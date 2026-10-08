@@ -9,8 +9,7 @@ import { addEmailJob } from "@/lib/queue"
 import { createAuditLog } from "@/lib/audit"
 import type { Session } from "next-auth"
 
-// PATCH /api/projects/[id]/teams/[teamId]/members/[memberId]/promote
-// Admin only - make this member the new manager. Previous manager stays as a regular member.
+// The previous manager stays as a regular member.
 export const PATCH = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -40,9 +39,7 @@ export const PATCH = withProjectManager(
         data: { managerId: member.employeeId },
       })
 
-      // Notify new manager
       try {
-        // Slug on the same read as the name - the link wants the readable one.
         const project = await db.project.findUnique({
           where: { id: projectId },
           select: { name: true, slug: true },
@@ -53,7 +50,6 @@ export const PATCH = withProjectManager(
           title: "Promoted to Team Manager",
           message: `You're now the manager of the "${team.name}" team in ${projectName}.`,
           type: "success",
-          // Teams tab: the team they now manage, rather than project Overview.
           link: projectHref({ id: projectId, slug: project?.slug }, "teams"),
         })
         addEmailJob({

@@ -28,9 +28,7 @@ export const GET = withSession(
         return NextResponse.json({ error: "Attendance log not found" }, { status: 404 })
       }
 
-      // Object-level check (SEC-09): you can read your own log; reading anyone
-      // else's is an HR act. attendance:read is held by the base employee role,
-      // so it is NOT a meaningful gate here - attendance:write (HR) is.
+      // Every employee holds attendance:read, so reading someone else's log needs attendance:write.
       const isSelf = log.employeeId === session.user.id
       if (!isSelf && !hasPermission(session, PERMISSIONS.ATTENDANCE_WRITE)) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
@@ -67,7 +65,6 @@ export const PATCH = withAuth(
       if (body.status !== undefined) updateData.status = body.status
       if (body.notes !== undefined) updateData.notes = body.notes ?? null
 
-      // Recalculate work hours
       const resolvedCheckIn =
         body.checkIn !== undefined
           ? body.checkIn
@@ -90,8 +87,7 @@ export const PATCH = withAuth(
       }
       updateData.workHours = resolvedWorkHours
 
-      // When the times changed but no explicit status was sent, re-derive the
-      // status from hours worked (half-day / absent). Late-mark not applied yet.
+      // Times changed without an explicit status: re-derive it from hours worked (no late-mark yet).
       if (
         body.status === undefined &&
         (body.checkIn !== undefined || body.checkOut !== undefined)
@@ -102,9 +98,7 @@ export const PATCH = withAuth(
         })
       }
 
-      // Pin ONLY the fields HR actually changed. The device sync honours these
-      // per-field (see upsertDay), so correcting a check-in leaves that day's
-      // check-out free to keep syncing from the device - and vice versa.
+      // Pin only the fields HR changed; the device sync honours pins per field (see upsertDay).
       const sameTime = (a: Date | null, b: Date | null) =>
         (a ? a.getTime() : null) === (b ? b.getTime() : null)
 
@@ -114,14 +108,12 @@ export const PATCH = withAuth(
       if (body.checkOut !== undefined && !sameTime(resolvedCheckOut, existing.checkOut)) {
         updateData.checkOutManual = true
       }
-      // Only an EXPLICIT status override pins the status; a status re-derived from
-      // changed times above must stay free to follow the device.
+      // Only an explicit status override pins the status; a re-derived one keeps following the device.
       if (body.status !== undefined && body.status !== existing.status) {
         updateData.statusManual = true
       }
 
-      // Row-level flag = "carries at least one correction" (Manual badge / export /
-      // delete-guard). It no longer freezes the whole day.
+      // Row flag = has at least one correction (Manual badge, export, delete guard).
       const pinsAnything =
         updateData.checkInManual === true ||
         updateData.checkOutManual === true ||

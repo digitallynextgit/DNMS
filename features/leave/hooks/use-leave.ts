@@ -5,8 +5,6 @@ import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export interface LeaveType {
   id: string
   name: string
@@ -64,8 +62,7 @@ export interface LeaveRequest {
   employee: LeaveRequestEmployee
   leaveType: { id: string; name: string; code: string; isPaid: boolean }
   approver: { id: string; firstName: string; lastName: string } | null
-  /** For the current viewer: "FINAL" = can approve/reject + email (admin/HR),
-   *  "ADVISORY" = can only recommend to HR (the applicant's manager), null = view only. */
+  /** "FINAL" = can approve/reject + email; "ADVISORY" = recommend only; null = view only. */
   viewerRole?: "FINAL" | "ADVISORY" | null
 }
 
@@ -89,10 +86,7 @@ interface PaginatedResponse<T> {
   }
 }
 
-// ─── Fetch helpers ─────────────────────────────────────────────────────────────
-
-// Each endpoint returns the standard { success, data: P } envelope where P is
-// this helper's declared return type, so we read one `.data` hop to get P.
+// Endpoints return { success, data: P }; read one `.data` hop to get P.
 async function fetchLeaveTypes(): Promise<{ data: LeaveType[] }> {
   return (await apiFetch<{ data: { data: LeaveType[] } }>("/api/leave/types")).data
 }
@@ -290,8 +284,6 @@ async function rejectLeave({
   ).data
 }
 
-// ─── Query Hooks ───────────────────────────────────────────────────────────────
-
 export function useLeaveTypes() {
   return useQuery({
     queryKey: ["leave-types"],
@@ -318,7 +310,6 @@ export function useLeaveBalances(employeeId?: string, year?: number) {
   })
 }
 
-// ─── HR: every employee's balances by type (Leave Directory → Balances) ─────────
 export interface EmployeeLeaveBalances {
   id: string
   firstName: string
@@ -389,8 +380,6 @@ export function useMyTeamLeaveRequests(
     staleTime: 30_000,
   })
 }
-
-// ─── Mutation Hooks ────────────────────────────────────────────────────────────
 
 export function useApplyLeave() {
   const queryClient = useQueryClient()

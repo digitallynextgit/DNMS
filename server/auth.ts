@@ -15,37 +15,17 @@ import {
 } from "./identity"
 import type { NextAuthConfig } from "next-auth"
 
-// =============================================================================
-// Authentication (M2 - platform identity).
-//
-// Sign-in is now TWO steps instead of one:
-//
-//   1. Prove who you are  → a `users` row, by email + password. One credential,
-//      wherever you work and in whatever capacity.
-//   2. Pick what you are  → a `memberships` row, which decides the tenant, the
-//      kind (STAFF or CLIENT) and therefore which profile row carries your data.
-//
-// ── WHAT DELIBERATELY DID NOT CHANGE ─────────────────────────────────────────
-// `token.id` / `session.user.id` is still the PROFILE id - the employee id for
-// staff, the client_user id for a portal client. Several hundred queries key off
-// it (`where: { employeeId: session.user.id }`), so repointing it at the new
-// user id would have been a rewrite of the whole app disguised as an auth
-// change. The platform id travels alongside as `session.user.userId`.
-// =============================================================================
+// Sign-in: prove who you are (a `users` row), then pick a membership (tenant + STAFF/CLIENT).
+// `session.user.id` is still the PROFILE id (employee or client_user) - the whole app keys off
+// it; the platform user id is `session.user.userId`.
 
 /** How long a token may go without re-checking that the membership still exists. */
 const MEMBERSHIP_RECHECK_MS = 15 * 60 * 1000
 
-// ---------------------------------------------------------------------------
-// Helper - an employee's roles and flat permission scopes.
-// ---------------------------------------------------------------------------
-// Exported for the AI connector (features/mcp/server/principal.ts), which
-// rebuilds the same roles/permissions on every MCP call so a role change
-// applies immediately.
+/** An employee's roles and flat permission scopes. Also used by the AI connector on every call. */
 export async function getUserWithPermissions(employeeId: string) {
-  // Unscoped (M4): this runs in the JWT callback, which is what DECIDES the
-  // tenant. The membership it is hydrating from has already been verified to
-  // belong to this user, so the employee id is not attacker-supplied.
+  // Unscoped: runs in the JWT callback, which decides the tenant. The employee id comes from a
+  // membership already verified to belong to this user.
   return runUnscoped("sign-in: hydrating the token establishes the tenant", async () => {
     const employee = await db.employee.findUnique({
       where: { id: employeeId },
@@ -78,17 +58,9 @@ export async function getUserWithPermissions(employeeId: string) {
   })
 }
 
-// ---------------------------------------------------------------------------
-// Helper - load an external client account for the JWT.
-// ---------------------------------------------------------------------------
-// Clients are NOT employees (see the ClientUser model): they hold no roles and
-// no permission scopes, so every staff-side `withAuth`/`requirePermission` check
-// fails for them by construction. What they *can* see is resolved per request
-// from client_project_access, never cached in the token - so revoking a project
-// grant takes effect immediately instead of at their next sign-in.
-// ---------------------------------------------------------------------------
+// Clients hold no roles or scopes; their project access is checked per request, never cached
+// in the token, so revoking a grant takes effect immediately.
 async function getClientForToken(clientUserId: string) {
-  // Unscoped for the same reason as getUserWithPermissions above.
   return runUnscoped("sign-in: hydrating the token establishes the tenant", () =>
     db.clientUser.findUnique({
       where: { id: clientUserId },
@@ -98,18 +70,8 @@ async function getClientForToken(clientUserId: string) {
 }
 
 /**
- * Choose which membership a sign-in activates.
- *
- * `prefer` only matters for somebody who holds both a staff and a client
- * membership - a contractor who is also a client contact. /login prefers STAFF,
- * because that is the surface where they can do more; the workspace picker
- * takes them across to their client portal. It is a preference, not a filter:
- * a client-only account still gets in as a client, which is what makes one
- * login work for everyone.
- *
- * M3 replaces the "first tenant wins" line below with /select-workspace. It
- * cannot bite today - every membership is in Digitally Next - but it would as
- * soon as a second tenant exists, so it is called out rather than left implicit.
+ * `prefer` is a preference, not a filter: a client-only account still gets in as a client.
+ * Otherwise the first (oldest) membership wins; /select-workspace switches.
  */
 function pickMembership(
   memberships: ActiveMembership[],
@@ -122,12 +84,8 @@ function pickMembership(
 }
 
 /**
- * True when the credential changed AFTER this token was issued.
- *
- * `authAt` is stamped once, at sign-in, and never refreshed - deliberately, so
- * a session.update() from a stolen cookie cannot re-bless itself. A token with
- * no authAt (issued before this deploy) reads as 0: the first password change
- * after the deploy revokes it, and until then nothing changes for it.
+ * True when the credential changed after this token was issued. `authAt` is never refreshed, so a
+ * session.update() from a stolen cookie cannot re-bless itself. Missing authAt reads as 0.
  */
 function passwordChangedSince(tokenAuthAt: unknown, membership: ActiveMembership): boolean {
   if (!membership.passwordChangedAt) return false
@@ -135,7 +93,6 @@ function passwordChangedSince(tokenAuthAt: unknown, membership: ActiveMembership
   return membership.passwordChangedAt.getTime() > authAt
 }
 
-/** Everything the token needs about the person, resolved from one membership. */
 async function hydrateFromMembership(membership: ActiveMembership) {
   if (membership.kind === "CLIENT") {
     const client = await getClientForToken(membership.profileId)
@@ -168,13 +125,6 @@ async function hydrateFromMembership(membership: ActiveMembership) {
   }
 }
 
-/**
- * The shared body of both credentials providers.
- *
- * Returns the minimal user object Auth.js wants; the JWT callback does the
- * membership work. `membershipId` is passed through so the callback does not
- * have to resolve it a second time.
- */
 async function authorizeWithIdentity(
   rawEmail: unknown,
   rawPassword: unknown,
@@ -186,12 +136,7 @@ async function authorizeWithIdentity(
 
   const email = normalizeEmail(rawEmail)
 
-  // Online-guessing throttle. Before this, nothing limited attempts against
-  // /api/auth/callback/credentials at all - bcrypt cost was the only brake.
-  // Keyed per-email AND per-IP so neither a single target nor a single source
-  // can be hammered. In-memory (see lib/rate-limit.ts): per-instance and reset
-  // on deploy, which is the accepted trade-off everywhere else it is used.
-  // Counted before the DB work so a limited request costs nothing.
+  // Guessing throttle, per email AND per IP (in-memory, per instance). Before any DB work.
   if (req) {
     const limited =
       rateLimited(`login:email:${email}`, 10, 15 * 60_000) ||
@@ -201,9 +146,7 @@ async function authorizeWithIdentity(
 
   let candidate = await findLoginUser(email)
 
-  // TRANSITIONAL (M2 → M4): no platform identity means the account was created
-  // by the pre-M2 build that is still deployed. Adopt it if the legacy password
-  // checks out. See adoptLegacyLogin() for why this exists.
+  // TRANSITIONAL: no platform identity yet - adopt the legacy account if its password checks out.
   if (!candidate) {
     candidate = await adoptLegacyLogin(email, rawPassword)
     if (!candidate) return null
@@ -214,9 +157,7 @@ async function authorizeWithIdentity(
 
   const memberships = await loadActiveMemberships(candidate.id)
   const membership = pickMembership(memberships, prefer)
-  // Authenticated, but no company will have them: an offboarded employee, a
-  // revoked client, or a suspended/lapsed tenant. Indistinguishable from a bad
-  // password on purpose.
+  // No live membership (offboarded, revoked, suspended): same answer as a bad password.
   if (!membership) return null
 
   return {
@@ -232,36 +173,20 @@ async function authorizeWithIdentity(
   }
 }
 
-// ---------------------------------------------------------------------------
-// NextAuth v5 configuration object
-// ---------------------------------------------------------------------------
 export const authOptions: NextAuthConfig = {
-  // No database adapter: sessions are JWT-based and OAuth sign-ins are gated to
-  // pre-existing employees in the `signIn` callback below (we never auto-create
-  // users). A `User` model now exists (M2) but Account/Session still map to
-  // Employee, so the PrismaAdapter's assumptions still do not hold.
-  // maxAge 7 days (down from the 30-day default): the 15-minute re-check
-  // handles revocation, but the token's own lifetime is still the ceiling on a
-  // stolen cookie whose account nobody thought to touch.
+  // No DB adapter: JWT sessions, and OAuth never auto-creates users. 7 days caps a stolen cookie.
   session: { strategy: "jwt", maxAge: 7 * 24 * 60 * 60 },
 
-  // Self-hosted behind a reverse proxy / accessed by IP or custom domain (not
-  // Vercel), so we must explicitly trust the incoming host. Without this,
-  // Auth.js v5 rejects every request with `UntrustedHost`.
+  // Self-hosted behind a reverse proxy; without this Auth.js rejects every request (UntrustedHost).
   trustHost: true,
 
   secret: process.env.AUTH_SECRET,
 
-  // error -> /login so auth failures show a toast on the login page instead of
-  // the default Auth.js "Access Denied" screen.
+  // Errors land on /login (as a toast), not Auth.js's "Access Denied" screen.
   pages: { signIn: "/login", error: "/login" },
 
   providers: [
-    // -----------------------------------------------------------------------
-    // The one login. Staff and portal clients both authenticate here, against
-    // `users`. Which surface they land on is decided by the membership, not by
-    // the form they used.
-    // -----------------------------------------------------------------------
+    // Staff and portal clients both sign in here; the membership decides where they land.
     Credentials({
       name: "credentials",
       credentials: {
@@ -271,10 +196,7 @@ export const authOptions: NextAuthConfig = {
       authorize: (c, req) => authorizeWithIdentity(c?.email, c?.password, "STAFF", req),
     }),
 
-    // -----------------------------------------------------------------------
-    // Google OAuth - only employees whose email already exists in the DB may
-    // sign in. Self-registration is not allowed in this internal DNMS.
-    // -----------------------------------------------------------------------
+    // Only existing employees; no self-registration (enforced in callbacks.signIn).
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
       ? [
           Google({
@@ -286,14 +208,9 @@ export const authOptions: NextAuthConfig = {
   ],
 
   callbacks: {
-    // -----------------------------------------------------------------------
-    // signIn - gate Google logins to known, active employees with a live
-    // membership.
-    // -----------------------------------------------------------------------
     async signIn({ user, account }) {
       if (account?.provider === "google") {
-        // Returning a URL string denies the sign-in AND redirects there, so the
-        // login page can show a specific toast (no account vs deactivated).
+        // Returning a URL denies the sign-in and redirects, so /login can show the reason.
         if (!user.email) return "/login?error=no_account"
 
         const platformUser = await findLoginUser(user.email)
@@ -301,12 +218,10 @@ export const authOptions: NextAuthConfig = {
         if (!platformUser.isActive) return "/login?error=deactivated"
 
         const membership = pickMembership(await loadActiveMemberships(platformUser.id), "STAFF")
-        // Google is a staff door only - a client-only account signing in with it
-        // has no staff surface to land on.
+        // Google is a staff door only.
         if (!membership || membership.kind !== "STAFF") return "/login?error=no_account"
 
-        // Align the OAuth user id with the employee id so the JWT callback can
-        // look up roles & permissions using a consistent identifier.
+        // Same identifiers as authorizeWithIdentity(), so the JWT callback treats both alike.
         user.id = membership.profileId
         user.kind = "employee"
         user.userId = platformUser.id
@@ -318,38 +233,14 @@ export const authOptions: NextAuthConfig = {
       return true
     },
 
-    // -----------------------------------------------------------------------
-    // JWT.
-    //
-    // Three paths:
-    //   - first sign-in (`user` present)    → hydrate everything
-    //   - session.update()                  → re-hydrate everything
-    //   - every other request               → return as-is, EXCEPT once every
-    //     15 minutes, when the membership is re-checked (below)
-    //
-    // ── WHY THE RUNTIME GUARD BELOW EXISTS ────────────────────────────────
-    // This callback also runs inside proxy.ts, which is EDGE. `db` is a pg Pool
-    // and cannot open a socket there: a query from the Edge throws, and since
-    // the proxy runs on every request, that would take the whole app down
-    // rather than fail one page.
-    //
-    // It has never mattered until now because the only DB work here fired on
-    // sign-in or session.update(), both of which happen in route handlers (Node).
-    // The 15-minute re-check is TIME-triggered, so it WOULD fire on the Edge.
-    // Hence: on the Edge the token passes through untouched - exactly today's
-    // behaviour - and every re-check happens on Node, where route handlers and
-    // server actions can also persist the refreshed cookie.
-    // -----------------------------------------------------------------------
+    // Hydrates on sign-in and session.update(), and re-checks the membership every 15 minutes.
+    // This also runs in proxy.ts on the EDGE, where `db` cannot connect - so all DB work is
+    // skipped there (`onEdge`) and happens on Node instead.
     async jwt({ token, user, trigger, session }) {
       const now = Date.now()
       const onEdge = process.env.NEXT_RUNTIME === "edge"
 
-      // --- Switch workspace (M3) -------------------------------------------
-      //
-      // /select-workspace calls update({ membershipId }) to move an existing
-      // session to another company. The requested membership is re-read and
-      // checked to belong to THIS user before anything is written: `session`
-      // here is a payload from the browser, so it is a request, not a fact.
+      // Workspace switch. `session` is a browser payload: re-check the membership is this user's.
       if (!onEdge && trigger === "update" && typeof session?.membershipId === "string") {
         const target = await loadMembershipIfStillValid(session.membershipId)
         const owned =
@@ -360,12 +251,8 @@ export const authOptions: NextAuthConfig = {
               select: { id: true },
             }),
           ))
-        // Someone else's membership, or one that is no longer valid. Leave the
-        // token exactly as it was rather than failing the request - the page
-        // re-reads the session and will show it did not move.
+        // Invalid or someone else's: leave the token unchanged rather than fail the request.
         if (target && owned) {
-          // A workspace switch is still the same session: it must not outlive
-          // a password change any more than a plain request may.
           if (passwordChangedSince(token.authAt, target)) return null
           const profile = await hydrateFromMembership(target)
           if (profile) {
@@ -380,11 +267,8 @@ export const authOptions: NextAuthConfig = {
         }
       }
 
-      // --- First sign-in ---------------------------------------------------
+      // First sign-in. Never issue a token without a tenant.
       if (user?.membershipId) {
-        // authorizeWithIdentity() and the Google signIn callback both set all
-        // four together. If one is missing the identity did not resolve, and a
-        // token without a tenant is not a token we can safely issue.
         if (!user.userId || !user.tenantId || !user.tenantSlug) return null
         token.userId = user.userId
         token.membershipId = user.membershipId
@@ -397,21 +281,13 @@ export const authOptions: NextAuthConfig = {
         const profile = await hydrateFromMembership(membership)
         if (!profile) return null
         Object.assign(token, profile)
-        // The one place authAt is written: it marks when the password was
-        // proven, and passwordChangedSince() revokes anything older.
+        // The only place authAt is written.
         token.authAt = now
         token.checkedAt = now
         return token
       }
 
-      // --- Upgrade a token issued before M2 ---------------------------------
-      //
-      // Everyone already signed in when this deploys holds a token with no
-      // membershipId. Left alone it would keep working (nothing reads the new
-      // fields yet) but would never reach the re-check below, so those sessions
-      // would stay unrevokable until they expired. Resolve the membership from
-      // the profile id the old token does carry, and they join the new regime on
-      // their very next request.
+      // Legacy token without a membershipId: resolve one so it reaches the re-check below.
       if (!onEdge && !token.membershipId && token.id) {
         const kind = (token.kind as "employee" | "client" | undefined) ?? "employee"
         const existing = await runUnscoped(
@@ -425,34 +301,23 @@ export const authOptions: NextAuthConfig = {
               select: { id: true, userId: true },
             }),
         )
-        // No membership for a profile the token claims to be: the account is
-        // gone. Fail closed - this is the auth path.
+        // Account gone: fail closed.
         if (!existing) return null
         token.membershipId = existing.id
         token.userId = existing.userId
-        // checkedAt is left unset so the re-check below runs immediately rather
-        // than 15 minutes from now - the first thing an upgraded token should do
-        // is confirm it is still entitled to what it is carrying.
+        // checkedAt stays unset, so the re-check below runs immediately.
       }
 
-      // --- Explicit re-hydration, or the 15-minute re-check ------------------
-      //
-      // The re-check is what makes revocation actually take effect. Before M2 a
-      // token carried its grants until it expired, so removing someone's role -
-      // or deactivating them outright - left them holding it. Now the worst case
-      // is 15 minutes, and a membership that has gone away ends the session.
+      // The re-check is what makes revocation (roles, deactivation) take effect within 15 minutes.
       const membershipId = token.membershipId as string | undefined
       const stale = now - ((token.checkedAt as number | undefined) ?? 0) > MEMBERSHIP_RECHECK_MS
 
       if (!onEdge && membershipId && (trigger === "update" || stale)) {
         const membership = await loadMembershipIfStillValid(membershipId)
-        // Deactivated, offboarded, or their company was suspended: returning
-        // null invalidates the session cookie, so the next request is signed out.
+        // null invalidates the session cookie.
         if (!membership) return null
 
-        // The password changed after this token was issued - a reset after a
-        // phished cookie, or an admin rotating a compromised account. The
-        // session that made the change is signed out too (its UI says so).
+        // Also signs out the session that made the change (its UI says so).
         if (passwordChangedSince(token.authAt, membership)) return null
 
         const profile = await hydrateFromMembership(membership)
@@ -461,7 +326,6 @@ export const authOptions: NextAuthConfig = {
         Object.assign(token, profile)
         token.tenantId = membership.tenantId
         token.tenantSlug = membership.tenantSlug
-        // Carried on the membership row, so this costs no extra query.
         token.mustChangePassword = membership.mustChangePassword
         token.checkedAt = now
       }
@@ -469,10 +333,6 @@ export const authOptions: NextAuthConfig = {
       return token
     },
 
-    // -----------------------------------------------------------------------
-    // Session - copy JWT fields onto the session.user object exposed to
-    // client components via useSession() and to server components via auth().
-    // -----------------------------------------------------------------------
     async session({ session, token }) {
       if (token) {
         const kind = (token.kind as "employee" | "client" | undefined) ?? "employee"
@@ -497,15 +357,10 @@ export const authOptions: NextAuthConfig = {
   },
 
   events: {
-    // -----------------------------------------------------------------------
-    // signIn event - stamp last-seen and write an audit entry. Non-critical: a
-    // failure here must never block the login itself.
-    // -----------------------------------------------------------------------
+    // Bookkeeping only: a failure here must never block the login.
     async signIn({ user }) {
       if (!user?.id) return
-      // The audit entry and the client activity row belong to the company the
-      // person just signed in to, so ENTER that tenant rather than running
-      // unscoped - authorize() has already resolved it onto `user`.
+      // These rows belong to the tenant just signed in to, so enter it rather than run unscoped.
       if (user.tenantId && user.tenantSlug) {
         enterTenant({ tenantId: user.tenantId, slug: user.tenantSlug })
       }
@@ -517,22 +372,17 @@ export const authOptions: NextAuthConfig = {
             data: { lastLoginAt: new Date() },
           })
         } catch {
-          // Non-critical - never block a login on a bookkeeping write.
+          // Non-critical.
         }
       }
 
-      // Client sign-ins: they must NOT reach the audit log write below -
-      // AuditLog.actorId is a foreign key into `employees`, so a client id there
-      // is a constraint violation, not a log entry.
+      // Clients must not reach the audit log below: AuditLog.actorId is a FK into `employees`.
       if (user.kind === "client") {
         try {
           await db.clientUser.update({
             where: { id: user.id },
             data: { lastLoginAt: new Date() },
           })
-          // Their OWN log, which the portal's Activity view reads. Sign-ins are
-          // the entries that make an activity log worth opening: they are how
-          // somebody notices a session they did not start.
           await db.clientActivityLog.create({
             data: {
               clientUserId: user.id,
@@ -542,7 +392,7 @@ export const authOptions: NextAuthConfig = {
             },
           })
         } catch {
-          // Non-critical - never block a login on a bookkeeping write.
+          // Non-critical.
         }
         return
       }
@@ -564,15 +414,10 @@ export const authOptions: NextAuthConfig = {
           },
         })
       } catch {
-        // Intentionally swallowed - audit log failure must not block login.
+        // Non-critical.
       }
     },
   },
 }
 
-// ---------------------------------------------------------------------------
-// Initialise NextAuth v5 and re-export the universal `auth` helper together
-// with the HTTP route handlers. Other modules (lib/auth.ts, proxy.ts,
-// and the [...nextauth] route handler) import from here.
-// ---------------------------------------------------------------------------
 export const { handlers, auth, signIn, signOut } = NextAuth(authOptions)

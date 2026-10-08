@@ -16,8 +16,7 @@ import { apiFetch } from "@/lib/api-fetch"
 
 type Step = "email" | "otp" | "password"
 
-// Basic shape check used to gate the "Send code" button. The server still
-// re-validates with zod and confirms the employee is active before sending.
+// Gates the "Send code" button only; the server re-validates and checks the employee is active.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export default function ForgotPasswordPage() {
@@ -30,18 +29,16 @@ export default function ForgotPasswordPage() {
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
   const [show, setShow] = useState(false)
-  // Seconds left before "Resend code" is allowed again. Set to 60 each time a
-  // code is sent (initial send and every resend).
+  // Seconds until "Resend code" is allowed; 60 after every send.
   const [resendCooldown, setResendCooldown] = useState(0)
 
-  // Tick the resend cooldown down to zero, one second at a time.
   useEffect(() => {
     if (resendCooldown <= 0) return
     const id = setInterval(() => setResendCooldown((s) => (s <= 1 ? 0 : s - 1)), 1000)
     return () => clearInterval(id)
   }, [resendCooldown])
 
-  // Step 1 - request the code (server confirms the active employee first).
+  // Step 1 - request the code.
   const requestOtp = useMutation({
     mutationFn: async () =>
       (
@@ -116,7 +113,6 @@ export default function ForgotPasswordPage() {
         </p>
       </div>
 
-      {/* ── Step 1: email ───────────────────────────────────────────────── */}
       {step === "email" && (
         <form
           onSubmit={(e) => {
@@ -154,7 +150,6 @@ export default function ForgotPasswordPage() {
         </form>
       )}
 
-      {/* ── Step 2: OTP ─────────────────────────────────────────────────── */}
       {step === "otp" && (
         <form
           onSubmit={(e) => {
@@ -208,7 +203,6 @@ export default function ForgotPasswordPage() {
         </form>
       )}
 
-      {/* ── Step 3: new password ────────────────────────────────────────── */}
       {step === "password" && (
         <form
           onSubmit={(e) => {

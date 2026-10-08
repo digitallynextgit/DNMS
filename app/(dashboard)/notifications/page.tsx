@@ -16,8 +16,6 @@ import { Pagination } from "@/components/shared/pagination"
 import { TaskReminderSettings } from "@/features/notifications"
 import { cn, formatRelativeTime, truncate } from "@/lib/utils"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface Notification {
   id: string
   title: string
@@ -34,8 +32,6 @@ interface NotificationsResponse {
   meta: { page: number; limit: number; total: number; totalPages: number }
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function getNotificationIcon(type: string) {
   switch (type) {
     case "success":
@@ -49,11 +45,7 @@ function getNotificationIcon(type: string) {
   }
 }
 
-/**
- * Placeholder row built from the real notification row's layout (bordered card,
- * `p-4`, 9x9 icon circle, title + timestamp on one line, message below) rather
- * than a flat grey bar, so nothing reflows when the feed arrives.
- */
+/** Matches the real row's layout, so nothing reflows when the feed arrives. */
 function NotificationRowSkeleton() {
   return (
     <div className="bg-card flex w-full items-start gap-3 rounded-sm border p-4">
@@ -69,8 +61,6 @@ function NotificationRowSkeleton() {
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 const LIMIT = 10
 
 export default function NotificationsPage() {
@@ -78,8 +68,6 @@ export default function NotificationsPage() {
   const qc = useQueryClient()
   const [page, setPage] = useUrlPage()
   const [confirmClear, setConfirmClear] = useState(false)
-  // Collapsed by default: this page is read as a feed, and the settings are
-  // something an employee changes once and then leaves alone.
   const [showSettings, setShowSettings] = useState(false)
 
   const { data, isLoading } = useQuery<NotificationsResponse>({
@@ -89,11 +77,8 @@ export default function NotificationsPage() {
       if (!res.ok) throw new Error("Failed to load notifications")
       return res.json()
     },
-    // 120s, not 20s. RealtimeNotifications (mounted in the dashboard shell)
-    // invalidates ["notifications"] on every SSE frame, and that prefix-matches
-    // this key - so the feed is already live and this interval is only the
-    // safety net for the stream being down. It was running 4.5x faster than the
-    // fallback it duplicates.
+    // 120s: RealtimeNotifications already invalidates ["notifications"] on every SSE frame,
+    // so this is only the safety net for the stream being down.
     refetchInterval: 120_000,
     refetchOnWindowFocus: true,
   })
@@ -116,8 +101,7 @@ export default function NotificationsPage() {
     },
   })
 
-  // Permanent - notifications are a personal feed, so there's nothing to soft
-  // delete or recover. Scoped server-side to the caller's own rows.
+  // Permanent (a personal feed - nothing to recover). Scoped server-side to the caller's rows.
   const deleteMutation = useMutation({
     mutationFn: async (params: { id?: string; all?: boolean }) => {
       const qs = params.all ? "all=true" : `id=${encodeURIComponent(params.id ?? "")}`
@@ -199,16 +183,12 @@ export default function NotificationsPage() {
           />
         ) : (
           notifications.map((notification) => (
-            // A <div> row, not a <button>: the delete control lives inside it, and
-            // a button nested in a button is invalid HTML (the inner click never
-            // fires reliably). The body below is the clickable target instead.
+            // A <div>, not a <button>: the delete control lives inside, and nested buttons are invalid HTML.
             <div
               key={notification.id}
               className={cn(
                 "group bg-card hover:bg-muted/50 flex w-full items-start gap-3 rounded-sm border p-4 transition-colors",
-                // Unread: a translucent tint + left accent that stays readable in
-                // BOTH light and dark themes (a solid bg-blue-50 turned the text
-                // unreadable in dark mode).
+                // Translucent tint so it stays readable in dark mode too.
                 !notification.isRead &&
                   "border-l-4 border-l-blue-500 bg-blue-500/10 hover:bg-blue-500/15",
               )}
@@ -261,7 +241,6 @@ export default function NotificationsPage() {
         )}
       </div>
 
-      {/* Pagination */}
       {meta && (
         <Pagination
           page={meta.page}

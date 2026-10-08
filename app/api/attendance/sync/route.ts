@@ -5,14 +5,8 @@ import { syncDeviceSmart } from "@/features/attendance/server/sync"
 import type { Session } from "next-auth"
 import { resolveDevice } from "@/features/attendance/server/device-resolver"
 
-// Refresh attendance for ALL employees by pulling the latest punches from every
-// active device into the DB. Triggered by the "Refresh" button; any signed-in
-// employee can run it. The DNMS server must be on the same network as the device
-// - if no device is reachable we return a "connect to the WiFi" message.
-//
-// Per employee the sync is smart: someone never synced gets their full history
-// backfilled (from their joining date); everyone else only re-pulls from their
-// last recorded day → today. So Refresh stays cheap once everyone is seeded.
+// Any employee can run this (Refresh button). The server must be on the device's network. Never-synced
+// employees get a full backfill; the rest re-pull from their last recorded day.
 
 export const POST = withSession(
   async (_req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {

@@ -31,10 +31,7 @@ import { ClientFormDialog } from "./client-form-dialog"
 
 const PAGE_SIZE = 20
 
-/**
- * The client book: every company projects are delivered for, with how much
- * work each one has and whether anyone there is using the portal.
- */
+/** The client book: every client company, its workload and portal usage. */
 export function ClientsDirectory() {
   const { can } = usePermissions()
   const canWrite = can(PERMISSIONS.CLIENT_WRITE)
@@ -55,8 +52,7 @@ export function ClientsDirectory() {
   const pagination = data?.pagination
   const summary = data?.summary
 
-  // A new search or filter starts from page 1. Skips mount so a deep-linked
-  // ?page=N survives first render.
+  // A new search or filter resets to page 1 (skipped on mount so a deep-linked ?page=N survives).
   useUpdateEffect(() => {
     setPage(1)
   }, [search, status])

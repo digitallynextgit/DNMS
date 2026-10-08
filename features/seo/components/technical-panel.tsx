@@ -20,10 +20,7 @@ import type { TechnicalAuditView, TechnicalIssue, TechnicalPageAudit } from "../
 import { useRunTechnicalAudit, useTechnicalAudit } from "../hooks/use-seo"
 import { exportTechnical } from "../lib/seo-export"
 
-// =============================================================================
-// The technical-audit tab (plan step 6): crawl results for a site's money pages
-// plus sitemap/robots checks. Critical issues here feed the scorecard.
-// =============================================================================
+// Technical-audit tab: crawl results for the money pages plus sitemap/robots checks.
 
 function IssuePill({ issue }: { issue: TechnicalIssue }) {
   const map = {
@@ -115,7 +112,6 @@ export function TechnicalPanel({
 function AuditReport({ audit }: { audit: TechnicalAuditView }) {
   return (
     <div className="space-y-4">
-      {/* Summary strip */}
       <div className="grid gap-3 sm:grid-cols-4">
         <SummaryCard
           label="Critical"
@@ -135,7 +131,6 @@ function AuditReport({ audit }: { audit: TechnicalAuditView }) {
         />
       </div>
 
-      {/* Site-level checks */}
       <Card>
         <CardContent className="flex flex-wrap gap-4 p-4 text-sm">
           <CheckRow ok={audit.sitemapOk} label="sitemap.xml" />
@@ -156,7 +151,6 @@ function AuditReport({ audit }: { audit: TechnicalAuditView }) {
         </Card>
       )}
 
-      {/* Per-page results */}
       <Card>
         <CardContent className="p-0">
           <div className="border-border border-b px-4 py-3">
@@ -256,7 +250,6 @@ function PageRow({ page }: { page: TechnicalPageAudit }) {
         )}
       </div>
 
-      {/* quick facts */}
       <div className="text-muted-foreground mt-1.5 flex flex-wrap gap-x-4 gap-y-1 pl-6 text-[11px]">
         <span>Title: {page.titleLength || 0} chars</span>
         <span>H1: {page.h1Count}</span>

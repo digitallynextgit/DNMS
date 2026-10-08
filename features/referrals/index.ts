@@ -1,6 +1,4 @@
-// Public API for the "referrals" feature (CLAUDE.md §1, rule #2).
-// Server modules (server/*.service.ts, server/*.queries.ts) are intentionally
-// NOT re-exported - API routes import those directly.
+// Public API; server modules are not re-exported (API routes import them directly).
 export * from "./components/my-referrals"
 export * from "./components/referrals-admin"
 export * from "./components/refer-dialog"

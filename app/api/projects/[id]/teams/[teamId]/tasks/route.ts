@@ -17,14 +17,11 @@ import { createAuditLog } from "@/lib/audit"
 import { openFirstStatusPeriod } from "@/features/projects/server/task-status-periods"
 import type { Session } from "next-auth"
 
-// GET /api/projects/[id]/teams/[teamId]/tasks - list tasks for team (all project members can view)
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId, teamId } = ctx.params
-      // withProjectAccess validated the URL project only; teamId is client-chosen.
-      // Confirm the team lives in this project before listing its tasks, or A can
-      // read any other project's task board. Matches the POST guard below.
+      // teamId is client-chosen: confirm the team is in this project before listing its tasks.
       const team = await db.projectTeam.findFirst({
         where: { id: teamId, projectId },
         select: { id: true },
@@ -49,20 +46,12 @@ export const GET = withProjectAccess(
   },
 )
 
-// POST /api/projects/[id]/teams/[teamId]/tasks - create task
-//
-// Tasks are self-service: a member plans their own week and starts on it. There
-// is no approval gate - a self-raised task used to land in PENDING_APPROVAL and
-// sit there unworkable until the team manager noticed it, which only delayed
-// work the person had already committed to. Who may assign to WHOM is still
-// checked above; only the approval step is gone.
+// Self-service, with no approval gate; who may assign to whom is still checked.
 export const POST = withSession(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { teamId } = ctx.params
-      // The URL carries a slug now; this route is behind plain withSession, not
-      // a slug-aware guard. The id is WRITTEN onto the created task, so an
-      // unresolved slug would corrupt the row, not merely 404.
+      // Plain withSession, so resolve the slug - the id is written onto the task row.
       const projectId = await resolveProjectId(ctx.params.id)
       if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
       const body = await req.json()
@@ -81,8 +70,6 @@ export const POST = withSession(
         where: { id: teamId },
         include: {
           members: { select: { employeeId: true } },
-          // Slug only, and on the query that was already going out: the manager
-          // notification below needs a readable project link, not a second read.
           project: { select: { slug: true } },
         },
       })
@@ -90,10 +77,8 @@ export const POST = withSession(
         return NextResponse.json({ error: "Team not found" }, { status: 404 })
       }
 
-      // Admin override
       const isAdmin = await canManageProject(session, projectId)
 
-      // Caller must be a team member OR admin
       const memberIds = team.members.map((m) => m.employeeId)
       if (!memberIds.includes(session.user.id) && !isAdmin) {
         return NextResponse.json(
@@ -105,8 +90,7 @@ export const POST = withSession(
       const isManager = team.managerId === session.user.id
       const finalAssigneeId = assigneeId || team.managerId || session.user.id
 
-      // WHY this work exists. Optional - forcing a goal at creation produces
-      // junk goals - but when given it must be a goal on THIS project.
+      // Optional (forcing one produces junk goals), but it must be a goal on THIS project.
       const linkedGoalId = goalId
         ? ((
             await db.projectGoal.findFirst({
@@ -118,12 +102,10 @@ export const POST = withSession(
       if (goalId && !linkedGoalId) {
         return NextResponse.json({ error: "Goal not found on this project" }, { status: 404 })
       }
-      // Is something expected to come out of it? The team's nature decides
-      // unless the form said otherwise.
+      // The team's nature decides unless the form said otherwise.
       const outputExpected =
         typeof producesOutput === "boolean" ? producesOutput : expectsOutput(team.name)
 
-      // If assigning to someone else, must be manager OR admin
       if (finalAssigneeId !== session.user.id && !isManager && !isAdmin) {
         return NextResponse.json(
           { error: "Only the team manager can assign tasks to other members" },
@@ -131,7 +113,6 @@ export const POST = withSession(
         )
       }
 
-      // Assignee must be a team member (unless admin is creating - they may assign to manager who must be in team)
       if (!memberIds.includes(finalAssigneeId)) {
         return NextResponse.json(
           { error: "Assignee must be a member of this team" },
@@ -139,9 +120,7 @@ export const POST = withSession(
         )
       }
 
-      // A task can be scoped to one of the project's tracked sites. Verify it
-      // belongs to THIS project so a stray id can't attach work to another
-      // client's subdomain.
+      // Must be one of THIS project's tracked sites.
       if (seoPropertyId) {
         const site = await db.seoProperty.findFirst({
           where: { id: seoPropertyId, projectId },
@@ -152,9 +131,7 @@ export const POST = withSession(
         }
       }
 
-      // Every task is workable the moment it is raised. isManagerCreated still
-      // records WHO raised it, because "my manager gave me this" and "I planned
-      // this myself" read differently in a history, but neither one waits.
+      // Every task is workable at once; isManagerCreated only records who raised it.
       const isManagerCreated = isManager || isAdmin
 
       const task = await db.projectTask.create({
@@ -189,16 +166,13 @@ export const POST = withSession(
         at: task.createdAt,
       })
 
-      // Notifications
       try {
         if (isManager && finalAssigneeId !== session.user.id && task.assignee) {
-          // Manager assigned to another member
           await createNotification({
             employeeId: finalAssigneeId,
             title: "New task assigned",
             message: `${task.creator.firstName} assigned you: "${task.title}"`,
             type: "info",
-            // The member's own list is where the assigned task shows up.
             link: "/projects/my-tasks",
           })
           addEmailJob({
@@ -208,15 +182,12 @@ export const POST = withSession(
             text: `New task assigned: ${task.title}`,
           })
         } else if (!isManager && team.managerId) {
-          // Member planned their own work. The manager is told, not asked -
-          // they still want to know what their team put on this week.
+          // The member planned their own work: the manager is told, not asked.
           await createNotification({
             employeeId: team.managerId,
             title: "New task in your team",
             message: `${task.creator.firstName} added a task in ${team.name}: "${task.title}"`,
             type: "info",
-            // The manager wants the project's task board, not Overview, which
-            // says nothing about what their team just planned.
             link: projectHref({ id: projectId, slug: team.project.slug }, "tasks"),
           })
         }

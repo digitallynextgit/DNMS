@@ -26,10 +26,7 @@ import { cn, formatDate } from "@/lib/utils"
 import { daysFromToday, relativeDayLabel } from "../lib/relative-day"
 import { YearSelect } from "./year-select"
 
-// The Holiday Calendar view of the Calendar page: the company holidays as a
-// month grid or a table, the floating holidays an employee can apply for, and -
-// for managers and HR - the floating-holiday approval inbox. (Birthdays have
-// their own calendar.)
+// Employee read-and-apply view (HR uses holidays-admin-view.tsx).
 
 const CURRENT_YEAR = new Date().getFullYear()
 const TABS = ["calendar", "table", "floating", "requests"]
@@ -121,7 +118,6 @@ export function HolidaysCalendarView() {
   })
   const pending = applyMut.isPending || withdrawMut.isPending
 
-  // Floating holidays this employee has had approved (shown with a tick).
   const approvedFloatingIds = new Set(
     (fd?.selections ?? []).filter((s) => s.status === "APPROVED").map((s) => s.holidayId),
   )
@@ -143,10 +139,7 @@ export function HolidaysCalendarView() {
   const atLimit = fd ? fd.remaining <= 0 : false
   const todayYmd = formatDate(new Date(), "yyyy-MM-dd")
 
-  // Don't land on the Requests tab if this user can't approve (e.g. a stale
-  // deep-link after losing reports) - fall back to the calendar once loaded.
-  // `tab` is shared with the other calendars in the URL, so an unknown value
-  // (one of theirs) also means the grid.
+  // Fall back to the grid if this user can't approve, or if `tab` belongs to another calendar in the URL.
   const activeTab =
     !TABS.includes(tab) || (tab === "requests" && fd && !fd.isApprover) ? "calendar" : tab
 
@@ -248,7 +241,6 @@ export function HolidaysCalendarView() {
         />
       </div>
 
-      {/* ── Calendar ── */}
       <TabsContent value="calendar">
         <HolidayMonthCalendar
           year={year}
@@ -260,7 +252,6 @@ export function HolidaysCalendarView() {
         />
       </TabsContent>
 
-      {/* ── The year's holidays as a table, in date order ── */}
       <TabsContent value="table">
         {isLoading || holidays.length > 0 ? (
           <DataTable
@@ -286,7 +277,6 @@ export function HolidaysCalendarView() {
         )}
       </TabsContent>
 
-      {/* ── Floating holidays apply ── */}
       <TabsContent value="floating" className="space-y-4">
         <p className="text-muted-foreground text-sm">
           Pick up to {fd?.limit ?? 3} floating holidays. Each request goes to your manager and HR -
@@ -319,8 +309,7 @@ export function HolidaysCalendarView() {
                   className: "max-w-[220px]",
                   cell: (h: FloatingHoliday) => {
                     const sel = selByHoliday.get(h.id)
-                    // A withdrawn (CANCELLED) request has no pill - it reads the
-                    // same as never having applied, so it is absent from the map.
+                    // CANCELLED has no pill: it reads the same as never having applied.
                     const known = sel && FLOATING_REQUEST_STATUS_LABELS[sel.status]
                     if (!sel || !known)
                       return <span className="text-muted-foreground text-xs">-</span>
@@ -407,7 +396,6 @@ export function HolidaysCalendarView() {
         )}
       </TabsContent>
 
-      {/* ── Floating-holiday approval inbox (managers + HR only) ── */}
       {fd?.isApprover && (
         <TabsContent value="requests" className="space-y-4">
           <p className="text-muted-foreground text-sm">

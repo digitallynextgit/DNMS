@@ -97,8 +97,7 @@ function Group({
   permissions: string[]
   roles: string[]
 }) {
-  // Flatten groups: a phone menu is a list, so a parent with children becomes
-  // its children (prefixed by the parent) rather than an accordion.
+  // A phone menu is a flat list: a parent becomes its children (prefixed by the parent).
   const rows: {
     href: string
     label: string
@@ -132,11 +131,7 @@ function Group({
   )
 }
 
-/**
- * The phone "More" screen: the whole sidebar, flattened into tappable lists and
- * gated by exactly the same permissions. Only rendered below `md` (the route
- * redirects on desktop, where the sidebar already covers this).
- */
+/** The phone "More" screen: the whole sidebar as flat lists, same permissions. Only shown below md. */
 export function MobileMoreMenu({ session }: { session: Session }) {
   const { id, firstName, lastName, email, profilePhoto: sessionPhoto } = session.user
   const permissions = session.user.permissions
@@ -153,15 +148,12 @@ export function MobileMoreMenu({ session }: { session: Session }) {
   async function handleSignOut() {
     clearPalette()
     setTheme("system")
-    // Same as the desktop topbar: stop this browser receiving the signed-out
-    // user's push notifications before the session (which DELETE needs) goes.
     await unregisterPush()
     signOut({ callbackUrl: "/login" })
   }
 
   return (
     <div className="space-y-5 py-4">
-      {/* Identity card - doubles as the link into the full profile. */}
       <Link
         href="/profile"
         className="border-border bg-card hover:bg-accent flex items-center gap-3.5 rounded-sm border p-4 transition-colors"

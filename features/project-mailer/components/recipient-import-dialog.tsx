@@ -1,15 +1,8 @@
 "use client"
 
 /**
- * Spreadsheet import for the recipient list.
- *
- * The file is parsed in the BROWSER, not on the server, for one reason: nobody
- * should find out which column was treated as the email address by receiving
- * bounces. Parse, map, preview, then commit - the server only ever sees rows
- * somebody has looked at.
- *
- * `xlsx` is loaded with a dynamic import so its ~400 KB stays out of the project
- * page bundle until a file is actually chosen.
+ * Spreadsheet import, parsed in the browser so people map and preview columns before the server
+ * sees anything. `xlsx` (~400 KB) is loaded only when a file is chosen.
  */
 
 import * as React from "react"
@@ -98,12 +91,7 @@ export function RecipientImportDialog({
   allTags: string[]
   /** Lowercased addresses already on the list, for an honest pre-commit summary. */
   existingEmails: Set<string>
-  /**
-   * Whether `existingEmails` is the COMPLETE list. The overview loads at most 500
-   * recipients, so on a bigger list we cannot tell new from existing here - and
-   * we say nothing rather than print a new/existing split that is wrong. The
-   * server counts it properly and reports back after the import.
-   */
+  /** False when the overview didn't load every recipient - then no new/existing split is shown. */
   knowsWholeList: boolean
   onDone: () => void
 }) {
@@ -117,7 +105,7 @@ export function RecipientImportDialog({
   const [newTag, setNewTag] = React.useState("")
   const [tagExisting, setTagExisting] = React.useState(true)
 
-  const reset = React.useCallback(() => {
+  const resetFields = React.useCallback(() => {
     setSheet(null)
     setEmailCol(NONE)
     setNameCol(NONE)
@@ -125,12 +113,19 @@ export function RecipientImportDialog({
     setTags([])
     setNewTag("")
     setTagExisting(true)
-    if (fileRef.current) fileRef.current.value = ""
   }, [])
 
-  React.useEffect(() => {
-    if (open) reset()
-  }, [open, reset])
+  const reset = React.useCallback(() => {
+    resetFields()
+    if (fileRef.current) fileRef.current.value = ""
+  }, [resetFields])
+
+  // Fresh form on each open; the file input remounts with the dialog content, so it's empty.
+  const [wasOpen, setWasOpen] = React.useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) resetFields()
+  }
 
   async function readFile(file: File) {
     setReading(true)
@@ -141,9 +136,7 @@ export function RecipientImportDialog({
       const ws = sheetName ? wb.Sheets[sheetName] : undefined
       if (!sheetName || !ws) throw new Error("That file has no sheets in it")
 
-      // `raw: false` so a number-formatted cell arrives as the text you SEE in
-      // Excel; header:1 keeps blank and duplicate headers visible instead of
-      // silently collapsing them into one key.
+      // `raw: false` gives the text Excel shows; header:1 keeps blank and duplicate headers.
       const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, {
         header: 1,
         blankrows: false,
@@ -179,8 +172,7 @@ export function RecipientImportDialog({
       const next: Sheet = { fileName: file.name, sheetName, headers, rows }
       setSheet(next)
 
-      // Pre-map what we can. Everything stays editable - a guess that is wrong
-      // and invisible is worse than no guess at all.
+      // Pre-map what we can; everything stays editable.
       setEmailCol(
         detect(headers, [/^e-?mail/i, /e-?mail/i, /^mail$/i]) ?? detectByContent(next) ?? NONE,
       )
@@ -194,8 +186,7 @@ export function RecipientImportDialog({
     }
   }
 
-  // Everything the commit needs, plus the counts shown before committing - one
-  // derivation so the preview cannot disagree with what actually gets sent.
+  // One derivation for the commit and the preview counts, so they can't disagree.
   const mapped = React.useMemo(() => {
     if (!sheet || emailCol === NONE) return null
     const extraCols = sheet.headers.filter(
@@ -248,15 +239,7 @@ export function RecipientImportDialog({
 
   const overLimit = (mapped?.rows.length ?? 0) > ROW_LIMIT
 
-  /**
-   * Tags as they will actually be sent, INCLUDING whatever is still sitting in
-   * the text box.
-   *
-   * Requiring Enter to "commit" a tag lost 311 recipients' tag on a real import:
-   * the word was visibly there in the input, and Import silently ignored it.
-   * Typed text that is on screen when you press the button is intent, not a
-   * draft - anything else quietly discards what the person told us.
-   */
+  /** Tags as they'll be sent, including text still in the box - typed text on screen is intent. */
   const effectiveTags = React.useMemo(() => {
     const pending = newTag.trim().replace(/,+$/, "")
     if (!pending || tags.includes(pending)) return tags
@@ -342,7 +325,6 @@ export function RecipientImportDialog({
               </Button>
             </div>
 
-            {/* ── Column mapping ─────────────────────────────────────────── */}
             <div className="grid gap-3 sm:grid-cols-3">
               <ColumnPicker
                 label="Email"
@@ -377,7 +359,6 @@ export function RecipientImportDialog({
               </div>
             )}
 
-            {/* ── Tags ───────────────────────────────────────────────────── */}
             <div className="space-y-2">
               <Label className="text-xs">Tag everyone in this file</Label>
               <div className="flex flex-wrap gap-1.5">
@@ -410,8 +391,7 @@ export function RecipientImportDialog({
                       addTag(newTag)
                     }
                   }}
-                  // Clicking straight to Import blurs this first, so the tag
-                  // becomes a chip and what you see matches what is sent.
+                  // Blur turns the typed tag into a chip before Import fires.
                   onBlur={() => addTag(newTag)}
                   placeholder="Type a tag"
                   aria-label="Type a tag"
@@ -438,7 +418,6 @@ export function RecipientImportDialog({
                 )}
             </div>
 
-            {/* ── Preview + counts ───────────────────────────────────────── */}
             {emailCol === NONE ? (
               <p className="text-destructive text-xs">Pick which column holds the email address.</p>
             ) : mapped ? (
@@ -524,8 +503,7 @@ export function RecipientImportDialog({
             onClick={() => run.mutate()}
           >
             {run.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {/* Names the tag on the button itself: the one thing that silently
-                went missing on a real import is now impossible to not see. */}
+            {/* Names the tag on the button so it can't be missed. */}
             {mapped?.rows.length
               ? `Import ${mapped.rows.length}${
                   effectiveTags.length ? ` as ${effectiveTags.join(", ")}` : " with no tag"

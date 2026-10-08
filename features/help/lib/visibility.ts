@@ -9,9 +9,7 @@ import {
 } from "@/lib/nav"
 import type { HelpGuide, HelpSection } from "../types"
 
-// Who may read a guide follows who may open the page it explains: the guide's
-// `href` is looked up in the sidebar config, so a permission change there moves
-// the guide with it and nobody reads about a screen they cannot reach.
+// A guide is visible to whoever can open its page: its href is looked up in the sidebar config.
 
 /** Sidebar path → the permission that shows it (a child inherits its group's). */
 const NAV_PERMISSION = (() => {

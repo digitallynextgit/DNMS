@@ -20,18 +20,8 @@ import {
   type SetItemDoneInput,
 } from "../schemas/checklist.schema"
 
-// =============================================================================
-// HR checklists - onboarding and exit clearance
-// =============================================================================
-// One engine, two processes. A checklist is INSTANTIATED from the tenant's
-// template as a snapshot, then worked through by several different people: HR,
-// the manager, the employee, and - for an exit - each department head who must
-// sign off before relieving can be issued.
-//
-// The permission scope differs by kind (onboarding:write vs exit:write), so
-// every entry point resolves it from the instance rather than taking it on
-// trust from the caller.
-// =============================================================================
+// Onboarding and exit checklists: snapshots of a template, worked by several people. The scope
+// depends on the kind, so every entry point resolves it from the instance.
 
 type ChecklistKind = "ONBOARDING" | "EXIT"
 
@@ -45,17 +35,9 @@ export function readScopeFor(kind: ChecklistKind): string {
   return kind === "EXIT" ? PERMISSIONS.EXIT_READ : PERMISSIONS.ONBOARDING_READ
 }
 
-// ─── Instantiation ───────────────────────────────────────────────────────────
-
 /**
- * Build a checklist AND tell the people who now own something.
- *
- * The building itself lives in ./instantiate, which imports only the database
- * and the pure rules so that seeds and backfills can use it - this module
- * reaches NextAuth through the action guards and cannot be imported by a plain
- * tsx script. Everything inside a request should call this wrapper; a script
- * calls instantiateChecklist directly and decides for itself whether anyone is
- * notified about historical data.
+ * Build a checklist and notify the new owners. Request code calls this; scripts call
+ * instantiateChecklist directly (this module pulls in NextAuth).
  */
 export async function instantiateAndNotify(opts: {
   employeeId: string
@@ -68,8 +50,7 @@ export async function instantiateAndNotify(opts: {
   if (!result) return null
 
   if (result.created && result.assigneeCounts.size > 0) {
-    // One notification per person: a department head with three clearances
-    // wants one message, not three.
+    // One notification per person, not per item.
     const label = opts.kind === "EXIT" ? "exit clearance" : "onboarding"
     await createNotifications(
       [...result.assigneeCounts].map(([assigneeId, count]) => ({
@@ -84,8 +65,6 @@ export async function instantiateAndNotify(opts: {
 
   return { id: result.id, created: result.created }
 }
-
-// ─── Entry points ────────────────────────────────────────────────────────────
 
 /** Start a checklist by hand, from the HR screens. */
 export async function startChecklist(
@@ -127,12 +106,8 @@ export async function startChecklist(
 }
 
 /**
- * Tick or untick one item.
- *
- * A CLEARANCE may only be signed by its assignee or an HR-scoped override -
- * that is what makes it a sign-off rather than a checkbox. The write uses a
- * conditional updateMany so two people clicking at once cannot both "win":
- * the second sees zero rows affected and is told the state already changed.
+ * Tick or untick one item. A CLEARANCE needs its assignee or an HR override. The conditional
+ * updateMany means two simultaneous clicks can't both win.
  */
 export async function setItemDone(
   itemId: string,
@@ -162,8 +137,7 @@ export async function setItemDone(
 
     const kind = item.instance.kind as ChecklistKind
     const hasWrite = hasPermission(session, writeScopeFor(kind))
-    // The employee's own items are theirs to tick - preparing the handover
-    // document is the leaver's job, and they are the one who knows it is done.
+    // The employee may tick their own items (e.g. the handover document).
     const isOwnItem = item.assigneeId === session.user.id
     if (!canActOnItem(item, session.user.id, hasWrite) && !isOwnItem) {
       return fail("This item is assigned to somebody else", undefined, 403)
@@ -173,9 +147,7 @@ export async function setItemDone(
       where: { id: itemId, isDone: item.isDone },
       data: input.done
         ? { isDone: true, doneAt: new Date(), doneById: session.user.id, note: input.note || null }
-        : // Clearing doneAt alongside isDone is required, not tidiness: the
-          // checklist_instance_items_done_attributed CHECK refuses a done row
-          // with no timestamp, so the two always move together.
+        : // The done_attributed CHECK needs doneAt to move with isDone.
           { isDone: false, doneAt: null, doneById: null, note: input.note || null },
     })
     if (claimed.count === 0) {
@@ -356,12 +328,7 @@ export async function cancelChecklist(
   })
 }
 
-/**
- * Finish an ONBOARDING checklist.
- *
- * Exits do not come through here - completing one deactivates an account and
- * issues relieving, so it has its own guarded path in clearance.service.ts.
- */
+/** Finish an ONBOARDING checklist. Exits go through completeExitChecklist in exit.service.ts. */
 export async function completeOnboarding(instanceId: string): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requirePermission(PERMISSIONS.ONBOARDING_WRITE)

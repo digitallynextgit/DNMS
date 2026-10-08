@@ -63,8 +63,7 @@ describe("rowWindow", () => {
   })
 
   it("keeps the total height constant however far it is scrolled", () => {
-    // The scrollbar must not twitch as rows swap in and out: mounted height
-    // plus both spacers has to equal the full grid at EVERY scroll position.
+    // Mounted height plus both spacers must equal the full grid at every scroll position.
     for (let top = 0; top <= 6400 - VIEW; top += 37) {
       const w = rowWindow(offsets, TOTAL, top, VIEW, OVERSCAN)
       const mounted = (offsets[w.lastRow] ?? 0) - (offsets[w.firstRow] ?? 0)

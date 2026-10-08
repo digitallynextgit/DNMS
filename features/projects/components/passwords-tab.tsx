@@ -47,8 +47,7 @@ export function PasswordsTab({ projectId, currentUserId, canManage }: Props) {
   const [createOpen, setCreateOpen] = useState(false)
   const [search, setSearch] = useState("")
 
-  // Client-side: the list is already loaded. Passwords themselves are not
-  // searchable - they are encrypted and only decrypted on reveal.
+  // Passwords aren't searchable: they're encrypted until revealed.
   const query = search.trim().toLowerCase()
   const shown = query
     ? entries.filter((e) =>
@@ -306,7 +305,7 @@ function PasswordRow({
   )
 }
 
-/** Copies a value and flashes a tick. `getText` may be async (the password is decrypted on demand). */
+/** `getText` may be async (the password is decrypted on demand). */
 function CopyButton({
   title,
   what,

@@ -16,14 +16,7 @@ export interface WorkspaceOption {
   current: boolean
 }
 
-/**
- * Move an existing session to another company (M3).
- *
- * `update({ membershipId })` re-issues the JWT: the callback in server/auth.ts
- * re-reads that membership, checks it belongs to this user, and swaps the
- * token's tenant, roles and permissions. The id is only ever a request - the
- * server decides.
- */
+/** Switches tenant via update({ membershipId }); the JWT callback in server/auth.ts verifies the membership. */
 export function WorkspacePicker({
   workspaces,
   next,
@@ -40,16 +33,12 @@ export function WorkspacePicker({
     try {
       await update({ membershipId: workspace.membershipId })
       if (workspace.kind === "CLIENT") {
-        // Client access has no company pages: its home is the portal, and the
-        // proxy would only bounce a /{tenant}/… address there anyway. This is
-        // how somebody who is both staff and a client contact reaches the
-        // portal now that /client-login is gone.
+        // Client access has no company pages; its home is the portal.
         router.push("/portal")
         router.refresh()
         return
       }
-      // Send them to the page they originally asked for, re-pointed at the
-      // company they just entered.
+      // Back to the page they asked for, re-pointed at the new company.
       const { rest } = splitTenant(next && next.startsWith("/") ? next : "/dashboard")
       const target = withTenant(rest === "/" ? "/dashboard" : rest, workspace.slug)
       router.push(target === rest ? `/${workspace.slug}/dashboard` : target)

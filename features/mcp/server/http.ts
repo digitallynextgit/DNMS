@@ -4,17 +4,9 @@ import { NextResponse } from "next/server"
 import { DEFAULT_SCOPES, SUPPORTED_SCOPES } from "../constants"
 import { issuer, mcpResource, oauthEndpoints, publicOrigin } from "./config"
 
-// =============================================================================
-// Wire-format helpers for the OAuth + MCP endpoints.
-//
-// These endpoints speak OAuth (RFC 6749/8414/9728/7591/7009) and MCP, not the
-// app's { success, data } envelope - a deliberate exception to CLAUDE.md §3,
-// because Claude and ChatGPT parse these exact shapes.
-//
-// CORS is open (*): every one of these is authenticated by a bearer token or a
-// PKCE verifier, never by a cookie, so a browser-based MCP client (e.g. MCP
-// Inspector) calling them cross-origin gains nothing it could not do anyway.
-// =============================================================================
+// Wire-format helpers for the OAuth + MCP endpoints. They use OAuth/MCP shapes, not the app's
+// { success, data } envelope, because clients parse these exactly. CORS is open: auth is by
+// bearer token or PKCE, never cookies.
 
 export const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -80,16 +72,13 @@ export function authorizationServerMetadata() {
     response_modes_supported: ["query"],
     grant_types_supported: ["authorization_code", "refresh_token"],
     code_challenge_methods_supported: ["S256"],
-    // Public clients only (Claude/ChatGPT CIMD, DCR). Claude requires "none"
-    // here to pick CIMD.
+    // Public clients only; Claude needs "none" here to pick CIMD.
     token_endpoint_auth_methods_supported: ["none"],
     revocation_endpoint_auth_methods_supported: ["none"],
     client_id_metadata_document_supported: true,
-    // We return `iss` on every authorization response (RFC 9207) - this is
-    // what lets ChatGPT use its stable redirect URI.
+    // `iss` on every authorization response (RFC 9207) lets ChatGPT use its stable redirect URI.
     authorization_response_iss_parameter_supported: true,
-    // offline_access is listed so Claude/ChatGPT know refresh tokens exist;
-    // it is NOT in the resource metadata (MCP 2026-07-28 says it must not be).
+    // Tells clients refresh tokens exist; MCP forbids it in the resource metadata.
     scopes_supported: [...SUPPORTED_SCOPES, "offline_access"],
     service_documentation: `${publicOrigin()}/ai-connections`,
     default_scopes: [...DEFAULT_SCOPES],

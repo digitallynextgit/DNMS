@@ -39,10 +39,8 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
   const balances = balancesData?.data ?? []
   const requests = requestsData?.data ?? []
 
-  // Year dropdown - current and 2 previous years
   const yearOptions = [currentYear, currentYear - 1, currentYear - 2]
 
-  // Summary stats for the selected year
   const yearRequests = requests.filter((r) => new Date(r.startDate).getFullYear() === year)
   const approvedDays = yearRequests
     .filter((r) => r.status === "APPROVED")
@@ -118,7 +116,6 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header with year selector */}
       <div className="-mt-1 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <CalendarRange className="text-muted-foreground h-4 w-4" />
@@ -138,7 +135,6 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
         </Select>
       </div>
 
-      {/* Year summary strip - compact, single row */}
       <StatStrip
         items={[
           {
@@ -166,7 +162,6 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
         ]}
       />
 
-      {/* Leave balances */}
       <div className="space-y-3">
         <h4 className="text-muted-foreground text-[11px] font-semibold tracking-widest uppercase">
           Balances · {year}
@@ -188,7 +183,6 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
         )}
       </div>
 
-      {/* Leave request history */}
       <div className="space-y-3">
         <h4 className="text-muted-foreground text-[11px] font-semibold tracking-widest uppercase">
           Request History · {year}

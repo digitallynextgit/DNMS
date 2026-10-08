@@ -1,10 +1,4 @@
-// =============================================================================
-// Server-action result helpers
-// =============================================================================
-// Server actions RETURN errors instead of throwing them, because Next.js
-// redacts thrown error messages in production. Client hooks re-throw the
-// returned error so React Query's existing onError/toast handling keeps working.
-// =============================================================================
+// Actions RETURN errors instead of throwing, because Next redacts thrown messages in production.
 
 import { ZodError } from "zod"
 
@@ -20,16 +14,14 @@ export function fail(error: string, details?: unknown, status?: number): ActionF
   return { ok: false, error, details, status }
 }
 
-// Convert a DB result to its plain-JSON form (Date -> ISO string, etc.) so an
-// action's payload matches the previous `fetch` + `res.json()` wire shape.
-// Returns `any` on purpose: callers (the React Query hooks) keep their existing
-// declared return types, exactly as they did with `res.json()`.
+// Plain-JSON copy (Date -> ISO string), same as a fetch + res.json() payload. `any` on purpose,
+// so callers keep their declared types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function serialize(value: unknown): any {
   return JSON.parse(JSON.stringify(value))
 }
 
-// Thrown by the auth/permission guards; converted to an ActionFail by runAction.
+// Thrown by the guards; runAction turns it into an ActionFail.
 export class ActionError extends Error {
   status: number
   constructor(message: string, status = 400) {
@@ -39,22 +31,13 @@ export class ActionError extends Error {
   }
 }
 
-// Wraps an action body: guard failures (ActionError) and unexpected errors are
-// turned into a safe ActionFail instead of a redacted thrown error.
 export async function runAction<T>(fn: () => Promise<ActionResult<T>>): Promise<ActionResult<T>> {
   try {
     return await fn()
   } catch (e) {
     if (e instanceof ActionError) return fail(e.message, undefined, e.status)
 
-    // Validation failures are the user's to fix, so say WHAT is wrong.
-    //
-    // Services call `schema.parse()` inside this wrapper, so a ZodError was
-    // being flattened into "Internal server error" - a message that blames the
-    // server for a field the person could have corrected in two seconds, and
-    // sends whoever debugs it looking for an outage that isn't there.
-    // withErrorHandler already does this for routes that throw; the action path
-    // never got the same treatment.
+    // Validation failures are the user's to fix, so say which field is wrong.
     if (e instanceof ZodError) {
       const first = e.issues[0]
       const field = first?.path?.join(".")

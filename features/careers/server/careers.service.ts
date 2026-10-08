@@ -25,10 +25,7 @@ function normalizeTone(value: string | null | undefined): CareersTone {
   return value === "red" || value === "teal" ? value : "teal"
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PUBLIC read - no session (the route gates with X-API-Key). Returns only
-// PUBLISHED rows for the given mode, ordered, in the marketing-site contract.
-// ─────────────────────────────────────────────────────────────────────────────
+// PUBLIC read - no session (the route checks X-API-Key). PUBLISHED rows only, in the site's contract.
 export async function getPublishedCareers(mode: CareerDbMode): Promise<CareersDepartmentGroup[]> {
   const published = { status: "PUBLISHED" as const }
   const groups = await db.careerGroup.findMany({
@@ -78,9 +75,6 @@ export async function getPublishedCareers(mode: CareerDbMode): Promise<CareersDe
   }))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ADMIN read - full tree (all statuses) for the management UI.
-// ─────────────────────────────────────────────────────────────────────────────
 export async function getCareersTree(): Promise<ActionResult<{ data: AdminCareerGroup[] }>> {
   return runAction(async () => {
     await requirePermission(PERMISSIONS.RECRUITMENT_READ)
@@ -133,12 +127,10 @@ export async function getCareersTree(): Promise<ActionResult<{ data: AdminCareer
   })
 }
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
 function isUniqueError(e: unknown): boolean {
   return (e as { code?: string })?.code === "P2002"
 }
 
-// ─── Group CRUD ────────────────────────────────────────────────────────────────
 export async function createGroup(input: unknown): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     await requirePermission(PERMISSIONS.RECRUITMENT_WRITE)
@@ -189,7 +181,6 @@ export async function deleteGroup(id: string): Promise<ActionResult<{ message: s
   })
 }
 
-// ─── SubDepartment CRUD ──────────────────────────────────────────────────────
 export async function createSubDepartment(input: unknown): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     await requirePermission(PERMISSIONS.RECRUITMENT_WRITE)
@@ -244,7 +235,6 @@ export async function deleteSubDepartment(id: string): Promise<ActionResult<{ me
   })
 }
 
-// ─── Role CRUD ───────────────────────────────────────────────────────────────
 export async function createRole(input: unknown): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     await requirePermission(PERMISSIONS.RECRUITMENT_WRITE)
@@ -299,7 +289,6 @@ export async function deleteRole(id: string): Promise<ActionResult<{ message: st
   })
 }
 
-// ─── Opening CRUD ────────────────────────────────────────────────────────────
 export async function createOpening(input: unknown): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     await requirePermission(PERMISSIONS.RECRUITMENT_WRITE)

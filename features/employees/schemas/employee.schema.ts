@@ -20,11 +20,9 @@ const emergencyContactSchema = z
   .optional()
 
 export const createEmployeeSchema = z.object({
-  // Optional override for the employee code/number. Blank or omitted ⇒ auto-generated
-  // as EMP-YYYY-####. When provided, must be unique across the table.
+  // Blank or omitted => auto-generated as EMP-YYYY-####; otherwise must be unique.
   employeeNo: z.string().trim().min(1).max(32).optional(),
 
-  // Personal
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Valid work email is required"),
@@ -36,7 +34,6 @@ export const createEmployeeSchema = z.object({
   nationality: z.string().optional(),
   bloodGroup: z.string().optional(),
 
-  // Employment
   departmentId: z.string().uuid("Select a department").optional(),
   designationId: z.string().uuid("Select a designation").optional(),
   jobRoleId: z.union([z.string().uuid(), z.literal("")]).optional(),
@@ -46,14 +43,12 @@ export const createEmployeeSchema = z.object({
   employmentType: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"]).default("FULL_TIME"),
   dateOfJoining: z.string().optional(),
   probationEndDate: z.string().optional(),
-  // Offboarding
   status: z.enum(["ACTIVE", "ON_LEAVE", "SUSPENDED", "RESIGNED", "TERMINATED"]).optional(),
   resignationDate: z.string().optional(),
   lastWorkingDate: z.string().optional(),
-  // Biometric device person ID (e.g. Hikvision "Employee ID") used to match
-  // imported/synced punches to this employee.
+  // Biometric device person ID (Hikvision "Employee ID") used to match punches.
   deviceId: z.string().optional(),
-  // Probation (admin-controlled). Effective status is computed from dateOfJoining + probationMonths.
+  // Admin-controlled; effective status is computed from dateOfJoining + probationMonths.
   onProbation: z.boolean().optional(),
   probationMonths: z.coerce
     .number()
@@ -62,21 +57,16 @@ export const createEmployeeSchema = z.object({
     .optional(),
   workLocation: z.string().optional(),
 
-  // Address & Emergency
   currentAddress: addressSchema,
   permanentAddress: addressSchema,
   emergencyContact: emergencyContactSchema,
 
-  // Optional initial password. When omitted on create, the server generates one
-  // and emails it to the employee.
+  // Omitted on create => the server generates one and emails it.
   password: z.string().min(8).optional(),
 
-  // When true, the new hire must change their password on first login.
   mustChangePassword: z.boolean().optional(),
 
-  // Optional Gmail App Password (16-char string Google generates). HR chooses
-  // whether to add one now ("Add" → required 16 chars) or skip it (blank).
-  // Spaces are stripped since Google formats it as "abcd efgh ijkl mnop".
+  // Optional 16-char Gmail App Password; spaces stripped (Google shows "abcd efgh ijkl mnop").
   gmailAppPassword: z
     .string()
     .transform((s) => s.replace(/\s+/g, ""))

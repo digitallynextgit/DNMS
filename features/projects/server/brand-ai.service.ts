@@ -6,17 +6,7 @@ import { AI_MODEL_SMART, aiComplete } from "@/lib/ai"
 import { extractFileText, isExtractable } from "@/lib/file-text"
 import { NotFoundError, ValidationError } from "@/lib/errors"
 
-// =============================================================================
-// "Draft the brand brief with AI".
-//
-// Reads the project's uploaded brief documents (PDF, Word, Excel/CSV, text),
-// hands their text to the model in ONE call and gets back a structured brief,
-// recommendations for the agency, and the questions the documents leave open.
-//
-// Nothing here writes to the database. The model proposes; a person reviews it
-// in the dialog, applies it to the brief field, and saves through the normal
-// brand route. Machine output never lands in a client-facing document unread.
-// =============================================================================
+// Drafts a brand brief from the project's documents. Writes nothing: a person reviews and saves it.
 
 export interface BrandSource {
   id: string
@@ -36,8 +26,7 @@ export interface BrandAnalysis {
   sources: BrandSource[]
 }
 
-// Sized for mistral-medium's context with room for the answer. One deck of
-// 40 slides is ~15k characters; five of them fit.
+// Fits mistral-medium's context with room for the answer (about five 40-slide decks).
 const PER_FILE_CHARS = 18_000
 const TOTAL_CHARS = 60_000
 
@@ -106,8 +95,6 @@ export async function analyseBrandDocuments(
         ...pick(a),
         status: "skipped",
         chars: 0,
-        // The real reason when there is one. The old copy guessed at a scan,
-        // which sent everybody looking at the wrong thing.
         reason: failure ?? "Came back empty - no text in the file",
       })
       continue
@@ -118,8 +105,7 @@ export async function analyseBrandDocuments(
   }
 
   if (docs.length === 0) {
-    // Say what happened to THIS file rather than asserting a cause: the
-    // generic scanned-PDF line was wrong the first time it mattered.
+    // Report what happened to each file rather than guessing a cause.
     const why = sources.map((s) => `${s.fileName}: ${s.reason ?? "unknown reason"}`).join("; ")
     throw new ValidationError(`None of the documents could be read. ${why}`)
   }
@@ -161,13 +147,10 @@ export async function analyseBrandDocuments(
     user,
     model: AI_MODEL_SMART,
     json: true,
-    // Generation time tracks OUTPUT length almost linearly, and 3500 tokens of
-    // brief was most of the wait. 2400 still covers eleven sections written
-    // tightly; the prompt above asks for tight.
+    // Generation time tracks output length; 2400 tokens still covers the eleven sections.
     maxTokens: 2400,
     temperature: 0.3,
-    // Reading a few thousand words and writing a full brief takes the model a
-    // while; the default 20s is sized for one-line rewrites.
+    // Reading documents and writing a full brief needs longer than the 20s default.
     timeoutMs: 120_000,
   })
 

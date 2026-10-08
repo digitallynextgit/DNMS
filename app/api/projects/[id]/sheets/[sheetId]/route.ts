@@ -7,7 +7,6 @@ import {
 } from "@/features/projects/server/sheets.service"
 import type { Session } from "next-auth"
 
-/** PATCH - rename or re-describe. Anyone on the project. */
 export const PATCH = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, sheetId } = ctx.params
@@ -29,12 +28,7 @@ export const PATCH = withProjectAccess(
   },
 )
 
-/**
- * DELETE - manager only.
- *
- * Takes the columns, the rows and the sheet's own history with it. That is why
- * it is the one verb on this feature that a plain project member cannot reach.
- */
+// Manager only: takes the columns, rows and history with it.
 export const DELETE = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
     const { id: projectId, sheetId } = ctx.params

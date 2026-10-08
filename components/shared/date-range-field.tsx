@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Calendar as CalendarIcon, Check } from "lucide-react"
 import type { DateRange } from "react-day-picker"
 
@@ -17,7 +17,6 @@ export interface DatePreset {
   range: () => { from: string; to: string } | null
 }
 
-/** Local yyyy-MM-dd, so a range never shifts a day across timezones. */
 const key = (d: Date) => toDateString(d)
 const shift = (days: number) => {
   const d = new Date()
@@ -26,7 +25,7 @@ const shift = (days: number) => {
   return d
 }
 
-/** Monday-start week containing today. */
+/** Monday-start week. */
 function thisWeek() {
   const now = new Date()
   now.setHours(0, 0, 0, 0)
@@ -64,7 +63,7 @@ export interface DateRangeValue {
   to: string | null
 }
 
-/** Resolve a preset to a value, for seeding initial state. */
+/** For seeding initial state. */
 export function presetValue(presetKey: string): DateRangeValue {
   const p = DATE_PRESETS.find((x) => x.key === presetKey) ?? DATE_PRESETS[0]!
   const r = p.range()
@@ -78,14 +77,7 @@ function summarise(v: DateRangeValue): string {
   return DATE_PRESETS.find((p) => p.key === v.preset)?.label ?? "All time"
 }
 
-/**
- * Date-range control: presets on the left, calendar on the right, and nothing
- * takes effect until Apply.
- *
- * Staging matters here because the caller refetches on change - applying on
- * every click would fire a request for the start date of a range the user has
- * not finished choosing.
- */
+/** Presets + calendar; nothing applies until Apply, because callers refetch on every change. */
 export function DateRangeField({
   value,
   onChange,
@@ -98,17 +90,19 @@ export function DateRangeField({
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<DateRangeValue>(value)
 
-  // Opening always starts from what is actually applied, so an abandoned
-  // selection never leaks into the next visit.
-  useEffect(() => {
+  // Opening always starts from the applied value, so an abandoned selection doesn't stick.
+  const [prevOpen, setPrevOpen] = useState(open)
+  const [prevValue, setPrevValue] = useState(value)
+  if (open !== prevOpen || value !== prevValue) {
+    setPrevOpen(open)
+    setPrevValue(value)
     if (open) setDraft(value)
-  }, [open, value])
+  }
 
   const draftRange: DateRange | undefined = draft.from
     ? { from: parseDateString(draft.from), to: parseDateString(draft.to ?? undefined) }
     : undefined
 
-  // A custom range with only one end picked is not applyable yet.
   const incomplete = draft.preset === "custom" && !!draft.from && !draft.to
 
   const apply = () => {
@@ -131,7 +125,6 @@ export function DateRangeField({
 
       <PopoverContent className="w-auto p-0" align="end">
         <div className="flex flex-col sm:flex-row">
-          {/* Presets */}
           <div className="border-b p-1 sm:w-40 sm:border-r sm:border-b-0">
             {DATE_PRESETS.map((p) => {
               const active = draft.preset === p.key
@@ -155,7 +148,6 @@ export function DateRangeField({
             })}
           </div>
 
-          {/* Calendar */}
           <div className="p-2">
             <p className="text-muted-foreground mb-1 px-1 text-xs">
               Custom range - click the start date, then the end date
@@ -164,9 +156,7 @@ export function DateRangeField({
               mode="range"
               numberOfMonths={2}
               captionLayout="dropdown"
-              // Same trap as DateField: without these, react-day-picker ends the
-              // year dropdown at the current year, so no range could ever be set
-              // into next year.
+              // Same as DateField: otherwise the year dropdown ends at the current year.
               startMonth={new Date(1950, 0)}
               endMonth={new Date(new Date().getFullYear() + 15, 11, 31)}
               defaultMonth={parseDateString(draft.from ?? undefined)}
@@ -182,7 +172,6 @@ export function DateRangeField({
           </div>
         </div>
 
-        {/* Nothing above has taken effect yet. */}
         <div className="flex items-center justify-between gap-3 border-t px-3 py-2">
           <span className="text-muted-foreground text-xs">
             {incomplete ? "Pick an end date" : summarise(draft)}

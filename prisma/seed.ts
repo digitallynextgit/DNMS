@@ -1,16 +1,11 @@
-// =============================================================================
-// DNMS Database Seed Script
-// Run with: pnpm prisma db seed
-// =============================================================================
+// DNMS database seed. Run with: pnpm prisma db seed
 
-import { PrismaClient } from "@prisma/client"
+import { PrismaClient, type EmployeeStatus, type Prisma } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
 import bcrypt from "bcryptjs"
 import { PERMISSION_DEFINITIONS } from "../lib/constants"
-// Relative, like the import above: this script runs as plain tsx with a bare
-// PrismaClient, outside Next and outside the tenant guard. Both modules are
-// pure data/logic with no server-only or framework imports.
+// Relative imports: this runs as plain tsx outside Next and the tenant guard; both modules are pure data/logic.
 import { FOUNDING_TENANT_ID } from "../lib/tenant-url"
 import { seedChecklistTemplates } from "../features/hr-checklists/lib/seed-templates"
 
@@ -22,8 +17,7 @@ const pool = new Pool({
 })
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) })
 
-// Prisma 7 + pg adapter breaks on createMany with session pooler.
-// This helper inserts rows one-by-one instead.
+// Prisma 7 + pg adapter breaks on createMany with the session pooler, so this inserts rows one by one.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function safeCreateMany(model: any, rows: Record<string, unknown>[]) {
   for (const row of rows) {
@@ -35,12 +29,8 @@ async function main() {
   console.log("Starting DNMS database seed...")
   console.log("─────────────────────────────────────────")
 
-  // ===========================================================================
-  // STEP 1 - Clear existing data (safe re-runs)
-  // ===========================================================================
   console.log("Step 1: Clearing existing data...")
 
-  // New module tables (Phase 3+)
   await prisma.interview.deleteMany()
   await prisma.applicant.deleteMany()
   await prisma.jobPosting.deleteMany()
@@ -82,9 +72,6 @@ async function main() {
 
   console.log("  ✓ Existing data cleared")
 
-  // ===========================================================================
-  // STEP 2 - Create permissions
-  // ===========================================================================
   console.log("Step 2: Creating permissions...")
 
   await safeCreateMany(
@@ -100,9 +87,6 @@ async function main() {
 
   console.log(`  ✓ Created ${permissionRecords.length} permissions`)
 
-  // ===========================================================================
-  // STEP 3 - Create roles with permissions
-  // ===========================================================================
   console.log("Step 3: Creating roles...")
 
   const rolesData = [
@@ -181,12 +165,8 @@ async function main() {
         "dashboard:read",
         "attendance:read",
         "leave:read",
-        // Self-service: an HR employee is still an employee who applies for
-        // their own leave/WFH/self-assessment and views their own payslips.
-        // These were missing, which would have locked them out the moment those
-        // paths enforce their permission. payroll:read is self-scoped by the
-        // route (non payroll:write callers see only their own records), so it
-        // grants payslip access without exposing anyone else's pay.
+        // An HR employee still applies for their own leave/WFH/self-assessment and views their own payslips
+        // (payroll:read is self-scoped by the route, so it exposes nobody else's pay).
         "leave:write",
         "leave:approve",
         "wfh:read",
@@ -231,7 +211,6 @@ async function main() {
     const role = await prisma.role.create({ data: roleFields })
     roleMap.set(role.name, role.id)
 
-    // Determine which permission records to link
     const permsToAssign =
       permissions === "ALL"
         ? permissionRecords
@@ -250,12 +229,8 @@ async function main() {
     console.log(`  ✓ Created role "${role.displayName}" with ${permsToAssign.length} permissions`)
   }
 
-  // ===========================================================================
-  // STEP 4 - Create departments
-  // ===========================================================================
   console.log("Step 4: Creating departments...")
 
-  // 8 vertical teams from Digitally Next hierarchy + leadership departments
   const departmentsData = [
     // Leadership / Corporate
     { name: "Business", code: "BIZ" },
@@ -284,14 +259,10 @@ async function main() {
   const departmentMap = new Map(departmentRecords.map((d) => [d.name, d.id]))
   console.log(`  ✓ Created ${departmentRecords.length} departments`)
 
-  // ===========================================================================
-  // STEP 5 - Create designations
-  // ===========================================================================
   console.log("Step 5: Creating designations...")
 
-  // Digitally Next 13-level hierarchy + legacy titles for existing seed data
   const designationsData = [
-    // ─── Foundation Phase (L1-L5) ─── Operational / Individual Contributors
+    // Foundation phase (L1-L5): individual contributors
     { title: "Trainee", level: 1, code: "L1", phase: "FOUNDATION", maxMonthlySalary: 20000 },
     { title: "Junior", level: 2, code: "L2", phase: "FOUNDATION", maxMonthlySalary: 40000 },
     { title: "Associate", level: 3, code: "L3", phase: "FOUNDATION", maxMonthlySalary: 40000 },
@@ -304,13 +275,13 @@ async function main() {
       maxMonthlySalary: 60000,
     },
 
-    // ─── Elevate Phase (L6-L9) ─── Functional / Team Management
+    // Elevate phase (L6-L9): team management
     { title: "Team Lead", level: 6, code: "L6", phase: "ELEVATE", maxMonthlySalary: 80000 },
     { title: "Manager", level: 7, code: "L7", phase: "ELEVATE", maxMonthlySalary: 80000 },
     { title: "Senior Manager", level: 8, code: "L8", phase: "ELEVATE", maxMonthlySalary: 100000 },
     { title: "AVP", level: 9, code: "L9", phase: "ELEVATE", maxMonthlySalary: 300000 },
 
-    // ─── Pinnacle Phase (L10-L13) ─── Business Leadership (no salary cap)
+    // Pinnacle phase (L10-L13): business leadership, no salary cap
     { title: "VP", level: 10, code: "L10", phase: "PINNACLE", maxMonthlySalary: null },
     { title: "CCO", level: 11, code: "L11", phase: "PINNACLE", maxMonthlySalary: null },
     { title: "CHRO", level: 11, code: "L11", phase: "PINNACLE", maxMonthlySalary: null },
@@ -320,12 +291,10 @@ async function main() {
     { title: "CBO", level: 12, code: "L12", phase: "PINNACLE", maxMonthlySalary: null },
     { title: "CEO", level: 13, code: "L13", phase: "PINNACLE", maxMonthlySalary: null },
 
-    // ─── Legacy titles (kept so existing seeded employees still resolve) ───
+    // Legacy titles, kept so existing seeded employees still resolve
     { title: "Team Member", level: 3, code: null, phase: null, maxMonthlySalary: null },
     { title: "Senior Executive", level: 4, code: null, phase: null, maxMonthlySalary: null },
   ]
-
-  // await prisma.designation.createMany({ data: designationsData })
 
   for (const d of designationsData) {
     await prisma.designation.create({ data: d })
@@ -336,16 +305,12 @@ async function main() {
   const designationMap = new Map(designationRecords.map((d) => [d.title, d.id]))
   console.log(`  ✓ Created ${designationRecords.length} designations`)
 
-  // ===========================================================================
-  // STEP 6 - Create employees (two-pass for manager references)
-  // ===========================================================================
   console.log("Step 6: Creating employees...")
 
-  // Hash password once - reuse for all employees
   const passwordHash = await bcrypt.hash("Admin@123", 12)
 
   const employeesData = [
-    // ── System admin account (required for platform access) ──────────────────
+    // System admin account (required for platform access)
     {
       employeeNo: "EMP-001",
       firstName: "Admin",
@@ -366,7 +331,6 @@ async function main() {
       currentAddress: null,
       emergencyContact: null,
     },
-    // 1. Aditi (EMP-112)
     {
       employeeNo: "EMP-112",
       firstName: "Aditi",
@@ -397,7 +361,6 @@ async function main() {
       },
       emergencyContact: { phone: "9161763111" },
     },
-    // 2. Sudhanshu (EMP-115) - resigned 19 Feb 2026
     {
       employeeNo: "EMP-115",
       firstName: "Sudhanshu",
@@ -423,7 +386,6 @@ async function main() {
       currentAddress: null,
       emergencyContact: { phone: "6394905925" },
     },
-    // 3. Shivam (EMP-119)
     {
       employeeNo: "EMP-119",
       firstName: "Shivam",
@@ -454,7 +416,6 @@ async function main() {
       },
       emergencyContact: { phone: "7652081654" },
     },
-    // 4. Yashasvi (EMP-118)
     {
       employeeNo: "EMP-118",
       firstName: "Yashasvi",
@@ -485,7 +446,6 @@ async function main() {
       },
       emergencyContact: { phone: "9873497710" },
     },
-    // 5. Rupam (EMP-113)
     {
       employeeNo: "EMP-113",
       firstName: "Rupam",
@@ -511,7 +471,6 @@ async function main() {
       currentAddress: null,
       emergencyContact: null,
     },
-    // 6. Anmol Juneja (EMP-121) - resigned 13 Mar 2026
     {
       employeeNo: "EMP-121",
       firstName: "Anmol",
@@ -542,7 +501,6 @@ async function main() {
       },
       emergencyContact: { phone: "8851979980" },
     },
-    // 7. Saumya (EMP-148) - incomplete record
     {
       employeeNo: "EMP-148",
       firstName: "Saumya",
@@ -563,7 +521,6 @@ async function main() {
       currentAddress: null,
       emergencyContact: null,
     },
-    // 8. Pankaz (EMP-123) - resigned 9 Apr 2026
     {
       employeeNo: "EMP-123",
       firstName: "Pankaz",
@@ -594,7 +551,6 @@ async function main() {
       },
       emergencyContact: { phone: "8076867625" },
     },
-    // 9. Vivek (EMP-124)
     {
       employeeNo: "EMP-124",
       firstName: "Vivek",
@@ -625,7 +581,6 @@ async function main() {
       },
       emergencyContact: { phone: "8287119018" },
     },
-    // 10. Shailesh Patwal (EMP-125)
     {
       employeeNo: "EMP-125",
       firstName: "Shailesh",
@@ -656,7 +611,6 @@ async function main() {
       },
       emergencyContact: { phone: "9599604356" },
     },
-    // 11. Praneet Nitin (EMP-126)
     {
       employeeNo: "EMP-126",
       firstName: "Praneet",
@@ -687,7 +641,6 @@ async function main() {
       },
       emergencyContact: { phone: "7979891019" },
     },
-    // 12. Kajal Garg (EMP-127) - incomplete record
     {
       employeeNo: "EMP-127",
       firstName: "Kajal",
@@ -708,7 +661,6 @@ async function main() {
       currentAddress: null,
       emergencyContact: null,
     },
-    // 13. Aryamaan Sharma (EMP-128) - incomplete record
     {
       employeeNo: "EMP-128",
       firstName: "Aryamaan",
@@ -729,7 +681,6 @@ async function main() {
       currentAddress: null,
       emergencyContact: null,
     },
-    // 14. Saurabh Singh Rawat (EMP-129)
     {
       employeeNo: "EMP-129",
       firstName: "Saurabh",
@@ -760,7 +711,6 @@ async function main() {
       },
       emergencyContact: { phone: "9891300348" },
     },
-    // 15. Anjali Gautam (EMP-130) - resigned 18 Nov 2025
     {
       employeeNo: "EMP-130",
       firstName: "Anjali",
@@ -791,7 +741,6 @@ async function main() {
       },
       emergencyContact: { phone: "7428641278" },
     },
-    // 16. Shivam Kumar (EMP-131) - resigned 17 Sep 2025
     {
       employeeNo: "EMP-131",
       firstName: "Shivam",
@@ -822,7 +771,6 @@ async function main() {
       },
       emergencyContact: { phone: "9289926328" },
     },
-    // 17. Mridul Singh Bisht (EMP-132)
     {
       employeeNo: "EMP-132",
       firstName: "Mridul",
@@ -853,7 +801,6 @@ async function main() {
       },
       emergencyContact: { phone: "9318337612" },
     },
-    // 18. Poorva Bisht (EMP-133) - resigned 11 Dec 2025
     {
       employeeNo: "EMP-133",
       firstName: "Poorva",
@@ -884,7 +831,6 @@ async function main() {
       },
       emergencyContact: { phone: "9953452909" },
     },
-    // 19. Tanya Singh (EMP-134) - resigned 31 Oct 2025
     {
       employeeNo: "EMP-134",
       firstName: "Tanya",
@@ -915,7 +861,6 @@ async function main() {
       },
       emergencyContact: { phone: "9007834892" },
     },
-    // 20. Jatin (EMP-135)
     {
       employeeNo: "EMP-135",
       firstName: "Jatin",
@@ -946,7 +891,6 @@ async function main() {
       },
       emergencyContact: { phone: "7678695954" },
     },
-    // 21. Hemant (EMP-136)
     {
       employeeNo: "EMP-136",
       firstName: "Hemant",
@@ -977,7 +921,6 @@ async function main() {
       },
       emergencyContact: { phone: "9871156057" },
     },
-    // 22. Guruprasad (EMP-149) - resigned 20 Mar 2026; managed by Pankaz
     {
       employeeNo: "EMP-149",
       firstName: "Guruprasad",
@@ -998,7 +941,6 @@ async function main() {
       currentAddress: null,
       emergencyContact: { phone: "9449525714" },
     },
-    // 23. Gavisha (EMP-150) - managed by Pankaz
     {
       employeeNo: "EMP-150",
       firstName: "Gavisha",
@@ -1029,7 +971,6 @@ async function main() {
       },
       emergencyContact: { phone: "8452052672" },
     },
-    // 24. Ayushi Pandey (EMP-137)
     {
       employeeNo: "EMP-137",
       firstName: "Ayushi",
@@ -1060,7 +1001,6 @@ async function main() {
       },
       emergencyContact: { phone: "9560450107" },
     },
-    // 25. Shrey Srivastava (EMP-138) - resigned 23 Feb 2026
     {
       employeeNo: "EMP-138",
       firstName: "Shrey",
@@ -1091,7 +1031,6 @@ async function main() {
       },
       emergencyContact: { phone: "8826606801" },
     },
-    // 26. Raunak (EMP-139) - resigned 13 Jan 2026
     {
       employeeNo: "EMP-139",
       firstName: "Raunak",
@@ -1112,7 +1051,6 @@ async function main() {
       currentAddress: null,
       emergencyContact: null,
     },
-    // 27. Karan Batham (EMP-140)
     {
       employeeNo: "EMP-140",
       firstName: "Karan",
@@ -1143,7 +1081,6 @@ async function main() {
       },
       emergencyContact: { phone: "8766286344" },
     },
-    // 28. Abdul Ahad Sheikh (EMP-141)
     {
       employeeNo: "EMP-141",
       firstName: "Abdul Ahad",
@@ -1164,7 +1101,6 @@ async function main() {
       currentAddress: null,
       emergencyContact: null,
     },
-    // 29. Sachin BR (EMP-142)
     {
       employeeNo: "EMP-142",
       firstName: "Sachin",
@@ -1195,7 +1131,6 @@ async function main() {
       },
       emergencyContact: { name: "Brother", phone: "8088028664" },
     },
-    // 30. Teesha Jain (EMP-143)
     {
       employeeNo: "EMP-143",
       firstName: "Teesha",
@@ -1226,7 +1161,6 @@ async function main() {
       },
       emergencyContact: { name: "Father", phone: "9625099487" },
     },
-    // 31. Karan Joshi (EMP-144)
     {
       employeeNo: "EMP-144",
       firstName: "Karan",
@@ -1257,7 +1191,6 @@ async function main() {
       },
       emergencyContact: { name: "Sister", phone: "9911728554" },
     },
-    // 32. Diwakar Jha (EMP-145)
     {
       employeeNo: "EMP-145",
       firstName: "Diwakar",
@@ -1288,7 +1221,6 @@ async function main() {
       },
       emergencyContact: { name: "Father", phone: "8700027840" },
     },
-    // 33. Komal Gautam (EMP-146)
     {
       employeeNo: "EMP-146",
       firstName: "Komal",
@@ -1319,7 +1251,6 @@ async function main() {
       },
       emergencyContact: { name: "Sister", phone: "7827815507" },
     },
-    // 34. Hari Narayan Jha (EMP-147) - resigned 24 Mar 2026
     {
       employeeNo: "EMP-147",
       firstName: "Hari Narayan",
@@ -1356,8 +1287,7 @@ async function main() {
   const createdEmployees: Array<{ id: string; employeeNo: string }> = []
 
   for (const emp of employeesData) {
-    // Destructure-to-omit: these four are pulled out so they do NOT land in
-    // empFields. Covered by ignoreRestSiblings in eslint.config.mjs.
+    // Destructured only to keep these out of empFields.
     const { role, managerEmployeeNo, department, designation, ...empFields } = emp
 
     const employee = await prisma.employee.create({
@@ -1370,7 +1300,7 @@ async function main() {
         workLocation: emp.workLocation ?? null,
         dateOfJoining: emp.dateOfJoining ?? null,
         dateOfBirth: emp.dateOfBirth ?? null,
-        status: emp.status as any,
+        status: emp.status as EmployeeStatus,
         isActive: emp.isActive,
         lastWorkingDate: emp.lastWorkingDate ?? null,
         permanentAddress: emp.permanentAddress ?? null,
@@ -1381,14 +1311,11 @@ async function main() {
         passwordHash,
         emailVerified: emp.isActive ? new Date() : null,
         // managerId will be set in pass 2
-      } as any,
+      } as Prisma.EmployeeUncheckedCreateInput,
     })
 
-    // Platform identity (M2). Written inline rather than through
-    // server/identity.ts because that module is `server-only` and bound to the
-    // app's Prisma client; the seed runs standalone on its own. Without this a
-    // freshly seeded database would have employees that cannot sign in - the
-    // login path reads `users`, not `employees`.
+    // Platform identity, written inline because server/identity.ts is server-only. Without it seeded
+    // employees could not sign in (login reads `users`, not `employees`).
     const seededUser = await prisma.user.upsert({
       where: { email: employee.email.toLowerCase() },
       update: {},
@@ -1426,7 +1353,6 @@ async function main() {
     )
   }
 
-  // Build employeeNo → id map
   const employeeNoToId = new Map(createdEmployees.map((e) => [e.employeeNo, e.id]))
 
   // Pass 2 - update manager references
@@ -1444,7 +1370,6 @@ async function main() {
 
   console.log("  ✓ Manager references updated")
 
-  // Assign roles to employees
   for (const emp of employeesData) {
     const employeeId = employeeNoToId.get(emp.employeeNo)
     const roleId = roleMap.get(emp.role)
@@ -1457,9 +1382,6 @@ async function main() {
 
   console.log("  ✓ Employee roles assigned")
 
-  // ===========================================================================
-  // STEP 7 - Create email templates
-  // ===========================================================================
   console.log("Step 7: Creating email templates...")
 
   const welcomeHtml = `<!DOCTYPE html>
@@ -1629,9 +1551,6 @@ async function main() {
 
   console.log("  ✓ Created 2 email templates")
 
-  // ===========================================================================
-  // STEP 8 - Attendance policy, holidays, device
-  // ===========================================================================
   console.log("Step 8: Creating attendance policy, holidays & device...")
 
   await prisma.attendancePolicy.create({
@@ -1648,7 +1567,7 @@ async function main() {
 
   // Digitally Next 2026 Holiday Calendar - 8 fixed + 12 floating (employees pick any 3)
   const holidays2026 = [
-    // ─── 8 Fixed holidays - auto-applied to everyone ───
+    // 8 fixed holidays, applied to everyone
     { name: "Republic Day", date: new Date("2026-01-26"), isOptional: false },
     { name: "Holi", date: new Date("2026-03-04"), isOptional: false },
     { name: "Bakrid (Eid-ul-Adha)", date: new Date("2026-05-28"), isOptional: false },
@@ -1658,7 +1577,7 @@ async function main() {
     { name: "Diwali", date: new Date("2026-11-08"), isOptional: false },
     { name: "Christmas", date: new Date("2026-12-25"), isOptional: false },
 
-    // ─── 12 Floating holidays - each employee may pick 3 ───
+    // 12 floating holidays; each employee may pick 3
     { name: "Makar Sankranti / Pongal", date: new Date("2026-01-14"), isOptional: true },
     { name: "Maha Shivratri", date: new Date("2026-02-15"), isOptional: true },
     { name: "Eid-ul-Fitr", date: new Date("2026-03-21"), isOptional: true },
@@ -1692,9 +1611,6 @@ async function main() {
     `  ✓ Created attendance policy, ${holidays2026.length} holidays (8 fixed + 12 floating), 1 device`,
   )
 
-  // ===========================================================================
-  // STEP 9 - Leave types
-  // ===========================================================================
   console.log("Step 9: Creating leave types...")
 
   const leaveTypesData = [
@@ -1791,13 +1707,8 @@ async function main() {
 
   console.log(`  ✓ Created ${leaveTypeRecords.length} leave types`)
 
-  // ===========================================================================
-  // STEP 9b - HR checklist templates (onboarding + exit clearance)
-  // ===========================================================================
-  // Shared with provisionTenant() so a seeded database and a newly provisioned
-  // company start from the same two checklists rather than two copies that
-  // drift. FOUNDING_TENANT_ID is passed explicitly: this script runs outside a
-  // request, so there is no ambient tenant for the guard to stamp from.
+  // Shared with provisionTenant() so seeded and provisioned companies start from the same checklists.
+  // FOUNDING_TENANT_ID is passed explicitly: there is no request tenant here for the guard to stamp.
   console.log("Step 9b: Creating HR checklist templates...")
 
   const checklistSeed = await seedChecklistTemplates(prisma, FOUNDING_TENANT_ID)
@@ -1806,23 +1717,13 @@ async function main() {
       (checklistSeed.skipped.length ? ` (${checklistSeed.skipped.length} already present)` : ""),
   )
 
-  // ===========================================================================
-  // STEP 10 - Leave balances
-  // ===========================================================================
-  // Balances are NOT hardcoded here. They are derived from the LeavePolicy matrix
-  // by allocateFromPolicy() - which prorates accrual by probation/joining date,
-  // rounds to the nearest half-day, and grants Maternity to female employees only.
-  // Populate them with the HR "Re-sync balances" action (Leave -> Policy); it also
-  // happens on employee create and the monthly accrual cron.
+  // Balances are derived from the LeavePolicy matrix by allocateFromPolicy(), not seeded. HR "Re-sync balances"
+  // (Leave -> Policy) fills them; employee create and the monthly accrual cron do too.
   console.log("Step 10: Leave balances are derived from policy (run Re-sync to populate).")
 
-  // ===========================================================================
-  // STEP 11 - Salary structures
-  // ===========================================================================
   console.log("Step 11: Creating salary structures...")
 
-  // Salary structures derived from actual CTC data in employee records
-  // Monthly breakdown: Basic=40%, HRA=40% of Basic, Conv=1600, Med=1250, Other=remainder
+  // From actual CTC data. Monthly: Basic=40%, HRA=40% of Basic, Conv=1600, Med=1250, Other=remainder.
   const salaryData = [
     {
       employeeNo: "EMP-112",
@@ -2052,9 +1953,6 @@ async function main() {
 
   console.log(`  ✓ Created ${salaryData.length} salary structures`)
 
-  // ===========================================================================
-  // STEP 12 - Attendance logs (last 60 days)
-  // ===========================================================================
   console.log("Step 12: Creating attendance logs...")
 
   function getRandomCheckIn(): Date {
@@ -2162,30 +2060,25 @@ async function main() {
   await safeCreateMany(prisma.attendanceLog, attendanceLogs)
   console.log(`  ✓ Created ${attendanceLogs.length} attendance logs`)
 
-  // ===========================================================================
-  // STEP 13 - Projects & Tasks
-  // ===========================================================================
   console.log("Step 13: Creating projects & tasks...")
 
   const adminId = employeeNoToId.get("EMP-001")!
   const rupamId = employeeNoToId.get("EMP-113")! // Rupam - senior active employee
-  const shaileshId = employeeNoToId.get("EMP-125")! // Shailesh Patwal
-  const praneetId = employeeNoToId.get("EMP-126")! // Praneet Nitin
-  const vivekId = employeeNoToId.get("EMP-124")! // Vivek
+  const shaileshId = employeeNoToId.get("EMP-125")!
+  const praneetId = employeeNoToId.get("EMP-126")!
+  const vivekId = employeeNoToId.get("EMP-124")!
 
-  // Additional employee IDs needed for diverse team membership
-  const aditiId = employeeNoToId.get("EMP-112")! // Aditi
-  const shivamId = employeeNoToId.get("EMP-119")! // Shivam
-  const saurabhId = employeeNoToId.get("EMP-129")! // Saurabh Singh Rawat
-  const mridulId = employeeNoToId.get("EMP-132")! // Mridul
-  const jatinId = employeeNoToId.get("EMP-135")! // Jatin
-  const hemantId = employeeNoToId.get("EMP-136")! // Hemant
-  const ayushiId = employeeNoToId.get("EMP-137")! // Ayushi
-  const teeshaId = employeeNoToId.get("EMP-143")! // Teesha
-  const diwakarId = employeeNoToId.get("EMP-145")! // Diwakar
-  const komalId = employeeNoToId.get("EMP-146")! // Komal
+  const aditiId = employeeNoToId.get("EMP-112")!
+  const shivamId = employeeNoToId.get("EMP-119")!
+  const saurabhId = employeeNoToId.get("EMP-129")!
+  const mridulId = employeeNoToId.get("EMP-132")!
+  const jatinId = employeeNoToId.get("EMP-135")!
+  const hemantId = employeeNoToId.get("EMP-136")!
+  const ayushiId = employeeNoToId.get("EMP-137")!
+  const teeshaId = employeeNoToId.get("EMP-143")!
+  const diwakarId = employeeNoToId.get("EMP-145")!
+  const komalId = employeeNoToId.get("EMP-146")!
 
-  // Helper to create a team + members + manager + tasks
   async function createTeamWithMembers(
     projectId: string,
     teamName: string,
@@ -2215,7 +2108,7 @@ async function main() {
       },
     })
 
-    // Insert manager + members (manager included in member list)
+    // The manager is also a member.
     const memberIds = [
       managerEmployeeId,
       ...memberEmployeeIds.filter((id) => id !== managerEmployeeId),
@@ -2229,7 +2122,6 @@ async function main() {
       })),
     )
 
-    // Tasks
     for (const t of tasks) {
       await prisma.projectTask.create({
         data: {
@@ -2253,7 +2145,6 @@ async function main() {
     return team
   }
 
-  // ─── Project 1: Acme Website Redesign ───
   const project1 = await prisma.project.create({
     data: {
       name: "Acme Website Redesign",
@@ -2388,7 +2279,6 @@ async function main() {
     ],
   )
 
-  // ─── Project 2: Q2 Marketing Campaign ───
   const project2 = await prisma.project.create({
     data: {
       name: "Q2 Marketing Campaign",
@@ -2439,8 +2329,7 @@ async function main() {
     ],
   )
 
-  // Note: an employee can only be on ONE team per project, but they CAN be on different
-  // teams across different projects (e.g., Shailesh on P1 Web Dev AND P2 Video Production).
+  // One team per project per employee, but different teams across projects are fine (Shailesh: P1 Web Dev, P2 Video).
   await createTeamWithMembers(
     project2.id,
     "Video Production",
@@ -2459,7 +2348,6 @@ async function main() {
     ],
   )
 
-  // ─── Project 3: Internal DNMS Improvements ───
   const project3 = await prisma.project.create({
     data: {
       name: "DNMS Internal Improvements",
@@ -2502,7 +2390,7 @@ async function main() {
     ],
   )
 
-  // ─── Sample Resources (file metadata only - no real files) ───
+  // Sample resources: file metadata only, no real files.
   await safeCreateMany(prisma.projectResource, [
     {
       projectId: project1.id,
@@ -2530,9 +2418,6 @@ async function main() {
 
   console.log("  ✓ Created 3 projects, 7 teams, sample tasks & 2 resources")
 
-  // ===========================================================================
-  // STEP 15 - Job Postings & Applicants
-  // ===========================================================================
   console.log("Step 15: Creating job postings & applicants...")
 
   const techDeptId = departmentMap.get("Technology")
@@ -2586,7 +2471,6 @@ async function main() {
     },
   })
 
-  // Applicants for job1
   const applicant1 = await prisma.applicant.create({
     data: {
       jobPostingId: job1.id,
@@ -2659,7 +2543,6 @@ async function main() {
     },
   })
 
-  // Applicants for job2
   await prisma.applicant.create({
     data: {
       jobPostingId: job2.id,
@@ -2685,9 +2568,6 @@ async function main() {
 
   console.log("  ✓ Created 3 job postings, 7 applicants, 1 interview")
 
-  // ===========================================================================
-  // STEP 16 - Seed demo notifications
-  // ===========================================================================
   console.log("Step 17: Creating demo notifications...")
 
   const empId = employeeNoToId.get("EMP-124")! // Vivek
@@ -2758,9 +2638,6 @@ async function main() {
 
   console.log("  ✓ Created demo notifications")
 
-  // ===========================================================================
-  // Done
-  // ===========================================================================
   console.log("─────────────────────────────────────────")
   console.log("✓ Seed completed successfully")
   console.log("─────────────────────────────────────────")

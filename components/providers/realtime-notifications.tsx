@@ -16,12 +16,8 @@ interface InboxNotification {
 }
 
 /**
- * Mounted once in the dashboard shell. Delivers new notifications in real time:
- *  - PRIMARY: an SSE stream (/api/notifications/stream) pushes each notification
- *    the instant it's created (Postgres LISTEN/NOTIFY), so latency is <1s.
- *  - FALLBACK: a slow (90s) poll catches anything missed if the stream drops.
- * Each notification is alerted once (deduped by id): an in-app toast when the tab
- * is focused, or a native OS notification when it's in the background.
+ * Real-time notifications: an SSE stream first, a 90s poll as fallback. Each is alerted once
+ * (a toast when focused, an OS notification when hidden).
  */
 export function RealtimeNotifications() {
   const router = useRouter()
@@ -29,11 +25,8 @@ export function RealtimeNotifications() {
   const seenRef = useRef<Set<string>>(new Set())
   const initializedRef = useRef(false)
 
-  // Ask for notification permission. Browsers ignore requestPermission() unless
-  // it runs inside a user gesture, so try on mount AND on the first interaction.
-  // Once granted we also register the service worker and subscribe to Web Push -
-  // that's what delivers alerts when NO DNMS tab is open (the SSE stream below
-  // only lives as long as this page does).
+  // requestPermission() only works in a user gesture, so try on mount and on first interaction.
+  // Once granted, subscribe to Web Push, which works with every tab closed.
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) return
 
@@ -45,7 +38,7 @@ export function RealtimeNotifications() {
       ensurePush()
       return
     }
-    if (Notification.permission !== "default") return // denied - nothing to do
+    if (Notification.permission !== "default") return
 
     const ask = () => {
       if (Notification.permission === "default") {
@@ -86,10 +79,7 @@ export function RealtimeNotifications() {
         Notification.permission === "granted"
       const hidden = typeof document !== "undefined" && document.visibilityState === "hidden"
 
-      // Web Push owns OS notifications whenever it's active - the service worker
-      // will raise one for this same notification, so raising a second one here
-      // would double up. Fall back to a native notification only when push isn't
-      // available (permission denied, unsupported browser, push not configured).
+      // Web Push raises its own OS notification, so only raise one here when push isn't active.
       if (hidden && canNotify && !pushActive) {
         const native = new Notification(n.title, { body: n.message, tag: n.id })
         native.onclick = () => {
@@ -108,13 +98,11 @@ export function RealtimeNotifications() {
         })
       }
 
-      // Refresh the bell count + notifications page immediately.
       qc.invalidateQueries({ queryKey: ["notifications"] })
     },
     [router, qc],
   )
 
-  // ─── Primary: SSE stream ──────────────────────────────────────────────────
   useEffect(() => {
     if (typeof window === "undefined" || typeof EventSource === "undefined") return
     const es = new EventSource("/api/notifications/stream")
@@ -129,7 +117,6 @@ export function RealtimeNotifications() {
     return () => es.close()
   }, [alertOnce])
 
-  // ─── Fallback: slow poll (safety net if the stream is down) ────────────────
   const { data } = useQuery({
     queryKey: ["notifications", "inbox-watch"],
     queryFn: () =>
@@ -143,7 +130,7 @@ export function RealtimeNotifications() {
 
   useEffect(() => {
     if (!data) return
-    // First load: mark everything already present as seen (don't replay history).
+    // First load: mark what's already there as seen (don't replay history).
     if (!initializedRef.current) {
       for (const n of data) seenRef.current.add(n.id)
       initializedRef.current = true
@@ -156,8 +143,7 @@ export function RealtimeNotifications() {
   return null
 }
 
-/** True once this browser has a live Web Push subscription. While it is, the SSE
- *  path stops raising its own OS notifications so the two don't double up. */
+/** While true, the SSE path skips its own OS notifications so they don't double up. */
 let pushActive = false
 
 /** base64url (VAPID public key) -> the BufferSource PushManager expects. */
@@ -170,12 +156,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return output
 }
 
-/**
- * Register the service worker and make sure this browser has a Web Push
- * subscription on file. Safe to call repeatedly - re-subscribing the same
- * endpoint is an upsert server-side. Silent on failure: push is an enhancement,
- * never a reason to break the page.
- */
+/** Safe to call repeatedly (server-side upsert). Silent on failure - push is only an enhancement. */
 async function registerPush(): Promise<void> {
   try {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return
@@ -201,21 +182,14 @@ async function registerPush(): Promise<void> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
     })
-    // Only a CONFIRMED registration may silence the SSE fallback: setting this
-    // on a failed POST turned one 4xx/5xx into no notifications of any kind.
+    // Only a confirmed registration may silence the SSE fallback.
     if (res.ok) pushActive = true
   } catch {
     // Unsupported browser, blocked SW, or offline - ignore.
   }
 }
 
-/**
- * Tear down this browser's push subscription - called on SIGN-OUT, before the
- * session goes away (the DELETE needs it). Without this, the next person on a
- * shared device kept receiving the previous user's notifications until the
- * subscription happened to be re-pointed. Best-effort by design: sign-out must
- * never fail because push cleanup did.
- */
+/** Call on sign-out, before the session ends, so the next person on a shared device doesn't get these notifications. */
 export async function unregisterPush(): Promise<void> {
   try {
     if (!("serviceWorker" in navigator)) return

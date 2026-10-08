@@ -1,9 +1,7 @@
 import { Plug } from "lucide-react"
 import type { HelpGuide } from "../../types"
 
-// No screenshots on purpose: Integrations reads PLATFORM-wide settings (the
-// app_settings table has no company), so the page only opens in the main DNMS
-// company - never in the demo workspace the screenshots are taken in.
+// No screenshots: Integrations reads platform-wide settings, so it doesn't open in the demo workspace.
 
 export const integrationsGuide: HelpGuide = {
   slug: "integrations",

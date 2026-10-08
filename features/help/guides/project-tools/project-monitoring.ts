@@ -1,8 +1,7 @@
 import { Activity } from "lucide-react"
 import type { HelpGuide } from "../../types"
 
-// Screens: features/monitoring/components/project-monitoring-tab.tsx (uptime
-// monitors, the renewals register, and their two dialogs).
+// Screens: features/monitoring/components/project-monitoring-tab.tsx and its dialogs.
 
 const MONITORING = "/projects/urbannest-website-seo?tab=monitoring"
 

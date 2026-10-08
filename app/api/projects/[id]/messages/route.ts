@@ -17,10 +17,7 @@ const AUTHOR_SELECT = {
   designation: { select: { title: true } },
 }
 
-/**
- * Keeps only the ids that genuinely belong to the project (Account Manager or a
- * member of any team) so a mention can never notify someone off the project.
- */
+/** Keeps only ids on the project (Account Manager or any team member), so mentions can't notify outsiders. */
 export async function resolveProjectMemberIds(
   projectId: string,
   candidateIds: string[],
@@ -41,18 +38,13 @@ export async function resolveProjectMemberIds(
   return ids.filter((id) => valid.has(id))
 }
 
-// GET /api/projects/[id]/messages
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId } = await ctx.params
       const q = _req.nextUrl.searchParams.get("q")?.trim()
 
-      // ── Search mode ────────────────────────────────────────────────────────
-      // The plain list only carries the LAST reply, so searching client-side can
-      // never see a match buried mid-conversation. This looks inside every reply
-      // in SQL and hands back the matching ones, so the UI can show the actual
-      // line that matched and jump straight to it.
+      // Search looks inside every reply in SQL - the plain list only carries the last reply.
       if (q) {
         const like = { contains: q, mode: "insensitive" as const }
         const results = await db.projectMessage.findMany({
@@ -96,16 +88,8 @@ export const GET = withProjectAccess(
         })
       }
 
-      // Bounded. This is the chat LIST (one row per subject/thread), not the
-      // messages inside them, so the cap is generous.
-      //
-      // Known limitation, deliberately left: the final ordering below is by
-      // `lastActivityAt`, which is DERIVED from the newest reply and therefore
-      // cannot be expressed in this `orderBy`. So the cap keeps the newest
-      // threads by creation, and a very old thread that was replied to recently
-      // could in principle fall outside it. Fixing that properly means
-      // denormalising `lastActivityAt` onto projectMessage and ordering on it -
-      // a schema change, which also makes this endpoint genuinely paginable.
+      // Capped by creation date: a very old thread with a recent reply could fall outside it, because
+      // lastActivityAt is derived and can't be ordered on here (that needs a denormalised column).
       const rows = await db.projectMessage.findMany({
         where: { projectId },
         orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
@@ -113,7 +97,7 @@ export const GET = withProjectAccess(
         include: {
           author: { select: AUTHOR_SELECT },
           _count: { select: { replies: true } },
-          // On the OPENING post. Replies carry their own, fetched with the thread.
+          // On the opening post; replies carry their own.
           reactions: {
             select: {
               emoji: true,
@@ -121,7 +105,7 @@ export const GET = withProjectAccess(
               employee: { select: { firstName: true, lastName: true } },
             },
           },
-          // Last reply powers the chat-list preview + "last activity" ordering.
+          // The last reply powers the preview and the last-activity ordering.
           replies: {
             take: 1,
             orderBy: { createdAt: "desc" },
@@ -137,8 +121,7 @@ export const GET = withProjectAccess(
       const truncated = rows.length > MESSAGE_THREAD_LIMIT
       if (truncated) rows.length = MESSAGE_THREAD_LIMIT
 
-      // Decorate each thread with a compact last-message preview + last-activity
-      // timestamp, then order chats by most-recent activity (pinned first).
+      // Ordered by last activity, pinned first.
       const data = rows
         .map(({ replies, ...m }) => {
           const last = replies[0]
@@ -168,7 +151,6 @@ export const GET = withProjectAccess(
   },
 )
 
-// POST /api/projects/[id]/messages
 export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -204,7 +186,6 @@ export const POST = withProjectAccess(
         meta: { title },
       })
 
-      // Notify everyone tagged (never the author themselves).
       const toNotify = mentionedIds.filter((id) => id !== session.user.id)
       if (toNotify.length > 0) {
         const author = message.author

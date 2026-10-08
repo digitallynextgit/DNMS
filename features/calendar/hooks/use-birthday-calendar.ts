@@ -15,7 +15,6 @@ export interface CalendarBirthday {
   date: string
 }
 
-/** Every birthday falling in `year`, for the Birthday Calendar. */
 export function useBirthdayCalendar(year: number) {
   return useQuery({
     queryKey: ["birthdays", "year", year],

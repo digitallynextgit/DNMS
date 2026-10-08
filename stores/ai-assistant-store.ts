@@ -1,11 +1,6 @@
 import { create } from "zustand"
 
-/**
- * Open state for the AI assistant, shared because the two halves live apart:
- * the launcher sits in the Topbar and the panel is rendered by the dashboard
- * layout. Not persisted - the assistant should start closed on every visit
- * rather than reopening over whatever page you land on.
- */
+/** Shared: the launcher (Topbar) and panel (layout) live apart. Not persisted - starts closed. */
 interface AiAssistantStore {
   open: boolean
   setOpen: (open: boolean) => void

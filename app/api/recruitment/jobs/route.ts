@@ -17,10 +17,7 @@ function emptyToNull(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
-// Reads expose candidate PII (via the [id] route's applicant include) and DRAFT
-// postings with salary bands, so gate on recruitment:read like every sibling -
-// not bare withSession, which any staffer holds. Public careers listings live
-// under /api/public/careers and are unaffected.
+// recruitment:read: reads expose DRAFT postings with salary bands. Public listings are /api/public/careers.
 export const GET = withAuth(
   PERMISSIONS.RECRUITMENT_READ,
   async (req: NextRequest, _ctx: unknown, _session: Session) => {

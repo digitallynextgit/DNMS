@@ -9,15 +9,7 @@ export const metadata: Metadata = {
   description: "Send email campaigns to your subscribers.",
 }
 
-/**
- * The client's own mailer.
- *
- * Renders the SAME component staff use, against the same endpoints - the guard
- * on those routes (withMailerAccess) admits a client holding the "mailer" module
- * and resolves the project id from their grant, so there is no second
- * implementation to keep in step. `projectRef` is the slug; the guard turns it
- * into a real id and rejects a slug the client has no grant for.
- */
+/** The same component staff use; withMailerAccess admits a client holding the "mailer" module. */
 export default async function PortalMailerPage({
   params,
 }: {
@@ -31,8 +23,7 @@ export default async function PortalMailerPage({
     (g) => g.projectRef === projectRef || g.projectId === projectRef,
   )
   if (!grant) notFound()
-  // Belt and braces: every endpoint behind this re-proves the module itself, so
-  // a hand-typed URL gets nothing even if this check were ever removed.
+  // Belt and braces: every endpoint behind this re-proves the module itself.
   if (!grant.modules.includes("mailer")) notFound()
 
   return (

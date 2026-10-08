@@ -1,20 +1,7 @@
 "use client"
 
-/**
- * Read receipts: the ticks on a bubble, and the "Message info" panel behind them.
- *
- * Both message surfaces derive delivery from TIMESTAMPS rather than a row per
- * (message, reader). Personal chat compares against the other participant's
- * `lastReadAt`; a project chat compares against each member's "last opened
- * Messages" mark. Nothing has to be back-filled, an old message is covered the
- * moment somebody opens the thread, and there is no join table growing by
- * messages × members.
- *
- * What that buys and what it costs: it answers "has this been seen" exactly, and
- * "when, to the second, did THIS person open THIS message" only as precisely as
- * their last visit. That is the same trade every timestamp-based receipt makes,
- * and it is stated in the panel rather than dressed up as more than it is.
- */
+// Read receipts, derived from timestamps (the reader's last-read / last-opened mark), not a row per
+// message and reader. Exact on "seen", approximate on "when".
 
 import * as React from "react"
 import { Check, CheckCheck, Clock, Info } from "lucide-react"
@@ -29,7 +16,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 
-/** How far a message of mine has actually got. */
 export type Delivery = "pending" | "sent" | "delivered" | "read"
 
 export function MessageTicks({ status, className }: { status: Delivery; className?: string }) {
@@ -38,9 +24,6 @@ export function MessageTicks({ status, className }: { status: Delivery; classNam
   if (status === "sent") return <Check className={cn("h-3 w-3", className)} aria-label="Sent" />
   return (
     <CheckCheck
-      // Both bubbles sit on the theme's own surfaces rather than inverting, so
-      // the read accent just follows the theme: darker blue on light, lighter
-      // on dark.
       className={cn("h-3 w-3", status === "read" && "text-sky-600 dark:text-sky-400", className)}
       aria-label={status === "read" ? "Read" : "Delivered"}
     />
@@ -56,12 +39,7 @@ export interface ReceiptPerson {
   seenAt?: string | null
 }
 
-/**
- * "Message info", the way WhatsApp shows it: who has seen this and who has not.
- *
- * A 1:1 chat passes a single person, a project chat passes every member bar the
- * author - the panel does not need to know which surface it is on.
- */
+/** "Message info": who has seen this and who hasn't. Works for 1:1 and project chats alike. */
 export function MessageInfoDialog({
   open,
   onOpenChange,
@@ -71,7 +49,7 @@ export function MessageInfoDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   sentAt: string
-  /** Everyone the message went to, EXCLUDING its author. */
+  /** Everyone it went to, excluding the author. */
   people: ReceiptPerson[]
 }) {
   const at = (iso: string) =>

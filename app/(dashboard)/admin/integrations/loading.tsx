@@ -1,8 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 
-// Integrations: header (no actions) + a stack of settings-group cards
-// (General, HR, mailers, etc.), each a titled card with a couple of fields.
 export default function Loading() {
   return (
     <div className="space-y-6">

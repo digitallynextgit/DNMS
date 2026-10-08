@@ -1,11 +1,6 @@
 import type { ApiError } from "@/lib/api-fetch"
 
-/**
- * The question the server asks when someone moves a hold follow-up whose
- * original task has already been picked up again. Shared by the code that
- * RAISES it (the task PATCH route) and the dialog that answers it, so the two
- * cannot drift apart on the shape of the payload.
- */
+/** Raised when a hold follow-up is moved after its original task was picked up again. */
 export interface FollowUpConflictDetails {
   reason: "FOLLOW_UP_REDUNDANT"
   taskId: string
@@ -14,11 +9,7 @@ export interface FollowUpConflictDetails {
   originalStatus: string
 }
 
-/**
- * Read a follow-up conflict out of a failed request, or null if the failure was
- * something else entirely. Every status-change call site runs its error through
- * this, so a rejection nobody recognises still falls through to a normal toast.
- */
+/** The follow-up conflict in a failed request, or null so other errors fall through to a toast. */
 export function followUpConflictFrom(error: unknown): FollowUpConflictDetails | null {
   const details = (error as ApiError | undefined)?.details as
     | Partial<FollowUpConflictDetails>

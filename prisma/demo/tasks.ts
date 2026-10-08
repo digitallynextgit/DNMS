@@ -1,22 +1,7 @@
-// =============================================================================
-// Tasks: everyone's daily task sheet from the first of last month to the end
-// of this week, so My Tasks, the dashboards, Progress and the month-end Work
-// Report all have something to show.
-//
-// How the app reads them (features/projects, features/work-reports):
-//   - the day a task sits on is its dueDate; Plan = title, Actual = description
-//   - Hrs allocated = estimatedHours, Hrs spent = loggedHours
-//   - the Work Report takes its hours ONLY from IN_PROGRESS TaskStatusPeriod
-//     rows, so every task carries a status history whose IN_PROGRESS stretch
-//     equals loggedHours, with exactly one open period (its current status)
-//   - DONE has completedAt; ON_HOLD has holdReason + holdExpectedDate and a
-//     follow-up TODO task (resumedFromId); DISCARDED has discardReason
-//   - adhoc work has no project and no team, and produces no output
-//
-// Only Priya's one running task has a live clock (inProgressSince): a running
-// clock is what the 60-second reminder job watches, so keeping it to one task
-// keeps "time almost up" notifications to a minimum.
-// =============================================================================
+// Demo tasks: everyone's daily task sheet from the 1st of last month to the end of this week.
+// The Work Report takes hours only from IN_PROGRESS TaskStatusPeriod rows, so every task gets a status history
+// whose IN_PROGRESS time equals loggedHours, with exactly one open period.
+// Only Priya's one running task has a live clock (inProgressSince), to keep "time almost up" reminders down.
 
 import { randomUUID } from "node:crypto"
 import { DEMO_PEOPLE } from "@/features/help/demo/dataset"
@@ -204,9 +189,7 @@ function generic(ctx: DemoContext, until: Date, priyaFrom: Date): TaskSpec[] {
         n++
         const [title, est, actual] = work[(n + i) % work.length]!
         let pr = projects.length ? projects[n % projects.length]! : null
-        // This week Sunmeadow gets a deliberate 10-15 tasks (GUIDE REQUIREMENT,
-        // projects): Priya's hand-placed ones plus everyone else's first task
-        // on Monday and Thursday; the rest of their week is other accounts.
+        // This week Sunmeadow gets 10-15 tasks (guide requirement): Priya's plus everyone's Monday and Thursday task.
         const sunrisePr = projects.find(([k]) => k === "sunrise")
         if (day >= mon && sunrisePr) {
           const others = projects.filter(([k]) => k !== "sunrise")
@@ -282,12 +265,8 @@ function generic(ctx: DemoContext, until: Date, priyaFrom: Date): TaskSpec[] {
 }
 
 /**
- * Priya's week, placed by hand. Working-day offsets from today, so "due
- * today", "overdue" and "in progress" are always true whenever the seed runs.
- *
- * GUIDE REQUIREMENT (projects / getting started): 8-12 tasks across 3+
- * projects plus adhoc work; some due today, one overdue, one blocked by an open
- * requirement, some in progress / completed with time spent.
+ * Priya's week, placed by hand in working-day offsets from today so "due today" / "overdue" always hold.
+ * Guide requirement: 8-12 tasks across 3+ projects plus adhoc; one overdue, one blocked, some in progress/done.
  */
 function priyaWeek(ctx: DemoContext): TaskSpec[] {
   const d = (n: number) => (n === 0 ? ctx.today : shiftWorkingDays(ctx, ctx.today, n))

@@ -2,10 +2,7 @@ import { Building2 } from "lucide-react"
 import { PERMISSIONS } from "@/lib/constants"
 import type { HelpGuide } from "../../types"
 
-// Screens: features/clients/components/* (the list, the client page and its
-// Overview / Projects / Activity tabs, the client form) and
-// features/client-portal/components/client-contacts-tab.tsx (Contacts - the
-// only place portal access is managed).
+// Screens: features/clients/components/* and client-portal's client-contacts-tab.tsx.
 
 const CLIENT = "/projects/clients/sunmeadow-foods-pvt-ltd"
 const CONTACTS = `${CLIENT}?tab=contacts`

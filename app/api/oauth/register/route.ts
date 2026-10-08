@@ -3,10 +3,8 @@ import { ClientError, registerDynamicClient } from "@/features/mcp/server/client
 import { oauthError, oauthJson, preflight } from "@/features/mcp/server/http"
 import { clientIp, rateLimited } from "@/lib/rate-limit"
 
-// POST /api/oauth/register - Dynamic Client Registration (RFC 7591).
-// Deprecated by MCP 2026-07-28 in favour of CIMD, kept for agents that still
-// register this way. Registering grants nothing: a person still has to log in
-// and click Allow, and every redirect URI must be on the allowlist.
+// RFC 7591 registration: deprecated by MCP in favour of CIMD, kept for older agents. It grants nothing -
+// a person must still log in and allow, and redirect URIs must be on the allowlist.
 
 export const dynamic = "force-dynamic"
 

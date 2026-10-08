@@ -2,9 +2,7 @@ import { NextRequest } from "next/server"
 import { revokeToken } from "@/features/mcp/server/oauth.service"
 import { oauthJson, preflight, readForm } from "@/features/mcp/server/http"
 
-// POST /api/oauth/revoke - token revocation (RFC 7009). Revoking either token
-// disconnects the whole connection. Always 200, as the RFC requires, so it
-// reveals nothing about whether the token existed.
+// RFC 7009: revoking either token disconnects the whole connection. Always 200, so it reveals nothing.
 
 export const dynamic = "force-dynamic"
 

@@ -4,7 +4,6 @@ import { addColumn, sheetBelongsToProject } from "@/features/projects/server/she
 import { SHEET_COLUMN_TYPES, type SheetColumnType } from "@/features/projects/lib/sheet-types"
 import type { Session } from "next-auth"
 
-/** POST - add a column. Anyone on the project; the sheet is theirs to shape. */
 export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, sheetId } = ctx.params

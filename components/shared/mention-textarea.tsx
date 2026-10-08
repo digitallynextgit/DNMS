@@ -6,12 +6,7 @@ import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { cn } from "@/lib/utils"
 import { useAutoGrow } from "@/hooks/use-auto-grow"
 
-/**
- * Who can be @mentioned. Declared structurally rather than importing a feature's
- * row type: this lives in components/shared now, and a shared component reaching
- * back into @/features would invert the dependency (CLAUDE.md §1). Any list of
- * people with these fields fits - ProjectMember does.
- */
+/** Structural, so this shared component doesn't import a feature type (ProjectMember fits). */
 export interface MentionMember {
   id: string
   firstName: string
@@ -21,18 +16,12 @@ export interface MentionMember {
   isManager?: boolean
 }
 
-/** A permanently-empty ref, so autoGrow can be switched off without calling a
- *  hook conditionally. */
+/** Lets autoGrow be off without calling a hook conditionally. */
 const NO_GROW = { current: null }
 
 const memberLabel = (m: MentionMember) => `${m.firstName} ${m.lastName}`.trim()
 
-/**
- * A <Textarea> with an @mention picker. Typing "@" opens a list of project
- * members; picking one inserts "@Full Name " and records their id. The set of
- * ids still referenced by an "@Name" token in the text is reported back via
- * onChange, so deleting the text also drops the mention.
- */
+/** Textarea with an @mention picker. onChange reports the ids still referenced by an "@Name" token. */
 export function MentionTextarea({
   value,
   onChange,
@@ -54,31 +43,21 @@ export function MentionTextarea({
   placeholder?: string
   autoFocus?: boolean
   id?: string
-  /** Seed already-known mentions (e.g. when restoring a recalled draft) so their
-   *  "@Name" tokens keep resolving to ids without the user re-picking them. */
+  /** Seed known mentions (e.g. a restored draft) so their tokens keep resolving. */
   initialMentions?: { id: string; label: string }[]
-  /** Chat-style send: Enter submits (Shift+Enter = newline). Ignored while the
-   *  mention dropdown is open, where Enter picks the highlighted member. */
+  /** Enter submits (Shift+Enter = newline), except while the mention list is open. */
   onSubmit?: () => void
   /** Open the suggestion list ABOVE the field (for inputs pinned to the bottom). */
   dropup?: boolean
-  /** Override the textarea's own styling - e.g. to sit borderless inside a composer bar. */
   className?: string
-  /**
-   * Grow with the text instead of scrolling inside a fixed box. The caller caps
-   * it with a `max-h-*` class; past that the field stops growing and scrolls,
-   * which is the behaviour every messenger composer has.
-   */
+  /** Grow with the text up to the caller's `max-h-*`, then scroll. */
   autoGrow?: boolean
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Shared with the plain composer field, so both grow (and stop growing)
-  // identically - and neither shows the stray scrollbar the old two-line
-  // version left on an empty box.
+  // Shared with the plain composer, so both grow identically.
   useAutoGrow(autoGrow ? textareaRef : NO_GROW, value)
-  // Everyone ever picked in this editor; the live mention set is derived by
-  // checking which "@Label" tokens still survive in the text.
+  // Everyone picked so far; live mentions are the "@Label" tokens still in the text.
   const pickedRef = useRef<{ id: string; label: string }[]>(
     initialMentions ? [...initialMentions] : [],
   )
@@ -150,7 +129,6 @@ export function MentionTextarea({
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    // When the mention dropdown is closed, Enter (no Shift) submits chat-style.
     if (!open || suggestions.length === 0) {
       if (onSubmit && e.key === "Enter" && !e.shiftKey) {
         e.preventDefault()
@@ -241,10 +219,7 @@ export function MentionTextarea({
   )
 }
 
-/**
- * Renders message text with @mentions highlighted. A run "@First Last" is
- * highlighted when it matches one of the project member names.
- */
+/** Highlights "@First Last" runs that match a member name. */
 export function renderWithMentions(text: string, memberNames: Set<string>) {
   if (memberNames.size === 0) return text
   // Sort longest-first so "@Anna Maria Smith" wins over "@Anna".

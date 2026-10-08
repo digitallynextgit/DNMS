@@ -6,11 +6,6 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
-// =============================================================================
-// The ONE month stepper: "August 2025  ‹ ›". Every month-scoped view (attendance
-// calendars, holiday calendar) used to hand-roll this pair of icon buttons.
-// =============================================================================
-
 export const MONTH_NAMES = [
   "January",
   "February",

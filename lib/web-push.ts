@@ -4,14 +4,7 @@ import webpush from "web-push"
 import { db } from "@/server/db"
 import { isPushDeliverable } from "@/lib/push-targets"
 
-// =============================================================================
-// Web Push delivery.
-//
-// The SSE stream (server/notification-stream.ts) only reaches a LIVE page. This
-// module reaches the browser itself, so a notification still lands when every
-// DNMS tab is closed. Both run together: SSE updates the in-app UI instantly,
-// push covers the "not looking at the app" case.
-// =============================================================================
+// Web Push reaches the browser even with every tab closed; the SSE stream only reaches live pages.
 
 let configured: boolean | null = null
 
@@ -34,19 +27,8 @@ export function isPushConfigured(): boolean {
 }
 
 /**
- * The one site whose browser registrations may be pushed to.
- *
- * Everything else registered against this database - a developer running
- * localhost against the production DATABASE_URL, a preview deployment - is
- * skipped. Without this, one notification arrived twice: once from the deployed
- * site and once from a localhost service worker that is still installed in the
- * browser and wakes on push without ever contacting localhost, so stopping the
- * dev server did not stop it.
- *
- * Read from the environment rather than the app_settings table because this runs
- * on every notification, including from cron, and must not depend on a warmed
- * config cache. NEXT_PUBLIC_APP_URL is the canonical public address; NEXTAUTH_URL
- * is the fallback the rest of the app already uses.
+ * The one site whose registrations get pushes (rules in lib/push-targets.ts). Read from env, not
+ * app_settings, because it runs on every notification, including cron.
  */
 function appOrigin(): string | null {
   const raw = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL
@@ -65,18 +47,11 @@ export interface PushPayload {
   link?: string | null
 }
 
-/**
- * Fire-and-forget push to every browser this employee has subscribed. Dead
- * subscriptions (404/410 = the browser dropped it) are pruned so the table
- * doesn't accumulate garbage.
- */
+/** Fire-and-forget. Dead subscriptions (404/410) are pruned. */
 export async function sendPushToEmployee(employeeId: string, payload: PushPayload): Promise<void> {
   if (!ensureConfigured()) return
 
-  // Filtered in JS rather than SQL: the rules in isPushDeliverable() handle a
-  // NULL origin and an unknown app origin differently, which is awkward to
-  // express as a Prisma where-clause and easy to get subtly wrong. A person has
-  // a handful of registrations, so this costs nothing and is directly testable.
+  // Filtered in JS: isPushDeliverable's NULL/unknown-origin rules are awkward in SQL, and a person has few registrations.
   const origin = appOrigin()
   const all = await db.pushSubscription.findMany({
     where: { employeeId },

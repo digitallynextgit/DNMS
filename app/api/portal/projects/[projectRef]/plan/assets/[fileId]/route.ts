@@ -5,11 +5,7 @@ import {
   deleteClientPlanAsset,
 } from "@/features/client-portal/server/client-plan.service"
 
-// GET - a signed URL for one asset on a plan item. `?download=1` asks for it as
-// an attachment rather than inline.
-//
-// "assets" is a static segment sitting beside the dynamic [deliverableId], and
-// Next resolves static first - so this can never be mistaken for an item id.
+// "assets" is a static segment beside [deliverableId]; Next resolves static first, so they can't clash.
 export const GET = withClientSession(
   async (req: NextRequest, { params }: { params: { projectRef: string; fileId: string } }) =>
     respond(
@@ -19,8 +15,7 @@ export const GET = withClientSession(
     ),
 )
 
-// DELETE - remove an asset the client attached to a plan item. Their OWN uploads
-// only; the service decides, and answers 404 for anyone else's.
+// Only the client's own uploads; the service answers 404 for anyone else's.
 export const DELETE = withClientSession(
   async (_req: NextRequest, { params }: { params: { projectRef: string; fileId: string } }) =>
     respond(await deleteClientPlanAsset(params.projectRef, params.fileId)),

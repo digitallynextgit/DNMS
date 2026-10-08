@@ -11,13 +11,7 @@ const CREATOR_SELECT = {
   profilePhoto: true,
 }
 
-// GET /api/projects/[id]/passwords
-// Returns entries WITHOUT the decrypted password (use single-entry GET for reveal)
-//
-// withProjectManager, not withProjectAccess: a client's live logins are not
-// something every member of the project needs, and the tab being hidden in the
-// UI would restrict nobody who can type a URL. Account Manager or project
-// admin, the same rule that already governed adding and editing them.
+// Manager-only: a client's live logins aren't for every member. The list never includes the password.
 export const GET = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
@@ -34,7 +28,6 @@ export const GET = withProjectManager(
           createdAt: true,
           updatedAt: true,
           createdBy: { select: CREATOR_SELECT },
-          // encPassword is intentionally excluded from list
         },
       })
       return NextResponse.json({ data: entries })
@@ -45,7 +38,6 @@ export const GET = withProjectManager(
   },
 )
 
-// POST /api/projects/[id]/passwords
 export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {

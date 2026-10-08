@@ -6,6 +6,7 @@ import { PERMISSIONS, PROJECT_STAGE_LABELS } from "@/lib/constants"
 import { listProjects } from "@/features/projects/server/projects.queries"
 import { generateProjectSlug } from "@/features/projects/server/project-slug"
 import { ensureProjectTeams } from "@/features/projects/server/project-teams"
+import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
 import type { Session } from "next-auth"
 
 export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: Session) => {
@@ -42,14 +43,13 @@ export const POST = withAuth(
         return NextResponse.json({ error: "Unknown project phase" }, { status: 422 })
       }
 
-      // Optional: the company this is delivered for. Looked up through the
-      // tenant guard, so an id from another company reads as "not found".
+      // Looked up through the tenant guard, so another company's id reads as "not found".
       if (clientId) {
         const client = await db.client.findUnique({ where: { id: clientId }, select: { id: true } })
         if (!client) return NextResponse.json({ error: "Client not found" }, { status: 422 })
       }
 
-      // Validate Account Manager (formerly "owner") - falls back to creator if not supplied
+      // The Account Manager defaults to the creator.
       const ownerId: string = accountManagerId || session.user.id
       const accountManager = await db.employee.findUnique({
         where: { id: ownerId },
@@ -65,14 +65,8 @@ export const POST = withAuth(
         )
       }
 
-      // Auto-generate code in DN##### format (DN00001, DN00002, …). Codes are
-      // fixed-width and zero-padded (this endpoint is the only generator), so the
-      // lexicographically highest DN code IS the numerically highest one - let the
-      // DB find it instead of loading every project code into JS.
-      //
-      // Retry on the unique-violation race (API-05): two concurrent creates
-      // compute the same next code; the loser used to surface as a generic 500.
-      // Recompute and retry a few times instead.
+      // Codes are fixed-width DN#####, so the highest string is the highest number - let the DB find it.
+      // Retries on the unique-violation race when two creates compute the same code.
       let project
       for (let attempt = 0; ; attempt++) {
         const lastDn = await db.project.findFirst({
@@ -105,16 +99,16 @@ export const POST = withAuth(
           })
           break
         } catch (e) {
-          // P2002 on `code` = another create took this number; recompute (the
-          // `+ attempt` nudge also skips a just-taken slot fast). Give up after 5.
+          // P2002 on `code`: another create took this number; recompute (give up after 5).
           if ((e as { code?: string }).code === "P2002" && attempt < 5) continue
           throw e
         }
       }
 
-      // Every project carries the same six teams from day one, staffed the way
-      // the other projects staff them (see ensureProjectTeams).
+      // Every project gets the same six teams from day one (see ensureProjectTeams).
       const teams = await ensureProjectTeams(project.id)
+      // Share the Drive folder with the owner and team managers straight away.
+      syncProjectFolderAccessAsync(project.id)
 
       await createAuditLog(session, {
         action: "CREATE",

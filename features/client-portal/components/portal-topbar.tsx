@@ -19,12 +19,7 @@ import { useSidebarStore } from "@/stores/sidebar-store"
 import { useThemeStore } from "@/stores/theme-store"
 import { ThemePicker } from "@/components/layout/theme-picker"
 
-/**
- * The portal's top bar. Same shell as the staff Topbar - same height, borders,
- * collapse toggle with its Ctrl+B hint, theme picker and account menu - minus
- * everything that is staff-only (notifications, the AI assistant, the employee
- * profile link), none of which a client account has.
- */
+/** The portal's top bar: the staff Topbar shell minus staff-only items. */
 export function PortalTopbar({
   name,
   email,
@@ -38,8 +33,7 @@ export function PortalTopbar({
   const clearPalette = useThemeStore((s) => s.clearPalette)
   const { setTheme } = useTheme()
 
-  // Match the staff behaviour: drop any custom palette on the way out so the
-  // login page starts from the default theme.
+  // Like staff: drop any custom palette so the login page starts from the default theme.
   function handleSignOut() {
     clearPalette()
     setTheme("system")
@@ -108,8 +102,7 @@ export function PortalTopbar({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {/* A label, not a disabled item: this is a badge saying what kind
-                of account this is, and a greyed-out menu row read as broken. */}
+            {/* A label, not a disabled item - a greyed-out row reads as broken. */}
             <DropdownMenuLabel className="text-muted-foreground flex items-center text-xs font-normal">
               <User className="mr-2 h-3.5 w-3.5" />
               Client account

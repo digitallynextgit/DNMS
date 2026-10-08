@@ -10,13 +10,8 @@ import { useSetItemDone } from "../hooks/use-checklists"
 import type { ChecklistDetail, ChecklistItem } from "../types"
 
 /**
- * The checklist itself: items grouped under the document's own step headings,
- * in template order.
- *
- * Grouping is done from `sectionTitle` on the items rather than from a
- * relation, because the instance is a snapshot - the heading a leaver's
- * clearance was filed under has to keep reading the way it did on the day, even
- * after HR renames that step in the template.
+ * Items grouped under their step headings, in template order. Grouped by the snapshotted
+ * `sectionTitle`, so renaming a template step doesn't rewrite old checklists.
  */
 export function ChecklistView({
   checklist,
@@ -57,9 +52,7 @@ export function ChecklistView({
   }
 
   function toggle(item: ChecklistItem, done: boolean) {
-    // Signing a clearance asks for a note first: the note is the evidence -
-    // "laptop returned, asset tag DN-114" - and is what makes the sign-off
-    // worth more than a tick. Unticking, and ordinary tasks, go straight through.
+    // Signing a clearance asks for a note first; unticking and tasks go straight through.
     if (done && item.itemKind === "CLEARANCE") {
       setSigning(item)
       return

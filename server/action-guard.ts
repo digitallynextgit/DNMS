@@ -1,11 +1,4 @@
-// =============================================================================
-// Server-action auth/permission guards
-// =============================================================================
-// Server-side only (imported by the *.service.ts modules). Mirrors the route
-// wrappers withSession / withAuth from lib/permissions.ts, but throws an
-// ActionError (caught by runAction) instead of returning a NextResponse; the
-// thin route handlers turn that ActionResult into an HTTP response via respond().
-// =============================================================================
+// Service-layer guards: like withSession / withAuth, but throw ActionError (caught by runAction).
 
 import { headers } from "next/headers"
 import { getSession } from "@/server/api-handler"
@@ -16,10 +9,7 @@ import type { Session } from "next-auth"
 export async function requireSession(): Promise<Session> {
   const session = await getSession()
   if (!session) throw new ActionError("Unauthorized", 401)
-  // Staff-only. Every service behind this guard reads `employees` by
-  // session.user.id; an external client-portal account has no row there, so
-  // letting one through would produce silent empty results at best. Portal
-  // services use requireClientSession (server/client-guard.ts) instead.
+  // Staff-only: clients have no employees row. Portal services use requireClientSession.
   if (session.user.kind === "client") {
     throw new ActionError("Forbidden: not available to client accounts", 403)
   }
@@ -34,9 +24,7 @@ export async function requirePermission(perm: string | string[]): Promise<Sessio
   return session
 }
 
-// Require the user to hold at least one of the given roles (admin_ always
-// passes). Use for actions gated by who someone IS rather than a fine-grained
-// permission - e.g. only HR Manager / Admin may edit company-wide leave policy.
+// Any one of the roles (admin_ always passes) - for actions gated on who someone IS.
 export async function requireAnyRole(roles: string[]): Promise<Session> {
   const session = await requireSession()
   const userRoles = session.user.roles ?? []
@@ -45,7 +33,6 @@ export async function requireAnyRole(roles: string[]): Promise<Session> {
   return session
 }
 
-// IP / User-Agent for audit logs (routes read these off the request).
 export async function getAuditMeta(): Promise<{ ipAddress?: string; userAgent?: string }> {
   const h = await headers()
   return {

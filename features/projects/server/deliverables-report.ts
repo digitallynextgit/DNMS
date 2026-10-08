@@ -37,21 +37,8 @@ import type {
   ProgressTotals,
 } from "../lib/deliverables-progress"
 
-// =============================================================================
-// Deliverables slide deck
-//
-// The "present it on Monday" report: who was on the job, what they owed, what
-// landed, what did not and why. Built as a .pptx so the person can open it in
-// PowerPoint / Google Slides and talk over it, rather than screenshotting the
-// ledger.
-//
-// The deck is shaped by WHO is generating it, because the ledger is scoped by
-// role everywhere else and a report must not widen that:
-//   - admin (project:write): anything in the company
-//   - account manager (owns the project): every team and person on it
-//   - team manager (runs a ProjectTeam, or has line reports): those teams and people
-//   - member: only their own rows - the deck becomes "my deliverables"
-// =============================================================================
+// Deliverables slide deck (.pptx), scoped by who generates it: admin anything; account manager
+// their projects; team manager their teams and reports; member only their own rows.
 
 export type ReportRole = "admin" | "account_manager" | "team_manager" | "member"
 
@@ -80,19 +67,12 @@ export const ROLE_LABEL: Record<ReportRole, string> = {
 
 const uniq = (ids: string[]): string[] => Array.from(new Set(ids))
 
-// A person you can report on is a CURRENT one. Someone who has left keeps their
-// history as an actor on the rows, but is not offered as a team member or in
-// the pickers. The silent admin_ watch account is treated the same way - it
-// signs things off but is not a person on any team. Same rule as the
-// assignable-employees and tasks routes.
+// Reportable people are CURRENT ones; leavers and the silent admin_ account stay out of pickers.
 const VISIBLE_PERSON: Prisma.EmployeeWhereInput = { isActive: true, ...VISIBLE_EMPLOYEE_FILTER }
 
 export async function resolveReportScope(session: Session): Promise<ReportScope> {
   const me = session.user.id
-  // project:write only. Every employee holds project:read (it is in the base
-  // "employee" role so people can open the projects they are on), so treating
-  // it as an admin signal handed a team manager the whole company. Same gate
-  // as the page's own "Progress" vs "My Progress" split.
+  // project:write only - every employee holds project:read, so it is no admin signal.
   if (hasPermission(session, PERMISSIONS.PROJECT_WRITE)) {
     return { role: "admin", employeeId: me, projectIds: null, teamIds: null, employeeIds: null }
   }
@@ -104,8 +84,7 @@ export async function resolveReportScope(session: Session): Promise<ReportScope>
       where: { employeeId: me },
       select: { teamId: true, projectId: true },
     }),
-    // Line reports, solid and dotted. The maker's manager is the first sign-off
-    // on a deliverable, so they can report on what their people owe.
+    // Line reports, solid and dotted: the maker's manager is the first sign-off.
     db.employee.findMany({
       where: { isActive: true, OR: [{ managerId: me }, { dottedManagerId: me }] },
       select: { id: true },
@@ -113,9 +92,7 @@ export async function resolveReportScope(session: Session): Promise<ReportScope>
   ])
   const ownedIds = owned.map((p) => p.id)
 
-  // The account manager runs every team on the projects they own; the team
-  // manager runs the teams pointed at them. Both can report on the people in
-  // those teams. A plain member gets nobody but themselves.
+  // AMs run every team on projects they own; team managers the teams they lead. Members: themselves.
   const teamsInOwned = ownedIds.length
     ? await db.projectTeam.findMany({
         where: { projectId: { in: ownedIds } },
@@ -165,8 +142,6 @@ export function narrowPick(scope: ReportScope, req: ReportPick): ReportPick | nu
   if (scope.role === "member") return { ...req, teamIds: [], employeeIds: [scope.employeeId] }
   return req
 }
-
-// ─── Picker lists ─────────────────────────────────────────────────────────────
 
 export interface ReportScopeData {
   role: ReportRole
@@ -236,8 +211,6 @@ export async function describeReportScope(scope: ReportScope): Promise<ReportSco
   }
 }
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
-
 const ROW_SELECT = {
   id: true,
   projectId: true,
@@ -264,8 +237,7 @@ const ROW_SELECT = {
   completedOn: true,
   revisionCount: true,
   notes: true,
-  // The latest send-back is the "why" for a REJECTED row. The row itself only
-  // holds the current state, so the reason lives in the event log.
+  // The latest send-back is the "why" for a REJECTED row.
   events: {
     where: { type: "STATUS_CHANGED", toStatus: "REJECTED" },
     orderBy: { createdAt: "desc" },
@@ -289,8 +261,7 @@ function scopeWhereFor(scope: ReportScope): Prisma.ProjectDeliverableWhereInput 
     OR: [
       { project: { ownerId: me } },
       { team: { managerId: me } },
-      // Owed-by-nobody-in-particular rows carry no team; still the manager's if
-      // the maker sits on a team they run.
+      // Rows owed by nobody yet carry no team; still the manager's if the maker is on their team.
       {
         teamId: null,
         employee: { projectTeamMemberships: { some: { team: { managerId: me } } } },
@@ -363,20 +334,11 @@ async function loadRoster(scope: ReportScope, pick: ReportPick): Promise<RosterT
     .filter((t) => t.members.length > 0 || (t.manager && keep.has(t.manager.id)))
 }
 
-/**
- * What "in the window" means for a status report. The ledger's own filter is
- * `completedOn` inside the range, which is right for "what did we ship" and
- * wrong for a deck whose whole point is also the rows that did NOT ship: an
- * open row has no completedOn and would vanish. So a row is in the window when
- * it was completed in it, is due in it, is scheduled (period) across it, or is
- * open work carried in - overdue from before the window, or undated.
- */
+/** In the window: completed, due or scheduled in it, or open work carried in (overdue or undated). */
 function windowWhere(from: string, to: string): Prisma.ProjectDeliverableWhereInput {
   const start = new Date(`${from}T00:00:00.000Z`)
   const end = new Date(`${to}T23:59:59.999Z`)
-  // Open work plus rejected work: both are still owed. STUCK belongs here for
-  // the same reason - blocked work carried into a window is exactly what a
-  // report about that window should surface, not hide.
+  // Open, stuck and rejected work is still owed.
   const notDone = {
     status: { in: [...OPEN_STATUSES, "REJECTED"] as DeliverableStatus[] },
   }
@@ -423,8 +385,6 @@ async function loadRows(
   })
   return { rows: rows.slice(0, ROW_CAP), truncated: rows.length > ROW_CAP }
 }
-
-// ─── Metrics ──────────────────────────────────────────────────────────────────
 
 const DONE: ReadonlySet<DeliverableStatus> = new Set(["DELIVERED", "ACCEPTED"])
 
@@ -519,8 +479,6 @@ function whyNotDone(r: Row, today: Date): string {
   return trunc(why, 140)
 }
 
-// ─── AI takeaways ─────────────────────────────────────────────────────────────
-
 async function takeaways(block: string): Promise<string[] | null> {
   if (!isAiConfigured()) return null
   try {
@@ -544,8 +502,6 @@ Return 4 to 6 lines, each starting with "- ", at most 22 words each. Lead with t
   }
 }
 
-// ─── Slides ───────────────────────────────────────────────────────────────────
-
 const C = {
   navy: "1F2A44",
   blue: "2563EB",
@@ -561,10 +517,7 @@ const C = {
   grey: "9CA3AF",
   white: "FFFFFF",
 }
-// The same seven as the on-screen chips, in print-weight equivalents. A deck a
-// client reads next to the board it came from has to use one colour language;
-// DELIVERED was amber here and blue-ish on screen, which is how "made" ended up
-// looking like a warning in every exported report.
+// Same colours as the on-screen chips, so the deck and the board speak one colour language.
 const STATUS_COLOR: Record<DeliverableStatus, string> = {
   PLANNED: C.grey,
   IN_PROGRESS: C.blue,
@@ -788,8 +741,6 @@ class Deck {
   }
 }
 
-// ─── The deck ─────────────────────────────────────────────────────────────────
-
 export interface DeckInput {
   session: Session
   scope: ReportScope
@@ -822,7 +773,7 @@ const slug = (s: string): string =>
 export interface ReportData {
   rows: Row[]
   today: Date
-  me: any
+  me: { firstName: string; lastName: string; designation: { title: string } | null } | null
   roster: RosterTeam[]
   scopeLine: string
   windowLine: string
@@ -880,7 +831,6 @@ export async function loadReportData(input: DeckInput): Promise<ReportData> {
   ])
   const { rows, truncated } = await loadRows(scope, pick, roster, from, to)
 
-  // ── What this report is about, in words ──────────────────────────────────────
   let scopeLine: string
   if (isSelf) {
     scopeLine = pickedProjects.length === 1 ? pickedProjects[0]!.name : "Your deliverables"
@@ -908,7 +858,6 @@ export async function loadReportData(input: DeckInput): Promise<ReportData> {
   const windowLine = isAllTime ? "All time" : formatPeriod(day(from), day(to))
   const author = me ? fullName(me) : "DNMS"
 
-  // ── Numbers ────────────────────────────────────────────────────────────────
   const total = rows.length
   const done = rows.filter(isDone).length
   const notDone = rows.filter((r) => !isDone(r))
@@ -933,7 +882,7 @@ export async function loadReportData(input: DeckInput): Promise<ReportData> {
       : { key: "__unclaimed__", label: "Not yet picked up", sub: r.team?.name ?? "" },
   )
 
-  // Only pad with roster members if viewing multiple people, NOT when filtered to a single person!
+  // Pad with roster members only for multi-person decks.
   if (!isSinglePerson && pick.employeeIds.length === 0) {
     for (const t of roster) {
       for (const m of t.members) {
@@ -1366,8 +1315,7 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
       { perSlide: 13 },
     )
 
-    // One slide per person only when the deck is about a team or a few people -
-    // a portfolio-wide deck with forty people would double in size for nothing.
+    // Per-person slides only for focused decks; a forty-person deck would double in size.
     const focused =
       pick.teamIds.length > 0 || pick.employeeIds.length > 0 || scope.role === "team_manager"
     const people = byMember.filter((b) => b.key !== "__unclaimed__" && b.total > 0)
@@ -1490,7 +1438,6 @@ export async function buildDeliverablesXlsx(input: DeckInput): Promise<BuiltRepo
   wb.creator = data.author
   wb.created = new Date()
 
-  // ── Sheet 1: Overview ──────────────────────────────────────
   const wsOverview = wb.addWorksheet("Progress Overview", {
     views: [{ showGridLines: true }],
   })
@@ -1504,7 +1451,6 @@ export async function buildDeliverablesXlsx(input: DeckInput): Promise<BuiltRepo
     { width: 16 }, // Col G: Progress %
   ]
 
-  // Header Banner
   const titleRow = wsOverview.addRow(["Deliverables Progress Report"])
   titleRow.font = { name: "Segoe UI", size: 16, bold: true, color: { argb: "FF0F172A" } }
   wsOverview.mergeCells("A1:G1")
@@ -1517,9 +1463,8 @@ export async function buildDeliverablesXlsx(input: DeckInput): Promise<BuiltRepo
   genRow.font = { name: "Segoe UI", size: 9, italic: true, color: { argb: "FF94A3B8" } }
   wsOverview.mergeCells("A3:G3")
 
-  wsOverview.addRow([]) // Spacer row 4
+  wsOverview.addRow([])
 
-  // 1. Key Metrics Cards (Matching Web UI)
   const kpiSecRow = wsOverview.addRow(["KEY METRICS"])
   kpiSecRow.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF475569" } }
 
@@ -1597,9 +1542,8 @@ export async function buildDeliverablesXlsx(input: DeckInput): Promise<BuiltRepo
     subCell.border = thinBorder
   }
 
-  wsOverview.addRow([]) // Spacer
+  wsOverview.addRow([])
 
-  // 2. Where the work stands (Status Breakdown, Matching Web UI)
   const wsStatusSec = wsOverview.addRow(["WHERE THE WORK STANDS (STATUS BREAKDOWN)"])
   wsStatusSec.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF475569" } }
 
@@ -1636,9 +1580,8 @@ export async function buildDeliverablesXlsx(input: DeckInput): Promise<BuiltRepo
     }
   }
 
-  wsOverview.addRow([]) // Spacer
+  wsOverview.addRow([])
 
-  // 3. By Project Table (Matching Web UI)
   const projSecRow = wsOverview.addRow(["BY PROJECT"])
   projSecRow.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF475569" } }
 
@@ -1691,9 +1634,8 @@ export async function buildDeliverablesXlsx(input: DeckInput): Promise<BuiltRepo
     }
   }
 
-  // 4. By Team Member Table (ONLY if !isSinglePerson && byMember.length > 1)
   if (!isSinglePerson && byMember.length > 1) {
-    wsOverview.addRow([]) // Spacer
+    wsOverview.addRow([])
     const memSecRow = wsOverview.addRow(["BY TEAM MEMBER"])
     memSecRow.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF475569" } }
 
@@ -1747,7 +1689,6 @@ export async function buildDeliverablesXlsx(input: DeckInput): Promise<BuiltRepo
     }
   }
 
-  // ── Sheet 2: Deliverables (Full Ledger) ────────────────────
   const wsDeliverables = wb.addWorksheet("Deliverables", {
     views: [{ showGridLines: true }],
   })
@@ -1770,7 +1711,7 @@ export async function buildDeliverablesXlsx(input: DeckInput): Promise<BuiltRepo
   dMetaRow.font = { name: "Segoe UI", size: 10, color: { argb: "FF64748B" } }
   wsDeliverables.mergeCells("A2:F2")
 
-  wsDeliverables.addRow([]) // Spacer
+  wsDeliverables.addRow([])
 
   const dHeadRow = wsDeliverables.addRow([
     "Deliverable",
@@ -1970,7 +1911,6 @@ export async function buildDeliverablesDocx(input: DeckInput): Promise<BuiltRepo
     }),
     new Paragraph({ text: "" }),
 
-    // 1. Key Metrics Cards
     new Paragraph({
       text: "Key Metrics",
       heading: HeadingLevel.HEADING_2,
@@ -2146,7 +2086,6 @@ export async function buildDeliverablesDocx(input: DeckInput): Promise<BuiltRepo
     }),
     new Paragraph({ text: "" }),
 
-    // 2. Where the work stands (Status Breakdown)
     new Paragraph({
       text: "Where the work stands",
       heading: HeadingLevel.HEADING_2,
@@ -2191,7 +2130,6 @@ export async function buildDeliverablesDocx(input: DeckInput): Promise<BuiltRepo
     }),
     new Paragraph({ text: "" }),
 
-    // 3. By Project Table
     new Paragraph({
       text: "By Project",
       heading: HeadingLevel.HEADING_2,
@@ -2250,7 +2188,6 @@ export async function buildDeliverablesDocx(input: DeckInput): Promise<BuiltRepo
     }),
   ]
 
-  // 4. By Team Member Table (only if !isSinglePerson && byMember.length > 1)
   if (!isSinglePerson && byMember.length > 1) {
     docChildren.push(new Paragraph({ text: "" }))
     docChildren.push(
@@ -2315,7 +2252,6 @@ export async function buildDeliverablesDocx(input: DeckInput): Promise<BuiltRepo
     )
   }
 
-  // 5. Deliverables Ledger Table (All Columns matching Web Flat Table)
   docChildren.push(new Paragraph({ text: "" }))
   docChildren.push(
     new Paragraph({
@@ -2379,7 +2315,6 @@ export async function buildDeliverablesDocx(input: DeckInput): Promise<BuiltRepo
     }),
   )
 
-  // 6. AI Takeaways
   if (ai && total > 0) {
     const block = [
       `SCOPE: ${scopeLine}. WINDOW: ${windowLine}. GENERATED FOR: ${ROLE_LABEL[input.scope.role]}.`,
@@ -2487,11 +2422,7 @@ export async function buildDeliverablesReport(
   }
 }
 
-// ─── Progress page ──────────────────────────────
-//
-// The same rows and the same arithmetic as the deck, handed back as JSON for
-// the "My Progress" page - so what a person sees on screen is exactly what
-// their slides would say.
+// Progress page: the deck's rows and arithmetic as JSON, so the screen matches the slides.
 
 const isoDay = (d: Date | null | undefined): string | null =>
   d ? d.toISOString().slice(0, 10) : null

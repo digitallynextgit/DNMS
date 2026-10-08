@@ -4,11 +4,7 @@ import type { Session } from "next-auth"
 import { withSession } from "@/server/api-handler"
 import { getMyOwedDeliverables } from "@/features/projects/server/deliverables.queries"
 
-// GET /api/projects/my-deliverables
-//
-// What the signed-in person owes, across every project: rows assigned to them,
-// plus rows their team owes that nobody has claimed. Session-scoped by
-// definition - there is no id to pass, and no way to ask about someone else.
+// Rows assigned to the caller plus unclaimed rows their team owes. Session-scoped by definition.
 export const dynamic = "force-dynamic"
 
 export const GET = withSession(async (req: NextRequest, _ctx, session: Session) => {

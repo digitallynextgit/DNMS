@@ -20,14 +20,7 @@ import {
   type ServingNoticeRow,
 } from "@/features/hr-checklists"
 
-/**
- * Who is serving notice.
- *
- * This is the answer to "who is leaving, when, and what is holding it up". It
- * is built from ACCEPTED resignations against still-active accounts rather than
- * from an employee status, because "serving notice" is a fact about two dates
- * and not a state anybody sets.
- */
+/** Accepted resignations of still-active accounts: "serving notice" is two dates, not a status. */
 export default function ExitClearancePage() {
   const router = useRouter()
   const tp = useTenantPath()

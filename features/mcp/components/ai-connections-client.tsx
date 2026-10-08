@@ -30,8 +30,7 @@ const REASONS: Record<string, string> = {
 }
 
 /**
- * /ai-connections - connect Claude / ChatGPT to DNMS, and see or disconnect the
- * AI apps acting on your behalf. People with role:write also see everyone's.
+ * /ai-connections: connect AI apps and manage connections. role:write holders also see everyone's.
  */
 export function AiConnectionsClient({ connectorUrl }: { connectorUrl: string }) {
   const { can, isLoading: permsLoading } = usePermissions()

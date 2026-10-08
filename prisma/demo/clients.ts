@@ -1,12 +1,5 @@
-// =============================================================================
-// Clients and the client portal: the three client companies from the dataset,
-// their contacts (portal logins on the demo domain, same DEMO_PASSWORD), the
-// per-project grants that decide which portal modules each contact sees, and a
-// little portal activity.
-//
-// Runs in two steps: seedClients() before projects (projects hang off a
-// client), seedClientAccess() after (a grant points at a project).
-// =============================================================================
+// Demo clients, their portal contacts and grants, and some portal activity.
+// seedClients() runs before projects; seedClientAccess() after (a grant points at a project).
 
 import { db } from "@/server/db"
 import { provisionIdentity } from "@/server/identity"
@@ -58,9 +51,7 @@ const CONTACTS: {
   grant: string[] | null
   lastLoginDaysAgo: number | null
 }[] = [
-  // GUIDE REQUIREMENT (project tools): Sunmeadow has two contacts - one with an
-  // active grant (Content plan, Documents & assets, Calendars) who has signed
-  // in, and one with no projects.
+  // Guide requirement: Sunmeadow has one signed-in contact with an active grant and one with no projects.
   {
     client: "sunrise",
     name: "Nandini Rao",

@@ -1,12 +1,5 @@
-// =============================================================================
-// Welcome + credentials email - single branded message sent when an employee is
-// created. Replaces the old two-email flow (welcome template + plain credentials)
-// with one company-branded, email-client-safe HTML message.
-// =============================================================================
-// Table-based layout + inline styles (the only thing Outlook/Gmail render
-// reliably). The shared `wrapEmail` provides the dark logo header + footer; point
-// EMAIL_LOGO_URL at a hosted PNG/WEBP.
-// =============================================================================
+// Welcome + credentials email for a new employee. Table layout + inline styles (what Outlook and
+// Gmail render reliably); wrapEmail adds the logo header and footer.
 
 import { BRAND_NAME, detailRow, wrapEmail } from "@/lib/email-layout"
 

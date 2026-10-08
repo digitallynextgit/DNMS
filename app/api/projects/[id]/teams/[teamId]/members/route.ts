@@ -8,31 +8,24 @@ import { projectHref } from "@/features/projects/lib/project-href"
 import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
-import { hasPermission } from "@/lib/permissions"
-import { PERMISSIONS } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
 import { addEmailJob } from "@/lib/queue"
 import { createAuditLog } from "@/lib/audit"
 import { EMPLOYEE_SUMMARY_SELECT, VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import type { Session } from "next-auth"
 
-// GET /api/projects/[id]/teams/[teamId]/members
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId, teamId } = ctx.params
-      // withProjectAccess validated the URL project only; teamId is client-chosen.
-      // Confirm the team lives in this project before listing its roster, or A can
-      // read any other project's team members. Matches the POST/DELETE guards.
+      // teamId is client-chosen: confirm the team is in this project before listing its roster.
       const team = await db.projectTeam.findFirst({
         where: { id: teamId, projectId },
         select: { id: true },
       })
       if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 })
       const members = await db.projectTeamMember.findMany({
-        // Only current people: deactivation drops a leaver's seats, and this
-        // guards anything that slipped past it. The silent admin_ watch account
-        // is never shown as a team member either.
+        // Active people only; the silent admin_ account is never shown.
         where: { teamId, employee: { isActive: true, ...VISIBLE_EMPLOYEE_FILTER } },
         include: {
           employee: {
@@ -52,14 +45,11 @@ export const GET = withProjectAccess(
   },
 )
 
-// POST /api/projects/[id]/teams/[teamId]/members - add member (Admin or this team's Manager)
 export const POST = withSession(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { teamId } = ctx.params
-      // The URL carries a slug now; this route is behind plain withSession, not
-      // a slug-aware guard. The id is WRITTEN onto the created membership row,
-      // so an unresolved slug would corrupt it, not merely 404.
+      // Plain withSession, so resolve the slug - the id is written onto the membership row.
       const projectId = await resolveProjectId(ctx.params.id)
       if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
       const body = await req.json()
@@ -76,7 +66,6 @@ export const POST = withSession(
         return NextResponse.json({ error: "Team not found" }, { status: 404 })
       }
 
-      // Authorisation: project admin / Account Manager OR THIS team's manager
       if (!(await canStaffTeam(session, projectId, teamId))) {
         return NextResponse.json(
           { error: "Only a project admin, the Account Manager or this team's manager can do this" },
@@ -84,7 +73,7 @@ export const POST = withSession(
         )
       }
 
-      // Already on another team in the same project?
+      // One team per person per project.
       const conflict = await db.projectTeamMember.findFirst({
         where: { projectId, employeeId },
         include: { team: { select: { name: true } } },
@@ -98,7 +87,6 @@ export const POST = withSession(
         )
       }
 
-      // Verify employee exists
       const employee = await db.employee.findUnique({
         where: { id: employeeId },
         select: { id: true, firstName: true, lastName: true, email: true, isActive: true },
@@ -107,7 +95,7 @@ export const POST = withSession(
         return NextResponse.json({ error: "Employee not found or inactive" }, { status: 404 })
       }
 
-      // First member becomes manager automatically (decision FR-M-03)
+      // The first member becomes the manager (FR-M-03).
       const willBeManager = team.members.length === 0
 
       const created = await db.$transaction(async (tx) => {
@@ -127,8 +115,6 @@ export const POST = withSession(
         return member
       })
 
-      // Notify the added employee. Slug comes off the same read as the name so
-      // the link can be the readable one.
       const project = await db.project.findUnique({
         where: { id: projectId },
         select: { name: true, slug: true },
@@ -168,7 +154,7 @@ export const POST = withSession(
       })
 
       // Give the new member access to the project's Drive folder (fire-and-forget).
-      syncProjectFolderAccessAsync(ctx.params.id)
+      syncProjectFolderAccessAsync(projectId)
 
       return NextResponse.json({ data: created, isManager: willBeManager }, { status: 201 })
     } catch (error) {

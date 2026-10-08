@@ -7,13 +7,11 @@ import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { EvalEvaluator, EvalSection } from "@/features/performance/evaluation"
 import type { Session } from "next-auth"
 
-// Per-employee KPI / parameter PROFILE (the reusable list snapshotted onto each
-// new evaluation). HR only (performance:review).
+// The reusable KPI list that is snapshotted onto each new evaluation.
 
 const isSide = (v: unknown): v is EvalEvaluator => v === "SELF" || v === "MANAGER"
 const isSection = (v: unknown): v is EvalSection => v === "A" || v === "B"
 
-// GET - the employee's profile items (both sides) + employee summary.
 export const GET = withAuth(
   PERMISSIONS.PERFORMANCE_REVIEW,
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
@@ -38,8 +36,6 @@ export const GET = withAuth(
   },
 )
 
-// PUT - replace the employee's entire profile in one shot.
-// body: { items: [{ evaluator, section, label, description? }] }
 export const PUT = withAuth(
   PERMISSIONS.PERFORMANCE_REVIEW,
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
@@ -55,7 +51,7 @@ export const PUT = withAuth(
       return NextResponse.json({ error: "items array is required" }, { status: 400 })
     }
 
-    // Normalise + validate. Order is assigned per (evaluator, section) group.
+    // Order is assigned per (evaluator, section) group.
     const counters = new Map<string, number>()
     const rows: {
       employeeId: string
@@ -91,7 +87,6 @@ export const PUT = withAuth(
       })
     }
 
-    // Replace-all in a transaction.
     await db.$transaction([
       db.perfKpi.deleteMany({ where: { employeeId } }),
       ...(rows.length ? [db.perfKpi.createMany({ data: rows })] : []),

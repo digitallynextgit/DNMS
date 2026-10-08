@@ -22,8 +22,6 @@ export default async function PortalPlanPage({
     (g) => g.projectRef === projectRef || g.projectId === projectRef,
   )
   if (!grant) notFound()
-  // The API behind the page re-checks the module independently, so a hand-typed
-  // URL renders nothing either way.
   if (!grant.modules.includes("plan")) notFound()
 
   return <PortalPlan projectRef={projectRef} />

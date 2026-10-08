@@ -3,9 +3,6 @@ import { withProjectAccess } from "@/features/projects/server/project-access"
 import { createProjectDoc } from "@/features/projects/server/project-drive.service"
 import type { Session } from "next-auth"
 
-// POST /api/projects/[id]/drive/new  body { kind: "doc"|"sheet", name, folderId? }
-// Create a blank Google Doc / Sheet in the project folder (or in the Drive
-// mirror of the given Files-tab folder).
 export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {

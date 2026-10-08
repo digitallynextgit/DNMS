@@ -137,7 +137,6 @@ export default function MyWfhPage() {
     </Button>
   )
 
-  // "My WFH" view: eligibility + the employee's own request history.
   const myWfh = (
     <>
       {eligLoading ? (
@@ -205,9 +204,6 @@ export default function MyWfhPage() {
           </Button>
         </BulkActionBar>
 
-        {/* The table renders from the first paint: while `reqLoading` it draws
-            skeleton rows inside its own real <thead>, so the header, column
-            count and S.No column never move when the requests land. */}
         {reqLoading || requests.length > 0 ? (
           <DataTable
             columns={columns}

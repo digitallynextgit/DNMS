@@ -1,15 +1,8 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
-/**
- * Project detail: a header (logo + name + code + status/priority + Edit) → the
- * tab bar → the Overview body (a 4-cell stat strip, the account-manager card,
- * then the progress overview chart). The tab bodies stream in on activation, so
- * this reserves the header + overview shell the page mounts into.
- */
 export default function Loading() {
   return (
     <div className="space-y-6">
-      {/* Header: back link, logo, title + code, status/priority + Edit */}
       <div className="space-y-4 py-4">
         <Skeleton className="bg-muted h-3 w-28 animate-pulse" />
         <div className="flex items-center justify-between gap-4">
@@ -28,14 +21,12 @@ export default function Loading() {
         </div>
       </div>
 
-      {/* Tab bar */}
       <div className="border-border flex flex-wrap items-center gap-2 border-b pb-2">
         {Array.from({ length: 8 }).map((_, i) => (
           <Skeleton key={i} className="bg-muted h-8 w-24 animate-pulse rounded-sm" />
         ))}
       </div>
 
-      {/* Overview: stat strip */}
       <div className="border-border bg-card rounded-sm border">
         <div className="divide-border grid grid-cols-2 divide-x sm:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -47,7 +38,6 @@ export default function Loading() {
         </div>
       </div>
 
-      {/* Account manager + info card */}
       <div className="border-border bg-card space-y-4 rounded-sm border p-5">
         <div className="space-y-2">
           <Skeleton className="bg-muted h-3 w-32 animate-pulse" />
@@ -65,7 +55,6 @@ export default function Loading() {
         </div>
       </div>
 
-      {/* Progress overview chart */}
       <Skeleton className="bg-muted h-64 w-full animate-pulse rounded-sm" />
     </div>
   )

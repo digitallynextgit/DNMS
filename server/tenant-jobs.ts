@@ -3,28 +3,8 @@ import "server-only"
 import { db } from "@/server/db"
 import { runUnscoped, runWithTenant, type TenantContext } from "@/server/tenant-context"
 
-// =============================================================================
-// Running background work once per tenant (M4).
-//
-// Cron routes and the in-process schedulers have no session, so before M4 they
-// had no tenant either - every one of them swept the whole `project_tasks` (or
-// `leave_balances`, or …) table in a single pass. With one customer that was
-// indistinguishable from correct. With two it would send Acme's reminders to
-// Digitally Next's staff.
-//
-// `forEachTenant` makes the loop the default shape:
-//
-//   export const GET = withErrorHandler(async () =>
-//     ok(await forEachTenant("leave-accrual", (tenant) => accrueFor(tenant))))
-//
-// Inside `fn`, `db` is scoped to that tenant, so the job body can be written as
-// if only one company existed - which is how they are all written today, and why
-// this needed no rewriting of the jobs themselves.
-//
-// ONE TENANT'S FAILURE MUST NOT STOP THE SWEEP. A job that throws for Acme still
-// has to run for everyone else, so each iteration is caught and reported rather
-// than allowed to abort the loop.
-// =============================================================================
+// Background jobs have no session, so they run once per tenant with `db` scoped to each.
+// One tenant's failure must not stop the sweep: each iteration is caught and reported.
 
 export interface TenantJobOutcome<T> {
   tenantId: string
@@ -43,7 +23,6 @@ export interface TenantJobSummary<T> {
   ms: number
 }
 
-/** Every tenant a background job should visit. */
 export async function servableTenants(): Promise<TenantContext[]> {
   return runUnscoped("background job: deciding which tenants to visit", async () => {
     const rows = await db.tenant.findMany({
@@ -58,12 +37,6 @@ export async function servableTenants(): Promise<TenantContext[]> {
   })
 }
 
-/**
- * Run `fn` once per active tenant, each inside its own tenant context.
- *
- * Returns a per-tenant summary rather than a single value, so a cron endpoint
- * can report what happened for whom instead of one opaque number.
- */
 export async function forEachTenant<T>(
   job: string,
   fn: (tenant: TenantContext) => Promise<T>,

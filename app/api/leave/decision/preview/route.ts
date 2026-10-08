@@ -23,11 +23,8 @@ const PERSON_SELECT = {
   designation: { select: { title: true } },
 } as const
 
-// GET /api/leave/decision/preview?requestId=<id>
-// The signature block that will sign the decision reply. That reply is sent FROM
-// whoever makes the call - the manager when the manager approves, HR when HR does
-// - so we return the CURRENT USER's signature, falling back to the applicant's
-// reporting manager when the viewer has no employee record. Read-only.
+// The reply is sent by whoever decides, so return the current user's signature (falling back to
+// the applicant's manager when the viewer has no employee record).
 export const GET = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {

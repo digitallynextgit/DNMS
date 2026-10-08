@@ -3,17 +3,8 @@ import "server-only"
 import { DEFAULT_REDIRECT_ORIGINS, VERIFIED_CLIENT_HOSTS } from "../constants"
 import { extraRedirectOrigins } from "./config"
 
-// =============================================================================
-// Redirect URI rules - where an authorization code may be sent.
-//
-//   1. It must be one the client declared (exact string match), except that a
-//      loopback redirect matches on any port (RFC 8252 §7.3): Claude Code and
-//      other CLI agents bind a random port per sign-in.
-//   2. It must be on our allowlist: Claude, ChatGPT, loopback, or an origin an
-//      admin added via MCP_ALLOWED_REDIRECT_ORIGINS. So even a client that
-//      registers itself (DCR) can never have a DNMS code sent to an arbitrary
-//      website.
-// =============================================================================
+// Where an authorization code may go: a URI the client declared (loopback matches any port,
+// RFC 8252 §7.3), AND on our allowlist (Claude, ChatGPT, loopback, MCP_ALLOWED_REDIRECT_ORIGINS).
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
 
@@ -40,9 +31,7 @@ export function isAllowedRedirect(uri: string): boolean {
   }
   const allowed = [...DEFAULT_REDIRECT_ORIGINS, ...extraRedirectOrigins()]
   return allowed.some((origin) => {
-    // An entry is either a bare origin (https://claude.ai) or a longer prefix
-    // (cursor://anysphere.cursor-mcp/oauth). Origins match on origin; prefixes
-    // match on the leading string.
+    // An entry is an origin (https://claude.ai) or a prefix (cursor://anysphere.cursor-mcp/oauth).
     const o = parse(origin)
     if (o && o.origin !== "null" && (o.pathname === "/" || o.pathname === "")) {
       return u.origin === o.origin

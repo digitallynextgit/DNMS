@@ -6,14 +6,7 @@ import { votePoll, findPollParent } from "@/server/message-cards"
 
 export const runtime = "nodejs"
 
-/**
- * POST /api/message-polls/:pollId/vote  { optionId }
- *
- * ONE route for both surfaces, because a vote is a vote. It resolves which
- * conversation the poll lives in and applies that surface's rule: chat wants
- * membership, a project reply wants project access. Nothing is read from the
- * request except which option was clicked.
- */
+// One route for chat and project polls; applies that surface's rule (membership vs project access).
 export const POST = withSession(async (req: NextRequest, ctx, session) => {
   const pollId = ctx.params.pollId
   const me = session.user.id

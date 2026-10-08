@@ -1,13 +1,7 @@
 import "server-only"
 
 import { db } from "@/server/db"
-import {
-  isB2Configured,
-  listAllObjects,
-  getSignedUrl,
-  deleteFile,
-  type StorageObject,
-} from "@/lib/storage"
+import { isB2Configured, listAllObjects, deleteFile, type StorageObject } from "@/lib/storage"
 import { getConfig } from "@/server/app-config"
 import type { StorageCategory, StorageFile, StorageOverview } from "../types"
 import { CATEGORY_LABELS } from "../types"
@@ -26,24 +20,15 @@ function categorize(key: string): StorageCategory {
   if (key.startsWith("profile-photos/")) return "profile-photos"
   if (key.startsWith("employee-documents/")) return "employee-documents"
   if (key.startsWith("documents/")) return "company-documents"
-  // Before "projects/", since neither prefix is a prefix of the other but the
-  // pair is easy to confuse: project FILES live under projects/, project LOGOS
-  // under project-logos/.
   if (key.startsWith("project-logos/")) return "project-logos"
   if (key.startsWith("projects/")) return "project-files"
   if (key.startsWith("gallery/")) return "gallery"
   if (key.startsWith("mailer-images/")) return "mailer-images"
-  // Personal-chat pictures, voice notes and files - `chat/<conversationId>/…`.
   if (key.startsWith("chat/")) return "chat"
   if (key.startsWith("resumes/")) return "resumes"
   return "other"
 }
 
-/**
- * A complete picture of what is in the bucket: usage totals, a per-folder
- * breakdown, and every file resolved to a human owner and flagged referenced vs
- * orphaned (in the bucket but pointed at by no DB row = leaked storage).
- */
 /** The bucket NAME to show in the header - the account's, or the legacy setting. */
 async function bucketNameFor(accountId?: string): Promise<string> {
   try {
@@ -77,20 +62,8 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
 
   const bucket = await bucketNameFor(accountId)
 
-  // Bucket contents + every DB row that owns an object.
-  //
-  // These reads are deliberately UNBOUNDED and must stay that way: the map they
-  // build is what marks an object "orphaned", and a row this misses becomes a
-  // live file that "Clean up orphans" deletes. So the fix for pool pressure is
-  // to bound CONCURRENCY, not rows.
-  //
-  // They used to run as one 12-wide Promise.all against a 10-connection pool
-  // (server/db.ts) with a 5s connectionTimeoutMillis - i.e. this single admin
-  // page could exhaust every connection and time out UNRELATED requests
-  // app-wide while it ran. Now at most 3 DB queries are in flight at once.
-  //
-  // listAllObjects is a B2 HTTP call, not a DB query, so it holds no connection
-  // and is started first to overlap with all of them.
+  // Rows that own an object. Keep these UNBOUNDED: a missed row marks a live file as an orphan
+  // and "Clean up orphans" deletes it. Run 3 at a time to spare the 10-connection pool.
   const objectsPromise = listAllObjects(accountId)
 
   const [photos, docs, empDocs] = await Promise.all([
@@ -121,9 +94,6 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
     db.projectResource.findMany({
       select: { objectKey: true, fileName: true, project: { select: { name: true } } },
     }),
-    // Project logos live on the project row itself (projects.logoKey), not in a
-    // join table - without this they look unreferenced and the "clean up
-    // orphans" action would happily delete every live logo.
     db.project.findMany({
       where: { logoKey: { not: null } },
       select: { logoKey: true, name: true },
@@ -131,17 +101,10 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
   ])
 
   const [galleryPhotos, mailerImages, chatAttachments] = await Promise.all([
-    // Gallery photos and campaign images are owned rows too. Without these they
-    // read as orphaned, and 'Clean up orphans' would cheerfully delete every
-    // team photo and every image already embedded in a sent campaign.
     db.photo.findMany({
       select: {
         objectKey: true,
-        // The SMALL variant is a second live object on the same row. Selecting
-        // only objectKey left every thumbnail reading as unreferenced, and
-        // "Clean up orphans" would have deleted the lot - leaving 15 rows whose
-        // thumbKey pointed at nothing, which is worse than never having had one
-        // (the grid falls back to the master only when thumbKey is NULL).
+        // The thumbnail is a second live object on the same row.
         thumbKey: true,
         fileName: true,
         album: { select: { title: true } },
@@ -150,10 +113,6 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
     db.projectMailerAsset.findMany({
       select: { objectKey: true, fileName: true, project: { select: { name: true } } },
     }),
-    // Chat media - pictures, voice notes and files sent in a personal chat, and
-    // the same three on a project message reply. These were missing entirely, so
-    // every voice note and shared file in the app read as ORPHANED and "Clean up
-    // orphans" would have deleted the lot while the messages still referenced them.
     db.chatAttachment.findMany({
       select: {
         objectKey: true,
@@ -171,9 +130,6 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
         reply: { select: { message: { select: { project: { select: { name: true } } } } } },
       },
     }),
-    // Applicant CVs. resumeKey is the object key (exact match); resumeUrl is
-    // kept for rows uploaded before that column existed, which are still matched
-    // by substring below.
     db.applicant.findMany({
       where: { OR: [{ resumeKey: { not: null } }, { resumeUrl: { not: null } }] },
       select: { resumeKey: true, resumeUrl: true, firstName: true, lastName: true },
@@ -181,7 +137,6 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
     objectsPromise,
   ])
 
-  // key -> { owner, refType, name } for every referenced object.
   type Ref = { owner: string | null; refType: StorageFile["refType"]; name: string }
   const refs = new Map<string, Ref>()
   for (const p of photos)
@@ -210,9 +165,7 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
       name: b.fileName,
     })
   for (const r of resources) {
-    // Drive-hosted rows (video) have no Backblaze object at all, so they
-    // reference nothing in this bucket and must be skipped rather than keyed on
-    // null - this map is what decides which objects are orphans.
+    // Drive-hosted rows (video) have no object in this bucket.
     if (!r.objectKey) continue
     refs.set(r.objectKey, {
       owner: r.project?.name ?? "Project",
@@ -227,16 +180,12 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
         refType: "project-logo",
         name: "Project logo",
       })
-  // Owner is the ALBUM, not the uploader: "Diwali 2026" is what tells you
-  // whether a photo still belongs somewhere; who happened to upload it does not.
   for (const g of galleryPhotos) {
     refs.set(g.objectKey, {
       owner: g.album?.title ?? "Photo Gallery",
       refType: "gallery-photo",
       name: g.fileName,
     })
-    // Same owner, distinct refType: the pair is one photo, but the row has to
-    // say WHICH file it is or the Storage screen shows two identical entries.
     if (g.thumbKey)
       refs.set(g.thumbKey, {
         owner: g.album?.title ?? "Photo Gallery",
@@ -265,11 +214,7 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
       name: a.fileName,
     })
 
-  // Resumes now carry their object key on the row (API-07), so this is an exact
-  // match rather than the old `resumeUrl.includes(key)` scan over every bucket
-  // object. The URL fallback stays for rows uploaded before resumeKey existed -
-  // getting this wrong marks a live CV as an orphan and "Clean up orphans"
-  // deletes it.
+  // Rows uploaded before resumeKey existed only have resumeUrl, so fall back to a substring match.
   const resumeKeys = objects
     .map((o: StorageObject) => o.key)
     .filter((k: string) => k.startsWith("resumes/"))
@@ -284,13 +229,7 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
       })
   }
 
-  // NO presigning here.
-  //
-  // This used to mint TWO signed URLs for EVERY object on every page load - 106
-  // signatures for 53 files, and ~1.4s of pure CPU at a thousand - to fill in
-  // two links per row that are only followed when somebody actually clicks View
-  // or Download. They are now minted on demand by
-  // GET /api/admin/storage/object?key=... instead.
+  // No presigning here: URLs are minted on demand by GET /api/admin/storage/object.
   const files: StorageFile[] = objects.map((o: StorageObject) => {
     const ref = refs.get(o.key)
     return {
@@ -305,7 +244,6 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
     }
   })
 
-  // Per-category totals.
   const catMap = new Map<StorageCategory, { count: number; size: number }>()
   for (const f of files) {
     const cur = catMap.get(f.category) ?? { count: 0, size: 0 }
@@ -331,13 +269,8 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
   }
 }
 
-/**
- * Delete an object from B2 AND clear the DB row that points at it, so the app is
- * never left with a broken reference. Deleting an orphan just removes the object.
- * Returns the friendly name for the toast.
- */
+/** Deletes the object AND clears the DB row pointing at it. Returns a name for the toast. */
 export async function deleteStorageObject(key: string): Promise<{ name: string }> {
-  // Remove the owning DB row / pointer first (best-effort per type), then the object.
   const [emp, doc, empDoc, brand, resource, project, chatFile, msgFile, applicant] =
     await Promise.all([
       db.employee.findFirst({ where: { profilePhotoKey: key }, select: { id: true } }),
@@ -360,10 +293,9 @@ export async function deleteStorageObject(key: string): Promise<{ name: string }
         where: { objectKey: key },
         select: { id: true, fileName: true },
       }),
-      // resumeUrl holds a signed URL, so match the key inside it (see the
-      // overview: getObjectKey() output is URL-safe, so this is exact).
+      // Older rows only have resumeUrl (a signed URL), so also match the key inside it.
       db.applicant.findFirst({
-        where: { resumeUrl: { contains: key } },
+        where: { OR: [{ resumeKey: key }, { resumeUrl: { contains: key } }] },
         select: { id: true, firstName: true, lastName: true },
       }),
     ])
@@ -377,16 +309,15 @@ export async function deleteStorageObject(key: string): Promise<{ name: string }
   if (empDoc) await db.employeeDocument.delete({ where: { id: empDoc.id } })
   if (brand) await db.brandAsset.delete({ where: { id: brand.id } })
   if (resource) await db.projectResource.delete({ where: { id: resource.id } })
-  // Clear the pointer, don't delete the project. Same shape as the profile-photo
-  // case above: the object goes, its owner stays.
   if (project)
     await db.project.update({ where: { id: project.id }, data: { logo: null, logoKey: null } })
-  // The attachment row goes with the file; the message it hangs off stays, the
-  // same way deleting a profile photo leaves the employee.
   if (chatFile) await db.chatAttachment.delete({ where: { id: chatFile.id } })
   if (msgFile) await db.projectMessageAttachment.delete({ where: { id: msgFile.id } })
   if (applicant)
-    await db.applicant.update({ where: { id: applicant.id }, data: { resumeUrl: null } })
+    await db.applicant.update({
+      where: { id: applicant.id },
+      data: { resumeUrl: null, resumeKey: null },
+    })
 
   await deleteFile(key).catch((e) => console.error("[storage] B2 delete failed:", key, e))
 

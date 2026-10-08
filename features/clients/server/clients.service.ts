@@ -19,11 +19,7 @@ import {
   type ClientUpdateInput,
 } from "../schemas/client.schema"
 
-// =============================================================================
-// Writes for the client book: the company itself. Its people (portal logins)
-// and what they may see are the client-portal feature's business - see
-// features/client-portal/server/client-contacts.service.ts.
-// =============================================================================
+// Writes for the client company itself; its portal logins live in the client-portal feature.
 
 /** Empty string -> null, so a field cleared in the form clears the column. */
 const nullable = (v: string | null | undefined): string | null => {
@@ -43,11 +39,8 @@ async function assertOwner(ownerId: string | null | undefined): Promise<string |
   return emp.id
 }
 
-/**
- * "Acme Studios" -> "acme-studios", with "-2", "-3"… on a collision. The same
- * rule as project slugs, and like them generated ONCE: a slug that moved on
- * rename would break every link already shared.
- */
+/** "Acme Studios" -> "acme-studios" (-2, -3... on collision). Generated once, so shared links
+ *  survive a rename. */
 async function generateClientSlug(name: string, fallback: string): Promise<string> {
   const base = slugify(name) || slugify(fallback)
   const taken = await db.client.findMany({
@@ -63,11 +56,8 @@ async function generateClientSlug(name: string, fallback: string): Promise<strin
   return slugify(fallback)
 }
 
-/**
- * CL00001, CL00002… Fixed width and zero-padded, so the lexicographically
- * highest code is the numerically highest one and the database can find it.
- * `attempt` nudges past a slot another create took in the same instant.
- */
+/** CL00001, CL00002... zero-padded so the highest code sorts last; `attempt` skips a slot taken
+ *  by a concurrent create. */
 async function nextCode(attempt: number): Promise<string> {
   const last = await db.client.findFirst({
     where: { code: { startsWith: "CL" } },
@@ -103,8 +93,7 @@ export async function createClient(
     const ownerId = await assertOwner(input.ownerId)
     const optional = optionalColumns(input)
 
-    // Retry on the unique-violation race: two concurrent creates compute the
-    // same next code, and the loser should get the next one, not a 500.
+    // Retry on the unique-violation race so the loser of two concurrent creates gets the next code.
     for (let attempt = 0; ; attempt++) {
       const code = await nextCode(attempt)
       try {
@@ -163,14 +152,8 @@ export async function updateClient(
   })
 }
 
-/**
- * Delete a client - only one with nothing hanging off it.
- *
- * A client with projects or portal logins is a record of work done and people
- * given access; the honest way to retire that is status INACTIVE, which keeps
- * every link intact. Refusing here rather than cascading is what makes the
- * SetNull foreign keys safe: they exist for the database's sake, not as a path.
- */
+/** Delete a client only when nothing hangs off it; otherwise use status INACTIVE, which keeps
+ *  every link intact. */
 export async function deleteClient(id: string, session: Session): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const client = await db.client.findUnique({

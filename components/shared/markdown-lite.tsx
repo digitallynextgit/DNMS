@@ -4,11 +4,8 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /**
- * Renders the small markdown subset our AI replies use - **bold**, *italic*,
- * `code`, "- " bullets and blank-line paragraphs.
- *
- * Everything is built as real React elements (never dangerouslySetInnerHTML), so
- * nothing inside a model reply can inject markup.
+ * The small markdown subset AI replies use. Built as React elements (never innerHTML), so a reply
+ * can't inject markup.
  */
 function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = []

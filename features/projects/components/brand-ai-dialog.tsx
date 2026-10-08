@@ -24,8 +24,7 @@ export interface BriefDocument {
   mimeType: string
 }
 
-/** Mirrors lib/file-text's isExtractable (server-only) so the list can flag an
- *  unreadable file before a round trip rather than after. */
+/** Mirrors lib/file-text's isExtractable (server-only) to flag unreadable files before a round trip. */
 function looksReadable(mimeType: string, fileName: string): boolean {
   const n = fileName.toLowerCase()
   return (
@@ -48,18 +47,13 @@ function fmtBytes(b: number): string {
 interface BodyProps {
   projectId: string
   documents: BriefDocument[]
-  /** Whether the brief field already has text - decides Replace vs Use wording. */
+  /** Decides "Replace" vs "Use" wording. */
   hasCurrentBrief: boolean
   onApply: (text: string, mode: "replace" | "append") => void
   onClose: () => void
 }
 
-/**
- * "Draft with AI" for the brand brief: pick which uploaded documents to read,
- * get a drafted brief + recommendations + open questions, then push the draft
- * into the brief field. The field's own Save button is still the only thing
- * that persists it.
- */
+/** Pushes the draft into the brief field; that field's own Save button is what persists it. */
 export function BrandAiDialog({
   open,
   onOpenChange,
@@ -71,8 +65,7 @@ export function BrandAiDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl">
-        {/* State lives in a child that only exists while open, so each opening
-            starts fresh (selection + result) without an effect. */}
+        {/* Mounted only while open, so each opening starts fresh without an effect. */}
         <Body {...body} onClose={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>

@@ -1,7 +1,5 @@
 import { PageHeaderSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
 
-// Mirrors the page's own loading branch: header with a tab strip, then the
-// checklist table (employee, progress, start date, status, actions = 5 cols).
 export default function OnboardingLoading() {
   return (
     <div className="space-y-6">

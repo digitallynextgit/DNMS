@@ -16,9 +16,7 @@ import { useBirthdayCalendar, type CalendarBirthday } from "../hooks/use-birthda
 import { daysFromToday, relativeDayLabel, todayKey } from "../lib/relative-day"
 import { YearSelect } from "./year-select"
 
-// The Birthday Calendar view: everyone's birthdays (day and month only - no
-// ages) as a month grid with the upcoming ones beside it, or as a table of the
-// whole year.
+// Birthdays show day and month only - never ages.
 
 const MONTHS = [
   "January",
@@ -48,8 +46,7 @@ export function BirthdaysCalendarView() {
   const birthdays = data ?? []
   const inMonth = birthdays.filter((b) => b.date.startsWith(`${year}-${pad(month + 1)}`)).length
 
-  // `tab` is shared with the other calendars' tabs in the URL - anything that
-  // is not one of ours (e.g. "floating" after switching over) means the grid.
+  // `tab` is shared with the other calendars in the URL; anything not ours means the grid.
   const activeTab = (TABS as readonly string[]).includes(tab) ? tab : "calendar"
 
   function changeYear(next: number) {
@@ -162,11 +159,9 @@ export function BirthdaysCalendarView() {
         />
       </div>
 
-      {/* ── Month grid ── */}
       <TabsContent value="calendar">
         <div className="grid items-start gap-4 xl:grid-cols-[1fr_20rem]">
-          {/* The month grid already draws birthdays; with no holidays passed it
-              is a birthday calendar - same grid, same day detail, no second one. */}
+          {/* With no holidays passed, the shared month grid is a birthday calendar. */}
           <HolidayMonthCalendar
             year={year}
             month={month}
@@ -179,7 +174,6 @@ export function BirthdaysCalendarView() {
         </div>
       </TabsContent>
 
-      {/* ── The whole year as a table, in date order ── */}
       <TabsContent value="table">
         {isLoading || birthdays.length > 0 ? (
           <DataTable

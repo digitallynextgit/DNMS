@@ -19,8 +19,6 @@ const row: Variants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
 }
 
-/** Bespoke visual: an attendance-accurate payslip with a bold Net Pay total,
- *  beside a circular KPI ring gauge that maps scores to increments. */
 function PayrollVisual() {
   const lines: [string, string, number][] = [
     ["Basic", "+", 42000],
@@ -38,8 +36,7 @@ function PayrollVisual() {
   const circ = 2 * Math.PI * 34
   const dash = (score / 100) * circ
 
-  // Draw the ring in when it scrolls into view - transitions only
-  // stroke-dashoffset (no transform), so it can never overflow the card.
+  // Draw the ring in on scroll; only stroke-dashoffset animates, so it can't overflow the card.
   const ringRef = useRef<HTMLDivElement>(null)
   const [drawn, setDrawn] = useState(false)
   useEffect(() => {
@@ -60,7 +57,6 @@ function PayrollVisual() {
 
   return (
     <div className="flex h-full flex-col gap-3 sm:flex-row">
-      {/* payslip */}
       <div className="border-border bg-background flex flex-1 flex-col rounded-sm border p-4">
         <div className="mb-3 flex items-center gap-2">
           <span className="bg-primary/10 text-primary flex h-7 w-7 items-center justify-center rounded-full">
@@ -102,7 +98,6 @@ function PayrollVisual() {
         </div>
       </div>
 
-      {/* KPI ring */}
       <div className="border-border bg-background flex flex-1 flex-col items-center justify-center rounded-sm border p-4">
         <div ref={ringRef} className="relative h-28 w-28">
           <svg viewBox="0 0 80 80" className="h-28 w-28 -rotate-90">

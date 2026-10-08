@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -15,11 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useCreateSeoSite, useGscSites } from "../hooks/use-seo"
 
-// Add a site. Deliberately only asks for the three things needed to start
-// pulling data: what to call it, where it lives, and which Search Console
-// property to read. Keywords, pages, competitors, GA4 and targets are each
-// configured afterwards from the setup guide, one at a time, so nobody has to
-// fill in nine boxes before seeing a single number.
+// Add a site: name, domain and Search Console property. The rest comes later via the setup guide.
 
 export function SiteFormDialog({
   projectId,
@@ -38,12 +34,15 @@ export function SiteFormDialog({
   const [domain, setDomain] = useState("")
   const [siteUrl, setSiteUrl] = useState("")
 
-  useEffect(() => {
-    if (!open) return
-    setLabel("")
-    setDomain("")
-    setSiteUrl("")
-  }, [open])
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setLabel("")
+      setDomain("")
+      setSiteUrl("")
+    }
+  }
 
   const { data: sitesData } = useGscSites(open && gscConfigured)
   const suggested = useMemo(() => {

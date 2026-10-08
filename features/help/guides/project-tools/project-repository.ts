@@ -1,8 +1,7 @@
 import { HardDrive } from "lucide-react"
 import type { HelpGuide } from "../../types"
 
-// Screens: features/projects/components/drive-tab.tsx (the Repository tab, once
-// called Drive) and files/*.tsx (link, name, move and details dialogs).
+// Screens: features/projects/components/drive-tab.tsx (the Repository tab) and files/*.tsx.
 
 const REPOSITORY = "/projects/sunmeadow-organics-launch?tab=repository"
 
@@ -53,9 +52,7 @@ export const projectRepositoryGuide: HelpGuide = {
             id: "project-repository-list",
             as: "employee",
             path: REPOSITORY,
-            // The filters are Radix selects: a combobox takes no name from its
-            // content, so they are found by the value they show - the whole
-            // dropdown, not just the words inside it.
+            // Radix selects take no name from their content, so they're found by the value they show.
             highlight: [
               { placeholder: "Search in Repository..." },
               { css: 'button[role=combobox]:has-text("All tags")' },

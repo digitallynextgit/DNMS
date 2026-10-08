@@ -94,9 +94,6 @@ export default function EmployeeAttendancePage() {
 
   return (
     <div className="space-y-6">
-      {/* One PageHeader: the back button, the avatar and the identity line all live in
-          it, so this page's Back button is the SAME control (outline, size sm, hover
-          chevron) as every other detail page instead of a one-off ghost link. */}
       <PageHeader
         backHref="/attendance/attendance-directory"
         backLabel="Back to directory"

@@ -22,9 +22,7 @@ function viewerRole(
   session: Session,
   ev: { employeeId: string; managerId: string | null; controllerId: string | null },
 ): Viewer {
-  // Your OWN evaluation always opens as the employee (self side) - even if you
-  // are HR, a manager or a controller. Otherwise an HR person could never fill
-  // their own self-evaluation, since HR would win the role.
+  // Your own evaluation always opens on the self side, even for HR - or HR could never self-evaluate.
   if (ev.employeeId === session.user.id) return "EMPLOYEE"
   if (ev.managerId === session.user.id) return "MANAGER"
   if (ev.controllerId === session.user.id) return "CONTROLLER"
@@ -32,8 +30,6 @@ function viewerRole(
   return null
 }
 
-// GET - one evaluation. Participants only. An employee can't see the manager's
-// ratings/score until the manager has actually submitted them.
 export const GET = withSession(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -67,7 +63,6 @@ export const GET = withSession(
   },
 )
 
-// PATCH - submit one side's ratings. body: { role: "SELF"|"MANAGER", ratings, comment? }
 export const PATCH = withSession(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -90,7 +85,6 @@ export const PATCH = withSession(
         )
       }
 
-      // Authorize the submission against the requested side.
       const isHr = hasPermission(session, PERMISSIONS.PERFORMANCE_REVIEW)
       if (role === "SELF" && ev.employeeId !== session.user.id) {
         return NextResponse.json(
@@ -154,7 +148,6 @@ export const PATCH = withSession(
         include: { employee: employeeSelect, manager: employeeSelect, controller: employeeSelect },
       })
 
-      // Notify the other side / employee on the manager's verdict.
       if (role === "MANAGER" && ev.employeeId !== session.user.id) {
         await createNotification({
           employeeId: ev.employeeId,
@@ -189,7 +182,6 @@ export const PATCH = withSession(
   },
 )
 
-// DELETE - remove an evaluation (HR only).
 export const DELETE = withSession(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {

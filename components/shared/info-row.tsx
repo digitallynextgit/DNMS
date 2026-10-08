@@ -3,12 +3,6 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 
-// =============================================================================
-// The ONE read-only label/value row, plus the section heading that sits above a
-// grid of them. The employee profile, the my-profile page and the project
-// overview each carried a byte-identical private copy of these.
-// =============================================================================
-
 export interface InfoRowProps {
   label: string
   value?: React.ReactNode
@@ -21,9 +15,7 @@ export interface InfoRowProps {
 
 export function InfoRow({ label, value, mono, icon: Icon, className }: InfoRowProps) {
   return (
-    // min-w-0 lets this shrink inside a grid/flex parent (grid items default to
-    // min-width:auto, which is what pushed the cell past its column), and
-    // break-words wraps an unbreakable value instead of clipping it.
+    // min-w-0 lets it shrink inside grid/flex; break-words wraps long unbreakable values.
     <div className={cn("min-w-0 space-y-0.5", className)}>
       <p className="text-muted-foreground text-xs tracking-wide uppercase">{label}</p>
       <p

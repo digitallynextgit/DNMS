@@ -37,9 +37,7 @@ export function useUploadDriveFile(projectId: string) {
         body: fd,
       }).then((r) => r.data)
     },
-    // No per-file success toast: uploads are batched, so the caller reports one
-    // summary instead of N toasts. Failures still toast individually - knowing
-    // WHICH file failed, and why, is worth the noise.
+    // No per-file success toast: the caller reports one summary for the batch.
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: key(projectId) })
       qc.invalidateQueries({ queryKey: ["project-files", projectId] })

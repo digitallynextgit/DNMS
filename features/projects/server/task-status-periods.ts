@@ -4,24 +4,14 @@ import { db, type DbTransaction } from "@/server/db"
 import { getTaskEditHistory, type TaskEdit } from "@/features/projects/server/task-audit"
 import type { Prisma, TaskStatus } from "@prisma/client"
 
-/**
- * Per-status time tracking for a task.
- *
- * The invariant: a task has exactly one OPEN period (endedAt = null) and it
- * names the status the task is in right now. Every transition closes the open
- * one with its duration and opens the next, so "how long was this in Progress"
- * is a stored number rather than something reconstructed from an activity feed.
- */
+// Per-status time tracking: each task has exactly one OPEN period (endedAt null) for its current
+// status; every transition closes it with a duration and opens the next.
 
 type Tx = DbTransaction | typeof db
 
 /**
- * Record a status transition. Closes the currently open period and opens one for
- * `to`.
- *
- * If no open period exists (the task predates this table, or its first row was
- * never written) one is synthesised from `taskCreatedAt` so the history starts
- * at the task's birth instead of at the first change anyone happened to make.
+ * Close the open period and open one for `to`. With no open period (older tasks), one is
+ * synthesised from `taskCreatedAt` so history starts at the task's birth.
  */
 export async function recordStatusChange(
   tx: Tx,
@@ -32,8 +22,7 @@ export async function recordStatusChange(
     actorId: string
     taskCreatedAt: Date
     at?: Date
-    /** Why it moved here - the hold or discard reason. Kept on the period so the
-     *  history still has it after the task's own reason field is cleared. */
+    /** The hold or discard reason, kept here after the task's own reason field is cleared. */
     note?: string | null
   },
 ) {
@@ -65,7 +54,6 @@ export async function recordStatusChange(
   })
 }
 
-/** Open the first period for a freshly created task. */
 export async function openFirstStatusPeriod(
   tx: Tx,
   args: { taskId: string; status: TaskStatus; actorId: string; at?: Date },
@@ -88,23 +76,13 @@ export interface TaskTimelineEntry {
   /** Null while the period is still open - the client counts up from startedAt. */
   durationSeconds: number | null
   actor: { id: string; firstName: string; lastName: string } | null
-  /** Why it was moved here - the hold or discard reason. Null for periods
-   *  recorded before reasons were kept, and for statuses that need none. */
+  /** The hold or discard reason; null for older periods and statuses that need none. */
   note: string | null
   /** Which leg of the hold chain this belongs to - see TaskTimelineLeg. */
   legIndex: number
 }
 
-/**
- * One task in a hold chain.
- *
- * Holding work books its unfinished hours onto a new task for the day it should
- * resume, so a job carried across Monday, Tuesday and Wednesday is THREE task
- * rows. Each row knowing only its own day makes the history useless: opening
- * Wednesday's would show a task created that morning with no hint that it began
- * on Monday, or why it was parked twice. The legs let one log tell the whole
- * story.
- */
+/** One task in a hold chain: work carried across three days is three task rows. */
 export interface TaskTimelineLeg {
   id: string
   /** 1-based, oldest first. */
@@ -129,7 +107,6 @@ export interface TaskTimeline {
   entries: TaskTimelineEntry[]
   /** Total seconds per status across every stretch, closed periods only. */
   totals: Record<string, number>
-  /** Field edits - who changed what, from what to what. */
   edits: (TaskEdit & { legIndex: number })[]
   estimatedHours: number | null
   loggedHours: number
@@ -145,13 +122,8 @@ export interface TaskTimeline {
 /** Guards against a cycle in resumed_from_id turning a walk into a hang. */
 const MAX_CHAIN = 50
 
-/**
- * Every task belonging to the same piece of work as `taskId`: walk up to the
- * original, then back down through everything it spawned. Opening ANY leg gives
- * the same full set, so the history reads the same from wherever you enter it.
- */
+/** Every task in the same piece of work: up to the original, then down through all it spawned. */
 async function resolveChain(taskId: string): Promise<string[]> {
-  // Up to the root.
   let rootId = taskId
   for (let i = 0; i < MAX_CHAIN; i++) {
     const parent = await db.projectTask.findUnique({
@@ -162,8 +134,7 @@ async function resolveChain(taskId: string): Promise<string[]> {
     rootId = parent.resumedFromId
   }
 
-  // Down through the descendants. A tree rather than a strict line: a follow-up
-  // that was finished and the work held again spawns a sibling.
+  // Descendants form a tree, not a line: holding the work again can spawn a sibling.
   const ids = [rootId]
   let frontier = [rootId]
   for (let i = 0; i < MAX_CHAIN && frontier.length > 0; i++) {
@@ -177,16 +148,7 @@ async function resolveChain(taskId: string): Promise<string[]> {
   return ids
 }
 
-/**
- * Full history for a piece of work, oldest first - across every leg of its hold
- * chain, not just the task that was opened.
- *
- * Work carried across three days is three task rows, and a log that stops at
- * this row's own creation cannot answer "why was this parked on Monday". So the
- * whole chain is resolved and merged onto one chronology; the leg boundaries are
- * kept as markers rather than flattened away, because "carried over to Tuesday"
- * is itself part of the story.
- */
+/** Full history across every leg of the hold chain, oldest first, with leg boundaries kept. */
 export async function getTaskTimeline(taskId: string): Promise<TaskTimeline | null> {
   const chainIds = await resolveChain(taskId)
 
@@ -231,8 +193,7 @@ export async function getTaskTimeline(taskId: string): Promise<TaskTimeline | nu
     Promise.all(tasks.map((t) => getTaskEditHistory(t.id))),
   ])
 
-  // A task that has never changed status has no row yet: show its current status
-  // as running since creation rather than an empty history.
+  // Never changed status: show the current status as running since creation.
   const entries: TaskTimelineEntry[] =
     periods.length > 0
       ? periods.map((p) => ({
@@ -262,8 +223,7 @@ export async function getTaskTimeline(taskId: string): Promise<TaskTimeline | nu
     legEdits.map((e) => ({ ...e, legIndex: i + 1 })),
   )
 
-  // Across the WHOLE chain: "how long did this sit on hold" is a question about
-  // the work, not about whichever row happens to hold it today.
+  // Across the whole chain: hold time belongs to the work, not today's row.
   const totals: Record<string, number> = {}
   for (const e of entries) {
     if (e.durationSeconds != null) totals[e.status] = (totals[e.status] ?? 0) + e.durationSeconds
@@ -272,7 +232,6 @@ export async function getTaskTimeline(taskId: string): Promise<TaskTimeline | nu
   const finished = [...tasks].reverse().find((t) => t.completedAt)
 
   return {
-    // The first leg's birth - when this work actually started being tracked.
     createdAt: tasks[0]!.createdAt.toISOString(),
     startedAt: entries.find((e) => e.status === "IN_PROGRESS")?.startedAt ?? null,
     completedAt: finished?.completedAt?.toISOString() ?? null,
@@ -282,8 +241,7 @@ export async function getTaskTimeline(taskId: string): Promise<TaskTimeline | nu
     estimatedHours: task.estimatedHours,
     loggedHours: task.loggedHours,
     inProgressSince: task.inProgressSince?.toISOString() ?? null,
-    // Only meaningful while the task is actually on hold; any other status has
-    // already cleared it.
+    // Only meaningful while on hold.
     holdExpectedDate:
       task.status === "ON_HOLD" ? (task.holdExpectedDate?.toISOString() ?? null) : null,
     legs,

@@ -6,14 +6,8 @@ import { syncDeviceSmart } from "@/features/attendance/server/sync"
 import type { Session } from "next-auth"
 import { resolveDevice } from "@/features/attendance/server/device-resolver"
 
-// Manually trigger a sync for one device. The DNMS must be able to reach the
-// device (run it on the same network). NO simulation fallback - if the device is
-// unreachable this returns an error rather than inventing data.
-//
-// Smart per-employee window: never-synced employees get a full backfill, the rest
-// just re-pull from their last recorded day. Optional query params:
-//   ?employeeNo=145  → sync only that employee (by HR code or device id)
-//   ?full=1          → force a complete re-backfill (ignore existing data)
+// The server must reach the device on the network; there is no simulated fallback.
+// ?employeeNo= syncs one person, ?full=1 forces a complete re-backfill.
 export const POST = withAuth(
   PERMISSIONS.ATTENDANCE_WRITE,
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
@@ -44,12 +38,8 @@ export const POST = withAuth(
         )
       }
 
-      // Only a whole-device sync advances lastSyncAt - a single-employee sync must
-      // not make the next incremental sync think everyone is up to date. And only a
-      // run that COMPLETED the whole span may advance it: `lastSyncAt` is now what
-      // decides whether an employee has been covered, so advancing it after a run
-      // that bailed on device errors would mark people as synced whose older windows
-      // were never fetched.
+      // Only a completed whole-device run may advance lastSyncAt, otherwise people whose older
+      // windows were never fetched would count as synced.
       if (!onlyEmployeeNo && result.completed) {
         await db.hikvisionDevice.update({ where: { id }, data: { lastSyncAt: new Date() } })
       }

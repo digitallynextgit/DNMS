@@ -1,7 +1,3 @@
-// Public API for the "project-mailer" feature (CLAUDE.md §1, rule #2).
-// Server-only modules are NOT re-exported - API routes import those directly,
-// so nothing drags `server-only` into a client bundle.
-
 export {
   mailerSettingsSchema,
   templateSchema,
@@ -22,8 +18,7 @@ export {
 
 export { ProjectMailerTab } from "./components/project-mailer-tab"
 
-// Merge engine - client-safe, shared by the compose preview and the send runner
-// so a preview cannot diverge from what actually goes out.
+// Merge engine: shared by the preview and the send runner, so they can't diverge.
 export {
   BUILTIN_VARS,
   extractVars,

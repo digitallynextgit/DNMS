@@ -33,14 +33,12 @@ const CHANNELS = [
   },
 ]
 
-/** Contact page body: form on the left, direct channels on the right. */
 export function ContactContent() {
   return (
     <div className="relative">
       <GridBackdrop />
 
       <div className="relative mx-auto max-w-[1600px] px-4 pt-28 pb-24 sm:px-6 lg:pt-32">
-        {/* ── Header ─────────────────────────────────────────────────────── */}
         <Reveal>
           <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
@@ -54,13 +52,7 @@ export function ContactContent() {
           </span>
         </Reveal>
 
-        {/* Title left, standfirst right, both STARTING on the same line - the
-            same header treatment as About and Pricing.
-
-            The heading is NOT split onto two lines here. On those pages the red
-            phrase is two or three words and earns its own line; "solve." is one
-            short word, and giving it a line of its own leaves an orphan rather
-            than a second line. It fits comfortably on one at this size. */}
+        {/* Heading on one line here - "solve." alone would be an orphan on a second line. */}
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.65fr)] lg:items-start lg:gap-12 xl:gap-16">
           <Reveal delay={60}>
             <h1 className="text-4xl font-bold tracking-tight text-balance sm:text-5xl">
@@ -76,7 +68,6 @@ export function ContactContent() {
           </Reveal>
         </div>
 
-        {/* ── Form + channels ────────────────────────────────────────────── */}
         <div className="mt-14 grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] lg:gap-16 xl:gap-24">
           <Reveal>
             <div className="border-border/70 bg-card/50 rounded-sm border p-6 sm:p-8">

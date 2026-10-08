@@ -5,8 +5,7 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
-// PATCH { action: "FULFILL" | "CANCEL" }. Employee can fulfill their own;
-// HR (document:write) can fulfill or cancel any.
+// Employees fulfil their own; HR (document:write) can fulfil or cancel any.
 export const PATCH = withSession(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {

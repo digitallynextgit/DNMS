@@ -1,15 +1,7 @@
 import "server-only"
 
-/**
- * Reaction rows → what a bubble renders.
- *
- * Done on the SERVER so a message carries its reactions already grouped: the
- * alternative is every bubble re-grouping the same rows on every render, which
- * is once per message per keystroke in the composer above it.
- *
- * Names are capped: a 40-person "👍" needs a tooltip you can read, and `count`
- * still carries the real total so the chip never lies.
- */
+// Grouped on the server so bubbles don't re-group on every render. Names are capped for a readable
+// tooltip; `count` keeps the real total.
 const MAX_NAMES = 8
 
 export interface ReactionRow {
@@ -40,6 +32,5 @@ export function groupReactions(rows: ReactionRow[], viewerId: string): ReactionG
     }
     byEmoji.set(r.emoji, g)
   }
-  // Most-reacted first, so the chip people are actually piling onto leads.
   return [...byEmoji.values()].sort((a, b) => b.count - a.count)
 }

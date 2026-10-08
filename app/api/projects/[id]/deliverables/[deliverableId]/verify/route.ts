@@ -6,11 +6,7 @@ import { getDeliverableRow } from "@/features/projects/server/deliverables.queri
 import { verifyDeliverable } from "@/features/projects/server/deliverables.service"
 import { AppError } from "@/lib/errors"
 
-// POST /api/projects/[id]/deliverables/[deliverableId]/verify { verified: boolean }
-//
-// Internal QC sign-off, not the client's verdict: a manager saying they have
-// looked at it. A toggle rather than a one-way flag, because a sign-off given
-// by mistake has to be retractable - both directions are written to history.
+// Internal QC sign-off, not the client's verdict. A toggle so a mistaken sign-off can be retracted.
 export const dynamic = "force-dynamic"
 
 export const POST = withProjectAccess(

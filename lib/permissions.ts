@@ -1,10 +1,4 @@
-// =============================================================================
-// Pure, client-safe session predicates.
-// =============================================================================
-// No server-only imports here (these run in both client and server contexts,
-// e.g. the sidebar checks permissions). Route wrappers / getSession live in
-// @/server/api-handler.
-// =============================================================================
+// Pure session predicates, safe on client and server (no server-only imports).
 
 import { SYSTEM_ROLES } from "./constants"
 import type { Session } from "next-auth"

@@ -22,7 +22,6 @@ const createSchema = z
     message: "Provide a keyword or a target query",
   })
 
-// GET - every content brief for this site.
 export const GET = withAuth(
   PERMISSIONS.PROJECT_READ,
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
@@ -33,7 +32,6 @@ export const GET = withAuth(
   },
 )
 
-// POST - create a brief from a backlog keyword or a free-typed target query.
 export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _s: Session) => {
     const { id, propertyId } = ctx.params

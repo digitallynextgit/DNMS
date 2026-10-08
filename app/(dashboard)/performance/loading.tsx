@@ -4,7 +4,6 @@ import {
   ListSkeleton,
 } from "@/components/shared/loading-skeleton"
 
-// Performance landing: header + summary cards + evaluations list.
 export default function PerformanceLoading() {
   return (
     <div className="space-y-8">

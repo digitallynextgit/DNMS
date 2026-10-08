@@ -31,8 +31,7 @@ import {
 } from "@/lib/constants"
 import { formatDate } from "@/lib/utils"
 import { ProjectFormDialog, ProjectLogo, projectHref } from "@/features/projects"
-// The leaf helper, not the clients barrel: the barrel would land the whole
-// client book (and the portal feature behind it) in the projects board bundle.
+// Leaf helper, not the clients barrel: the barrel would pull the whole client book into this bundle.
 import { clientHref } from "@/features/clients/lib/client-href"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 
@@ -62,10 +61,7 @@ interface Project {
 
 const PAGE_SIZE = 10
 
-/** Status groups, in the order they are stacked down the page. CANCELLED is a
- *  valid ProjectStatus too - leaving it out made a page whose every project was
- *  cancelled render completely blank (the empty-state check keys off
- *  projects.length, which was > 0). */
+/** Status groups, top to bottom. CANCELLED must be here or an all-cancelled list renders blank. */
 const STATUS_ORDER = ["PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"] as const
 
 async function fetchProjects(): Promise<{ data: Project[] }> {
@@ -83,16 +79,13 @@ export function ProjectsClient() {
   const { data, isLoading } = useQuery({ queryKey: ["projects"], queryFn: fetchProjects })
   const projects = data?.data ?? []
 
-  // A project's ACCOUNT MANAGER (owner) can do anything on their own project,
-  // just like an admin - even without the global project:write permission.
+  // The account manager (owner) can manage their own project even without project:write.
   const canManageProject = (p: Project) => canWrite || p.owner.id === userId
   const showBudget = canWrite || projects.some((p) => p.owner.id === userId)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<Project | null>(null)
-  // This page is card/table only. The board view was removed, but a stored
-  // preference from when it existed would otherwise restore a mode that no
-  // longer renders, so it falls back to cards.
+  // Card/table only: a stored "board" preference from the removed board view falls back to cards.
   const [storedView, setViewMode] = useViewMode("projects:list")
   const viewMode = storedView === "kanban" ? "card" : storedView
   const [page, setPage] = useUrlPage()
@@ -100,19 +93,16 @@ export function ProjectsClient() {
   const total = projects.length
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  // Reset to page 1 when switching views. Skips mount so a deep-linked ?page=N
-  // isn't clobbered on first render.
+  // Skips mount so a deep-linked ?page=N isn't clobbered on first render.
   useUpdateEffect(() => {
     setPage(1)
   }, [viewMode])
 
-  // Clamp the page if the list shrinks below the current page.
   useEffect(() => {
     if (!isLoading && page > totalPages) setPage(totalPages)
   }, [page, totalPages, isLoading])
 
-  // Card view shows every project; only the table view is paginated. The
-  // result is then regrouped by status for the section rendering.
+  // Only the table view is paginated; the result is regrouped by status.
   const paginated = viewMode === "table"
   const pageProjects = useMemo(() => {
     if (!paginated) return projects
@@ -120,12 +110,10 @@ export function ProjectsClient() {
     return projects.slice(start, start + PAGE_SIZE)
   }, [projects, page, paginated])
 
-  // Status grouping for the card / table views.
   const pageStatusGroups = STATUS_ORDER.map(
     (status) => [status, pageProjects.filter((p) => p.status === status)] as const,
   )
 
-  // Table view uses the shared DataTable (S.No, house styling, scroll handling).
   // One table per status group, so the S.No restarts within each group.
   const tableColumns: DataTableColumn<Project>[] = [
     { header: "Code", className: "font-mono text-xs", cell: (p) => p.code },
@@ -264,7 +252,6 @@ export function ProjectsClient() {
           }
         />
       ) : (
-        /* ── Card / Table views ── */
         <div className="space-y-6">
           {pageStatusGroups.map(([status, group]) =>
             group.length === 0 ? null : (
@@ -296,10 +283,7 @@ export function ProjectsClient() {
                         key={project.id}
                         className="group bg-card hover:border-foreground/20 hover:bg-muted/30 relative flex flex-col gap-3 rounded-sm border p-4 transition-colors"
                       >
-                        {/* Stretched link: an absolutely-positioned overlay makes the
-                            WHOLE card clickable while keeping the markup valid (an
-                            <a> may not wrap buttons). Anything interactive on the
-                            card sits above it with `relative z-10`. */}
+                        {/* Stretched link: the whole card is clickable; interactive bits sit above it (relative z-10). */}
                         <Link
                           href={projectHref(project)}
                           aria-label={`Open ${project.name}`}
@@ -401,9 +385,7 @@ export function ProjectsClient() {
                         </div>
 
                         <div className="flex items-center gap-1">
-                          {/* Dedupe: someone on two of the project's teams
-                              appears twice in members, which drew their avatar
-                              twice AND made React key collisions. */}
+                          {/* Dedupe: someone on two of the project's teams appears twice in members. */}
                           {Array.from(
                             new Map(project.members.map((m) => [m.employee.id, m])).values(),
                           )

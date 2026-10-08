@@ -72,8 +72,7 @@ export default function PayrollPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [bulkStatusPending, setBulkStatusPending] = useState(false)
 
-  // Server-side pagination: reset to the first page whenever a filter changes.
-  // SearchInput debounces `employeeSearch` internally before it reaches state.
+  // Reset to the first page whenever a filter changes (SearchInput already debounces).
   useUpdateEffect(() => {
     setPage(1)
   }, [month, year, status, employeeSearch])
@@ -101,7 +100,6 @@ export default function PayrollPage() {
 
   const summary = summaryData?.data
 
-  // Per-page row selection with an indeterminate "select all on page" master.
   const { selectedIds, count, isSelected, toggle, toggleAll, clear, allSelected, someSelected } =
     useRowSelection<string>(records.map((r) => r.id))
 
@@ -242,7 +240,6 @@ export default function PayrollPage() {
         }
       />
 
-      {/* Month/Year selector */}
       <div className="flex flex-wrap items-center gap-3">
         <PayrollFilters
           month={month}
@@ -257,8 +254,6 @@ export default function PayrollPage() {
         />
       </div>
 
-      {/* Summary cards - the card shells (title + icon tile) paint immediately;
-          only the value is placeheld, so nothing shifts when the summary lands. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="p-5">
@@ -317,8 +312,6 @@ export default function PayrollPage() {
         </Card>
       </div>
 
-      {/* Status breakdown badges - the row itself paints immediately (the four
-          statuses are fixed); only the counts are placeheld. */}
       <div className="flex flex-wrap gap-2">
         {Object.entries(statusBreakdown).map(([s, statusCount]) => {
           const color = PAYROLL_STATUS_COLORS[s] ?? TONE.neutral
@@ -342,7 +335,6 @@ export default function PayrollPage() {
         })}
       </div>
 
-      {/* Bulk actions */}
       {can(PERMISSIONS.PAYROLL_PROCESS) && (
         <BulkActionBar count={count} onClear={clear}>
           <DropdownMenu>
@@ -367,8 +359,6 @@ export default function PayrollPage() {
         </BulkActionBar>
       )}
 
-      {/* Records table - rendered while loading too; <DataTable loading /> draws
-          skeleton rows inside the real <thead>, so the columns never jump. */}
       {recordsLoading || records.length > 0 ? (
         <DataTable
           columns={columns}
@@ -407,10 +397,8 @@ export default function PayrollPage() {
         />
       )}
 
-      {/* Generate dialog */}
       <GeneratePayrollDialog open={generateOpen} onOpenChange={setGenerateOpen} />
 
-      {/* Delete confirmation */}
       <ConfirmDialog
         open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}

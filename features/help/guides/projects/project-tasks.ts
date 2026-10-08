@@ -195,8 +195,7 @@ export const projectTasksGuide: HelpGuide = {
             id: "project-tasks-status-menu",
             as: "manager",
             path: "/projects/sunmeadow-organics-launch?tab=tasks",
-            // The number button itself: a role+name lookup also hits the Plan cell
-            // around it (a div role=button whose name contains this label).
+            // The number button itself: a role+name lookup also hits the Plan cell around it.
             actions: [
               { click: { css: 'button[aria-label^="Status of task"]' } },
               { waitFor: { role: "menu" } },
@@ -330,8 +329,7 @@ export const projectTasksGuide: HelpGuide = {
             as: "manager",
             path: "/projects/sunmeadow-organics-launch?tab=tasks",
             actions: [{ click: { role: "button", name: "New Task" } }],
-            // The whole Team dropdown (a Radix trigger: button role combobox) and
-            // both Estimated time boxes, not just the text inside them.
+            // The whole Team dropdown (a role=combobox button) and both Estimated time boxes.
             highlight: [
               { css: '[role=dialog] button[role=combobox]:has-text("Select a team")' },
               { placeholder: "What needs doing" },

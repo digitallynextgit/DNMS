@@ -5,18 +5,11 @@ import { getSignedUrl, getCachedSignedUrl } from "@/lib/storage"
 
 export const runtime = "nodejs"
 
-// Signature must OUTLIVE the cache window, or a cached redirect starts serving
-// 403s. Same invariant as the gallery and mailer image routes.
+// Must outlive the cache window, or a cached redirect starts serving 403s.
 const SIGNED_TTL_SECONDS = 24 * 60 * 60
 const CACHE_SECONDS = 12 * 60 * 60
 
-/**
- * GET /api/chat/attachments/:id/file
- *
- * These are PRIVATE messages, so membership is checked on every request: being
- * signed in is not enough, you have to be in the conversation the file hangs
- * from. Guessing an id gets you a 404, not somebody's photo.
- */
+// Private messages: only members of the conversation may fetch the file.
 export async function GET(req: NextRequest, ctx: { params: Promise<{ attachmentId: string }> }) {
   const wantsDownload = req.nextUrl.searchParams.get("download") === "1"
   const session = await getSession()
@@ -48,9 +41,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ attachmentI
   if (!member) return new NextResponse("Not found", { status: 404 })
 
   try {
-    // Only a deliberate download is named and forced. Leaving it off for
-    // pictures and video is what lets them render inline instead of landing in
-    // the downloads folder the moment the thread scrolls past them.
+    // Only a deliberate download sets the filename; images and video must render inline.
     const url = wantsDownload
       ? await getSignedUrl(attachment.objectKey, SIGNED_TTL_SECONDS, {
           downloadFileName: attachment.fileName,

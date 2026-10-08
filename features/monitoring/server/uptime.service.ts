@@ -1,19 +1,5 @@
-// =============================================================================
-// Uptime monitor
-// =============================================================================
-// Answers "is this site serving right now", every few minutes, so an outage is
-// measured in minutes rather than in however long it takes someone to notice the
-// orders stopped.
-//
-// Two rules keep it from becoming noise people learn to ignore:
-//
-//   1. FLAP GUARD. A single failed request means nothing - networks blip. The
-//      state only flips to DOWN after FAILURES_TO_OPEN consecutive failures, and
-//      only back to UP after SUCCESSES_TO_CLOSE consecutive successes.
-//   2. ALERT ON CHANGE. Notifications fire when the state CHANGES or when an
-//      open incident escalates - never once per tick. The same lesson the SEO
-//      monitor already learned.
-// =============================================================================
+// Uptime monitor. Flap guard: DOWN only after FAILURES_TO_OPEN consecutive failures, UP after
+// SUCCESSES_TO_CLOSE successes. Alerts fire only on a state change or escalation, never per tick.
 
 import "server-only"
 
@@ -38,10 +24,7 @@ export interface ProbeResult {
   error?: string
 }
 
-/**
- * One HTTP probe. Any 2xx/3xx counts as up: a redirect to https, or to a
- * country storefront, is still a site that is serving.
- */
+/** One HTTP probe; any 2xx/3xx counts as up (a redirect is still a serving site). */
 export async function probe(url: string): Promise<ProbeResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -75,12 +58,7 @@ export interface SweepSummary {
   escalated: number
 }
 
-/**
- * Probe every active monitor and reconcile state, incidents and alerts.
- *
- * Safe to call as often as you like: it is idempotent per tick, and everything
- * it emits is gated on a state change or an escalation deadline.
- */
+/** Probe every active monitor and reconcile state, incidents and alerts (idempotent per tick). */
 export async function runUptimeSweep(): Promise<SweepSummary> {
   const monitors = await db.uptimeMonitor.findMany({
     where: { isActive: true },
@@ -106,16 +84,10 @@ export async function runUptimeSweep(): Promise<SweepSummary> {
     escalated: 0,
   }
 
-  // Probes run in parallel - one slow site must not delay the rest of the sweep.
   const results = await Promise.all(
     monitors.map(async (m) => ({ monitor: m, result: await probe(m.url) })),
   )
 
-  // The probes were already parallel, but everything after them was not: one
-  // UPDATE and one findFirst per monitor, serialized. Both are now done for the
-  // whole sweep up front - one batched write and one keyed read - leaving only
-  // the incident/notification work, which genuinely differs per monitor, in the
-  // loop.
   const computed = results.map(({ monitor, result }) => {
     const failures = result.ok ? 0 : monitor.consecutiveFailures + 1
     const successes = result.ok ? monitor.consecutiveSuccesses + 1 : 0
@@ -160,7 +132,6 @@ export async function runUptimeSweep(): Promise<SweepSummary> {
     const monitorLink = projectMonitoringLink(monitor.project.slug, monitor.projectId)
     const openIncident = openByMonitor.get(monitor.id) ?? null
 
-    // ── Went down ────────────────────────────────────────────────────────────
     if (nextState === "DOWN" && !openIncident) {
       const incident = await db.uptimeIncident.create({
         data: {
@@ -186,7 +157,6 @@ export async function runUptimeSweep(): Promise<SweepSummary> {
       continue
     }
 
-    // ── Came back ────────────────────────────────────────────────────────────
     if (nextState === "UP" && openIncident) {
       const endedAt = new Date()
       const downMinutes = Math.max(
@@ -199,8 +169,7 @@ export async function runUptimeSweep(): Promise<SweepSummary> {
       })
       summary.recovered++
       await notifyAudience({
-        // Recovery goes to whoever was told about the outage, so an escalated
-        // incident doesn't leave the manager wondering how it ended.
+        // Recovery goes to everyone told about the outage.
         level: openIncident.escalationLevel as EscalationLevel,
         ownerId: monitor.ownerId,
         projectId: monitor.projectId,
@@ -212,7 +181,6 @@ export async function runUptimeSweep(): Promise<SweepSummary> {
       continue
     }
 
-    // ── Still down: climb the ladder until somebody acknowledges ─────────────
     if (nextState === "DOWN" && openIncident && !openIncident.acknowledgedAt) {
       if (shouldEscalate(openIncident.lastEscalatedAt, openIncident.escalationLevel)) {
         const level = Math.min(2, openIncident.escalationLevel + 1) as EscalationLevel

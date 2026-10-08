@@ -8,7 +8,6 @@ import { resignationsGuide } from "./resignations"
 import { attendanceAdminGuide } from "./attendance-admin"
 import { holidaysAdminGuide } from "./holidays-admin"
 
-/** HR: employees, structure, onboarding, exits, resignations, attendance, holidays. In the order they are listed. */
 export const hrPeopleGuides: HelpGuide[] = [
   employeeDirectoryGuide,
   departmentsGuide,

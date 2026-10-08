@@ -7,13 +7,10 @@ import {
 } from "@/features/projects/server/meta-sync.service"
 import type { Session } from "next-auth"
 
-// GET /api/projects/[id]/integration - integration status + Meta dashboard data.
 export const GET = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
-      // Either a rolling window (?days=30) or an explicit span (?from=&to=).
-      // The service treats from/to as inclusive days and ignores anything that
-      // is not a yyyy-MM-dd, so a hand-edited URL widens the range at worst.
+      // ?days=30 or ?from=&to= (inclusive days). Anything not yyyy-MM-dd is ignored by the service.
       const params = req.nextUrl.searchParams
       const daysParam = params.get("days")
       const days = daysParam ? Math.min(365, Math.max(1, Number(daysParam))) : undefined
@@ -27,7 +24,6 @@ export const GET = withProjectAccess(
   },
 )
 
-// POST /api/projects/[id]/integration - connect/update Meta credentials (managers).
 export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
@@ -37,8 +33,7 @@ export const POST = withProjectManager(
         accessToken?: string
         adAccountId?: string
       }
-      // Ad Account ID is always required; the access token may be blank when EDITING
-      // (blank = keep the stored token) - the service resolves + validates that.
+      // A blank access token while editing means "keep the stored one" (the service resolves it).
       if (!body.adAccountId?.trim()) {
         return NextResponse.json({ error: "Ad Account ID is required" }, { status: 400 })
       }
@@ -58,7 +53,6 @@ export const POST = withProjectManager(
   },
 )
 
-// DELETE /api/projects/[id]/integration - disconnect + remove synced data (managers).
 export const DELETE = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {

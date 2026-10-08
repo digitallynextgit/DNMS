@@ -5,9 +5,7 @@ import type { Session } from "next-auth"
 
 export const runtime = "nodejs"
 
-// POST /api/leave/decision/polish  { message, approved }
-// Rewrites the approver's approve/reject note into three registers so they pick
-// rather than accept whatever the model produced. Advisory only - nothing stored.
+// Rewrites the approver's note in three tones. Advisory only - nothing is stored.
 
 const SYSTEM_PROMPT = `You help a manager / HR / admin word the short reply they are sending an employee to APPROVE or DECLINE a leave request. You are polishing THEIR letter body - the greeting through the sign-off.
 

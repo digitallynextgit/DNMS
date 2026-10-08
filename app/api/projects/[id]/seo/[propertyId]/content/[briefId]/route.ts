@@ -24,7 +24,6 @@ const patchSchema = z.object({
   publishedUrl: z.string().url().nullable().optional(),
 })
 
-// PATCH - update a brief's fields, or run its QA gate (action: "qa", url).
 export const PATCH = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _s: Session) => {
     const { id, propertyId, briefId } = ctx.params
@@ -51,7 +50,6 @@ export const PATCH = withProjectManager(
   },
 )
 
-// DELETE - remove a brief.
 export const DELETE = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _s: Session) => {
     const { id, propertyId, briefId } = ctx.params

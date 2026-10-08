@@ -2,22 +2,8 @@ import type { MetadataRoute } from "next"
 import { siteConfig } from "@/lib/site"
 
 /**
- * Web app manifest, served at /manifest.webmanifest.
- *
- * The pieces of an installable app were already here - a service worker
- * (public/sw.js, which backs Web Push), an apple-touch-icon and a favicon - but
- * without this file none of it could be installed: a manifest with a name, a
- * start URL and a 192px + 512px icon is what makes the browser offer "Install".
- *
- * start_url is the internal path, not a tenant-prefixed one. It has to be: the
- * tenant segment is per-customer and this file is static. proxy.ts redirects
- * /dashboard to /{tenantSlug}/dashboard for a signed-in user and to /login
- * otherwise, so the installed icon lands in the right place either way.
- *
- * Icons are generated from public/brand-masters/brand-mark.png (see the README
- * there). Neither is declared `maskable`:
- * they are contain-fitted to the full square, so an Android maskable crop would
- * cut into the mark. Add a separately padded file if that is ever wanted.
+ * start_url is the internal path: this file is static, and proxy.ts redirects /dashboard to the
+ * tenant (or /login). Icons aren't maskable - they fill the square, so a maskable crop would cut the mark.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {

@@ -4,12 +4,8 @@ import { db } from "@/server/db"
 import { runWithTenant } from "@/server/tenant-context"
 import type { Principal } from "./principal"
 
-// =============================================================================
-// Tool-call usage log (McpToolCall). Records WHAT was called and whether it
-// worked - never arguments or results, which can hold personal data. Never
-// written for the hidden admin_ account (same rule as the audit log). Purged
-// after 90 days, opportunistically, so no extra cron is needed.
-// =============================================================================
+// Tool-call usage log: what was called and whether it worked - never arguments or results
+// (personal data). Skipped for the hidden admin_ account; purged after 90 days.
 
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000
 

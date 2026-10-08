@@ -5,7 +5,6 @@ import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { sortProjectTeams, TEAMS_ARE_FIXED } from "@/features/projects/lib/project-teams"
 import type { Session } from "next-auth"
 
-// GET /api/projects/[id]/teams - a project's teams, in catalogue order
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
@@ -15,8 +14,7 @@ export const GET = withProjectAccess(
         where: { projectId },
         include: {
           manager: { select: EMPLOYEE_SUMMARY_SELECT },
-          // The member cards show each person's designation ("No designation"
-          // otherwise) - the shared summary select doesn't carry it.
+          // The member cards show designations, which the shared summary select lacks.
           members: {
             include: {
               employee: {
@@ -36,9 +34,7 @@ export const GET = withProjectAccess(
   },
 )
 
-// POST /api/projects/[id]/teams - refused. Every project has the same six teams
-// (features/projects/lib/project-teams.ts); they are created with the project and
-// nobody, admin included, adds one. Staff a team instead.
+// Refused: every project has the same six fixed teams (features/projects/lib/project-teams.ts).
 export function POST() {
   return NextResponse.json({ error: TEAMS_ARE_FIXED }, { status: 405, headers: { Allow: "GET" } })
 }

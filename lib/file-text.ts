@@ -2,14 +2,9 @@ import "server-only"
 
 import { downloadFile } from "@/lib/storage"
 
-// =============================================================================
-// Extract plain text from a stored file so the AI assistant can answer from it.
-// Supports the common formats (PDF, Word, Excel/CSV, plain text/markdown/JSON).
-// Everything is bounded: only files under MAX_BYTES are fetched, and the returned
-// text is capped so a big document can't blow the model's context window.
-// =============================================================================
+// Plain text from a stored file for the AI assistant (PDF, Word, Excel/CSV, text). Size- and length-capped.
 
-const MAX_BYTES = 8 * 1024 * 1024 // 8 MB - skip anything larger
+const MAX_BYTES = 8 * 1024 * 1024
 const MAX_CHARS = 6000 // per-file text cap fed to the model
 
 function clean(text: string, max: number): string {
@@ -21,7 +16,7 @@ function clean(text: string, max: number): string {
     .slice(0, max)
 }
 
-/** Which file types we can turn into text. Used to pre-filter before downloading. */
+/** Pre-filter before downloading. */
 export function isExtractable(mimeType: string, fileName: string): boolean {
   const n = fileName.toLowerCase()
   return (
@@ -35,26 +30,15 @@ export function isExtractable(mimeType: string, fileName: string): boolean {
   )
 }
 
-/**
- * Download a stored file and return its extracted text (capped). Returns null on
- * anything we can't read - never throws, since the AI flow must not fail because
- * one file couldn't be parsed.
- */
+/** Null on anything unreadable - never throws, so one bad file can't fail the AI flow. */
 export async function extractFileText(input: {
   objectKey: string
   mimeType: string
   fileName: string
   fileSize?: number
-  /** Per-file text cap. Defaults to MAX_CHARS (sized for the chat assistant's
-   *  context); document-analysis flows that feed one model call pass more. */
+  /** Defaults to MAX_CHARS (chat-sized); single-call analysis flows pass more. */
   maxChars?: number
-  /**
-   * Filled with WHY a file could not be read, when it could not.
-   *
-   * Without it the only signal is null, and the caller has to guess a reason to
-   * show - which is how a bundler fault came to be reported to users as a
-   * scanned PDF, about a PDF that had twelve pages of text in it.
-   */
+  /** Receives why a file couldn't be read, so callers don't have to guess. */
   onError?: (reason: string) => void
 }): Promise<string | null> {
   const { objectKey, mimeType, fileName, fileSize } = input
@@ -80,11 +64,7 @@ export async function extractFileText(input: {
   }
 }
 
-/**
- * The same extraction for bytes we already hold (a generated report, a file the
- * AI connector just fetched). Throws on a parse failure - callers decide how to
- * report it.
- */
+/** For bytes already in hand. Throws on a parse failure. */
 export async function extractTextFromBuffer(
   buffer: Buffer,
   mimeType: string,

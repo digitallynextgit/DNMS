@@ -4,20 +4,8 @@ import { db } from "@/server/db"
 import { currentTenant, runUnscoped } from "@/server/tenant-context"
 import { checkHeadcount, daysRemaining, planOf, type HeadcountCheck, type Plan } from "../plans"
 
-// =============================================================================
-// Plan enforcement (M5).
-//
-// Three things gate a company, and they are enforced in three different places
-// because they fail at three different moments:
-//
-//   1. TRIAL EXPIRY - server/identity.ts, at sign-in. A lapsed trial yields no
-//      membership, so nobody from that company can get in at all. Already built
-//      in M2; nothing here duplicates it.
-//   2. SUSPENSION   - same place, same mechanism.
-//   3. HEADCOUNT    - here, at the moment an employee is created. It cannot live
-//      in the login path: the limit is not about who may sign in, it is about
-//      how many people the company has bought seats for.
-// =============================================================================
+// Headcount limit, checked when an employee is created. Trial expiry and suspension are enforced
+// at sign-in (server/identity.ts).
 
 export interface TenantPlanState {
   plan: Plan
@@ -28,18 +16,12 @@ export interface TenantPlanState {
   headcount: HeadcountCheck
 }
 
-/**
- * The current company's plan and how much of it is used.
- *
- * Returns null outside a tenant context - a cron sweep, a script - where there
- * is no "current company" to describe.
- */
+/** The current company's plan and usage; null outside a tenant context (cron, scripts). */
 export async function currentPlanState(): Promise<TenantPlanState | null> {
   const ctx = currentTenant()
   if (!ctx) return null
 
-  // The tenants table is platform-level, so reading our own row is a deliberate
-  // cross-tenant read of exactly one row.
+  // tenants is platform-level, so this is a deliberate unscoped read of our own row.
   const tenant = await runUnscoped("plan: a tenant reads its own platform record", () =>
     db.tenant.findUnique({
       where: { id: ctx.tenantId },
@@ -59,14 +41,8 @@ export async function currentPlanState(): Promise<TenantPlanState | null> {
   }
 }
 
-/**
- * May the current company add another active employee?
- *
- * Fails OPEN when there is no tenant context, and that is deliberate: the only
- * paths without one are seeding and maintenance scripts, and a backfill that
- * silently refuses to create people would be a far worse failure than one that
- * briefly exceeds a headcount limit.
- */
+/** May the current company add another active employee? Fails open without a tenant context
+ *  (only seeding/maintenance scripts) rather than blocking them. */
 export async function checkTenantHeadcount(): Promise<HeadcountCheck> {
   const state = await currentPlanState()
   if (!state) return { allowed: true, current: 0, limit: null, message: null }

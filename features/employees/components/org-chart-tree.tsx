@@ -12,8 +12,6 @@ export interface OrgChartTreeProps {
   nodes: OrgNode[]
 }
 
-// ─── Single node card ─────────────────────────────────────────────────────────
-
 function OrgNodeCard({ node }: { node: OrgNode }) {
   const fullName = `${node.firstName} ${node.lastName}`
 
@@ -47,15 +45,12 @@ function OrgNodeCard({ node }: { node: OrgNode }) {
   )
 }
 
-// ─── Recursive tree node ───────────────────────────────────────────────────────
-
 function TreeNode({ node, depth = 0 }: { node: OrgNode; depth?: number }) {
   const [expanded, setExpanded] = useState(depth < 2)
   const hasChildren = node.children.length > 0
 
   return (
     <div className="flex flex-col items-center">
-      {/* Node card + toggle */}
       <div className="relative flex flex-col items-center">
         <OrgNodeCard node={node} />
 
@@ -71,35 +66,27 @@ function TreeNode({ node, depth = 0 }: { node: OrgNode; depth?: number }) {
         )}
       </div>
 
-      {/* Children */}
       {hasChildren && expanded && (
         <div className="flex flex-col items-center">
-          {/* Vertical line from parent down. Same line as before - `org-conn-v` only
-              adds a pulse travelling along it (see globals.css); it does not change
-              the geometry. */}
+          {/* Vertical line from the parent; `org-conn-v` adds the pulse (globals.css). */}
           <div className="org-conn org-conn-v relative h-6 w-0.5" />
 
           {node.children.length === 1 ? (
-            /* Single child: straight line */
             <TreeNode node={node.children[0]} depth={depth + 1} />
           ) : (
-            /* Multiple children: each draws its own connector so the rail lines up
-               with the actual card centres regardless of differing subtree widths. */
+            /* Multiple children: each draws its own connector to meet the card centres. */
             <div className="flex items-start">
               {node.children.map((child, i) => {
                 const isFirst = i === 0
                 const isLast = i === node.children.length - 1
-                // Stagger sibling pulses (and offset by depth) so the whole tree
-                // doesn't flash in unison.
+                // Stagger sibling pulses (offset by depth) so the tree doesn't flash in unison.
                 const delay = {
                   "--org-delay": `${(i * 220 + depth * 120) % 1600}ms`,
                 } as CSSProperties
                 return (
                   <div key={child.id} className="relative flex flex-col items-center px-2 pt-6">
-                    {/* Horizontal rail: only the right half for the first child and
-                        the left half for the last, so it spans centre-to-centre.
-                        The pulse travels OUTWARD from the parent's centre to the
-                        child, so the first child runs reversed. */}
+                    {/* Rail spans centre-to-centre: right half for the first child, left for
+                        the last. The pulse runs outward, so the first child's is reversed. */}
                     <div
                       className={cn(
                         "org-conn org-conn-h absolute top-0 h-0.5",
@@ -111,7 +98,6 @@ function TreeNode({ node, depth = 0 }: { node: OrgNode; depth?: number }) {
                       )}
                       style={delay}
                     />
-                    {/* Vertical drop into this child (at the card's centre). */}
                     <div
                       className="org-conn org-conn-v absolute top-0 left-1/2 h-6 w-0.5 -translate-x-1/2"
                       style={delay}
@@ -128,13 +114,10 @@ function TreeNode({ node, depth = 0 }: { node: OrgNode; depth?: number }) {
   )
 }
 
-// ─── Forest (multiple root nodes) ─────────────────────────────────────────────
-
 export function OrgChartTree({ nodes }: OrgChartTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  // Natural (unscaled) content size + the scale that makes it fit the container
-  // width. transform:scale doesn't affect scrollWidth/Height, so these stay natural.
+  // Natural size + the fit-to-width scale (transform:scale doesn't change scrollWidth/Height).
   const [dims, setDims] = useState({ natW: 0, natH: 0, fit: 1 })
   const [manualScale, setManualScale] = useState<number | null>(null)
 
@@ -150,8 +133,7 @@ export function OrgChartTree({ nodes }: OrgChartTreeProps) {
     )
   }, [])
 
-  // Re-fit on mount, when the tree changes, and on container/content resize
-  // (expand/collapse a branch, window resize).
+  // Re-fit on mount, tree change, and container/content resize.
   useLayoutEffect(() => {
     measure()
     const ro = new ResizeObserver(measure)
@@ -169,7 +151,6 @@ export function OrgChartTree({ nodes }: OrgChartTreeProps) {
 
   return (
     <div className="relative">
-      {/* Zoom controls */}
       <div className="bg-card/90 absolute top-3 right-3 z-10 flex items-center gap-0.5 rounded-sm border p-0.5 shadow-sm backdrop-blur">
         <Button
           variant="ghost"
@@ -210,14 +191,8 @@ export function OrgChartTree({ nodes }: OrgChartTreeProps) {
             style={{
               transform: `scale(${scale})`,
               transformOrigin: "top left",
-              // MUST be max-content. This element is what `measure()` reads
-              // scrollWidth from, and its parent's width is natW * scale. As a
-              // plain block it would inherit that width, so at any scale > 1
-              // each measurement fed a bigger natW back in and the box grew by
-              // the zoom factor on every ResizeObserver tick - the inner flex
-              // is `items-center`, so the nodes were centred in a runaway-wide
-              // box and left the viewport entirely. Sizing to content keeps the
-              // measurement natural and independent of the scale.
+              // MUST be max-content: measure() reads scrollWidth here, and inheriting the parent's
+              // scaled width made the box grow by the zoom factor on every ResizeObserver tick.
               width: "max-content",
             }}
           >

@@ -3,14 +3,7 @@ import { Ban } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
-/**
- * "Blocked" marker for a task that is waiting on a requirement.
- *
- * Renders nothing when there is no requirement, so call sites can drop it in
- * without a conditional. The requirement's title is in the tooltip rather than
- * the badge - on a Kanban card there is no room, and the answer to "blocked by
- * what?" is one hover away.
- */
+/** Renders nothing without a requirement; the requirement's title is in the tooltip. */
 export function BlockedBadge({
   requirement,
   className,

@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
-import { SYSTEM_ROLES } from "@/lib/constants"
+import { FLOATING_HOLIDAY_LIMIT, SYSTEM_ROLES } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
 import { actorStampId } from "@/lib/audit"
 import type { Session } from "next-auth"
 
-// Roles whose approval is the FINAL ("HR") call. A plain manager's approval is
-// only the first step.
+// Their approval is final; a manager's approval is only the first step.
 const HR_ROLES: string[] = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.ADMIN_]
 
-// PATCH /api/attendance/floating-holidays/requests/[id]  body: { action, rejectionReason? }
-// HR (final) or the employee's own manager (first step) may act. Manager approval
-// keeps it PENDING (awaiting HR); HR approval finalises it. HR can approve directly.
 export const PATCH = withSession(
   async (req: NextRequest, ctx: { params: { id: string } }, session: Session) => {
     try {
@@ -48,24 +44,37 @@ export const PATCH = withSession(
           { status: 403 },
         )
       }
-      // Separation of duties (SEC-10): you cannot review your OWN request, even
-      // as HR or as your own manager - mirrors reviewResignation's self block.
+      // Nobody reviews their own request, even as HR or as their own manager.
       if (reqRow.employeeId === session.user.id) {
         return NextResponse.json(
           { error: "You cannot review your own floating-holiday request." },
           { status: 403 },
         )
       }
-      // Rejection always needs a reason (manager's or HR's).
       if (action === "REJECT" && !rejectionReason?.trim()) {
         return NextResponse.json({ error: "Rejection reason is required" }, { status: 400 })
       }
       const approverId = actorStampId(session)
       const reason = rejectionReason?.trim()
 
+      // Pending requests don't use the allowance, so the limit is enforced when HR approves.
+      if (isHr && action === "APPROVE") {
+        const approvedCount = await db.floatingHolidaySelection.count({
+          where: { employeeId: reqRow.employeeId, year: reqRow.year, status: "APPROVED" },
+        })
+        if (approvedCount >= FLOATING_HOLIDAY_LIMIT) {
+          return NextResponse.json(
+            {
+              error: `This employee already has ${FLOATING_HOLIDAY_LIMIT} approved floating holidays for ${reqRow.year}.`,
+            },
+            { status: 422 },
+          )
+        }
+      }
+
       let updated
       if (isHr) {
-        // HR is the final call - approves (even over a manager rejection) or rejects.
+        // HR's call is final, even over a manager rejection.
         updated = await db.floatingHolidaySelection.update({
           where: { id },
           data:
@@ -84,8 +93,7 @@ export const PATCH = withSession(
                 },
         })
       } else {
-        // Manager review: recorded but NOT final - it stays PENDING so HR can
-        // still make the call (including overriding a manager rejection).
+        // Manager review is recorded but stays PENDING for HR's final call.
         updated = await db.floatingHolidaySelection.update({
           where: { id },
           data:
@@ -121,7 +129,6 @@ export const PATCH = withSession(
           link: "/calendar?view=holidays",
         })
       } else {
-        // Manager decided; HR still has the final call.
         const approved = updated.managerDecision === "APPROVED"
         await createNotification({
           employeeId: reqRow.employeeId,

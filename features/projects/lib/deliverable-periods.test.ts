@@ -52,8 +52,7 @@ const row = (
   periodEnd: o.periodEnd === undefined ? "2026-09-11" : o.periodEnd,
   status,
   quantity: o.qty ?? 1,
-  // Made rows are fully made unless a test says otherwise - that is what the
-  // migration back-filled, so it is the state the app actually holds.
+  // Made rows default to fully made - the state the app actually holds.
   deliveredQuantity:
     o.deliveredQuantity ?? (status === "DELIVERED" || status === "ACCEPTED" ? (o.qty ?? 1) : 0),
   team: o.team === undefined ? { id: "web", name: "WEB" } : o.team,
@@ -90,15 +89,13 @@ describe("derivePeriodStatus", () => {
   })
 
   it("a blocked piece leaves the period in progress, not owed", () => {
-    // Stuck work has been touched - saying "to do" would hide that somebody
-    // already hit a wall on it.
+    // Stuck work has been touched, so it is not "to do".
     expect(derivePeriodStatus(["PLANNED", "STUCK"])).toBe("IN_PROGRESS")
     expect(derivePeriodStatus(["STUCK"])).toBe("IN_PROGRESS")
   })
 
   it("does not let a dropped piece drag a finished period backwards", () => {
-    // The surviving work is made; the discarded row is not evidence about the
-    // week. Without setting them aside this read "in progress" forever.
+    // A discarded row says nothing about the week; it is set aside.
     expect(derivePeriodStatus(["DELIVERED", "DISCARDED"])).toBe("DELIVERED")
     expect(derivePeriodStatus(["ACCEPTED", "DISCARDED"])).toBe("ACCEPTED")
   })
@@ -220,9 +217,7 @@ describe("groupIntoPeriods", () => {
 describe("unitsByStatus", () => {
   it("returns every status in reading order, zeroes included", () => {
     const out = unitsByStatus([row("PLANNED")])
-    // Derived from STATUS_ORDER, so a new status appears here automatically -
-    // which is the point: a breakdown that silently omits one is a breakdown
-    // whose numbers do not add up to the total.
+    // Derived from STATUS_ORDER, so a new status shows up and the breakdown still adds up.
     expect(out.map((s) => s.status)).toEqual([
       "PLANNED",
       "IN_PROGRESS",

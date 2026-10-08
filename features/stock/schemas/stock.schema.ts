@@ -8,8 +8,6 @@ export const createItemSchema = z.object({
 })
 
 export const updateItemSchema = createItemSchema.partial().extend({
-  /** Restock: ADD this many pieces to purchasedQty (a purchase is an event,
-   *  not a corrected total). Wins over an absolute purchasedQty if both come. */
   restockBy: z.number().int().min(1).max(1_000_000).optional(),
 })
 
@@ -29,7 +27,6 @@ export const createIssueSchema = z.object({
 
 export const updateIssueSchema = z.object({
   holderName: z.string().trim().min(1).max(160).optional(),
-  /** null unlinks; a string links; absent leaves the link alone. */
   employeeId: z.string().nullable().optional(),
   quantity: z.number().int().min(1).max(100_000).optional(),
   issuedOn: z
@@ -66,12 +63,7 @@ export const importSchema = z.object({
     .max(5000),
 })
 
-/**
- * One REGISTER ROW (the matrix view: holder + date + a quantity per item),
- * sent whole from the edit dialog. `issueIds` per cell are the underlying
- * ledger entries the client saw; the service reconciles: 0 deletes them, a
- * quantity updates the first and drops extras, a quantity with no ids creates.
- */
+/** One matrix row sent whole from the edit dialog; `issueIds` are the ledger entries the client saw. */
 export const registerRowSchema = z.object({
   holderName: z.string().trim().min(1, "Holder is required").max(160),
   employeeId: z.string().nullable(),

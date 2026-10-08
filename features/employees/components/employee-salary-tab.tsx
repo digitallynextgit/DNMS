@@ -43,9 +43,8 @@ const MONTH_LABELS = [
 ]
 
 export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
-  // All salary structures (filter by employee client-side; API doesn't accept filter)
+  // All structures, filtered client-side (the API has no employee filter).
   const { data: structuresData, isLoading: structuresLoading } = useSalaryStructures()
-  // Payroll records - API accepts employeeId
   const { data: payrollData, isLoading: payrollLoading } = usePayrollRecords({
     employeeId,
   })
@@ -56,7 +55,6 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
   )
   const payslips = payrollData?.data ?? []
 
-  // Earnings / deductions breakdown for current structure
   const earnings = structure
     ? structure.basicSalary +
       structure.hra +
@@ -68,7 +66,6 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
   const netMonthly = earnings - deductions
   const annualCTC = earnings * 12
 
-  // Total paid YTD
   const ytdPaid = payslips
     .filter((p) => p.status === "PAID")
     .reduce((sum, p) => sum + p.netSalary, 0)
@@ -126,7 +123,6 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* ── Salary Structure ──────────────────────────────────────────────── */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Wallet className="text-muted-foreground h-4 w-4" />
@@ -149,7 +145,6 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
           </Card>
         ) : (
           <>
-            {/* Summary strip - single row, divided */}
             <StatStrip
               items={[
                 {
@@ -169,9 +164,7 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
               ]}
             />
 
-            {/* Component breakdown */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {/* Earnings */}
               <Card>
                 <CardContent className="pt-5">
                   <div className="mb-3 flex items-center gap-2">
@@ -192,7 +185,6 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
                 </CardContent>
               </Card>
 
-              {/* Deductions */}
               <Card>
                 <CardContent className="pt-5">
                   <div className="mb-3 flex items-center gap-2">
@@ -218,7 +210,6 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
         )}
       </div>
 
-      {/* ── Payslip History ───────────────────────────────────────────────── */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h4 className="text-muted-foreground text-xs font-medium tracking-wider uppercase">

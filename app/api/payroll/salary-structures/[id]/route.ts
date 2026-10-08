@@ -61,7 +61,6 @@ export const PATCH = withAuth(
         effectiveFrom,
       } = body
 
-      // ── Slab cap check against the designation's max monthly salary ──
       const emp = await db.employee.findUnique({
         where: { id: existing.employeeId },
         include: { designation: { select: { title: true, maxMonthlySalary: true } } },
@@ -140,7 +139,6 @@ export const DELETE = withAuth(
         return NextResponse.json({ error: "Salary structure not found" }, { status: 404 })
       }
 
-      // Check if any payroll records reference this salary structure
       const referencedRecords = await db.payrollRecord.count({
         where: { salaryStructureId: id },
       })

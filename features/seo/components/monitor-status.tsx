@@ -6,12 +6,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useMonitor, useRunMonitor } from "../hooks/use-seo"
 
-// =============================================================================
-// A thin health strip for the daily accident monitor (plan step 9), shown above
-// the site report. Green when money pages are up + indexable; red with the
-// specific accidents when not. The daily cron keeps this fresh and alerts on
-// change; the button forces a check now.
-// =============================================================================
+// Health strip for the daily accident monitor, above the site report. The button forces a check.
 
 export function MonitorStatus({
   projectId,

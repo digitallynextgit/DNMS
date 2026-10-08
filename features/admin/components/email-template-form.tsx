@@ -14,8 +14,6 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { slugify } from "@/lib/utils"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface EmailTemplateData {
   id?: string
   slug?: string
@@ -33,8 +31,6 @@ interface EmailTemplateFormProps {
   onSuccess?: () => void
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 async function submitTemplate(data: Record<string, unknown>, isEdit: boolean): Promise<void> {
   const res = await fetch("/api/notifications/templates", {
     method: isEdit ? "PATCH" : "POST",
@@ -49,14 +45,15 @@ async function submitTemplate(data: Record<string, unknown>, isEdit: boolean): P
   }
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProps) {
   const qc = useQueryClient()
   const isEdit = Boolean(template?.id)
 
   const [name, setName] = React.useState(template?.name ?? "")
-  const [slug, setSlug] = React.useState(template?.slug ?? "")
+  // Auto-generated from the name when creating, until the slug is edited by hand.
+  const [slug, setSlug] = React.useState(() =>
+    !isEdit && template?.name ? slugify(template.name) : (template?.slug ?? ""),
+  )
   const [subject, setSubject] = React.useState(template?.subject ?? "")
   const [bodyHtml, setBodyHtml] = React.useState(template?.bodyHtml ?? "")
   const [bodyText, setBodyText] = React.useState(template?.bodyText ?? "")
@@ -65,13 +62,6 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
   const [trigger, setTrigger] = React.useState(template?.trigger ?? "")
   const [newField, setNewField] = React.useState("")
   const [slugManuallyEdited, setSlugManuallyEdited] = React.useState(isEdit)
-
-  // Auto-generate slug from name when creating
-  React.useEffect(() => {
-    if (!slugManuallyEdited && name) {
-      setSlug(slugify(name))
-    }
-  }, [name, slugManuallyEdited])
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -131,7 +121,6 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-      {/* Name */}
       <div className="flex flex-col gap-2">
         <Label required htmlFor="tpl-name">
           Name
@@ -140,14 +129,16 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
           id="tpl-name"
           placeholder="e.g. Welcome Email"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value)
+            if (!slugManuallyEdited && e.target.value) setSlug(slugify(e.target.value))
+          }}
           disabled={isSubmitting}
           maxLength={100}
           required
         />
       </div>
 
-      {/* Slug */}
       <div className="flex flex-col gap-2">
         <Label required htmlFor="tpl-slug">
           Slug
@@ -168,7 +159,6 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
         />
       </div>
 
-      {/* Subject */}
       <div className="flex flex-col gap-2">
         <Label required htmlFor="tpl-subject">
           Subject
@@ -184,7 +174,6 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
         />
       </div>
 
-      {/* Body HTML */}
       <div className="flex flex-col gap-2">
         <Label required htmlFor="tpl-body">
           Body HTML
@@ -204,7 +193,6 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
         />
       </div>
 
-      {/* Body Text (optional) */}
       <div className="flex flex-col gap-2">
         <Label htmlFor="tpl-bodytext">
           Plain Text Body
@@ -223,7 +211,6 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
 
       <Separator />
 
-      {/* Merge Fields */}
       <div className="flex flex-col gap-3">
         <Label>
           Merge Fields
@@ -276,7 +263,6 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
 
       <Separator />
 
-      {/* Trigger */}
       <div className="flex flex-col gap-2">
         <Label htmlFor="tpl-trigger">
           Trigger
@@ -293,7 +279,6 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
         />
       </div>
 
-      {/* Active toggle */}
       <div className="flex items-center justify-between rounded-sm border p-4">
         <div className="space-y-0.5">
           <Label htmlFor="tpl-active" className="mb-0 cursor-pointer text-sm font-medium">
@@ -311,7 +296,6 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
         />
       </div>
 
-      {/* Submit */}
       <div className="flex justify-end gap-2 pt-2">
         <Button type="submit" disabled={!canSubmit} loading={isSubmitting}>
           {isSubmitting

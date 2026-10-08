@@ -9,7 +9,6 @@ const OPTIONS: { value: HelpLang; label: string }[] = [
   { value: "hi", label: "हिंदी" },
 ]
 
-/** English / हिंदी switch. The choice is remembered and applies to every guide. */
 export function HelpLangSwitch({ className }: { className?: string }) {
   const [lang, setLang] = useHelpLang()
   return (

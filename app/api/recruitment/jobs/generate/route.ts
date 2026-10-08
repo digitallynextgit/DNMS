@@ -94,8 +94,6 @@ export const POST = withSession(async (req: NextRequest, _ctx: unknown, _session
     .filter(Boolean)
     .join("\n")
 
-  // One call through the shared client (lib/ai.ts) - it owns the provider, key,
-  // timeout and error shape, so this route only cares about prompt + sanitising.
   try {
     const parsed = await aiComplete<unknown>({
       system: SYSTEM_PROMPT,

@@ -5,14 +5,8 @@ import { withProjectAccess } from "@/features/projects/server/project-access"
 import { removeGoalTarget, updateGoalTarget } from "@/features/projects/server/goal-targets.service"
 import { AppError } from "@/lib/errors"
 
-// PATCH  /api/projects/[id]/goals/[goalId]/targets/[targetId] - change it
-// DELETE /api/projects/[id]/goals/[goalId]/targets/[targetId] - drop it
-//
-// Manage-only, and the service checks it. A PATCH sends only what moved:
-// omitting a period leaves it alone, sending null clears it, which is the only
-// way to turn a dated target back into a standing one. Both write a line to
-// the goal's history - a target that quietly changed mid-month is how a goal
-// ends up "met" without anyone remembering it was moved.
+// PATCH sends only what changed: an omitted period is left alone, null clears it (back to standing).
+// Both write to the goal's history.
 export const dynamic = "force-dynamic"
 
 export const PATCH = withProjectAccess(

@@ -13,11 +13,7 @@ const MAX_DIM = 1600
 
 type Kind = "IMAGE" | "VIDEO" | "AUDIO" | "FILE" | "STICKER"
 
-/**
- * A sticker is an image by content type; only the sender's intent separates the
- * two, so that intent travels as a form field rather than being guessed from the
- * file. Everything else follows the MIME type.
- */
+/** Stickers are images too, so the sender's intent (a form field) decides; the rest follows the MIME type. */
 function kindOf(contentType: string, asSticker: boolean): Kind {
   if (contentType.startsWith("image/")) return asSticker ? "STICKER" : "IMAGE"
   if (contentType.startsWith("video/")) return "VIDEO"
@@ -25,20 +21,11 @@ function kindOf(contentType: string, asSticker: boolean): Kind {
   return "FILE"
 }
 
-/**
- * POST /api/chat/conversations/:id/attachments
- *
- * One request creates the message AND its files, so a picture can never exist
- * without a message to hang from - and a failed upload leaves nothing behind.
- *
- * Body: multipart with `files` (one or more) and an optional `body` caption.
- * Voice notes arrive here too, as an audio file plus `durationSec`.
- */
+// One request creates the message and its files, so a failed upload leaves nothing behind.
 export const POST = withSession(async (req: NextRequest, ctx, session) => {
   const conversationId = ctx.params.conversationId
   const me = session.user.id
 
-  // Membership proven from the database, never from the id in the URL.
   const member = await db.conversationParticipant.findUnique({
     where: { conversationId_employeeId: { conversationId, employeeId: me } },
     select: { conversationId: true },
@@ -59,11 +46,7 @@ export const POST = withSession(async (req: NextRequest, ctx, session) => {
   const durationSec = Number(form.get("durationSec")) || null
   const asSticker = String(form.get("sticker") ?? "") === "1"
 
-  /**
-   * Amplitude peaks the recorder sampled as the clip was spoken, sent as a
-   * comma-separated list. Clamped and capped here because it arrives from the
-   * browser - a hostile client should not get to store an unbounded array.
-   */
+  // Comes from the browser, so clamp and cap it.
   const waveform = String(form.get("waveform") ?? "")
     .split(",")
     .map((n) => Number(n.trim()))
@@ -90,8 +73,7 @@ export const POST = withSession(async (req: NextRequest, ctx, session) => {
     const kind = kindOf(file.type, asSticker)
     const original = Buffer.from(await file.arrayBuffer())
 
-    // Only pictures are re-encoded. Audio must stay byte-for-byte or the voice
-    // note stops playing, and an arbitrary file is not ours to rewrite.
+    // Only pictures are re-encoded; audio must stay byte-for-byte or voice notes stop playing.
     const out =
       kind === "IMAGE"
         ? await resizeImage(original, file.type, { maxDim: MAX_DIM, quality: 82 })

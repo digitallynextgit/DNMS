@@ -3,9 +3,7 @@ import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS, HIDDEN_ROLES } from "@/lib/constants"
 
-// Per-employee attendance summary for the device "sync by employee" panel:
-// how many days are on record, present/half counts, and the latest punch day -
-// so HR can see at a glance who's behind and sync just that person.
+// Feeds the Devices page's "sync by employee" panel.
 export const GET = withAuth(PERMISSIONS.ATTENDANCE_WRITE, async () => {
   const employees = await db.employee.findMany({
     where: {

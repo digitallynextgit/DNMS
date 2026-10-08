@@ -1,15 +1,7 @@
 "use client"
 
-/**
- * Project → Monitoring tab.
- *
- * Two controls for the two halves of the 14 Aug outage:
- *   Uptime   - is this project's site serving right now (caps the damage)
- *   Renewals - what expires, when, and whose job it is (catches it early)
- *
- * Scoped to one project: the project comes from the URL, never a picker, so this
- * screen cannot register a monitor against somebody else's project.
- */
+/** Project -> Monitoring tab: uptime and renewals. The project comes from the URL, never a
+ *  picker, so monitors can't be registered against another project. */
 
 import * as React from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
@@ -62,8 +54,6 @@ import {
   type MonitorInput,
   type MonitorFormInput,
 } from "../schemas/monitoring.schema"
-
-// ─── Types ──────────────────────────────────────────────────────────────────
 
 interface Person {
   id: string
@@ -119,8 +109,6 @@ interface Overview {
   }[]
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
 function daysUntil(iso: string): number {
   const a = new Date()
   a.setHours(0, 0, 0, 0)
@@ -150,8 +138,6 @@ function since(iso: string): string {
   return `${Math.floor(hrs / 24)}d ${hrs % 24}h`
 }
 
-// ─── Root ───────────────────────────────────────────────────────────────────
-
 export function ProjectMonitoringTab({
   projectRef,
   canManage,
@@ -163,12 +149,10 @@ export function ProjectMonitoringTab({
 
   const { data, isPending, refetch } = useQuery({
     queryKey: ["project-monitoring", projectRef],
-    // Double `data`: the service returns { data: Overview } and respond() wraps
-    // that again, so the payload sits at res.data.data.
+    // Double `data`: respond() wraps the service's { data } again.
     queryFn: async () => (await apiFetch<{ data: { data: Overview } }>(base)).data.data,
     enabled: canManage,
-    // The sweep runs every 5 minutes server-side; refetching each minute keeps an
-    // open incident from looking stale on a left-open tab.
+    // The sweep runs every 5 minutes; refetch each minute so a left-open tab stays current.
     refetchInterval: 60_000,
   })
 
@@ -249,8 +233,6 @@ function StatCard({
     </div>
   )
 }
-
-// ─── Uptime ─────────────────────────────────────────────────────────────────
 
 function UptimeSection({
   base,
@@ -432,8 +414,6 @@ function StateDot({ state }: { state: Monitor["state"] }) {
   )
 }
 
-// ─── Renewals ───────────────────────────────────────────────────────────────
-
 function RenewalsSection({
   base,
   assets,
@@ -589,8 +569,6 @@ function RenewalsSection({
   )
 }
 
-// ─── People picker ──────────────────────────────────────────────────────────
-
 function usePeople(enabled: boolean) {
   const { data } = useQuery({
     queryKey: ["monitoring-people"],
@@ -602,8 +580,6 @@ function usePeople(enabled: boolean) {
 
 /** Sentinel for "nobody" - Radix Select cannot hold an empty-string value. */
 const UNASSIGNED = "__unassigned__"
-
-// ─── Monitor dialog ─────────────────────────────────────────────────────────
 
 function MonitorDialog({
   base,
@@ -665,8 +641,7 @@ function MonitorDialog({
         </DialogHeader>
 
         <Form {...form}>
-          {/* id + form= on the footer button, so the submit lives with the fields
-              but the button can sit in the pinned DialogFooter. */}
+          {/* id + form= lets the submit button sit in the pinned DialogFooter. */}
           <form
             id="monitor-form"
             onSubmit={form.handleSubmit((v) => save.mutate(v))}
@@ -780,8 +755,6 @@ function MonitorDialog({
     </Dialog>
   )
 }
-
-// ─── Asset dialog ───────────────────────────────────────────────────────────
 
 function AssetDialog({
   base,
@@ -940,8 +913,7 @@ function AssetDialog({
                   <FormItem>
                     <FormLabel className="text-xs">Expires on</FormLabel>
                     <FormControl>
-                      {/* The shared shadcn calendar-in-a-popover, not a native
-                          date input - `modal` layers it above the Dialog. */}
+                      {/* `modal` layers the calendar popover above the Dialog. */}
                       <DateField
                         value={field.value}
                         onChange={field.onChange}

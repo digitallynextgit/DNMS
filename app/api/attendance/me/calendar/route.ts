@@ -4,19 +4,9 @@ import { withSession } from "@/server/api-handler"
 import { workingDaysBetween } from "@/lib/dates"
 import type { Session } from "next-auth"
 
-// Per-day attendance calendar for the signed-in employee. Combines attendance
-// logs + company holidays + approved leaves + WFH + weekends into one status/day.
-//   PRESENT        → both punches present (green)
-//   HALF_DAY       → present but < a full day (orange)
-//   MISSING_PUNCH  → only one punch (forgot to punch in OR out) - purple
-//   LEAVE          → approved leave (red)
-//   WFH            → approved work-from-home (yellow)
-//   HOLIDAY        → company holiday (blue) · WEEKEND → Sat/Sun (grey)
-//   UPCOMING/NONE  → future / before-start / a past working day with no record (blank)
-// This is an office where everyone attends, so there is no "absent" state.
+// One status per day from logs, holidays, leave, WFH and weekends. Deliberately no "absent" state.
 
-// A lone punch before this IST hour reads as a forgotten check-OUT (i.e. the punch
-// is the morning check-in); at/after it, the punch reads as a forgotten check-IN.
+// A lone punch before this IST hour is a morning check-in (forgot check-out); after it, a forgotten check-in.
 const SINGLE_PUNCH_SPLIT_IST_HOUR = 14
 
 function istHour(d: Date): number {
@@ -51,8 +41,7 @@ export const GET = withSession(
           where: { employeeId, date: { gte: monthStart, lte: monthEnd } },
           select: { date: true, status: true, checkIn: true, checkOut: true, workHours: true },
         }),
-        // Fixed holidays apply to everyone; floating ones only when the employee
-        // has availed (and HR approved) them.
+        // Floating holidays count only once the employee availed them and HR approved.
         db.holiday.findMany({
           where: { date: { gte: monthStart, lte: monthEnd }, isOptional: false },
           select: { date: true, name: true },
@@ -76,8 +65,7 @@ export const GET = withSession(
           select: { startDate: true, endDate: true, leaveType: { select: { name: true } } },
         }),
         db.wfhRequest.findMany({
-          // Overlap, not containment: a range that started last month still
-          // paints whichever of its days fall inside this one.
+          // Overlap, not containment, so a range that started last month still shows.
           where: {
             employeeId,
             status: "APPROVED",
@@ -102,21 +90,17 @@ export const GET = withSession(
           cursor.setUTCDate(cursor.getUTCDate() + 1)
         }
       }
-      // A WFH request covers a RANGE, so expand it the way `leaveByDay` above
-      // expands leave. Skipping weekends/holidays is load-bearing, not cosmetic:
-      // the day-status chain below tests wfhByDay BEFORE isWeekend, so a
+      // Skip weekends/holidays: the status chain below checks wfhByDay before isWeekend, so a
       // Saturday inside a Thu-Mon range would otherwise read "Work from home".
       const nonWorkingDays = new Set(holidayByDay.keys())
       const wfhByDay = new Set<string>()
       for (const w of wfh) {
-        // Clip to the month being rendered.
         const from = w.date > monthStart ? w.date : monthStart
         const to = w.endDate < monthEnd ? w.endDate : monthEnd
         for (const day of workingDaysBetween(from, to, nonWorkingDays)) wfhByDay.add(ymd(day))
       }
 
-      // The employee's first-ever punch: don't show anything before they started
-      // using the machine (e.g. someone who joined in Feb stays blank for Jan).
+      // Stay blank before the employee's first-ever punch (joined in Feb -> January is blank).
       const firstPunch = await db.attendanceLog.findFirst({
         where: { employeeId },
         orderBy: { date: "asc" },
@@ -124,9 +108,7 @@ export const GET = withSession(
       })
       const firstStr = firstPunch ? ymd(firstPunch.date) : null
 
-      // An employee's birthday is a paid day off (their choice to come in or
-      // not) - shown as a holiday when they don't punch, so it never reads as a
-      // missed working day.
+      // A birthday is a paid day off - shown as a holiday when they don't punch.
       const employee = await db.employee.findUnique({
         where: { id: employeeId },
         select: { dateOfBirth: true },
@@ -140,7 +122,7 @@ export const GET = withSession(
       for (let day = 1; day <= daysInMonth; day++) {
         const d = new Date(Date.UTC(year, month0, day))
         const ds = ymd(d)
-        const dow = d.getUTCDay() // 0=Sun … 6=Sat
+        const dow = d.getUTCDay()
         const isWeekend = dow === 0 || dow === 6
         const future = ds > todayStr
         const beforeStart = !firstStr || ds < firstStr
@@ -165,25 +147,23 @@ export const GET = withSession(
         let workHours: number | null = null
 
         if (hasIn && hasOut) {
-          // Both punches → real presence (half-day when short of a full day).
           status = isHalf ? "HALF_DAY" : "PRESENT"
           checkIn = log!.checkIn!.toISOString()
           checkOut = log!.checkOut!.toISOString()
           workHours = log?.workHours ?? null
         } else if (hasIn !== hasOut) {
-          // Exactly one punch → forgot to punch in OR out. Infer which side from
-          // the time of day and show only the punch we have.
+          // One punch: infer from the time of day which side was forgotten.
           status = "MISSING_PUNCH"
           const only = (log!.checkIn ?? log!.checkOut)!
           if (istHour(only) < SINGLE_PUNCH_SPLIT_IST_HOUR) {
-            checkIn = only.toISOString() // morning punch → forgot the evening check-out
+            checkIn = only.toISOString()
           } else {
-            checkOut = only.toISOString() // evening punch → forgot the morning check-in
+            checkOut = only.toISOString()
           }
         } else if (beforeStart) {
-          status = "UPCOMING" // before they started punching → blank
+          status = "UPCOMING"
         } else if (birthdayStr && ds === birthdayStr) {
-          status = "HOLIDAY" // birthday → paid day off
+          status = "HOLIDAY"
           label = "Birthday 🎂"
         } else if (holidayByDay.has(ds)) {
           status = "HOLIDAY"
@@ -197,9 +177,9 @@ export const GET = withSession(
         } else if (isWeekend) {
           status = "WEEKEND"
         } else if (future) {
-          status = "UPCOMING" // future working day → blank
+          status = "UPCOMING"
         } else {
-          status = "NONE" // past working day with no record (office → not flagged absent)
+          status = "NONE"
         }
 
         days.push({ date: ds, day, dow, status, label, checkIn, checkOut, workHours })

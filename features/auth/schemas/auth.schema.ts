@@ -7,8 +7,6 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>
 
-// --- Forgot-password (OTP) flow ---------------------------------------------
-
 export const forgotPasswordSchema = z.object({
   email: z.string().email("Invalid email address"),
 })

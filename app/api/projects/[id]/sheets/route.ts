@@ -3,19 +3,8 @@ import { withProjectAccess } from "@/features/projects/server/project-access"
 import { createSheet, listWorkbookIndex } from "@/features/projects/server/sheets.service"
 import type { Session } from "next-auth"
 
-/**
- * GET  - every calendar on the project, with its tab NAMES only.
- *
- *        It used to return every tab's columns and rows as well. It cannot any
- *        more: a calendar has one edition per MONTH now, so that payload grew
- *        by twelve a year per calendar. Callers that need a grid fetch the one
- *        edition from GET /workbooks/[workbookId].
- * POST - create a TAB inside a workbook.  body { workbookId, name, description? }
- *
- * Both are behind withProjectAccess, not withProjectManager, and that is the
- * feature: anyone working on the project can start a tab and fill it in.
- * Only DELETE is restricted, and it lives on the [sheetId] routes.
- */
+// GET returns tab names only (a calendar has one edition per month); grids come from /workbooks/[workbookId].
+// Any project member may create tabs; only DELETE (on [sheetId]) is restricted.
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }) =>
     NextResponse.json({ data: await listWorkbookIndex(ctx.params.id!) }),

@@ -3,12 +3,7 @@ import "server-only"
 import { db } from "@/server/db"
 import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 
-/**
- * PUBLIC attendance snapshot for the marketing homepage. This is served on an
- * unauthenticated page, so it exposes ONLY a minimal, non-sensitive shape:
- * a display name, the check-in time and the status.
- * No ids, emails, photos, departments or contact details are returned.
- */
+/** Public homepage attendance row: display name, check-in time and status only. */
 export interface AttendanceSnapshotRow {
   name: string
   time: string // "HH:MM" (IST) or "-" when there is no punch
@@ -40,12 +35,8 @@ function displayName(first: string, last: string): string {
   return `${first} ${last ?? ""}`.trim()
 }
 
-/**
- * The latest working day's attendance for up to `limit` active employees.
- * We anchor on the most recent day that actually has punches (≤ now), which
- * naturally skips weekends - so on Saturday/Sunday this resolves to Friday's
- * data. Returns null when there is nothing to show (caller falls back to a demo).
- */
+/** The latest day with punches (so weekends show Friday) for up to `limit` employees; null when
+ *  there is nothing (the caller shows a demo). */
 export async function getPublicAttendanceSnapshot(limit = 7): Promise<AttendanceSnapshot | null> {
   const activeEmployee = {
     isActive: true,
@@ -98,8 +89,7 @@ export async function getPublicAttendanceSnapshot(limit = 7): Promise<Attendance
   return { day, date, rows }
 }
 
-// ─── Public holiday calendar ────────────────────────────────────────────────
-// Holidays are company-wide, non-personal information - safe to serve publicly.
+// Holidays are company-wide, non-personal - safe to serve publicly.
 
 export interface PublicHoliday {
   day: number // day-of-month (1–31)
@@ -111,7 +101,6 @@ export interface PublicHoliday {
 export async function getPublicHolidays(year: number, month: number): Promise<PublicHoliday[]> {
   if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) return []
 
-  // Stored `date` is a UTC-midnight calendar date, so bound the month in UTC.
   const start = new Date(Date.UTC(year, month - 1, 1))
   const end = new Date(Date.UTC(year, month, 1)) // first of next month (exclusive)
 

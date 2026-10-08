@@ -1,12 +1,3 @@
-// =============================================================================
-// Personal chat
-// =============================================================================
-// Private 1:1 messages. The ONE rule everything here enforces: a caller may only
-// touch a conversation they are a participant of. Every function proves that
-// from the database on each call - never from a conversation id in the request,
-// which is just a string somebody could change.
-// =============================================================================
-
 import "server-only"
 
 import { isWithinEditWindow } from "@/lib/edit-window"
@@ -33,7 +24,7 @@ function pairKeyFor(a: string, b: string): string {
   return [a, b].sort().join(":")
 }
 
-/** Proves membership and returns the other participant. */
+/** Proves from the DB that the caller is a participant (never trust a conversation id from the request). */
 async function requireMembership(conversationId: string, employeeId: string) {
   const row = await db.conversationParticipant.findUnique({
     where: { conversationId_employeeId: { conversationId, employeeId } },
@@ -47,22 +38,12 @@ async function requireMembership(conversationId: string, employeeId: string) {
   return { other: other?.employee ?? null, otherLastReadAt: other?.lastReadAt ?? null }
 }
 
-/** Where a chat notification points, and the key used to collapse duplicates. */
+/** Notification link; also the key used to collapse duplicates. */
 function chatLink(conversationId: string): string {
   return "/chat?c=" + conversationId
 }
 
-/**
- * Raise (or refresh) the recipient's chat notification.
- *
- * COLLAPSED per conversation on purpose: twenty messages in one exchange should
- * be one line in the bell saying what was said last, not twenty. An unread
- * notification for the same thread is updated in place; a new one is only
- * created once the previous has been read.
- *
- * Never throws - a notification is a courtesy, and must not fail a message that
- * is already committed.
- */
+/** One unread notification per conversation, refreshed in place. Never throws. */
 async function notifyRecipient(args: {
   toEmployeeId: string
   conversationId: string
@@ -79,9 +60,7 @@ async function notifyRecipient(args: {
     })
 
     if (existing) {
-      // Refresh in place. This deliberately does NOT re-fire the notification
-      // stream: the chat stream already delivered this message live, and a
-      // second ping for the same conversation is noise.
+      // No re-fire: the chat stream already delivered this message live.
       await db.notification.update({
         where: { id: existing.id },
         data: { message: preview, createdAt: new Date() },
@@ -102,7 +81,6 @@ async function notifyRecipient(args: {
   }
 }
 
-/** Every conversation this person is in, newest activity first. */
 export async function listConversations(session: Session): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const me = session.user.id
@@ -133,9 +111,7 @@ export async function listConversations(session: Session): Promise<ActionResult<
           },
         },
       },
-      // Pinned first, then most recent. `nulls: "last"` is what keeps the
-      // unpinned ones below rather than above - Postgres sorts NULLs first on a
-      // DESC ordering by default, which would have inverted the whole point.
+      // Postgres sorts NULLs first on DESC; `nulls: "last"` keeps unpinned chats below pinned ones.
       orderBy: [
         { pinnedAt: { sort: "desc", nulls: "last" } },
         { conversation: { lastMessageAt: "desc" } },
@@ -143,10 +119,7 @@ export async function listConversations(session: Session): Promise<ActionResult<
       take: 100,
     })
 
-    // One grouped query for unread-per-conversation instead of one COUNT per row
-    // (was N+1 on every chat-list load). Same filter as the /api/chat/unread
-    // badge so the sidebar list and the nav badge can never disagree - including
-    // the hidden-for-me exclusion (DUP-13).
+    // Same filter as the /api/chat/unread badge so the list and the nav badge always agree.
     const unreadRows = await db.$queryRaw<{ conversationId: string; count: number }[]>`
       SELECT m.conversation_id AS "conversationId", COUNT(*)::int AS "count"
       FROM chat_messages m
@@ -170,8 +143,6 @@ export async function listConversations(session: Session): Promise<ActionResult<
         other: r.conversation.participants[0]?.employee ?? null,
         lastMessage: last
           ? {
-              // A photo or voice note has no text to preview, so name the kind
-              // rather than showing an empty row.
               body: last.deletedAt
                 ? "Message deleted"
                 : last.body ||
@@ -202,14 +173,7 @@ export async function listConversations(session: Session): Promise<ActionResult<
   })
 }
 
-/**
- * Open (or create) the conversation with one colleague.
- *
- * Idempotent by pairKey: two people clicking each other at the same instant get
- * the same row rather than two half-histories. The unique index is what actually
- * guarantees that, so a lost race is caught and re-read instead of surfacing as
- * an error.
- */
+/** Open or create the conversation with one colleague (idempotent by pairKey). */
 export async function startConversation(
   body: unknown,
   session: Session,
@@ -233,7 +197,6 @@ export async function startConversation(
       select: { id: true },
     })
     if (existing) {
-      // Un-archive for the opener: they just asked for it back.
       await db.conversationParticipant.updateMany({
         where: { conversationId: existing.id, employeeId: me },
         data: { isArchived: false },
@@ -259,7 +222,7 @@ export async function startConversation(
   })
 }
 
-/** One conversation's messages, oldest last. `before` pages backwards. */
+/** Oldest first; `before` pages backwards. */
 export async function listMessages(
   conversationId: string,
   session: Session,
@@ -273,7 +236,6 @@ export async function listMessages(
     const rows = await db.chatMessage.findMany({
       where: {
         conversationId,
-        // "Delete for me" hides the row from this reader and nobody else.
         NOT: { hiddenFor: { has: session.user.id } },
         ...(opts.before ? { createdAt: { lt: new Date(opts.before) } } : {}),
       },
@@ -325,21 +287,15 @@ export async function listMessages(
       serialize({
         data: {
           other: membership.other,
-          // When the other person last opened this thread. Anything sent before
-          // it has genuinely been seen - the tick is evidence, not decoration.
           otherLastReadAt: membership.otherLastReadAt,
-          // Reversed so the client renders oldest-first without re-sorting.
           messages: rows.reverse().map((m) => ({
             ...m,
-            // Deleting for everyone takes the card with it, same as the files.
             poll: m.deletedAt ? null : shapePoll(m.poll, session.user.id),
             event: m.deletedAt ? null : m.event,
             contact: m.deletedAt ? null : m.contact,
             replyTo: m.replyTo
               ? {
                   id: m.replyTo.id,
-                  // A quote of something since deleted says so, rather than
-                  // showing text the author has already taken back.
                   body: m.replyTo.deletedAt
                     ? null
                     : (m.replyTo.body ?? null) ||
@@ -354,11 +310,8 @@ export async function listMessages(
                 }
               : null,
             body: m.deletedAt ? null : m.body,
-            // Deleting for everyone must take the files with it, not just the text.
             attachments: m.deletedAt ? [] : m.attachments,
             fromMe: m.senderId === session.user.id,
-            // Grouped here, not in the client: every bubble would otherwise
-            // re-group the same rows on every render.
             reactions: groupReactions(m.reactions, session.user.id),
           })),
           hasMore: rows.length === limit,
@@ -379,9 +332,7 @@ export async function sendMessage(
     const membership = await requireMembership(conversationId, me)
     if (!membership) return fail("Conversation not found", undefined, 404)
 
-    // A quote must belong to THIS conversation. The id arrives from the client
-    // and the schema only checks it is a uuid, so without this a reply in Y could
-    // quote (and surface the body of) a message from another conversation X.
+    // The quoted message must be in THIS conversation, or a reply could leak another chat's text.
     let replyToId: string | null = null
     if (input.replyToId) {
       const quoted = await db.chatMessage.findFirst({
@@ -406,20 +357,17 @@ export async function sendMessage(
         where: { id: conversationId },
         data: { lastMessageAt: new Date() },
       }),
-      // The sender has by definition read their own message.
       db.conversationParticipant.updateMany({
         where: { conversationId, employeeId: me },
         data: { lastReadAt: new Date() },
       }),
-      // A new message pulls the thread back for whoever archived it.
       db.conversationParticipant.updateMany({
         where: { conversationId, employeeId: { not: me } },
         data: { isArchived: false },
       }),
     ])
 
-    // Realtime AFTER the commit: pushing first can deliver a message that the
-    // transaction then rolls back.
+    // Publish only after the commit - a rollback would otherwise leave a ghost message.
     if (membership.other) {
       await publishChat({
         type: "message",
@@ -431,8 +379,7 @@ export async function sendMessage(
         body: input.body,
         createdAt: message.createdAt.toISOString(),
       })
-      // The bell, the inbox and push. The SSE event above only reaches somebody
-      // with the chat screen open; this is what reaches them anywhere else.
+      // SSE only reaches an open chat screen; the notification reaches them everywhere else.
       await notifyRecipient({
         toEmployeeId: membership.other.id,
         conversationId,
@@ -445,7 +392,6 @@ export async function sendMessage(
   })
 }
 
-/** Mark everything up to now as read for this person. */
 export async function markRead(
   conversationId: string,
   session: Session,
@@ -459,7 +405,6 @@ export async function markRead(
       data: { lastReadAt: new Date() },
     })
 
-    // Opening the thread IS reading it - the badge must not outlive the visit.
     await db.notification.updateMany({
       where: {
         employeeId: session.user.id,
@@ -481,13 +426,7 @@ export async function markRead(
   })
 }
 
-/**
- * Delete one of YOUR messages for everyone.
- *
- * Soft: the row stays as a "Message deleted" placeholder. Removing it outright
- * makes the thread silently reshuffle around a gap, which reads as the other
- * person never having said anything.
- */
+/** "me" hides it for the caller only; "everyone" soft-deletes your own message, leaving a placeholder. */
 export async function deleteMessage(
   messageId: string,
   scope: "me" | "everyone",
@@ -508,14 +447,11 @@ export async function deleteMessage(
     })
     if (!message) return fail("Message not found", undefined, 404)
 
-    // Membership, not just authorship: hiding a message requires being in the
-    // conversation, which is a different question from having written it.
     const membership = await requireMembership(message.conversationId, me)
     if (!membership) return fail("Message not found", undefined, 404)
 
     if (scope === "me") {
-      // Anyone in the thread may hide anything from their OWN view - including
-      // the other person's messages. It changes nothing for them.
+      // Anyone in the thread may hide any message from their own view.
       if (!message.hiddenFor.includes(me)) {
         await db.chatMessage.update({
           where: { id: messageId },
@@ -525,14 +461,10 @@ export async function deleteMessage(
       return ok(serialize({ data: { id: messageId, scope } }))
     }
 
-    // "Delete for everyone" is only yours to do, and only to your own message.
     if (message.senderId !== me) {
       return fail("You can only delete your own messages for everyone", undefined, 403)
     }
     if (message.deletedAt) return ok(serialize({ data: { id: messageId, scope } }))
-    // Same window project messages use. Unpicking a line the other person read
-    // days ago rewrites a shared record; "delete for me" stays open forever
-    // because it only changes your own view.
     if (!isWithinEditWindow(message.createdAt)) {
       return fail("That message is too old to delete for everyone", undefined, 403)
     }
@@ -542,8 +474,6 @@ export async function deleteMessage(
       data: { deletedAt: new Date(), body: "" },
     })
 
-    // Tell the other side so the placeholder replaces the text on their screen
-    // too, rather than only after they next reload.
     if (membership.other) {
       await publishChat({
         type: "message",
@@ -555,13 +485,6 @@ export async function deleteMessage(
   })
 }
 
-/**
- * Edit your own message.
- *
- * No time limit, unlike task details: a chat message is a conversation, not a
- * commitment somebody plans around. The `edited` marker is what keeps it honest -
- * the other person can always see that the wording changed.
- */
 export async function editMessage(
   messageId: string,
   body: unknown,
@@ -588,8 +511,6 @@ export async function editMessage(
     if (message.deletedAt) {
       return fail("That message was deleted", undefined, 409)
     }
-    // Enforced here, not only hidden in the UI - the button being gone is a
-    // courtesy, this is the rule.
     if (!isWithinEditWindow(message.createdAt)) {
       return fail("That message is too old to edit", undefined, 403)
     }
@@ -614,7 +535,6 @@ export async function editMessage(
   })
 }
 
-/** People you can start a chat with: active colleagues, excluding yourself. */
 export async function listChatContacts(
   session: Session,
   search?: string,
@@ -624,8 +544,6 @@ export async function listChatContacts(
       where: {
         isActive: true,
         id: { not: session.user.id },
-        // admin_ is a silent watch account - it must never appear in a colleague
-        // picker (lib/constants.ts HIDDEN_ROLES).
         ...VISIBLE_EMPLOYEE_FILTER,
         ...(search
           ? {
@@ -649,15 +567,7 @@ export async function listChatContacts(
   })
 }
 
-/**
- * Stamp every message that has now reached this person's device, and tell the
- * senders so their second tick can appear without a refresh.
- *
- * Called from two places, because there are exactly two moments a message can
- * be said to have arrived: their chat stream pushed it to an open tab, or they
- * opened the app and the badge poll ran. Anything else - the message merely
- * existing in the database - is the FIRST tick, not the second.
- */
+/** Marks messages delivered (second tick) once they reach the device via the stream or badge poll. */
 export async function markDelivered(employeeId: string, conversationId?: string): Promise<void> {
   const parts = await db.conversationParticipant.findMany({
     where: { employeeId, ...(conversationId ? { conversationId } : {}) },
@@ -673,8 +583,7 @@ export async function markDelivered(employeeId: string, conversationId?: string)
       deletedAt: null,
     },
     select: { id: true, conversationId: true, senderId: true },
-    // A first login after a long absence should not turn into an unbounded
-    // update; the rest are picked up by the next poll.
+    // Bounded; the rest are picked up by the next poll.
     take: 200,
   })
   if (pending.length === 0) return
@@ -684,8 +593,6 @@ export async function markDelivered(employeeId: string, conversationId?: string)
     data: { deliveredAt: new Date() },
   })
 
-  // One event per sender, not per message: ten messages delivered at once is
-  // still just "your ticks changed" to the person who sent them.
   const bySender = new Map<string, string>()
   for (const m of pending) bySender.set(m.senderId, m.conversationId)
   await Promise.all(
@@ -695,20 +602,7 @@ export async function markDelivered(employeeId: string, conversationId?: string)
   )
 }
 
-/**
- * Pin or unpin a line in a conversation.
- *
- * Either participant may pin, and both see the same shelf. A private bookmark
- * would be a different feature: pinning here says "this is the bit that matters"
- * to the person you are talking to, which is the whole point.
- */
-/**
- * Pin / unpin a whole conversation for the CALLER only.
- *
- * The flag lives on their participant row, so pinning a chat cannot reorder it
- * for the person on the other side. Writing to a row keyed by (conversation,
- * employee) is also the membership check: a non-participant updates nothing.
- */
+/** Per-caller pin on the participant row, so it never reorders the other side's list. */
 export async function toggleConversationPin(
   session: Session,
   conversationId: string,
@@ -730,14 +624,6 @@ export async function toggleConversationPin(
   })
 }
 
-/**
- * Add or remove one emoji reaction on a message, for the caller.
- *
- * A toggle keyed on (message, person, emoji): tapping 👍 twice takes it off
- * rather than stacking a second one, and the unique index means two rapid taps
- * cannot both insert. Membership is proved first - a reaction is a write into
- * somebody else's conversation otherwise.
- */
 export async function toggleReaction(
   conversationId: string,
   messageId: string,
@@ -758,9 +644,7 @@ export async function toggleReaction(
     })
     if (!message) return fail("Message not found", undefined, 404)
 
-    // Idempotent toggle (API-13): a double-tap or two devices used to race the
-    // find-then-delete/create into a P2002/P2025 500. deleteMany tolerates 0
-    // rows, and a duplicate create (lost add race) is swallowed via P2002.
+    // Idempotent: deleteMany tolerates 0 rows and a lost create race (P2002) is ignored.
     const existing = await db.chatMessageReaction.findUnique({
       where: { messageId_employeeId_emoji: { messageId, employeeId: me, emoji: clean } },
       select: { id: true },
@@ -777,9 +661,6 @@ export async function toggleReaction(
       }
     }
 
-    // Both sides must see it appear without a refresh, same as a new message.
-    // The other participant is the recipient; my own tab already has the answer
-    // from the mutation's own response.
     const other = await db.conversationParticipant.findFirst({
       where: { conversationId, employeeId: { not: me } },
       select: { employeeId: true },
@@ -832,7 +713,6 @@ export async function togglePin(
   })
 }
 
-/** The pinned shelf for one conversation, newest pin first. */
 export async function listPinned(
   conversationId: string,
   session: Session,
@@ -881,12 +761,6 @@ export async function listPinned(
   })
 }
 
-/**
- * Find text inside one conversation.
- *
- * The conversation list already filters by NAME; this is the other half, and the
- * half you actually need to find a decision somebody typed three weeks ago.
- */
 export async function searchMessages(
   conversationId: string,
   query: string,
@@ -919,14 +793,7 @@ export async function searchMessages(
   })
 }
 
-/**
- * Search every conversation at once - names AND what was said inside them.
- *
- * The list pane used to filter on the other person's name only, which finds a
- * chat you already know you had. Project messages had always searched the
- * discussion itself, and that is the half that answers "where did somebody say
- * that?" when you cannot remember who said it.
- */
+/** Search every conversation by the other person's name and by message text. */
 export async function searchAllMessages(
   query: string,
   session: Session,
@@ -943,8 +810,6 @@ export async function searchAllMessages(
     if (parts.length === 0) return ok(serialize({ data: [] }))
     const conversationIds = parts.map((p) => p.conversationId)
 
-    // Who each conversation is WITH, so a hit can be labelled without a second
-    // round trip per result.
     const others = await db.conversationParticipant.findMany({
       where: { conversationId: { in: conversationIds }, employeeId: { not: me } },
       select: { conversationId: true, employee: PERSON },
@@ -960,8 +825,7 @@ export async function searchAllMessages(
       },
       select: { id: true, body: true, senderId: true, createdAt: true, conversationId: true },
       orderBy: { createdAt: "desc" },
-      // Across every conversation at once, so the cap is global: the newest 200
-      // hits, then at most a handful shown per chat below.
+      // Global cap across all conversations; at most 5 are shown per chat below.
       take: 200,
     })
 
@@ -992,10 +856,8 @@ export async function searchAllMessages(
           })),
         }
       })
-      // A conversation earns a place by its name or by something said in it.
       .filter((r) => r.nameMatch || r.matches.length > 0)
       .sort((a, b) => {
-        // Whoever you were talking to most recently about this comes first.
         const at = a.matches[0]?.createdAt?.getTime() ?? 0
         const bt = b.matches[0]?.createdAt?.getTime() ?? 0
         return bt - at

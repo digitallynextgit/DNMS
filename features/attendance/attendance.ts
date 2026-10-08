@@ -1,22 +1,10 @@
-// =============================================================================
-// Attendance status computation (Digitally Next Code of Conduct)
-//
-// Status is derived from HOURS WORKED:
-//   - no check-in                       → ABSENT
-//   - workHours < halfDayMinHours (4h)  → ABSENT   (full-day absent)
-//   - 4h ≤ workHours < fullDayHours (8h)→ HALF_DAY
-//   - workHours ≥ fullDayHours (8h)     → PRESENT
-//   - checked in but no check-out (hours unknown) → PRESENT (incomplete, not penalised)
-//
-// NOTE: Late-mark detection (e.g. check-in after 9:45, 3 late marks/month → half
-// day) is intentionally NOT applied yet. The LATE branches in the attendance
-// sync route are commented out (not deleted) so this can be switched on later.
-// =============================================================================
+// Attendance status from hours worked: no check-in or < halfDayMinHours (4h) = ABSENT,
+// < fullDayHours (8h) = HALF_DAY, else PRESENT; no check-out yet = PRESENT (not penalised).
+// Late-mark rules are intentionally not applied yet.
 
 import { $Enums } from "@prisma/client"
 
 export interface AttendanceStatusInput {
-  /** Whether the employee checked in at all. */
   checkIn: Date | string | null | undefined
   /** Hours worked (check-out minus check-in). null when it can't be computed. */
   workHours: number | null | undefined

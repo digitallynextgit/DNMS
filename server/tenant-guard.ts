@@ -3,58 +3,23 @@ import "server-only"
 import { Prisma } from "@prisma/client"
 import { currentTenant, unscopedReason, type TenantContext } from "@/server/tenant-context"
 
-// =============================================================================
-// The tenant guard (M4) - a Prisma extension that scopes every query.
-//
-// M1 gave every row a tenant. M2 gave every session one. M3 put it in the URL.
-// None of that stops a query reading another company's rows; this does.
-//
-// For each of the 106 tenant-scoped models it:
-//   - adds `tenantId` to the WHERE of every read, update and delete
-//   - stamps `tenantId` onto every create
-//
-// The model list comes from Prisma's DMMF at runtime, not a hand-kept array, so
-// a new model with a tenant_id column is covered the moment it is generated and
-// one without it can never be silently mis-listed.
-//
-// ── WHAT THIS DOES NOT COVER ─────────────────────────────────────────────────
-// Say it plainly, because a guard you over-trust is worse than none:
-//
-//   1. `$queryRaw` / `$executeRaw` pass straight through. Prisma extensions do
-//      not see them. Row-level security is the only thing that would, and it is
-//      not in place - see docs/multi-tenancy-progress.md for why.
-//   2. NESTED writes (`create: { data: { …, tasks: { create: [...] } } }`) are
-//      not stamped: the extension rewrites the top-level `data`, not the tree
-//      beneath it. The database DEFAULT still catches those, which is one of the
-//      reasons the default has not been dropped.
-//   3. It scopes by tenant, not by user. Who inside a company may see what is
-//      still the permission system's job.
-//
-// ── MODES ────────────────────────────────────────────────────────────────────
-// `TENANT_ENFORCEMENT`:
-//   off     - extension does nothing. An escape hatch, not a setting to leave on.
-//   warn    - (default) scope when there is a context; log loudly when a scoped
-//             model is queried without one. Correct today, because there is one
-//             tenant and every row belongs to it.
-//   strict  - throw instead of logging. Turn this on BEFORE onboarding the
-//             second company: in `warn` an unscoped query silently reads
-//             everything, which is exactly the leak this exists to prevent.
-// =============================================================================
+// Prisma extension that adds `tenantId` to the WHERE of every read/update/delete on a
+// tenant-scoped model and stamps it onto every create.
+// NOT covered: $queryRaw / $executeRaw, and nested writes (the DB default catches those).
+// TENANT_ENFORCEMENT: off | warn (log unscoped queries) | strict (throw).
 
 type Mode = "off" | "warn" | "strict"
 
 function readMode(): Mode {
   const raw = process.env.TENANT_ENFORCEMENT?.toLowerCase()
   if (raw === "off" || raw === "strict" || raw === "warn") return raw
-  // Unset: fail closed in production. `warn` was the single-tenant bring-up
-  // default, but a production box that lost the env var must throw on an
-  // unscoped query rather than silently read every tenant's rows.
+  // Unset: fail closed in production rather than silently read every tenant's rows.
   return process.env.NODE_ENV === "production" ? "strict" : "warn"
 }
 
 const MODE: Mode = readMode()
 
-/** Model names carrying a `tenantId`, straight from the generated schema. */
+// From the generated schema, so a new model with tenantId is covered automatically.
 const TENANT_SCOPED: ReadonlySet<string> = new Set(
   Prisma.dmmf.datamodel.models
     .filter((m) => m.fields.some((f) => f.name === "tenantId"))
@@ -62,19 +27,8 @@ const TENANT_SCOPED: ReadonlySet<string> = new Set(
 )
 
 /**
- * Every operation whose `where` selects existing rows - reads and mutations
- * alike. All of them simply get `tenantId` merged in.
- *
- * `findUnique` and `findUniqueOrThrow` are in here too, which is worth knowing:
- * Prisma normally restricts their `where` to unique fields, but
- * `extendedWhereUnique` (GA since Prisma 5) allows extra non-unique filters
- * alongside the unique one. Verified against this database - a findUnique by id
- * with the wrong tenant returns null, and an update with the wrong tenant
- * raises "no record was found". So there is no need to rewrite them into
- * findFirst, and Prisma's findUnique batching is preserved.
- *
- * This matters more than the other operations: `findUnique({ where: { id } })`
- * with an id off the URL is the realistic way one company reads another's row.
+ * Operations whose `where` gets `tenantId` merged in. findUnique works too: Prisma 5+ allows
+ * extra non-unique filters there, so a wrong-tenant id returns null.
  */
 const FILTERED = new Set([
   "findUnique",
@@ -91,30 +45,12 @@ const FILTERED = new Set([
   "deleteMany",
 ])
 
-/** Mutations that bring new rows into being. */
 const STAMPED_WRITES = new Set(["create", "createMany", "createManyAndReturn"])
 
 /**
- * The tenant for a SERVER COMPONENT render, read from the request headers.
- *
- * ── WHY THIS EXISTS ──────────────────────────────────────────────────────────
- * `getSession()` establishes the ambient context for API routes and server
- * actions, which covers both of those families in one line. Server components
- * reach neither: a page renders outside every wrapper. Having the LAYOUT enter
- * the context does not help either - React renders a page in its own async
- * task, not a descendant of the layout's, so the store set there is invisible.
- * Measured, not assumed: with the layout entering context, 21 queries from page
- * renders still arrived with none.
- *
- * That left two options: call an accessor at the top of every page and every
- * query module they reach (dozens of places, each one forgettable), or read the
- * answer the proxy already worked out. This is the second.
- *
- * `x-tenant-id` is written by proxy.ts AFTER checking the URL against the
- * session, and deleted from every inbound request, so it cannot be forged.
- *
- * Returns null outside a request entirely - a cron tick, a CLI script - where
- * `headers()` throws. Those have their own context (forEachTenant, runUnscoped).
+ * Fallback for server components, which render outside any ambient context (even their layout's).
+ * Safe to trust: proxy.ts strips `x-tenant-id` from every inbound request and sets it only after
+ * checking the session. Null outside a request (cron, scripts), where headers() throws.
  */
 async function tenantFromRequestHeaders(): Promise<TenantContext | null> {
   try {
@@ -124,7 +60,7 @@ async function tenantFromRequestHeaders(): Promise<TenantContext | null> {
     if (!tenantId) return null
     return { tenantId, slug: h.get("x-tenant-slug") ?? "" }
   } catch {
-    // No request scope. Not an error - see above.
+    // No request scope.
     return null
   }
 }
@@ -143,7 +79,6 @@ function reportMissingContext(model: string, operation: string): void {
 
 type Args = Record<string, unknown>
 
-/** Merge a tenant filter into a `where`, leaving whatever was there intact. */
 function narrow(where: unknown, tenantId: string): Args {
   if (where && typeof where === "object") {
     return { ...(where as Args), tenantId }
@@ -158,9 +93,7 @@ function stamp(data: unknown, tenantId: string): unknown {
     )
   }
   if (data && typeof data === "object") {
-    // Spread AFTER tenantId so an explicit value in the payload still wins -
-    // seeding and the platform console legitimately create rows for a named
-    // tenant while running inside another (or none).
+    // An explicit tenantId in the payload wins (seeding, platform console).
     return { tenantId, ...(data as Args) }
   }
   return data
@@ -175,8 +108,6 @@ export const tenantGuard = Prisma.defineExtension((client) =>
           if (MODE === "off") return query(args)
           if (!TENANT_SCOPED.has(model)) return query(args)
 
-          // Deliberately cross-tenant: signing in, the platform console, a cron
-          // loop deciding which tenants to visit.
           if (unscopedReason() !== null) return query(args)
 
           const tenant = currentTenant() ?? (await tenantFromRequestHeaders())
@@ -194,10 +125,7 @@ export const tenantGuard = Prisma.defineExtension((client) =>
           const id = tenant.tenantId
           const a = (args ?? {}) as Args
 
-          // `query` is typed for one specific operation, but this callback sees
-          // all of them at once, so the narrowed args are handed back through a
-          // cast. The shapes are checked by the runtime, and by
-          // scripts/verify-tenant-guard.ts, which drives every operation for real.
+          // `query` is typed for one operation but this sees all of them, hence the cast.
           const run = query as (a: unknown) => Promise<unknown>
 
           if (FILTERED.has(operation)) {
@@ -223,7 +151,7 @@ export const tenantGuard = Prisma.defineExtension((client) =>
   }),
 )
 
-/** For diagnostics and the verification script. */
+/** For diagnostics. */
 export const TENANT_GUARD_INFO = {
   mode: MODE,
   scopedModelCount: TENANT_SCOPED.size,

@@ -7,9 +7,8 @@ import {
   createStorageAccount,
 } from "@/features/admin/server/storage-accounts.service"
 
-// Storage credentials are administrative config - same gate as the rest of
-// Integrations, PLUS the platform scope: StorageAccount has no tenantId, so
-// settings:write alone would hand every tenant's admin the shared credentials.
+// Also needs platform scope: StorageAccount has no tenantId, so settings:write alone would
+// expose the shared credentials to every tenant's admin.
 export const GET = withAuth(PERMISSIONS.SETTINGS_WRITE, async (_req, _ctx, session) => {
   assertPlatformScope(session)
   return respond(await listStorageAccounts())

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { BellRing } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -19,24 +19,19 @@ import { DEFAULT_REMINDER_PREFERENCE, LEAD_MINUTE_PRESETS, REMINDER_LIMITS } fro
 import { describeOffset, reminderOffsets } from "../lib/reminder-schedule"
 import type { ReminderPreference } from "../types"
 
-/**
- * Personal control over the "your time on this task is nearly up" reminder.
- *
- * The employee sets WHEN the first warning lands and HOW MANY follow. Rather
- * than describing that in prose, the card previews the exact schedule those
- * numbers produce - computed with the same function the cron uses, so what is
- * shown here is what will actually be sent.
- */
+/** Personal settings for the task-time reminder, with a preview of the exact schedule (same
+ *  function the cron uses). */
 export function TaskReminderSettings() {
   const { data, isLoading } = useTaskReminderPreference()
   const updateMut = useUpdateTaskReminderPreference()
   const [form, setForm] = useState<ReminderPreference>(DEFAULT_REMINDER_PREFERENCE)
 
-  // Seed the form once the saved values arrive, and re-seed after a save so the
-  // fields always show what is actually stored.
-  useEffect(() => {
+  // Seed the form from the saved values, and re-seed after a save.
+  const [seededFrom, setSeededFrom] = useState<ReminderPreference | undefined>(undefined)
+  if (data !== seededFrom) {
+    setSeededFrom(data)
     if (data) setForm(data)
-  }, [data])
+  }
 
   const set = <K extends keyof ReminderPreference>(key: K, value: ReminderPreference[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -84,7 +79,6 @@ export function TaskReminderSettings() {
           disabled={!form.enabled}
           className={cn("space-y-6", !form.enabled && "pointer-events-none opacity-50")}
         >
-          {/* ── When the first warning lands ─────────────────────────────── */}
           <div className="space-y-2">
             <Label htmlFor="leadMinutes">Warn me this many minutes before the time is up</Label>
             <div className="flex flex-wrap items-center gap-2">
@@ -111,7 +105,6 @@ export function TaskReminderSettings() {
             </div>
           </div>
 
-          {/* ── How many, and how far apart ──────────────────────────────── */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="reminderCount">How many times</Label>
@@ -138,8 +131,7 @@ export function TaskReminderSettings() {
                 min={REMINDER_LIMITS.repeatEveryMinutes.min}
                 max={REMINDER_LIMITS.repeatEveryMinutes.max}
                 value={form.repeatEveryMinutes}
-                // Only the gap is meaningless with a single reminder; the field
-                // stays visible so the layout does not jump when the count changes.
+                // Disabled (not hidden) with a single reminder, so the layout doesn't jump.
                 disabled={form.reminderCount <= 1}
                 onChange={(e) =>
                   set("repeatEveryMinutes", toInt(e.target.value, form.repeatEveryMinutes))
@@ -153,7 +145,6 @@ export function TaskReminderSettings() {
             </div>
           </div>
 
-          {/* ── What those numbers actually do ───────────────────────────── */}
           <div className="bg-muted/50 space-y-2 rounded-sm border p-3">
             <p className="text-sm font-medium">You will be reminded</p>
             <div className="flex flex-wrap gap-2">
@@ -201,8 +192,7 @@ export function TaskReminderSettings() {
   )
 }
 
-/** Empty or non-numeric input keeps the last good value, so the field never
- *  submits NaN and the preview below it never blanks out mid-typing. */
+/** Empty or non-numeric input keeps the last good value (no NaN, no blank preview). */
 function toInt(raw: string, fallback: number): number {
   const n = Number.parseInt(raw, 10)
   return Number.isFinite(n) ? n : fallback

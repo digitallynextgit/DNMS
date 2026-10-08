@@ -13,20 +13,8 @@ function first(value: string | string[] | undefined): string | undefined {
 }
 
 /**
- * Server shell for the employee directory: prefetch the first page of the list
- * so EmployeeDirectoryClient's `useEmployees(...)` finds a warm cache and paints
- * immediately, with no client fetch on first load.
- *
- * The query key below MUST stay byte-identical to the filters object the client
- * passes to `useEmployees` (see employee-directory-client.tsx), or React Query
- * treats it as a different query and refetches - wasting the prefetch.
- * The client derives those filters from the URL, so we derive them the same way:
- *   - search:       `?search` (the debounce hook returns its initial value
- *                   synchronously, so the first render already uses it), else ""
- *   - departmentId: `?departmentId`, empty → undefined
- *   - status:       `?status`, defaulting to "ACTIVE"; `all` → undefined
- *   - page:         `?page`, min 1
- *   - limit:        always 10
+ * Prefetches the first page so the client's useEmployees() paints from a warm cache. The key
+ * MUST match the client's filters exactly (derived from the URL the same way) or it refetches.
  */
 export default async function EmployeeDirectoryPage({
   searchParams,
@@ -54,10 +42,8 @@ export default async function EmployeeDirectoryPage({
   try {
     await queryClient.prefetchQuery({
       queryKey: ["employees", filters],
-      // Same service the API route calls (app/api/employees/route.ts), so no auth
-      // re-check and no network hop. `getEmployees` already `serialize()`s its
-      // payload, so the cached value matches the wire shape exactly. The client's
-      // queryFn unwraps the `{ data }` envelope, so we cache `result.data`.
+      // Same service as the API route; it already serialize()s, so the cache matches the wire shape.
+      // The client's queryFn unwraps { data }, so result.data is cached.
       queryFn: async () => {
         const result = await getEmployees(filters)
         if (!result.ok) throw new Error(result.error)
@@ -65,8 +51,7 @@ export default async function EmployeeDirectoryPage({
       },
     })
   } catch (error) {
-    // Never 500 the page over a prefetch (e.g. missing employee:read) - the
-    // client hook will fetch on mount, exactly as it did before.
+    // Never 500 the page over a prefetch - the client hook fetches on mount instead.
     console.error("[EMPLOYEE_DIRECTORY_PREFETCH]", error)
   }
 

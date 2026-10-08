@@ -1,13 +1,6 @@
-// =============================================================================
-// Departments form a tree: Department → Sub-department → Sub-sub-department,
-// e.g. SMG → MSG → Content. Each row points at its parent (Department.parentId).
-//
-// Pure functions, no imports: the service validates moves with them and every
-// department dropdown orders and labels itself with them, so the two can never
-// disagree about what the tree looks like.
-// =============================================================================
+// Department tree helpers (Department -> Sub -> Sub-sub via parentId), shared by the service and
+// every dropdown so they agree.
 
-/** How many levels deep the tree may go. */
 export const MAX_DEPARTMENT_DEPTH = 3
 
 /** What each level is called, by depth (0 = top level). */
@@ -32,15 +25,8 @@ export type FlatDepartment<T extends DepartmentNode> = T & {
   childCount: number
 }
 
-/**
- * The tree, flattened depth-first: every department followed by its
- * sub-departments, siblings alphabetical.
- *
- * A department whose parent is not in `list` (an inactive parent filtered out,
- * say) is shown as top level rather than dropped. A parent loop - which the
- * service refuses to create - is unreachable from the top and left out,
- * rather than recursed into forever.
- */
+/** The tree flattened depth-first, siblings alphabetical. Orphans (parent not in `list`) show as
+ *  top level; a parent loop is left out rather than recursed forever. */
 export function flattenDepartmentTree<T extends DepartmentNode>(list: T[]): FlatDepartment<T>[] {
   const ids = new Set(list.map((d) => d.id))
   const byParent = new Map<string | null, T[]>()
@@ -127,14 +113,8 @@ export function departmentSubtreeHeight(
   return height
 }
 
-/**
- * Why `id` cannot sit under `parentId`, or null when it can.
- *
- * Pass `id = null` for a department that does not exist yet. Refuses a parent
- * that is the department itself or one of its own sub-departments (a loop),
- * and any move that would push the department - or the deepest thing under
- * it - past MAX_DEPARTMENT_DEPTH levels.
- */
+/** Why `id` can't sit under `parentId` (a loop, or deeper than MAX_DEPARTMENT_DEPTH), or null.
+ *  Pass `id = null` for a new department. */
 export function departmentParentError(
   list: ReadonlyArray<Pick<DepartmentNode, "id" | "parentId">>,
   id: string | null,

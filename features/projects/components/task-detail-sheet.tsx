@@ -71,7 +71,6 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="flex w-full flex-col gap-0 overflow-hidden border-l p-0 sm:max-w-120">
-        {/* Priority accent bar */}
         <div
           className={cn(
             "h-1 w-full bg-linear-to-r to-transparent",
@@ -79,7 +78,6 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
           )}
         />
 
-        {/* Header */}
         <div className="bg-muted/30 space-y-3 border-b px-5 pt-4 pr-12 pb-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
@@ -93,7 +91,6 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
             )}
           </div>
 
-          {/* Meta row */}
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge
               status={task.status}
@@ -131,7 +128,6 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
             variant="stacked"
           />
 
-          {/* On-hold / discarded context */}
           {task.status === "ON_HOLD" && task.holdReason && (
             <div className="rounded-sm border border-amber-300/50 bg-amber-50/50 p-2.5 text-xs dark:border-amber-900/60 dark:bg-amber-950/20">
               <p className="font-medium text-amber-700 dark:text-amber-300">
@@ -150,7 +146,6 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
             </div>
           )}
 
-          {/* Assignee */}
           {task.assignee && (
             <div className="flex items-center gap-2">
               <AvatarDisplay
@@ -170,17 +165,14 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
           )}
         </div>
 
-        {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto">
-          {/* Description */}
           {task.description && (
             <div className="border-b px-5 py-4">
               <p className="text-muted-foreground text-sm leading-relaxed">{task.description}</p>
             </div>
           )}
 
-          {/* Milestone and goal are the manager's calls; whether the work leaves
-              something behind is the person DOING it who knows. */}
+          {/* Milestone and goal are the manager's call; the assignee can set the output switch. */}
           {(isManager || task.assigneeId === currentUserId) && (
             <div className="space-y-2.5 border-b px-5 py-3">
               {isManager && <MilestoneToggle task={task} />}
@@ -189,12 +181,10 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
             </div>
           )}
 
-          {/* Checklist */}
           <div className="border-b px-5 py-4">
             <ChecklistSection taskId={task.id} />
           </div>
 
-          {/* Status history: created, started, and time in each phase */}
           <div className="border-b px-5 py-4">
             <div className="mb-3 flex items-center gap-2">
               <History className="text-muted-foreground h-3.5 w-3.5" />
@@ -203,7 +193,6 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
             <TaskTimeline taskId={task.id} open={open} />
           </div>
 
-          {/* Comments */}
           <div className="px-5 py-4">
             <CommentsSection taskId={task.id} currentUserId={currentUserId} />
           </div>
@@ -213,11 +202,7 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
   )
 }
 
-/**
- * Which goal this task serves - the WHY. Changeable here so a task raised in a
- * hurry can be filed later; "Not tied to a goal" is a legitimate answer that
- * the manager sees counted on the Goals tab.
- */
+/** Changeable here so a hurried task can be filed later; "Not tied to a goal" is a valid answer. */
 function GoalPicker({ task }: { task: ProjectTask }) {
   const update = useUpdateTask()
   const { data } = useProjectGoals(task.projectId ?? "")
@@ -299,19 +284,10 @@ function MilestoneToggle({ task }: { task: ProjectTask }) {
   )
 }
 
-/**
- * Is something expected to come out of this?
- *
- * The one switch behind the capture prompt: on, and finishing the task asks
- * what it produced; off, and it does not. Open to the ASSIGNEE as well as the
- * manager, because the person doing the work is the one who knows whether there
- * is a thing at the end of it - and a nudge they cannot turn off is a nudge
- * they learn to answer with rubbish. Silent: the switch itself is the feedback.
- */
+/** Drives the capture prompt on finish. Open to the assignee too: they know if there's an output. */
 function OutputToggle({ task }: { task: ProjectTask }) {
   const update = useUpdateTask()
-  // Undefined on rows fetched before the field existed; the server's default is
-  // "yes", so read it that way rather than showing the switch off.
+  // Undefined on rows from before the field existed; the server default is "yes".
   const active = task.producesOutput !== false
 
   return (
@@ -379,7 +355,6 @@ function ChecklistSection({ taskId }: { taskId: string }) {
 
   return (
     <div className="space-y-3">
-      {/* Section header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CheckSquare2 className="text-muted-foreground h-3.5 w-3.5" />
@@ -402,7 +377,6 @@ function ChecklistSection({ taskId }: { taskId: string }) {
         )}
       </div>
 
-      {/* Progress bar */}
       {total > 0 && (
         <div className="bg-muted h-1.5 overflow-hidden rounded-sm">
           <div
@@ -415,7 +389,6 @@ function ChecklistSection({ taskId }: { taskId: string }) {
         </div>
       )}
 
-      {/* Items */}
       {isLoading ? (
         <div className="space-y-2">
           <Skeleton className="h-8 rounded-sm" />
@@ -462,7 +435,6 @@ function ChecklistSection({ taskId }: { taskId: string }) {
         </div>
       )}
 
-      {/* Add input */}
       <div className="mt-1 flex items-center gap-2">
         <input
           ref={inputRef}
@@ -506,7 +478,6 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
 
   return (
     <div className="space-y-4">
-      {/* Section header */}
       <div className="flex items-center gap-2">
         <MessageSquare className="text-muted-foreground h-3.5 w-3.5" />
         <span className="text-xs font-semibold">Comments</span>
@@ -517,7 +488,6 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
         )}
       </div>
 
-      {/* Comment list */}
       {isLoading ? (
         <div className="space-y-3">
           <Skeleton className="h-14 rounded-sm" />
@@ -579,7 +549,6 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
         </div>
       )}
 
-      {/* Composer */}
       <div className="space-y-1.5 pt-1">
         <div className="relative">
           <Textarea

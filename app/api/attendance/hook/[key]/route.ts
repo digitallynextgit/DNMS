@@ -4,11 +4,7 @@ import { handlePunchPush, handlePunchProbe } from "@/features/attendance/server/
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-// POST /api/attendance/hook/<secret>
-//
-// The same hook with the secret as a path segment, because some firmware will
-// not store a "?" in its HTTP Listening URL field - and then there is nowhere
-// else to put it. Identical checks either way.
+// Secret as a path segment: some firmware can't store a "?" in its listening URL.
 export const POST = async (req: NextRequest, ctx: { params: Promise<{ key: string }> }) =>
   handlePunchPush(req, (await ctx.params).key)
 

@@ -1,16 +1,4 @@
-/**
- * Which rows of a tall grid are worth putting in the DOM.
- *
- * The calendar grid offers a hundred rows and will offer more on request, but
- * only a dozen are ever on screen. Mounting all of them means every arrow key
- * re-renders thousands of cells, so the grid mounts the visible band and props
- * two spacer rows either side of it - the scrollbar then measures the whole
- * grid even though most of it does not exist.
- *
- * Pulled out of the component because it is the one piece of arithmetic here
- * that can be wrong in a way you cannot see: an off-by-one leaves a blank strip
- * at the edge of a fast scroll, or silently drops the last row.
- */
+// Row windowing for the calendar grid: mount the visible band, pad the rest with spacers.
 
 /** Cumulative y of every row: `out[i]` is where row i starts, `out[total]` is the full height. */
 export function rowOffsets(total: number, heightOf: (pos: number) => number): number[] {
@@ -20,13 +8,7 @@ export function rowOffsets(total: number, heightOf: (pos: number) => number): nu
   return out
 }
 
-/**
- * The first row whose BOTTOM edge is past y - i.e. the row containing y.
- *
- * Binary search rather than a division, because rows do not all share a height:
- * the team can make one taller and the portal renders it at that height so the
- * two views line up.
- */
+/** The row containing y. Binary search, since rows can have different heights. */
 export function rowAt(offsets: number[], total: number, y: number): number {
   let lo = 0
   let hi = total
@@ -39,22 +21,14 @@ export function rowAt(offsets: number[], total: number, y: number): number {
 }
 
 export interface RowWindow {
-  /** First row to mount, inclusive. */
   firstRow: number
   /** Last row to mount, EXCLUSIVE - it is a slice end, not an index. */
   lastRow: number
-  /** Height of the spacer standing in for the rows above `firstRow`. */
   topPad: number
-  /** Height of the spacer standing in for the rows from `lastRow` down. */
   bottomPad: number
 }
 
-/**
- * The band to mount for a given scroll position, plus the two spacer heights.
- *
- * `overscan` rows are kept either side so a flick does not expose a blank strip
- * before the next render lands.
- */
+/** Rows to mount for a scroll position (plus `overscan` either side) and the spacer heights. */
 export function rowWindow(
   offsets: number[],
   total: number,

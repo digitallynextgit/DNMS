@@ -2,58 +2,23 @@ import "server-only"
 
 import { buildCandidates, configuredProviders, type Candidate, type Tier } from "./ai-providers"
 
-// The app's one door to an LLM.
-//
-// Everything that talks to a model goes through here, so there is ONE place
-// that knows the providers, the keys, the timeout and the error shape.
-//
-// A CALLER NAMES A TIER, NOT A MODEL. What actually answers is whatever is
-// reachable: `lib/ai-providers.ts` turns the tier into an ordered list of
-// (provider, model, key) and this walks it until one works. That indirection is
-// not architecture for its own sake - a free tier can refuse a model it happily
-// lists (a per-model quota of zero answers every request with 429), one key can
-// be rate limited while another on the same account is fine, and a provider can
-// simply be down. With one key and one model each of those killed the feature.
-//
-// Keys live in env and never reach the client - not in a response, not in a log
-// line. Failures are logged by POSITION ("groq#2"), never by value.
+// The app's one door to an LLM. Callers name a tier; ai-providers.ts orders the candidates and this
+// walks them until one works. Keys never reach the client or a log (logged by position, "groq#2").
 
-/** Tiers, not model names. See CHAINS in ai-providers.ts for what each maps to. */
 export const AI_MODEL_FAST: Tier = "fast"
 export const AI_MODEL_SMART: Tier = "smart"
 
-/**
- * How long one candidate gets. AI_TIMEOUT_MS raises it for deployments running
- * a big reasoning model - a 550B answers in ~25s, so the 20s default would
- * abort it every time and quietly fall through to something smaller.
- */
+/** Per candidate. Raise AI_TIMEOUT_MS for big reasoning models (a 550B takes ~25s). */
 const DEFAULT_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 20_000
 
-// A shared free tier returns 429 under load and clears in a second or two.
-// Without a retry every such blip surfaced as a dead "Couldn't generate the
-// report", which is what it looked like when the very next request succeeded.
+// Shared free tiers return brief 429s under load that clear in a second or two.
 const MAX_ATTEMPTS = 2
 const RETRYABLE = new Set([408, 429, 500, 502, 503, 504])
 
-/**
- * Statuses where a DIFFERENT candidate is worth trying.
- *
- * 400 and 422 are absent on purpose: a malformed request fails identically
- * everywhere, so walking the list would multiply one error by twelve and slow
- * the failure down. 401/403 ARE included - they are per key, and the whole
- * point of a second key is that the first one might be rejected.
- */
+/** Worth trying another candidate for. 400/422 fail the same everywhere; 401/403 are per key. */
 const FALL_THROUGH = new Set([401, 403, 404, 408, 429, 500, 502, 503, 504])
 
-/**
- * Candidates known to be refusing us, and when they are worth asking again.
- *
- * Keyed by candidate id ("groq#2:llama-3.3-70b"), so a key that is rate limited
- * does not bench its sibling and a model with no quota does not bench the key
- * for other models. Per-process, deliberately short-lived: a latency
- * optimisation, not a source of truth, and it has to expire so that a restored
- * plan or a reset quota starts being used again on its own.
- */
+/** Candidates refusing us (by candidate id) and until when. Per-process and short-lived on purpose. */
 const benched = new Map<string, number>()
 const BENCH_MS = 10 * 60_000
 /** A timeout is worth re-checking sooner than a quota: it is often just load. */
@@ -68,10 +33,7 @@ function retryDelayMs(attempt: number, res: Response | null): number {
   return Math.min(600 * 2 ** attempt, 5_000)
 }
 
-/**
- * What the USER is told. The provider's own wording is logged but never
- * forwarded - it leaks vendor details and reads as a bug in our app.
- */
+/** What the user sees. The provider's own wording is only logged - it leaks vendor details. */
 function providerMessage(status?: number): string {
   if (status === 429) return "The AI service is busy right now. Try again in a few seconds."
   if (status === 401 || status === 403) return "The AI service rejected our credentials"
@@ -95,12 +57,10 @@ export class AiError extends Error {
   }
 }
 
-/** True when ANY provider has at least one key. */
 export function isAiConfigured(): boolean {
   return configuredProviders(process.env).length > 0
 }
 
-/** Which providers are set up, and how many keys each has. Never the keys. */
 export function aiProviderStatus(): { id: string; keys: number }[] {
   return configuredProviders(process.env)
 }
@@ -108,16 +68,14 @@ export function aiProviderStatus(): { id: string; keys: number }[] {
 interface CompleteOptions {
   system: string
   user: string
-  /** A tier. A raw model id still works: it is used as-is on its provider. */
+  /** A tier, or a raw model id (used as-is). */
   model?: string
   temperature?: number
   maxTokens?: number
-  /** Ask the model for a JSON object and parse it. */
   json?: boolean
   timeoutMs?: number
 }
 
-/** One candidate, with a short retry for the blips that clear on their own. */
 async function callCandidate(c: Candidate, opts: CompleteOptions): Promise<string> {
   const payload = JSON.stringify({
     model: c.model,
@@ -149,12 +107,8 @@ async function callCandidate(c: Candidate, opts: CompleteOptions): Promise<strin
         body: payload,
       })
     } catch (err) {
-      // Abort => timeout; anything else => network/DNS. Both are worth trying
-      // the next candidate for, so they carry a fall-through status.
-      //
-      // Benched, and that is not a nicety: a candidate too slow to finish costs
-      // the WHOLE timeout, and without this it costs it again on every single
-      // request rather than once.
+      // Timeouts and network errors fall through. Bench them too, or a slow candidate costs the
+      // full timeout on every request.
       const timedOut = (err as Error)?.name === "AbortError"
       benched.set(c.id, Date.now() + SLOW_BENCH_MS)
       console.warn(
@@ -167,15 +121,11 @@ async function callCandidate(c: Candidate, opts: CompleteOptions): Promise<strin
 
     if (res.ok) break
 
-    // The provider's reason, server-side only. `c.id` names the key by
-    // position, so no key material can reach a log.
     const detail = await res.text().catch(() => "")
     console.error(`[ai] ${c.id} -> ${res.status}`, detail.slice(0, 200))
 
     if (!RETRYABLE.has(res.status) || attempt === MAX_ATTEMPTS - 1) {
-      // A 429 with no Retry-After is not a busy moment - it is this key's quota
-      // on this model being zero or spent. Bench it so the next request goes
-      // straight past instead of paying for the same refusal again.
+      // A 429 without Retry-After means this key's quota on this model is spent - bench it.
       const retryAfter = Number(res.headers.get("retry-after"))
       const transient = Number.isFinite(retryAfter) && retryAfter > 0
       if (transient) {
@@ -197,18 +147,13 @@ async function callCandidate(c: Candidate, opts: CompleteOptions): Promise<strin
   return text
 }
 
-/**
- * One chat completion. Returns the assistant's text (or the parsed object when
- * `json` is set). Throws AiNotConfiguredError / AiError - callers decide the
- * HTTP status, because "AI is down" should never take a whole page with it.
- */
+/** Returns the text, or the parsed object with `json`. Throws AiNotConfiguredError / AiError; callers pick the HTTP status. */
 export async function aiComplete<T = string>(opts: CompleteOptions): Promise<T> {
   const requested = opts.model ?? AI_MODEL_FAST
   const tier: Tier = requested === "smart" ? "smart" : "fast"
   let candidates = buildCandidates(tier, process.env)
 
-  // A caller naming an actual model still gets exactly that model, on whichever
-  // configured providers list it - the tier chains are a default, not a cage.
+  // A real model name gets exactly that model, on any provider that lists it.
   if (requested !== "fast" && requested !== "smart") {
     const exact = candidates.filter((c) => c.model === requested)
     if (exact.length > 0) candidates = exact
@@ -218,8 +163,7 @@ export async function aiComplete<T = string>(opts: CompleteOptions): Promise<T> 
 
   const now = Date.now()
   const ready = candidates.filter((c) => (benched.get(c.id) ?? 0) <= now)
-  // Everything is benched: try the last one anyway rather than failing without
-  // asking. A bench is a guess about the near future, not a fact.
+  // All benched: try the last one anyway rather than fail without asking.
   const queue = ready.length > 0 ? ready : [candidates[candidates.length - 1]!]
 
   const startedAt = Date.now()
@@ -230,9 +174,7 @@ export async function aiComplete<T = string>(opts: CompleteOptions): Promise<T> 
     const c = queue[i]!
     try {
       text = await callCandidate(c, opts)
-      // Logged EVERY time, not just after a fallback: which model answered is
-      // the first thing worth knowing when somebody says a brand report reads
-      // differently today, and the chain makes that vary by request.
+      // Logged on every call: which model answered varies by request.
       const ms = Date.now() - startedAt
       if (i > 0) console.warn(`[ai] served by ${c.id} in ${ms}ms (${i} unavailable first)`)
       else console.info(`[ai] served by ${c.id} in ${ms}ms`)
@@ -246,8 +188,7 @@ export async function aiComplete<T = string>(opts: CompleteOptions): Promise<T> 
   }
 
   if (text === null) {
-    // Out of candidates. If every one of them is benched, this is not a passing
-    // blip and "try again in a few seconds" would send people into a loop.
+    // All benched is not a passing blip, so don't tell people to retry in a few seconds.
     const allBenched = queue.every((c) => (benched.get(c.id) ?? 0) > Date.now())
     throw allBenched
       ? new AiError(

@@ -8,17 +8,7 @@ import { cn } from "@/lib/utils"
 import { useCommitOnOutsidePointer } from "@/hooks/use-commit-on-outside-pointer"
 import { dedupeLinks, isSafeHttpUrl, linkLabel } from "@/features/projects/lib/task-links"
 
-/**
- * A task's resource links - the brief, the doc, the published page.
- *
- * Shared by the sheet's Resources column and the card list, so a link behaves
- * the same wherever it is seen: the same chips, the same editor, the same rule
- * about what counts as a link. Built as one component rather than copied into
- * both because the validation is the part that must not drift.
- *
- * Owns its own editing state; the caller only supplies the current links, says
- * whether editing is allowed, and receives the committed list.
- */
+/** Shared by the sheet's Resources column and the card list, so link validation can't drift. */
 export function TaskResources({
   links,
   canEdit,
@@ -31,22 +21,18 @@ export function TaskResources({
   className?: string
 }) {
   const [editing, setEditing] = useState(false)
-  // One string per row. A textarea let two 100-character URLs wrap into one
-  // unbroken wall with nothing marking where the first ended; a row each gives
-  // every link its own box, and its own line, however long it is.
+  // One input per link, so long URLs don't wrap into each other.
   const [draft, setDraft] = useState<string[]>([])
   const boxRef = useRef<HTMLDivElement>(null)
   const settled = useRef(false)
 
-  // Blur alone misses a click on a scrollbar or on a target that prevents its
-  // own mousedown. finish() is idempotent, so both paths can be wired up.
+  // Blur alone misses clicks on a scrollbar or on targets that prevent mousedown; finish() is idempotent.
   useCommitOnOutsidePointer(boxRef, editing, () => finish(true))
 
   function begin() {
     if (!canEdit) return
     settled.current = false
-    // Always a trailing blank row, so there is somewhere to type the next link
-    // without hunting for an "add" button first.
+    // Always a trailing blank row to type the next link into.
     setDraft([...links, ""])
     setEditing(true)
   }
@@ -73,8 +59,7 @@ export function TaskResources({
     setEditing(false)
     if (!save) return
     const next = dedupeLinks(draft)
-    // Say which row is wrong before sending. The API rejects it too, but a
-    // toast naming the bad URL beats a generic failure after the round trip.
+    // Name the bad URL before sending; the API rejects it too, but less helpfully.
     const bad = next.find((l) => !isSafeHttpUrl(l))
     if (bad) {
       toast.error(`"${bad}" is not a web link`, {
@@ -91,15 +76,12 @@ export function TaskResources({
       <span ref={boxRef} className={cn("flex min-w-0 flex-col gap-1", className)}>
         {draft.map((url, i) => (
           <span key={i} className="flex items-center gap-0.5">
-            {/* A single-line input, so a long URL scrolls sideways inside its
-                own box instead of wrapping over six lines into the next one. */}
             <input
               value={url}
               autoFocus={i === draft.length - 1}
               onChange={(e) => editRow(i, e.target.value)}
               onBlur={() => {
-                // Only when focus leaves the editor entirely - moving between
-                // rows must not commit half a list.
+                // Only when focus leaves the editor entirely, not when moving between rows.
                 window.setTimeout(() => {
                   if (!boxRef.current?.contains(document.activeElement)) finish(true)
                 }, 0)
@@ -139,12 +121,9 @@ export function TaskResources({
   return (
     <span className={cn("flex min-w-0 flex-wrap items-center gap-1", className)}>
       {links.map((url, i) => (
-        // stopPropagation: the chip opens the link, the space around it may open
-        // an editor. Without it, following a link would also do that.
+        // stopPropagation: the space around the chip may open the editor.
         <a
-          // Index in the key, not the url alone: rows saved before duplicates
-          // were collapsed still hold two of the same, and they have to render
-          // rather than collide on their key.
+          // Index in the key: older rows can still hold duplicate URLs.
           key={`${url}-${i}`}
           href={url}
           target="_blank"

@@ -4,19 +4,10 @@ import { useEffect, useSyncExternalStore } from "react"
 import { AUTH_HINT_COOKIE, appHomeFor, parseAuthHint } from "@/lib/auth-hint"
 
 /**
- * Is a visitor to the PUBLIC marketing site signed in, and where is their app?
- * Shared by the header, the hero and the signup band.
- *
- * WHICH buttons show is decided by CSS, not by this hook: theme-boot.js stamps
- * <html data-auth> from the proxy's hint cookie before paint, and the
- * `auth-guest` / `auth-member` classes in globals.css follow it, so the static
- * HTML is right on its first frame (see lib/auth-hint.ts). This hook supplies
- * the app link (a portal contact's home is /portal), and re-stamps <html> after
- * a client-side navigation onto the marketing site, where theme-boot.js does
- * not run again.
- *
- * Not useSession(): the root layout gives SessionProvider `session={null}`,
- * which next-auth treats as a KNOWN signed-out session and never re-checks.
+ * Is a marketing-site visitor signed in, and where is their app? CSS picks which buttons show
+ * (theme-boot.js stamps <html data-auth> before paint - see lib/auth-hint.ts); this hook supplies
+ * the app link and re-stamps <html> after client-side navigation. Not useSession(): the root
+ * layout passes session={null}, which next-auth never re-checks.
  */
 export function useMarketingSession() {
   const hint = useSyncExternalStore(subscribeNever, readHint, () => null)

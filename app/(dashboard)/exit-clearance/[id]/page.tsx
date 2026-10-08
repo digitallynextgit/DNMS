@@ -117,8 +117,7 @@ export default function ExitClearanceDetailPage({ params }: { params: Promise<{ 
         />
       </div>
 
-      {/* Stated up front, not buried at the bottom: this is the reason the
-          Complete button is disabled, and the list of people to chase. */}
+      {/* Up front: it's why Complete is disabled, and the list of people to chase. */}
       {isOpen && !gate.ok && (
         <div className="flex flex-wrap items-center gap-2 rounded-sm bg-amber-500/10 px-3 py-2.5">
           <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600" />

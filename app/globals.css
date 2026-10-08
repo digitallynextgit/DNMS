@@ -38,12 +38,7 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
 
-  /* Tailwind's BARE `rounded` utility is hardcoded to 0.25rem (4px) unless the
-     border-radius namespace default is set here. Without this line, `rounded` (4px)
-     and `rounded-sm` (5px) are different - and an editor "canonical class" auto-fix
-     that rewrites rounded-sm -> rounded-sm silently reverts the whole app's radius.
-     Defining the default makes BOTH spellings resolve to --radius, so the radius
-     cannot drift no matter which one is written. */
+  /* Sets the default so bare `rounded` and `rounded-sm` both resolve to --radius and can't drift. */
   --radius: 5px;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -103,35 +98,20 @@
 
     --border: 0 0% 89%;
     --input: 0 0% 89%;
-    /* Focus ring: a calm mid-grey, not near-black - it should read as "focused",
-       not stamp a hard box on the control. */
+    /* A calm mid-grey: it should read as "focused", not stamp a hard box. */
     --ring: 0 0% 45%;
 
     --radius: 5px;
 
-    /* ---- Data-viz palette -------------------------------------------------
-       Categorical slots are assigned in FIXED order and never cycled. This pair
-       was validated against the card surface in both modes (CVD separation,
-       normal-vision floor, chroma, lightness band, 3:1 contrast) - re-run the
-       validator before adding a slot 3. Chart chrome is deliberately recessive.
-       Status colours (done/late/hold) are NOT here: they live with the status
-       badges so a series colour can never impersonate a state. */
+    /* Data-viz: categorical slots in FIXED order, never cycled; validated for CVD and contrast in
+       both modes - re-run the validator before adding a slot. Status colours live with the badges. */
     --viz-1: #2a78d6;
     --viz-2: #eb6834;
     --viz-grid: #e1e0d9;
     --viz-axis: #898781;
 
-    /* Task-state fills. NOT categorical slots - these encode a STATE, so they
-       are kept apart from --viz-1/2 and never used for a series.
-       Validated as an ordered set against the card surface in both modes; the
-       ORDER is the CVD mechanism, so stack/legend segments must follow it:
-       overdue -> todo -> hold -> progress -> done. (Worst adjacent CVD dE 15.0
-       light / 10.4 dark; normal-vision 20.8 / 22.6.) Re-run the validator
-       before reordering or adding a state.
-       --state-todo is deliberately near-gray: "not started" is the absence of
-       progress, so it recedes rather than competing for identity. Because it,
-       amber and green sit under 3:1 on the light card, every chart using these
-       ships direct labels + a legend - hue never carries meaning alone. */
+    /* Task states, not series colours. The ORDER (overdue -> todo -> hold -> progress -> done) is
+       the CVD mechanism - keep it. Some sit under 3:1 on the light card, so charts add labels + a legend. */
     --state-overdue: #ef4444;
     --state-todo: #94a3b8;
     --state-hold: #f59e0b;
@@ -167,22 +147,18 @@
 
     --border: 0 0% 14%;
     --input: 0 0% 14%;
-    /* Was near-white (0 0% 83%) - that's what made the focus box glare in dark
-       mode. A softer grey still reads clearly against the near-black bg. */
+    /* Softer than near-white, which made the focus box glare in dark mode. */
     --ring: 0 0% 55%;
 
     --radius: 5px;
 
-    /* Dark steps are SELECTED for the dark surface, not an automatic flip of
-       the light values, and were validated as their own set. */
+    /* Chosen for the dark surface, not flipped from light, and validated as their own set. */
     --viz-1: #3987e5;
     --viz-2: #d95926;
     --viz-grid: #2c2c2a;
     --viz-axis: #898781;
 
-    /* Selected for the dark card, not flipped from light: the light steps for
-       todo/hold/done sit outside the dark lightness band and would glare. Same
-       order, re-validated against the dark surface. */
+    /* Same order as light, re-validated for the dark card. */
     --state-overdue: #ef4444;
     --state-todo: #64748b;
     --state-hold: #d97706;
@@ -257,19 +233,14 @@
     letter-spacing: -0.02em;
   }
 
-  /* Keyboard-focus fallback for elements that have no ring of their own
-     (links, [tabindex] divs). Kept inside @layer base ON PURPOSE: a component's
-     own `focus-visible:outline-none` is a utility, and utilities beat base, so
-     it suppresses this outline - no second box stacking on inputs/buttons/
-     selects. (Previously this rule lived outside every layer and overrode all of
-     them, which is exactly why the box appeared on everything.) */
+  /* Fallback ring for links and [tabindex] divs. In @layer base on purpose, so a component's
+     focus-visible:outline-none utility still wins. */
   :focus-visible {
     outline: 2px solid hsl(var(--ring) / 0.55);
     outline-offset: 2px;
   }
 }
 
-/* Scrollbar (WebKit) */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -290,17 +261,12 @@
   background: transparent;
 }
 
-/* Scrollbar (Firefox) */
 * {
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
 }
 
-/* Collapse the 2px ring-offset gap on EVERY focus ring in the app so the
-   indicator hugs the control instead of floating a detached box around it.
-   Components set `ring-offset-2`; !important overrides that regardless of which
-   layer the utility lands in. Applies uniformly to inputs, selects, dropdowns,
-   buttons, tabs, switches, checkboxes - the whole UI. */
+/* No ring-offset gap anywhere: the ring hugs the control. !important beats ring-offset-2 in any layer. */
 *:focus,
 *:focus-visible {
   --tw-ring-offset-width: 0px !important;
@@ -314,11 +280,8 @@
   letter-spacing: 0.05em;
 }
 
-/* ── Multi-colour theme treatment ─────────────────────────────────────────
-   Activated by [data-multicolor] on <html> (set by CustomThemeApplier when the
-   selected theme declares a `gradient`). --mc-1/--mc-2 are its two hex colours.
-   Primary controls become a two-hue gradient and the app shell gets a subtle
-   ambient wash, so the theme reads as designed rather than merely recoloured. */
+/* Multi-colour themes: [data-multicolor] on <html> (set by CustomThemeApplier); --mc-1/--mc-2
+   are its two colours. */
 [data-multicolor] .dashboard-shell {
   background-image:
     radial-gradient(
@@ -333,12 +296,10 @@
     );
 }
 
-/* Gradient primary controls (buttons, active states, step markers…). */
 [data-multicolor] .bg-primary {
   background-image: linear-gradient(135deg, var(--mc-1), var(--mc-2));
 }
 
-/* Soft coloured glow on primary buttons/links. */
 [data-multicolor] button.bg-primary,
 [data-multicolor] a.bg-primary {
   box-shadow: 0 6px 20px -6px color-mix(in srgb, var(--mc-1) 45%, transparent);
@@ -383,21 +344,14 @@
   }
 }
 
-/* ── Marketing: signed-in vs signed-out buttons ───────────────────────── */
-/* The static marketing HTML carries BOTH variants; theme-boot.js stamps
-   <html data-auth> from the proxy's hint cookie (lib/auth-hint.ts) before
-   paint, so the right one shows on the first frame - no "Log in" flash for
-   someone already signed in. !important beats the buttons' own display
-   utilities (hidden md:inline-flex). */
+/* Marketing HTML carries both variants; theme-boot.js stamps <html data-auth> before paint, so
+   the right one shows on the first frame. */
 html[data-auth] .auth-guest,
 html:not([data-auth]) .auth-member {
   display: none !important;
 }
 
-/* ── Auth / login animations ──────────────────────────────────────────── */
-
-/* Logo "walk" - a gentle stepping bob that pivots from the feet (the red mark
-   sits bottom-left of the wordmark, so the sway reads as legs stepping). */
+/* Logo "walk": a gentle bob pivoting from the feet. */
 @keyframes dnms-walk {
   0%,
   100% {
@@ -414,7 +368,6 @@ html:not([data-auth]) .auth-member {
   }
 }
 
-/* Staggered entrance for headline / features / chips. */
 @keyframes dnms-fade-up {
   from {
     opacity: 0;
@@ -426,7 +379,6 @@ html:not([data-auth]) .auth-member {
   }
 }
 
-/* Slow drifting ambient glow orbs. */
 @keyframes dnms-float {
   0%,
   100% {
@@ -466,26 +418,13 @@ html:not([data-auth]) .auth-member {
   }
 }
 
-/* ─── Org chart connectors ─────────────────────────────────────────────────────
-   The LINE is steady: a solid, clearly-visible rule that never moves. The only
-   thing that animates is a single bright highlight that RUNS ALONG it, entering
-   at one end and leaving at the other, then looping.
-
-   (An earlier version scrolled a repeating gradient over the whole line, which
-   made the line itself look like it was shimmering. One travelling highlight over
-   a static line is what reads as "flow".)
-
-   The highlight is moved with `transform` only - GPU-composited, so it costs
-   nothing on the main thread and cannot disturb layout.
-
-   Must live in @layer components: as plain trailing CSS its `position: relative`
-   would beat Tailwind's `absolute` on the rails and collapse them out of place.  */
+/* Org chart connectors: a steady line with one highlight running along it (transform only).
+   Must live in @layer components, or its position: relative beats Tailwind's absolute on the rails. */
 @layer components {
   .org-conn {
     position: relative; /* only bites on lines with no position utility */
     overflow: hidden; /* the highlight is clipped to its own line */
     border-radius: 9999px;
-    /* The steady line. Bright enough to read on its own, and theme-aware. */
     background-color: hsl(var(--primary) / 0.4);
   }
   .org-conn::after {
@@ -493,8 +432,6 @@ html:not([data-auth]) .auth-member {
     position: absolute;
     pointer-events: none;
     border-radius: 9999px;
-    /* The travelling highlight: full-strength primary with a glow so it reads as
-       light moving along the wire, not just a lighter patch of it. */
     box-shadow: 0 0 8px 1px hsl(var(--primary) / 0.7);
     animation-duration: 1.8s;
     animation-timing-function: linear; /* constant speed = flow, not a pulse */
@@ -503,9 +440,7 @@ html:not([data-auth]) .auth-member {
     animation-delay: var(--org-delay, 0ms);
   }
 
-  /* Vertical: highlight runs DOWN the line, manager -> report.
-     50% tall, so -100% starts it fully above the line and 200% carries it fully
-     past the bottom - a true end-to-end run. */
+  /* Vertical: runs DOWN (manager -> report). 50% tall, so -100% to 200% is a full end-to-end run. */
   .org-conn-v::after {
     inset-inline: 0;
     height: 50%;
@@ -513,8 +448,7 @@ html:not([data-auth]) .auth-member {
     animation-name: org-run-down;
   }
 
-  /* Horizontal rail: highlight runs OUTWARD from the parent's centre toward the
-     child it feeds - so the first child (left of centre) runs the other way. */
+  /* Horizontal: runs OUTWARD from the parent's centre, so left-of-centre children run the other way. */
   .org-conn-h::after {
     inset-block: 0;
     width: 40%;
@@ -559,19 +493,8 @@ html:not([data-auth]) .auth-member {
   }
 }
 
-/* ─── Route loader ────────────────────────────────────────────────────────────
-   A square that spins, with a single bright segment RUNNING AROUND its outline.
-
-   Two separate animations on purpose. The spin lives on the <svg> (whole box
-   rotates); the run lives on the highlight rect (`stroke-dashoffset` walks the
-   dash pattern along the perimeter). Because the run is ~2x the spin rate, the
-   white part visibly overtakes the square instead of being welded to one edge -
-   a border-top spinner can only ever do the latter.
-
-   `pathLength="100"` on the rect normalises its perimeter, so the dash pattern is
-   expressed in percent and -100 is exactly one lap regardless of size or radius.
-   Both properties are cheap: transform is composited, dashoffset repaints one
-   32px box. */
+/* Route loader: the spin is on the <svg>, the run on the rect at ~2x the rate, so the segment
+   overtakes the square. pathLength="100" makes -100 exactly one lap at any size. */
 @keyframes square-loader-spin {
   to {
     transform: rotate(360deg);
@@ -592,18 +515,13 @@ html:not([data-auth]) .auth-member {
   animation: square-loader-run 1.3s linear infinite;
 }
 
-/* Reduced motion: hold the shape, drop both motions. The muted track plus a
-   static quarter-segment still reads as a loading state. */
+/* Reduced motion: hold the shape, drop both motions. */
 @media (prefers-reduced-motion: reduce) {
   .square-loader,
   .square-loader-run {
     animation: none;
   }
 }
-
-/* ========================================================================== */
-/* Marketing / landing-page FX kit                                            */
-/* ========================================================================== */
 
 /* Hide scrollbar but keep scrolling (applied to the marketing scroll shell). */
 .no-scrollbar {
@@ -632,9 +550,7 @@ html:not([data-auth]) .auth-member {
     transform: translateX(0);
   }
 }
-/* Translate-only (no scale): scaling a heavily-blurred element re-rasterizes the
-   blur every frame, which is what makes scrolling stutter. Translate is
-   GPU-composited and cheap. */
+/* Translate-only: scaling a heavily blurred element re-rasterizes the blur every frame. */
 @keyframes dnms-aurora {
   0%,
   100% {
@@ -666,10 +582,8 @@ html:not([data-auth]) .auth-member {
     background-position: 200% center;
   }
 }
-/* Transform-only (compositor) - this used to animate `top`, which forced
-   style+layout work on the main thread every frame for the life of the page.
-   The consumer is a FULL-HEIGHT track (translateY% is relative to the element's
-   own height) with the 1px line drawn at its top - see bento-overview.tsx. */
+/* Transform-only. The consumer is a FULL-HEIGHT track (translateY% is of its own height) with
+   the line drawn at its top - see bento-overview.tsx. */
 @keyframes dnms-scan {
   0% {
     transform: translateY(4%);
@@ -728,9 +642,7 @@ html:not([data-auth]) .auth-member {
 .animate-dnms-marquee-rev {
   animation: dnms-marquee-rev 38s linear infinite;
 }
-/* NOTE: no explicit will-change on the infinite animations below - the
-   compositor promotes a transform-animating element on its own, and a
-   permanent will-change just pins GPU memory per decorated chip. */
+/* No will-change below: the compositor promotes these itself, and a permanent one pins GPU memory. */
 .animate-dnms-aurora {
   animation: dnms-aurora 22s ease-in-out infinite;
 }
@@ -749,8 +661,7 @@ html:not([data-auth]) .auth-member {
 .animate-dnms-bob {
   animation: dnms-bob 6s ease-in-out infinite;
 }
-/* Small, self-contained bob for the kanban chips - small enough to stay inside
-   its column's padding (never overflows the box). */
+/* Small enough to stay inside its column's padding. */
 @keyframes dnms-bob-sm {
   0%,
   100% {
@@ -763,8 +674,7 @@ html:not([data-auth]) .auth-member {
 .animate-dnms-bob-sm {
   animation: dnms-bob-sm 4.5s ease-in-out infinite;
 }
-/* A highlight segment that flows along a normalized (pathLength=1000) line, in a
-   seamless loop - the dash offset advances by exactly one period. */
+/* Flows along a pathLength=1000 line; the offset advances one period, so it loops seamlessly. */
 @keyframes dnms-flow-line {
   to {
     stroke-dashoffset: -1000;
@@ -772,16 +682,14 @@ html:not([data-auth]) .auth-member {
 }
 .animate-dnms-flow-line {
   animation: dnms-flow-line 3.2s linear infinite;
-  /* (no will-change: stroke-dashoffset is not compositable, it did nothing) */
+  /* No will-change: stroke-dashoffset isn't compositable. */
 }
 .animate-dnms-pulse-ring {
   animation: dnms-pulse-ring 2.6s ease-out infinite;
 }
 
-/* Below-fold marketing sections: skip their rendering (layout, paint, and the
-   paint of any decorative animation inside) until they approach the viewport.
-   contain-intrinsic-size keeps the scrollbar honest before first render; the
-   `auto` keyword remembers the real size once a section has been shown. */
+/* Skip rendering below-fold sections until they near the viewport; contain-intrinsic-size auto
+   keeps the scrollbar honest. */
 .dnms-below-fold {
   content-visibility: auto;
   contain-intrinsic-size: auto 720px;
@@ -792,7 +700,6 @@ html:not([data-auth]) .auth-member {
   animation-play-state: paused;
 }
 
-/* Shimmering gradient text. */
 .dnms-gradient-text {
   background-image: linear-gradient(
     100deg,
@@ -807,7 +714,6 @@ html:not([data-auth]) .auth-member {
   animation: dnms-shimmer 7s linear infinite;
 }
 
-/* Masked grid backdrop (same idea as the login brand panel). */
 .dnms-grid-bg {
   background-image:
     linear-gradient(to right, hsl(var(--foreground) / 0.06) 1px, transparent 1px),
@@ -874,10 +780,7 @@ html:not([data-auth]) .auth-member {
   border-radius: 9999px;
   pointer-events: none;
   z-index: 30;
-  /* Positioned by TRANSFORM from fx.tsx (translate3d(x,y,0) + centering), not
-     left/top: left/top are layout properties and cannot be composited, so the
-     old per-frame left/top writes (and the will-change hinting them) forced
-     layout on every pointer move. */
+  /* Positioned by transform from fx.tsx, not left/top (layout properties that can't be composited). */
   transform: translate3d(-50%, -50%, 0);
   background: radial-gradient(circle, rgb(239 68 68 / 0.14), transparent 60%);
   transition: opacity 0.4s;
@@ -909,15 +812,7 @@ html:not([data-auth]) .auth-member {
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* Hero polish: border beam + shiny eyebrow (Magic UI-style effects)   */
-/* ------------------------------------------------------------------ */
-
-/* The beam ROTATES A GRADIENT LAYER with transform (compositor-only). The
-   previous version animated a registered custom property feeding the
-   conic-gradient's angle, which re-painted the hero's largest element on the
-   main thread every frame, forever. Same visual: the ring mask shows only the
-   1.5px edge of a big rotating gradient square. */
+/* Rotates a gradient layer with transform (compositor-only); the ring mask shows its 1.5px edge. */
 @keyframes dnms-beam-rotate {
   to {
     transform: translate(-50%, -50%) rotate(1turn);
@@ -941,8 +836,7 @@ html:not([data-auth]) .auth-member {
   position: absolute;
   left: 50%;
   top: 50%;
-  /* A square wider than the card's diagonal, so corners stay covered while
-     it turns. Painted ONCE, then rotated on the compositor. */
+  /* Wider than the card's diagonal, so corners stay covered while it turns. */
   width: 250%;
   aspect-ratio: 1;
   background: conic-gradient(from 0deg, transparent 0%, #ef4444 6%, #3b82f6 13%, transparent 22%);
@@ -972,21 +866,14 @@ html:not([data-auth]) .auth-member {
   }
 }
 
-/* Flowing dashes along the network-diagram lines (data flowing into the hub). */
-/* -20 is exactly 2 dash periods (dasharray "2 8" = 10px), so the loop is
-   perfectly seamless - no visible restart. Coordinates are in real pixels (the
-   SVG has no viewBox), so the dashes never stretch unevenly. */
-/* -36 is exactly 2 dash periods (dasharray "10 8" = 18px), so offset -36 ≡ 0
-   (mod 18): the loop is perfectly seamless with no visible restart. Coordinates
-   are real pixels (SVG has no viewBox), so dashes never stretch unevenly. */
+/* Network-diagram line flow: -36 is two periods of dasharray "10 8", so the loop is seamless. */
 @keyframes dnms-line-flow {
   to {
     stroke-dashoffset: -36;
   }
 }
 
-/* A flowing red/blue gradient ring (conic gradient masked to a thin ring). Rotate
-   the element to make the gradient flow around the circle. */
+/* A red/blue conic gradient masked to a thin ring; rotate the element to make it flow. */
 .dnms-ring-beam {
   border-radius: 9999px;
   padding: 1.5px;

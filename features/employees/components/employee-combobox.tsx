@@ -12,39 +12,17 @@ import { useDebounce } from "@/hooks/use-debounce"
 interface EmployeeComboboxProps {
   value?: string
   onChange: (id: string | undefined) => void
-  /** Exclude an employee from the list (e.g. the employee being edited, so they
-   *  can't be their own manager). */
+  /** Left out of the list (e.g. the employee being edited can't be their own manager). */
   excludeId?: string
-  /** Label to show for the current value before the user opens/searches (edit
-   *  mode, where we already know the manager's name). */
+  /** Shown for the current value before the user searches (edit mode). */
   initialLabel?: string
   placeholder?: string
-  /**
-   * @deprecated Ignored. This no longer renders through a portal, so a parent
-   * Dialog needs no special handling. Kept so existing call sites compile.
-   */
+  /** @deprecated Ignored (no portal any more); kept so existing call sites compile. */
   modal?: boolean
 }
 
-/**
- * Searchable employee picker.
- *
- * Deliberately plain DOM - no Popover, no portal. Both of the bugs this
- * component used to have came from portalling the dropdown onto `document.body`
- * while it was rendered inside a Dialog:
- *
- *   - Typing did nothing. The Dialog's focus trap owns everything inside
- *     `DialogContent`; an input portalled outside it gets focus yanked straight
- *     back, so keystrokes never landed.
- *   - The list would not scroll. The Dialog's `react-remove-scroll` blocks wheel
- *     events outside `DialogContent`, and the portalled list was outside it.
- *
- * Making the popover `modal` fixes the second and re-breaks the first. Rendering
- * in normal flow fixes both at once: the field and its list are ordinary
- * children of whatever contains them, so focus and scrolling just work. The list
- * expands in place rather than floating, which also means it can never be
- * clipped by the dialog's own `overflow-y-auto`.
- */
+/** Searchable employee picker rendered in normal flow (no Popover/portal): inside a Dialog, a
+ *  portalled list loses focus to the focus trap and can't scroll. */
 export function EmployeeCombobox({
   value,
   onChange,
@@ -58,16 +36,14 @@ export function EmployeeCombobox({
   const inputRef = useRef<HTMLInputElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
-  // `initialLabel` usually arrives AFTER mount - the parent has to fetch the
-  // employee to know their name. Without this the field is stuck empty for the
-  // whole edit session. Only adopt it while the user has not picked someone
-  // themselves, so it can never overwrite a fresh choice.
-  useEffect(() => {
+  // `initialLabel` often arrives after mount; adopt it only until the user picks someone.
+  const [prevInitialLabel, setPrevInitialLabel] = useState(initialLabel)
+  if (initialLabel !== prevInitialLabel) {
+    setPrevInitialLabel(initialLabel)
     if (initialLabel) setSelectedLabel((prev) => prev ?? initialLabel)
-  }, [initialLabel])
+  }
 
-  // Close when the click lands anywhere else. `mousedown` rather than `click` so
-  // it settles before the next field takes focus.
+  // Close on outside mousedown (not click) so it settles before the next field takes focus.
   useEffect(() => {
     if (!open) return
     function onDown(e: MouseEvent) {
@@ -102,8 +78,6 @@ export function EmployeeCombobox({
     inputRef.current?.focus()
   }
 
-  // Closed: show who is selected. Open: show what is being typed, so the field
-  // never argues with itself about which text it is displaying.
   const shown = open ? search : (selectedLabel ?? (value ? "Selected" : ""))
 
   return (
@@ -180,8 +154,7 @@ export function EmployeeCombobox({
                 type="button"
                 role="option"
                 aria-selected={value === emp.id}
-                // Commit on mousedown so the selection lands before the input's
-                // blur can close the list out from under the click.
+                // Commit on mousedown so it lands before the input's blur closes the list.
                 onMouseDown={(e) => {
                   e.preventDefault()
                   handleSelect(emp)

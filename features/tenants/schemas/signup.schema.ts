@@ -1,14 +1,8 @@
 import { z } from "zod"
 import { SLUG_PATTERN } from "@/lib/tenant-url"
 
-/**
- * What the signup form collects (M5).
- *
- * Shared by the client form and the server action, so the browser and the
- * server disagree about nothing. The server re-checks reserved names and
- * availability, which this schema deliberately does not know about - a regex
- * cannot know what is already taken.
- */
+/** Signup form fields, shared by the client form and the server action (which also re-checks
+ *  reserved names and availability). */
 export const signupSchema = z.object({
   companyName: z
     .string()
@@ -24,10 +18,8 @@ export const signupSchema = z.object({
       "Use 3-32 characters: lowercase letters, numbers and hyphens, not starting or ending with a hyphen.",
     ),
   firstName: z.string().trim().min(1, "Enter your first name.").max(50),
-  // No `.default("")`: a default makes the parsed OUTPUT type required while the
-  // INPUT stays optional, and react-hook-form's resolver then refuses to line
-  // the two up. The form supplies "" instead, which is the same thing without
-  // the type split.
+  // No `.default("")`: it splits the input/output types, which react-hook-form's resolver
+  // rejects. The form supplies "" instead.
   lastName: z.string().trim().max(50),
   email: z.email("Enter a valid work email address."),
   password: z.string().min(8, "Use at least 8 characters.").max(200, "That password is too long."),
@@ -35,11 +27,8 @@ export const signupSchema = z.object({
 
 export type SignupInput = z.infer<typeof signupSchema>
 
-/**
- * Turn a company name into a workspace name: "Acme Media Pvt Ltd" → "acme-media-pvt-ltd".
- *
- * Only a suggestion - the field stays editable, and the server has the final say.
- */
+/** Suggest a workspace name: "Acme Media Pvt Ltd" -> "acme-media-pvt-ltd" (editable; the server
+ *  has the final say). */
 export function suggestSlug(companyName: string): string {
   return companyName
     .toLowerCase()

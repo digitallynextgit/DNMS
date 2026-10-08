@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -20,17 +20,8 @@ import { useGscSites, useUpdateSeoSite, type SeoSiteInput } from "../hooks/use-s
 import { TagListInput } from "./tag-list-input"
 import { AiSuggestDialog } from "./ai-suggest-dialog"
 
-// =============================================================================
-// One dialog per setting, instead of a single form holding every field.
-//
-// The combined form put nine unrelated inputs on screen at once, so a person who
-// only wanted to add a competitor had to scan past keywords, targets and GA4 to
-// find it. Each field here opens on its own with the explanation that belongs to
-// it, and saves just that change.
-//
-// The update route validates the whole property, so every save merges the edited
-// field over the site's current values rather than sending a partial object.
-// =============================================================================
+// One dialog per site setting. The update route validates the whole property, so each save
+// merges the edited field over the current values.
 
 export type SiteField =
   | "identity"
@@ -98,7 +89,6 @@ export function SiteFieldDialog({
   const update = useUpdateSeoSite(projectId)
   const [aiOpen, setAiOpen] = useState(false)
 
-  // Local draft of just the fields this dialog owns.
   const [label, setLabel] = useState(site.label)
   const [domain, setDomain] = useState(site.domain)
   const [siteUrl, setSiteUrl] = useState(site.siteUrl ?? "")
@@ -116,20 +106,23 @@ export function SiteFieldDialog({
   const [isActive, setIsActive] = useState(site.isActive)
 
   // Re-seed each time it opens so a cancelled edit never leaks into the next one.
-  useEffect(() => {
-    if (!open) return
-    setLabel(site.label)
-    setDomain(site.domain)
-    setSiteUrl(site.siteUrl ?? "")
-    setGaPropertyId(site.gaPropertyId ?? "")
-    setKeywords(site.moneyKeywords)
-    setPages(site.moneyPages ?? [])
-    setCompetitors(site.competitors)
-    setTargetClicks(site.targetClicks != null ? String(site.targetClicks) : "")
-    setTargetPosition(site.targetPosition != null ? String(site.targetPosition) : "")
-    setIsPrimary(site.isPrimary)
-    setIsActive(site.isActive)
-  }, [open, site])
+  const [seededFor, setSeededFor] = useState({ open: false, site })
+  if (open !== seededFor.open || site !== seededFor.site) {
+    setSeededFor({ open, site })
+    if (open) {
+      setLabel(site.label)
+      setDomain(site.domain)
+      setSiteUrl(site.siteUrl ?? "")
+      setGaPropertyId(site.gaPropertyId ?? "")
+      setKeywords(site.moneyKeywords)
+      setPages(site.moneyPages ?? [])
+      setCompetitors(site.competitors)
+      setTargetClicks(site.targetClicks != null ? String(site.targetClicks) : "")
+      setTargetPosition(site.targetPosition != null ? String(site.targetPosition) : "")
+      setIsPrimary(site.isPrimary)
+      setIsActive(site.isActive)
+    }
+  }
 
   const { data: gscData } = useGscSites(open && field === "gsc")
   const suggestions = useMemo(() => {
@@ -140,8 +133,6 @@ export function SiteFieldDialog({
   }, [gscData, site.domain])
 
   const save = () => {
-    // The route validates the full property, so send current values with this
-    // dialog's field overridden.
     const base: SeoSiteInput & { propertyId: string } = {
       propertyId: site.id,
       label: site.label,
@@ -400,8 +391,7 @@ export function SiteFieldDialog({
           open={aiOpen}
           onOpenChange={(v) => {
             setAiOpen(v)
-            // The AI dialog saves through the same route, so close this one too
-            // and let the refreshed site data flow back in.
+            // The AI dialog saves through the same route, so close this one too.
             if (!v) onOpenChange(false)
           }}
         />

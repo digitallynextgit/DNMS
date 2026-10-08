@@ -1,17 +1,11 @@
 import { PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-/**
- * My Referrals skeleton: header (with the "Refer someone" action), a 4-up stat
- * row (grid-cols-2 lg:grid-cols-4, each an icon tile + label + value), then a
- * stack of referral cards, matching the real page so nothing reflows on load.
- */
 export default function Loading() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeaderSkeleton withActions />
 
-      {/* Stat row: icon tile + label + value */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="border-border bg-card rounded-sm border">
@@ -26,7 +20,6 @@ export default function Loading() {
         ))}
       </div>
 
-      {/* Referral cards */}
       <div className="flex flex-col gap-2">
         {Array.from({ length: 3 }).map((_, i) => (
           <Skeleton key={i} className="bg-muted h-20 w-full animate-pulse rounded-sm" />

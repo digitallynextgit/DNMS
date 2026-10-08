@@ -4,11 +4,7 @@ import { db } from "@/server/db"
 import { DEFAULT_REMINDER_PREFERENCE } from "../constants"
 import type { ReminderPreference } from "../types"
 
-/**
- * One employee's reminder settings, falling back to the defaults when they have
- * never saved any. Callers therefore never handle null, and an employee who has
- * not touched the page is still warned.
- */
+/** One employee's reminder settings, or the defaults if they never saved any. */
 export async function getTaskReminderPreference(employeeId: string): Promise<ReminderPreference> {
   const row = await db.taskReminderPreference.findUnique({
     where: { employeeId },
@@ -22,12 +18,7 @@ export async function getTaskReminderPreference(employeeId: string): Promise<Rem
   return row ?? DEFAULT_REMINDER_PREFERENCE
 }
 
-/**
- * The same lookup for a batch of employees, as one query - the reminder cron
- * reads a preference per running task and must not fan that into a query each.
- * Employees with no row are simply absent from the map; read through
- * `preferenceFor` below rather than indexing it directly.
- */
+/** Batch lookup for the cron (one query); read via `preferenceFor` - missing rows are absent. */
 export async function getTaskReminderPreferences(
   employeeIds: string[],
 ): Promise<Map<string, ReminderPreference>> {

@@ -7,14 +7,10 @@ import { markDelivered } from "@/features/chat/server/chat.service"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-// GET /api/chat/stream
-// Pushes this user's chat events (new message, read receipt) as they happen.
-// Mirrors /api/notifications/stream; separate channel so chat volume and
-// notification volume stay independent.
+// Separate from /api/notifications/stream so chat and notification volume stay independent.
 export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session?.user?.id) return new Response("Unauthorized", { status: 401 })
-  // Client-portal accounts have no chat.
   if (session.user.kind === "client") return new Response("Forbidden", { status: 403 })
 
   const employeeId = session.user.id
@@ -37,9 +33,7 @@ export async function GET(req: NextRequest) {
       const unsubscribe = await subscribeChat(employeeId, (event) => {
         send(`event: chat\ndata: ${JSON.stringify(event)}\n\n`)
 
-        // Pushing it down an open connection IS the delivery, so stamp it here
-        // rather than waiting for the tab to poll. Fire-and-forget: a message that
-        // arrived must not be un-sent because the bookkeeping failed.
+        // Pushing down an open connection is the delivery, so stamp it here (fire-and-forget).
         if (event.type === "message") {
           markDelivered(employeeId, event.conversationId).catch((e) =>
             console.error("[chat-stream] delivery stamp failed:", e),
@@ -62,10 +56,7 @@ export async function GET(req: NextRequest) {
         }
       }
       req.signal.addEventListener("abort", cleanup)
-      // If the client disconnected DURING `await subscribeChat`, the abort event
-      // fired before this listener existed (abort is one-shot), so cleanup would
-      // never run and the heartbeat + subscription would leak (API-11). Re-check
-      // and clean up now.
+      // Abort may have fired during `await subscribeChat` (it's one-shot), so re-check or we leak.
       if (req.signal.aborted) cleanup()
     },
   })

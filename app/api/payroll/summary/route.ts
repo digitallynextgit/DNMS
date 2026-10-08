@@ -4,9 +4,7 @@ import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
-// PAYROLL_WRITE (HR), not PAYROLL_READ: the base employee role holds
-// payroll:read for their own payslip, and this route exposes company-wide
-// aggregates that must not leak to every staffer (SEC-08).
+// PAYROLL_WRITE: every employee holds payroll:read (own payslip), and these are company-wide totals.
 export const GET = withAuth(
   PERMISSIONS.PAYROLL_WRITE,
   async (req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
@@ -19,9 +17,6 @@ export const GET = withAuth(
       if (month) where.month = month
       if (year) where.year = year
 
-      // Aggregate in the DB (PERF-07) instead of pulling every matching row into
-      // memory - with no month/year filter that was the entire payroll history
-      // just to produce four totals and a status count.
       const [totals, byStatus] = await Promise.all([
         db.payrollRecord.aggregate({
           where,

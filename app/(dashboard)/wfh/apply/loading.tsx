@@ -1,15 +1,12 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 
-// Apply for WFH: a two-pane form (eligibility + fields on the left, a live mail
-// preview on the right) in `lg:grid-cols-2`, matching the real page.
 export default function ApplyWfhLoading() {
   return (
     <div className="space-y-6">
       <PageHeaderSkeleton />
 
       <div className="grid w-full gap-6 lg:grid-cols-2">
-        {/* Left: eligibility banner + fields */}
         <div className="space-y-6">
           <Skeleton className="bg-muted h-32 w-full animate-pulse rounded-sm" />
           <div className="space-y-2">
@@ -26,7 +23,6 @@ export default function ApplyWfhLoading() {
           </div>
         </div>
 
-        {/* Right: mail preview card */}
         <div className="border-border bg-card space-y-4 rounded-sm border p-5">
           <Skeleton className="bg-muted h-4 w-40 animate-pulse" />
           <div className="space-y-2">

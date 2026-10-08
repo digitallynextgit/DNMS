@@ -17,8 +17,6 @@ interface KanbanColumn {
   cards: KanbanCard[]
 }
 
-/** Bespoke visual: a mini kanban board with To do / In progress / Done columns.
- *  Cards fill each full-height column; the active card gently bobs (contained). */
 function ProjectsVisual() {
   const columns: KanbanColumn[] = [
     {

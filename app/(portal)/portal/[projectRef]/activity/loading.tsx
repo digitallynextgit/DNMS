@@ -1,8 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Renders inside the portal shell. Mirrors the activity page: custom heading
-// (title + subtitle) then the bordered feed of h-14 rows the client shows while
-// its own query loads, so nothing reflows on hydrate.
 export default function PortalActivityLoading() {
   return (
     <div className="space-y-5">

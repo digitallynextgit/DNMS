@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Check } from "lucide-react"
 
@@ -39,13 +39,7 @@ interface ScopeData {
   people: { id: string; name: string; profilePhoto: string | null }[]
 }
 
-/**
- * Builds the AI briefing request: what kind of report, over how much, containing
- * which sections.
- *
- * Staged like the date filter - nothing takes effect until Generate, so a
- * half-built config never fires a request.
- */
+/** Staged like the date filter: nothing applies until Generate. */
 export function ReportOptionsDialog({
   open,
   value,
@@ -60,9 +54,13 @@ export function ReportOptionsDialog({
   const [draft, setDraft] = useState<ReportConfig>(value)
 
   // Opening always starts from what is actually applied.
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open)
+  const [prevValue, setPrevValue] = useState(value)
+  if (open !== prevOpen || value !== prevValue) {
+    setPrevOpen(open)
+    setPrevValue(value)
     if (open) setDraft(value)
-  }, [open, value])
+  }
 
   const { data: scope, isLoading } = useQuery({
     queryKey: ["performance-scope"],
@@ -75,8 +73,7 @@ export function ReportOptionsDialog({
   const def = reportType(draft.type)
   const sections = sectionsFor(draft.type)
 
-  // Teams follow the chosen projects: offering a team from a project that is not
-  // in scope would produce an empty report with no explanation.
+  // Teams follow the chosen projects; an out-of-scope team would give an empty report.
   const teamOptions: Option[] = useMemo(() => {
     const all = scope?.teams ?? []
     const visible =
@@ -89,14 +86,16 @@ export function ReportOptionsDialog({
   }, [scope, draft.projectIds])
 
   // A team that just fell out of project scope must not stay silently selected.
-  useEffect(() => {
+  const [prevTeamOptions, setPrevTeamOptions] = useState<Option[] | null>(null)
+  if (teamOptions !== prevTeamOptions) {
+    setPrevTeamOptions(teamOptions)
     const valid = new Set(teamOptions.map((t) => t.id))
     setDraft((d) =>
       d.teamIds.every((id) => valid.has(id))
         ? d
         : { ...d, teamIds: d.teamIds.filter((id) => valid.has(id)) },
     )
-  }, [teamOptions])
+  }
 
   const projectOptions: Option[] = (scope?.projects ?? []).map((p) => ({
     id: p.id,
@@ -112,9 +111,7 @@ export function ReportOptionsDialog({
       ...d,
       sections: d.sections.includes(key)
         ? d.sections.filter((s) => s !== key)
-        : // Keep canonical order regardless of click order, so the report reads
-          // the same way every time.
-          sections.filter((s) => s.key === key || d.sections.includes(s.key)).map((s) => s.key),
+        : sections.filter((s) => s.key === key || d.sections.includes(s.key)).map((s) => s.key),
     }))
 
   return (
@@ -129,7 +126,6 @@ export function ReportOptionsDialog({
         </DialogHeader>
 
         <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
-          {/* Type */}
           <div className="space-y-1.5">
             <p className="text-xs font-medium">Report type</p>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -160,7 +156,6 @@ export function ReportOptionsDialog({
             </div>
           </div>
 
-          {/* Scope */}
           {isLoading ? (
             <Skeleton className="h-16 rounded-sm" />
           ) : (
@@ -195,7 +190,6 @@ export function ReportOptionsDialog({
             </div>
           )}
 
-          {/* Sections */}
           <div className="space-y-1.5">
             <p className="text-xs font-medium">
               Include in the report

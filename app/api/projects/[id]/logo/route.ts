@@ -4,24 +4,16 @@ import { db } from "@/server/db"
 import { withProjectAccess, withProjectManager } from "@/features/projects/server/project-access"
 import { isB2Configured, uploadFile, deleteFile, getObjectKey, getSignedUrl } from "@/lib/storage"
 
-// Mirrors app/api/employees/[id]/photo - same private-bucket-plus-signed-redirect
-// approach, same caching, same downscale-before-store. Kept deliberately parallel
-// so the two behave identically rather than drifting.
+// Kept parallel to app/api/employees/[id]/photo (signed redirect, caching, downscale) so they don't drift.
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml"]
-const MAX_LOGO_BYTES = 5 * 1024 * 1024 // 5 MB
+const MAX_LOGO_BYTES = 5 * 1024 * 1024
 
-// Logos render at 24-64px on cards and ~40px in the project header. 512 covers
-// every one of those at 2x DPI.
+// Logos render at 24-64px; 512 covers that at 2x DPI.
 const LOGO_MAX_DIM = 512
 const LOGO_QUALITY = 85
 
-/**
- * Downscale + re-encode to WebP. `fit: "inside"` (not "cover"): a logo must not
- * be cropped to a square the way an avatar can be - a wide wordmark would lose
- * its ends. Falls back to the original bytes if the image can't be processed, so
- * an upload never hard-fails on a resize error.
- */
+/** Downscale to WebP with fit "inside" so wide wordmarks aren't cropped; falls back to the original bytes. */
 async function toThumbnail(
   buffer: Buffer,
   fallbackType: string,
@@ -39,33 +31,16 @@ async function toThumbnail(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Signed-URL cache - a project list paints many logos at once, and both the DB
-// lookup and the B2 presign are pure functions of the object key. Keyed on the
-// key, which changes on every upload, so a new logo can't be served from a
-// stale entry.
-// ---------------------------------------------------------------------------
-// THE SIGNATURE MUST OUTLIVE THE CACHE WINDOW.
-// This shipped as a 1-hour signature behind a 7-day immutable cache: the browser
-// replayed the cached redirect long after B2 stopped honouring it, so avatars
-// died an hour after first load and a reload could not fix them -
-// means "do not revalidate", even on refresh. Sign for the SigV4 maximum and let
-// the cache lapse a day earlier, so a cached redirect is always still valid.
+// The signature MUST outlive the browser cache window, or cached redirects start serving 403s.
 const SIGNED_TTL_SECONDS = 7 * 24 * 60 * 60
 const CACHE_SECONDS = 6 * 24 * 60 * 60
 const signedUrlCache = new Map<string, { url: string; expiresAt: number }>()
 
 async function cachedSignedUrl(objectKey: string): Promise<string> {
   const hit = signedUrlCache.get(objectKey)
-  // Reuse a cached URL only while it still outlives a FULL fresh browser cache
-  // window (+ a minute): the redirect is cached in the browser for CACHE_SECONDS,
-  // so a URL with less life left than that would leave the viewer replaying a
-  // redirect to a dead URL - every hit 403ing until their cache lapses (days).
+  // Reuse only while the URL outlives a full browser cache window, or viewers replay a dead redirect.
   if (hit && hit.expiresAt > Date.now() + (CACHE_SECONDS + 60) * 1000) return hit.url
-  // SVG is served with Content-Disposition: attachment (SEC-11): an <img> still
-  // renders it, but opening the signed URL directly downloads instead of
-  // rendering, so an embedded <script> in a malicious logo never executes on the
-  // storage origin. Non-SVG (already rasterised to WebP) is served inline.
+  // SVG is served as an attachment so a script inside a malicious logo never runs on the storage origin.
   const isSvg = objectKey.toLowerCase().endsWith(".svg")
   const url = await getSignedUrl(
     objectKey,
@@ -83,16 +58,12 @@ function invalidate(projectId: string, objectKey?: string | null) {
   if (objectKey) signedUrlCache.delete(objectKey)
 }
 
-/** Best-effort B2 delete - storage cleanup must never break the request. */
 async function deleteQuietly(key: string | null | undefined) {
   if (!key) return
   await deleteFile(key).catch((e) => console.error("[project-logo] B2 delete failed:", key, e))
 }
 
-/**
- * GET /api/projects/[id]/logo - redirect to a presigned B2 URL.
- * Readable by anyone who can see the project, so logos render on the list.
- */
+// Readable by anyone who can see the project, so logos render on the list.
 export const GET = withProjectAccess(async (_req, { params }) => {
   const { id } = params
 
@@ -105,15 +76,13 @@ export const GET = withProjectAccess(async (_req, { params }) => {
   if (!logoKey) return NextResponse.json({ error: "No logo" }, { status: 404 })
 
   const url = await cachedSignedUrl(logoKey)
-  // The stored URL carries ?v=<timestamp>, so caching hard is safe for its
-  // version and the browser can cache it hard.
+  // ?v=<timestamp> changes on every upload, so caching hard is safe.
   return NextResponse.redirect(url, {
     status: 302,
     headers: { "Cache-Control": `private, max-age=${CACHE_SECONDS}` },
   })
 })
 
-/** POST /api/projects/[id]/logo - upload or replace. Managers/owner only. */
 export const POST = withProjectManager(async (req: NextRequest, { params }) => {
   const { id } = params
   if (!(await isB2Configured())) {
@@ -135,8 +104,7 @@ export const POST = withProjectManager(async (req: NextRequest, { params }) => {
   const existing = await db.project.findUnique({ where: { id }, select: { logoKey: true } })
 
   const original = Buffer.from(await file.arrayBuffer())
-  // SVG is already tiny and resolution-independent; running it through sharp
-  // would rasterise it and lose that, so it is stored as-is.
+  // SVG is stored as-is; sharp would rasterise it.
   const stored =
     file.type === "image/svg+xml"
       ? { buffer: original, contentType: file.type, ext: "svg" }
@@ -154,7 +122,6 @@ export const POST = withProjectManager(async (req: NextRequest, { params }) => {
   return NextResponse.json({ data: { url } })
 })
 
-/** DELETE /api/projects/[id]/logo - remove it and reclaim the B2 object. */
 export const DELETE = withProjectManager(async (_req, { params }) => {
   const { id } = params
   const existing = await db.project.findUnique({ where: { id }, select: { logoKey: true } })

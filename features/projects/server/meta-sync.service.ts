@@ -4,18 +4,11 @@ import { Prisma } from "@prisma/client"
 import { db } from "@/server/db"
 import { encrypt, tryDecrypt } from "@/lib/crypto"
 
-// =============================================================================
-// Meta Ads sync (ported from the adDashboard `meta_extractor.py` recipe).
-// Pulls campaigns + daily insights from the Meta Graph API and upserts them into
-// meta_campaigns / meta_campaign_metrics for one project. Credentials live on
-// project_integrations, secrets ENCRYPTED.
-// =============================================================================
+// Meta Ads sync: Graph API campaigns + daily insights into the meta_campaign tables, per project.
 
 const GRAPH = "https://graph.facebook.com/v21.0"
 
-// How many writes ride in one batched $transaction. Big enough to collapse the
-// round trips that dominated this sync, small enough that one chunk is not a
-// long-held write transaction against the 10-connection pool.
+// Writes per batched $transaction - fewer round trips, but short enough for a 10-connection pool.
 const WRITE_CHUNK = 100
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -24,7 +17,6 @@ function chunk<T>(items: T[], size: number): T[][] {
   return out
 }
 
-// Meta campaign status -> our status.
 const STATUS_MAP: Record<string, string> = {
   ACTIVE: "active",
   PAUSED: "paused",
@@ -94,11 +86,7 @@ async function getCreds(projectId: string): Promise<MetaCreds | null> {
   }
 }
 
-/**
- * Decrypted credentials for pre-filling the Edit form. MANAGER-ONLY (the route is
- * withProjectManager) - these are the raw secrets, so they must never be exposed
- * on the member-accessible dashboard endpoint.
- */
+/** Decrypted secrets for the Edit form. Manager-only route - never expose on the member dashboard. */
 export async function getMetaCredentials(projectId: string): Promise<{
   appId: string
   appSecret: string
@@ -123,8 +111,7 @@ export async function saveMetaIntegration(
   const existing = await db.projectIntegration.findUnique({ where: { projectId } })
   const adAccountId = input.adAccountId.replace(/^act_/, "").trim()
 
-  // Blank secret on an EDIT means "keep the existing one" - the token/secret are
-  // never sent back to the client, so a blank field is the user leaving them as-is.
+  // Blank secret on an edit = keep the stored one (secrets are never sent back to the client).
   const accessToken = input.accessToken.trim()
     ? input.accessToken.trim()
     : existing
@@ -140,7 +127,6 @@ export async function saveMetaIntegration(
   const connected = !testBody.error
   const err = connected ? null : (testBody.error?.message ?? "Verification failed")
 
-  // App secret: new value encrypts + replaces; blank keeps the stored one.
   const appSecret = input.appSecret.trim() ? encrypt(input.appSecret.trim()) : undefined
 
   await db.projectIntegration.upsert({
@@ -199,42 +185,28 @@ export interface MetaDashboard {
 
 const num = (v: unknown): number => (v == null ? 0 : Number(v))
 
-/**
- * Which slice of the synced metrics the dashboard should aggregate.
- * `from`/`to` are inclusive "yyyy-MM-dd" days and win over `days` when present;
- * an empty object (or nothing) means every day ever synced.
- */
+/** Metrics slice: inclusive yyyy-MM-dd `from`/`to` (wins over `days`); empty = all synced days. */
 export interface MetaDashboardRange {
-  /** Rolling window ending today, e.g. 30 for the last 30 days. */
   days?: number
   from?: string
   to?: string
 }
 
-/**
- * "yyyy-MM-dd" -> that day at UTC midnight, which is exactly how a `@db.Date`
- * column stores it. Anything unparseable returns null so a junk query string
- * widens the range rather than producing an Invalid Date that matches nothing.
- */
+/** yyyy-MM-dd -> UTC midnight (how @db.Date stores it); junk -> null, which widens the range. */
 function parseDay(value: string | undefined): Date | null {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
   const date = new Date(`${value}T00:00:00.000Z`)
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-/**
- * The Prisma date filter for a range, or null for "no filter at all".
- * Both bounds are inclusive: `date` is a DATE column stored at UTC midnight, so
- * `lte` the last day includes that whole day rather than cutting it off.
- */
+/** Prisma filter for a range (null = none). Inclusive: DATE columns sit at UTC midnight. */
 function metricDateFilter(range?: MetaDashboardRange): { gte?: Date; lte?: Date } | null {
   if (!range) return null
 
   const from = parseDay(range.from)
   const to = parseDay(range.to)
   if (from || to) {
-    // A backwards range (someone picked the end first) is read as the span
-    // between the two dates rather than returning nothing.
+    // A backwards range is read as the span between the two dates.
     if (from && to && from > to) return { gte: to, lte: from }
     return { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) }
   }
@@ -247,8 +219,6 @@ function metricDateFilter(range?: MetaDashboardRange): { gte?: Date; lte?: Date 
   return null
 }
 
-/** Integration status + the aggregated Meta data the dashboard renders. `range`
- *  limits the metrics window (undefined = all synced data). */
 export async function getMetaDashboard(
   projectId: string,
   range?: MetaDashboardRange,
@@ -328,8 +298,7 @@ export async function getMetaDashboard(
         roas: cSpend > 0 ? cPurVal / cSpend : 0,
       }
     })
-    // Drop campaigns with no activity in the window (totals above already counted
-    // everything; this just keeps the campaign LIST to what actually ran).
+    // Totals already counted everything; the list shows only campaigns that ran in the window.
     .filter((c) => c.spend > 0 || c.impressions > 0)
     .sort((a, b) => b.spend - a.spend)
 
@@ -353,14 +322,11 @@ export async function getMetaDashboard(
 }
 
 export async function disconnectMetaIntegration(projectId: string): Promise<void> {
-  // Drop the connection + its synced data.
   await db.metaCampaign.deleteMany({ where: { projectId } })
   await db.projectIntegration.delete({ where: { projectId } }).catch(() => {})
 }
 
-/**
- * Pull campaigns + daily insights and upsert them. Returns the record count.
- */
+/** Pull campaigns + daily insights and upsert them. Returns the record count. */
 export async function syncMetaProject(
   projectId: string,
   lookbackDays = 30,
@@ -376,9 +342,7 @@ export async function syncMetaProject(
     const campaigns = await graphAll<{ id: string; name: string; status: string }>(
       `${GRAPH}/${acct}/campaigns?fields=id,name,status&limit=200&access_token=${token}`,
     )
-    // Batched, not one await per campaign. The array form of $transaction ships
-    // a whole chunk to the engine in a single round trip; the previous shape was
-    // one full network round trip per campaign, serialized.
+    // Batched: one round trip per chunk, not per campaign.
     const idMap = new Map<string, string>()
     for (const slice of chunk(campaigns, WRITE_CHUNK)) {
       const rows = await db.$transaction(
@@ -418,9 +382,7 @@ export async function syncMetaProject(
       `${GRAPH}/${acct}/insights?level=campaign&fields=${fields}&time_increment=1&date_preset=last_${lookbackDays}d&limit=500&access_token=${token}`,
     )
 
-    // Same batching as the campaign loop above. This is the loop the sync
-    // actually lives in: campaigns x days, so 100 campaigns over a 30-day
-    // lookback was 3,000 sequential round trips.
+    // Same batching: campaigns x days is where the sync spends its time.
     const metricWrites: Prisma.PrismaPromise<unknown>[] = []
     for (const day of insights) {
       const metaCampaignId = day.campaign_id as string

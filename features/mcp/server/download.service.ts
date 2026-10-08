@@ -29,19 +29,9 @@ import {
 import { extractTextFromBuffer, isExtractable } from "@/lib/file-text"
 import { toCsv } from "@/lib/export-csv"
 
-// =============================================================================
-// dnms_download and dnms_export_table - getting FILES out of DNMS.
-//
-// Every download runs the real DNMS route as the connected person, so the same
-// permission checks as the website apply. What comes back is one of:
-//   - a generated file (work report, deliverables report, attendance CSV...):
-//     held for 10 minutes and served through a signed DNMS link;
-//   - a link to stored storage (a document, an attachment, a CV): DNMS already
-//     mints a short-lived signed storage link for those, so that is handed over;
-//   - for list endpoints with no file route of their own (the stock register,
-//     the employee directory...), dnms_export_table builds CSV / Excel from the
-//     rows, exactly as the website's own Export buttons do in the browser.
-// =============================================================================
+// dnms_download / dnms_export_table. Every download runs the real route as the person. Result:
+// a generated file (held 10 min behind a signed link), a signed storage link, or CSV/Excel built
+// from a list endpoint's rows.
 
 export interface FileOutcome {
   ok: boolean
@@ -120,8 +110,7 @@ async function capture(
     const location = res.headers.get("location")
     if (!location) return fail("The endpoint redirected without saying where.")
     const target = new URL(location, publicOrigin())
-    // Our own address: that is another DNMS route, not a file host. Follow it
-    // once, as the same person, so the same checks apply.
+    // Our own origin is another DNMS route: follow it once, as the same person.
     if (target.origin === publicOrigin() && principal && hop < 1) {
       const next = await invokeRoute(principal, {
         method: "GET",
@@ -234,9 +223,6 @@ async function textOf(
   }
 }
 
-// ---------------------------------------------------------------------------
-// dnms_download
-// ---------------------------------------------------------------------------
 export async function prepareDownload(
   principal: Principal,
   input: DownloadInput,
@@ -277,8 +263,7 @@ export async function prepareDownload(
   const presigned = looksLikePresignedStorageUrl(got.url)
   const host = new URL(got.url).hostname
   const signed = new URL(got.url)
-  // A presigned "download" link carries the real name in its own
-  // response-content-disposition; the object key is only a fallback.
+  // A presigned link's response-content-disposition has the real name; the key is a fallback.
   const fileName =
     (got.fileName && safeFileName(got.fileName)) ||
     fileNameFromDisposition(signed.searchParams.get("response-content-disposition")) ||
@@ -317,10 +302,7 @@ export async function prepareDownload(
   return outcome
 }
 
-/**
- * Rebuild a GET-generated file whose in-memory copy is gone (a server restart).
- * Re-runs the route as the person, so permissions are checked again.
- */
+/** Rebuild a GET file whose cached copy is gone (restart), re-running the route as the person. */
 export async function rebuildFile(
   principal: Principal,
   path: string,
@@ -332,9 +314,6 @@ export async function rebuildFile(
   return got.kind === "file" ? got : null
 }
 
-// ---------------------------------------------------------------------------
-// dnms_export_table
-// ---------------------------------------------------------------------------
 export interface ExportInput {
   path: string
   query?: Record<string, unknown>

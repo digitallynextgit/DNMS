@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { FormDialog } from "@/components/shared/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -28,29 +28,32 @@ const defaultForm = {
 
 type FormState = typeof defaultForm
 
+function formFor(leaveType?: LeaveType | null): FormState {
+  if (!leaveType) return defaultForm
+  return {
+    name: leaveType.name,
+    code: leaveType.code,
+    description: leaveType.description ?? "",
+    isPaid: leaveType.isPaid,
+    maxDaysPerYear: leaveType.maxDaysPerYear,
+    carryForward: leaveType.carryForward,
+    maxCarryDays: leaveType.maxCarryDays,
+    requiresApproval: leaveType.requiresApproval,
+  }
+}
+
 export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormProps) {
   const createLeaveType = useCreateLeaveType()
   const updateLeaveType = useUpdateLeaveType()
   const isEditing = !!leaveType
 
-  const [form, setForm] = useState<FormState>(defaultForm)
+  const [form, setForm] = useState<FormState>(() => formFor(leaveType))
 
-  useEffect(() => {
-    if (leaveType) {
-      setForm({
-        name: leaveType.name,
-        code: leaveType.code,
-        description: leaveType.description ?? "",
-        isPaid: leaveType.isPaid,
-        maxDaysPerYear: leaveType.maxDaysPerYear,
-        carryForward: leaveType.carryForward,
-        maxCarryDays: leaveType.maxCarryDays,
-        requiresApproval: leaveType.requiresApproval,
-      })
-    } else {
-      setForm(defaultForm)
-    }
-  }, [leaveType, open])
+  const [seededFor, setSeededFor] = useState({ leaveType, open })
+  if (leaveType !== seededFor.leaveType || open !== seededFor.open) {
+    setSeededFor({ leaveType, open })
+    setForm(formFor(leaveType))
+  }
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -101,7 +104,6 @@ export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormPr
       onSubmit={handleSubmit}
       contentClassName="max-w-md"
     >
-      {/* Name */}
       <div className="space-y-2">
         <Label required htmlFor="lt-name">
           Name
@@ -115,7 +117,6 @@ export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormPr
         />
       </div>
 
-      {/* Code */}
       <div className="space-y-2">
         <Label required htmlFor="lt-code">
           Code
@@ -130,7 +131,6 @@ export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormPr
         />
       </div>
 
-      {/* Description */}
       <div className="space-y-2">
         <Label htmlFor="lt-desc">
           Description <span className="text-muted-foreground font-normal">(optional)</span>
@@ -145,7 +145,6 @@ export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormPr
         />
       </div>
 
-      {/* Max days per year */}
       <div className="space-y-2">
         <Label htmlFor="lt-max-days">Max Days / Year</Label>
         <Input
@@ -158,7 +157,6 @@ export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormPr
         <p className="text-muted-foreground text-xs">Set to 0 for unlimited.</p>
       </div>
 
-      {/* Switches */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label htmlFor="lt-paid">Paid Leave</Label>
@@ -187,7 +185,6 @@ export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormPr
           />
         </div>
 
-        {/* Max carry days - only shown when carryForward is enabled */}
         {form.carryForward && (
           <div className="border-muted space-y-2 border-l-2 pl-4">
             <Label htmlFor="lt-max-carry">Max Days to Carry Forward</Label>

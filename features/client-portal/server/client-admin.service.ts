@@ -1,10 +1,4 @@
-// =============================================================================
-// Portal credentials (staff side)
-// =============================================================================
-// The password helpers behind Clients → Contacts (client-contacts.service.ts).
-// Portal access is managed only from the client's page; projects no longer have
-// a Portal access tab of their own.
-// =============================================================================
+// Portal password helpers for Clients -> Contacts.
 
 import "server-only"
 
@@ -13,11 +7,7 @@ import { addEmailJob } from "@/lib/queue"
 import { getConfig } from "@/server/app-config"
 import { renderClientInviteEmail } from "../emails/client-invite"
 
-/**
- * A temporary password, emailed to the client. 18 base64url chars ≈ 108 bits -
- * not guessable, and never returned to the caller, so it cannot surface in an
- * API response, a log line or the browser devtools.
- */
+/** Temporary password (~108 bits), emailed to the client and never returned to the caller. */
 export function generatePassword(): string {
   return randomBytes(14).toString("base64url").slice(0, 18)
 }

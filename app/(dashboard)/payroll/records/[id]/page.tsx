@@ -26,11 +26,8 @@ const NEXT_STATUS: Record<string, string | null> = {
 }
 const inr = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN")}`
 
-// Module scope, NOT inside PayrollRecordPage. Declared in the component body,
-// these got a brand-new function identity on every render, so React treated
-// each of the 16 rows as a different component type and unmounted + remounted
-// the whole payslip breakdown on every state change. Neither closes over
-// anything - they are pure prop renderers.
+// Module scope on purpose: declared in the component they'd get a new identity each render and
+// remount the whole payslip breakdown on every state change.
 const Row = ({ label, value, bold }: { label: string; value: string; bold?: boolean }) => (
   <div className={cn("flex justify-between py-1.5 text-sm", bold && "border-t font-semibold")}>
     <span className={cn(!bold && "text-muted-foreground")}>{label}</span>
@@ -38,7 +35,6 @@ const Row = ({ label, value, bold }: { label: string; value: string; bold?: bool
   </div>
 )
 
-/** A label/value line, placeheld - same 1.5-unit row rhythm as <Row>. */
 const RowSkeleton = ({ bold }: { bold?: boolean }) => (
   <div className={cn("flex justify-between py-1.5", bold && "border-t")}>
     <Skeleton className="my-0.5 h-4 w-32" />
@@ -76,8 +72,7 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
     onError: (e: Error) => toast.error(e.message),
   })
 
-  // Only a LOADED-but-missing record is "not found"; while loading we paint the
-  // shell and placehold just the data regions.
+  // Only a LOADED-but-missing record is "not found"; while loading, the shell paints.
   if (!isLoading && !r) {
     return (
       <div className="flex flex-col items-center gap-4 py-20">

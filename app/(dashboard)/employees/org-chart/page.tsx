@@ -5,7 +5,6 @@ import { PageHeader } from "@/components/shared/page-header"
 import { OrgChartTree } from "@/features/employees"
 import { useOrgChart } from "@/features/employees"
 
-/** A single org node card placeholder (matches the real w-36 node card). */
 function OrgCardSkeleton() {
   return (
     <div className="bg-card border-border flex w-36 flex-col items-center gap-1.5 rounded-sm border px-3 py-2.5 shadow-sm">

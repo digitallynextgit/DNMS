@@ -23,7 +23,6 @@ interface LeaveRequestTableProps {
   showEmployee?: boolean
   canApprove?: boolean
   currentUserId?: string
-  /** Render the leading auto-numbered S.No column (default on). */
   showSerial?: boolean
   /** Offset for the S.No when the parent paginates, e.g. (page - 1) * pageSize. */
   serialOffset?: number
@@ -127,8 +126,7 @@ export function LeaveRequestTable({
         </>
       ),
     },
-    // The reporting manager's advisory call (HR still makes the final decision).
-    // Only meaningful in the approver/directory view.
+    // The manager's advisory call - only meaningful in the approver/directory view.
     ...(showEmployee
       ? [
           {
@@ -169,7 +167,6 @@ export function LeaveRequestTable({
         const isOwn = currentUserId === request.employeeId
         return (
           <div className="flex items-center justify-end gap-1">
-            {/* Employee can cancel their own pending requests */}
             {isOwn && request.status === "PENDING" && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -187,8 +184,7 @@ export function LeaveRequestTable({
                 <TooltipContent>Cancel request</TooltipContent>
               </Tooltip>
             )}
-            {/* Approver actions - only where THIS viewer can actually act on
-                this request (final decision or advisory recommendation). */}
+            {/* Approver actions - only where this viewer can act on the request. */}
             {canApprove && request.status === "PENDING" && request.viewerRole && (
               <>
                 <Tooltip>
@@ -240,9 +236,7 @@ export function LeaveRequestTable({
         showSerial={showSerial}
         serialOffset={serialOffset}
         selection={selection}
-        // Phone card: identity (or leave type) + status on top, then the dates,
-        // and the decision buttons as full labelled controls rather than the
-        // 32px icon buttons the table row uses.
+        // Phone card: identity + status, dates, then full labelled decision buttons.
         mobileCard={(request) => {
           const isOwn = currentUserId === request.employeeId
           const canAct = canApprove && request.status === "PENDING" && request.viewerRole

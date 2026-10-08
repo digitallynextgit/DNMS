@@ -15,12 +15,7 @@ interface Tab {
   badge?: "unread-chat"
 }
 
-/**
- * The five phone tabs. Everything else in the app is reachable from "More",
- * which mirrors the desktop sidebar's sections. The desktop sidebar cannot
- * work on a 390px screen (its rail alone eats 56px of a 390px viewport), so
- * below `md` this bar is the primary navigation.
- */
+/** The five phone tabs; everything else is under "More". Below md this replaces the sidebar. */
 const TABS: Tab[] = [
   { label: "Home", href: "/dashboard", icon: LayoutDashboard },
   { label: "Attendance", href: "/attendance/me", icon: Clock },
@@ -40,8 +35,6 @@ function ChatBadge() {
 }
 
 export function MobileTabbar() {
-  // NOT usePathname(): that returns the tenant-prefixed URL on the client and
-  // the rewritten one on the server, so nav highlighting broke on hydration.
   const pathname = useAppPathname()
 
   function isActive(tab: Tab): boolean {

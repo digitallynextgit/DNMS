@@ -1,7 +1,5 @@
-// Pure: match a request path against Next.js-style route patterns
-// ("/api/projects/[id]/tasks", "/api/x/[...slug]", "/api/y/[[...opt]]").
-// Static segments beat dynamic ones, so /api/leave/team wins over
-// /api/leave/[id]. No framework imports - unit-tested in route-match.test.ts.
+// Match a path against Next.js-style route patterns. Static segments beat dynamic ones
+// (/api/leave/team wins over /api/leave/[id]).
 
 export interface CompiledPattern<T> {
   value: T

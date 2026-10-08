@@ -5,7 +5,6 @@ import { emailTemplateSchema } from "@/features/admin/schemas/email-template.sch
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
-// GET - list all email templates
 export const GET = withAuth(
   PERMISSIONS.EMAIL_TEMPLATE_READ,
   async (_req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
@@ -21,7 +20,6 @@ export const GET = withAuth(
   },
 )
 
-// POST - create a new email template
 export const POST = withAuth(
   PERMISSIONS.EMAIL_TEMPLATE_WRITE,
   async (req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
@@ -38,7 +36,6 @@ export const POST = withAuth(
 
       const data = result.data
 
-      // Slug uniqueness check
       const existing = await db.emailTemplate.findFirst({
         where: { slug: data.slug },
       })
@@ -70,7 +67,6 @@ export const POST = withAuth(
   },
 )
 
-// PATCH - update an existing template (id must be in body)
 export const PATCH = withAuth(
   PERMISSIONS.EMAIL_TEMPLATE_WRITE,
   async (req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
@@ -87,7 +83,6 @@ export const PATCH = withAuth(
         return NextResponse.json({ error: "Template not found" }, { status: 404 })
       }
 
-      // Partial parse - allow partial updates
       const result = emailTemplateSchema.partial().safeParse(rest)
       if (!result.success) {
         return NextResponse.json(
@@ -98,7 +93,6 @@ export const PATCH = withAuth(
 
       const data = result.data
 
-      // If slug is changing, ensure uniqueness
       if (data.slug && data.slug !== existing.slug) {
         const conflict = await db.emailTemplate.findFirst({
           where: { slug: data.slug },

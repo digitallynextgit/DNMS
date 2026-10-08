@@ -28,13 +28,10 @@ import { useJobRoles } from "@/features/employees/hooks/use-job-roles"
 import { EMPLOYMENT_TYPE_LABELS, EMPLOYEE_STATUS_LABELS } from "@/lib/constants"
 import { PROBATION_MONTHS_OPTIONS } from "@/features/employees/probation"
 
-// ─── Shared bits ──────────────────────────────────────────────────────────────
-
 function toDateInput(iso: string | null | undefined): string {
   return iso ? iso.slice(0, 10) : ""
 }
 
-/** Small "Edit" pill placed in a section header. */
 function EditTrigger({ onClick }: { onClick: () => void }) {
   return (
     <Button className="gap-1.5" variant="ghost" onClick={onClick}>
@@ -44,7 +41,6 @@ function EditTrigger({ onClick }: { onClick: () => void }) {
   )
 }
 
-/** Wraps the per-section dialog shell so each editor stays focused on its fields. */
 function SectionDialog({
   open,
   onOpenChange,
@@ -136,8 +132,6 @@ const NATIONALITIES = [
   "Other",
 ]
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-// ─── Personal Information ───────────────────────────────────────────────────────
 
 export function EditPersonalInfo({ emp }: { emp: EmployeeDetail }) {
   const [open, setOpen] = useState(false)
@@ -307,8 +301,6 @@ export function EditPersonalInfo({ emp }: { emp: EmployeeDetail }) {
     </>
   )
 }
-
-// ─── Employment Details ─────────────────────────────────────────────────────────
 
 export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
   const [open, setOpen] = useState(false)
@@ -568,8 +560,6 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
   )
 }
 
-// ─── Address ────────────────────────────────────────────────────────────────────
-
 type Addr = { line1: string; line2: string; city: string; state: string; zip: string }
 
 function blankAddr(a: Record<string, string> | null | undefined): Addr {
@@ -709,8 +699,6 @@ export function EditAddress({ emp }: { emp: EmployeeDetail }) {
     </>
   )
 }
-
-// ─── Emergency Contact ──────────────────────────────────────────────────────────
 
 export function EditEmergencyContact({ emp }: { emp: EmployeeDetail }) {
   const [open, setOpen] = useState(false)

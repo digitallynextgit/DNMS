@@ -1,15 +1,8 @@
 "use client"
 
 /**
- * The client's own activity feed.
- *
- * Reads client_activity_logs, which is a different table from the staff audit
- * log by design - nothing here can surface an employee's actions.
- *
- * Rows carry a `summary` written at the time of the action, so the wording is
- * whatever was true then ("Sent the campaign "Diwali Preview" to 311
- * recipients") rather than a label reverse-engineered from an action code later.
- * The code is only a fallback for rows written before a summary existed.
+ * The client's own activity feed (client_activity_logs - never staff activity). Rows carry a
+ * `summary` written at the time; the action code is only a fallback for older rows.
  */
 
 import * as React from "react"
@@ -109,9 +102,7 @@ export function PortalActivityLog({ projectRef }: { projectRef: string }) {
             <div className="min-w-0 flex-1">
               <p className="text-sm">{e.summary ?? fallbackLabel(e.action)}</p>
               <p className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px]">
-                {/* suppressHydrationWarning: the server renders this in its own
-                    timezone and the browser in the reader's - the mismatch is
-                    expected here, not a bug to chase. */}
+                {/* Server and browser timezones differ, so the mismatch is expected. */}
                 <span suppressHydrationWarning>
                   {when.toLocaleString(undefined, {
                     day: "numeric",
@@ -124,8 +115,7 @@ export function PortalActivityLog({ projectRef }: { projectRef: string }) {
                 {e.ipAddress && <span className="font-mono opacity-70">{e.ipAddress}</span>}
               </p>
             </div>
-            {/* Account-level events are not tied to this project; say so rather
-                than letting them read as something done here. */}
+            {/* Account-level events aren't tied to this project - say so. */}
             {e.projectId === null && (
               <Badge variant="outline" className={cn("shrink-0 text-[10px]")}>
                 Account

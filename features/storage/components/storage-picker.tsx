@@ -1,15 +1,6 @@
 "use client"
 
-/**
- * /admin/storage - the two-level screen.
- *
- *   1. Every connected bucket as a card.
- *   2. Open one, and its full contents replace the grid.
- *
- * Which bucket a file lives in is not cosmetic: an object key is meaningless
- * without its bucket, so listing several accounts' files in one flat table would
- * produce rows nobody could act on. Pick a bucket first, then act inside it.
- */
+// Pick a bucket first: an object key means nothing without its bucket, so files are never listed flat.
 
 import * as React from "react"
 
@@ -22,14 +13,12 @@ export function StoragePicker() {
 
   const accounts = React.useMemo(() => data ?? [], [data])
 
-  // Keep the opened card in step with a rename or a default change made while
-  // it is open, rather than showing the label it had when it was clicked.
-  React.useEffect(() => {
-    if (!open) return
+  // Keep the opened card in step with a rename or default change made while it's open.
+  if (open) {
     const fresh = accounts.find((a) => a.id === open.id)
     if (!fresh) setOpen(null)
     else if (fresh.label !== open.label || fresh.bucket !== open.bucket) setOpen(fresh)
-  }, [accounts, open])
+  }
 
   if (open) {
     return (
@@ -44,8 +33,7 @@ export function StoragePicker() {
     )
   }
 
-  // No PageHeader here: StorageAccountGrid renders it, so the view toggle and
-  // Add storage can live on the title line. Two headers would stack.
+  // No PageHeader here: StorageAccountGrid renders it.
   return (
     <StorageAccountGrid
       accounts={accounts}

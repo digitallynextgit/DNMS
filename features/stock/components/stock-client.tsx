@@ -74,12 +74,7 @@ import {
 import { QtyInput } from "./qty-input"
 import { StockImportDialog } from "./stock-import-dialog"
 
-// =============================================================================
-// The stock register: what HR bought (items) and who holds it (issues).
-// A holder is a NAME first and an employee link second - rows imported for
-// people who are not employees stay as plain names, with a "Link" action for
-// when a matching employee (active or deactivated) exists.
-// =============================================================================
+// A holder is a NAME first and an employee link second; non-employees stay as plain names.
 
 export function StockClient() {
   const { can } = usePermissions()
@@ -111,12 +106,9 @@ export function StockClient() {
   const meta = register.data?.meta
   const hasFilters = Boolean(q) || itemFilter !== "all" || unlinkedOnly
 
-  // A matrix row bundles several ledger entries, so selection is per ROW KEY
-  // and bulk actions flatten the selected rows' entry ids. Ids are resolvable
-  // only for rows on screen, so page/filter changes clear the selection.
+  // Selection is per matrix ROW KEY; ids resolve only for rows on screen, so filter/page changes clear it.
   const selection = useRowSelection(rows.map((r) => r.key))
 
-  /** Any filter/page change restarts with a clean selection. */
   function resetPaging(nextPage = 1) {
     setPage(nextPage)
     selection.clear()
@@ -146,9 +138,7 @@ export function StockClient() {
     )
   }
 
-  // ── Export ─────────────────────────────────────────────────────────────
-  // Fetches EVERY page of the register (with the current filters applied),
-  // then hands the same sheet-shaped table to the shared xlsx/csv exporters.
+  // Export fetches EVERY page (current filters applied).
 
   async function fetchAllMatrixRows(): Promise<StockMatrixRow[]> {
     const all: StockMatrixRow[] = []
@@ -221,8 +211,7 @@ export function StockClient() {
     }
   }
 
-  // Columns mirror the uploaded sheet: Holder | On date | one column PER ITEM
-  // (in the sheet's column order) with the quantity in the cell.
+  // Columns mirror the uploaded sheet: Holder | On date | one column per item.
   const columns: DataTableColumn<StockMatrixRow>[] = [
     {
       header: "Holder",
@@ -339,8 +328,6 @@ export function StockClient() {
         description="What was bought, who holds it, and what is left."
         actions={
           <div className="flex flex-wrap gap-2">
-            {/* Export is a READ affordance - everyone who can see the page
-                can take the data with them, current filters applied. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" disabled={exporting} loading={exporting}>
@@ -390,7 +377,6 @@ export function StockClient() {
         }
       />
 
-      {/* ── Items: purchased / issued / left ─────────────────────────────── */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {(items.data ?? []).map((item) => (
           <div key={item.id} className="border-border bg-card rounded-sm border p-4">
@@ -436,7 +422,6 @@ export function StockClient() {
         )}
       </section>
 
-      {/* ── Register ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput
           value={q}
@@ -478,7 +463,6 @@ export function StockClient() {
         </Button>
       </div>
 
-      {/* ── Selection bar: appears once anything is ticked ───────────────── */}
       {canWrite && selection.count > 0 && (
         <div className="border-border bg-muted/40 flex flex-wrap items-center gap-2 rounded-sm border px-3 py-2">
           <span className="text-sm font-medium">{selection.count} selected</span>
@@ -554,7 +538,6 @@ export function StockClient() {
         </>
       )}
 
-      {/* ── Dialogs ──────────────────────────────────────────────────────── */}
       <StockImportDialog open={importOpen} onOpenChange={setImportOpen} />
       {itemDialog && <ItemDialog state={itemDialog} onClose={() => setItemDialog(null)} />}
       {restockItem && <RestockDialog item={restockItem} onClose={() => setRestockItem(null)} />}
@@ -611,8 +594,6 @@ export function StockClient() {
     </div>
   )
 }
-
-// ─── Edit one register row (the sheet-shaped edit) ──────────────────────────
 
 function EditRowDialog({
   row,
@@ -711,8 +692,6 @@ function EditRowDialog({
   )
 }
 
-// ─── Restock (add pieces - a purchase is an event, not a corrected total) ───
-
 function RestockDialog({ item, onClose }: { item: StockItemRow; onClose: () => void }) {
   const [qty, setQty] = useState("1")
   const [price, setPrice] = useState(item.pricePerPiece?.toString() ?? "")
@@ -777,8 +756,6 @@ function RestockDialog({ item, onClose }: { item: StockItemRow; onClose: () => v
     </Dialog>
   )
 }
-
-// ─── Add / edit an item ───────────────────────────────────────────────────────
 
 function ItemDialog({
   state,
@@ -866,8 +843,6 @@ function ItemDialog({
     </Dialog>
   )
 }
-
-// ─── Record an issue ─────────────────────────────────────────────────────────
 
 function IssueDialog({ items, onClose }: { items: StockItemRow[]; onClose: () => void }) {
   const [itemId, setItemId] = useState(items[0]?.id ?? "")
@@ -1002,8 +977,6 @@ function IssueDialog({ items, onClose }: { items: StockItemRow[]; onClose: () =>
     </Dialog>
   )
 }
-
-// ─── Pick an employee (single link + bulk link share this) ──────────────────
 
 function EmployeePickerDialog({
   title,

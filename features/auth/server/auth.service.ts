@@ -1,10 +1,6 @@
 import "server-only"
 
-// =============================================================================
-// Forgot-password (OTP) server actions - replace the former /api/auth/* routes.
-// These run unauthenticated (the user has no session yet), so they do their own
-// validation and return ActionResult instead of relying on the auth guards.
-// =============================================================================
+// Forgot-password (OTP) flow. Runs without a session, so it does its own validation.
 
 import bcrypt from "bcryptjs"
 import { randomUUID, randomInt } from "crypto"
@@ -21,16 +17,12 @@ import {
 import { requireSession } from "@/server/action-guard"
 import { ok, fail, runAction, type ActionResult } from "@/server/action-result"
 
-const OTP_TTL_MS = 10 * 60 * 1000 // 10 minutes
+const OTP_TTL_MS = 10 * 60 * 1000
 const MAX_ATTEMPTS = 5
 
 const INVALID_CODE = "Invalid or expired code. Please request a new one."
 
-// ---------------------------------------------------------------------------
-// Step 1 - verify the email belongs to an active employee, then email a code.
-// (This flow deliberately reveals whether an active account exists, per
-// product requirement - it is not anti-enumeration.)
-// ---------------------------------------------------------------------------
+// Step 1: email a code. Deliberately reveals whether an active account exists (product requirement).
 export async function requestPasswordOtp(email: string): Promise<ActionResult<{ sent: true }>> {
   return runAction(() =>
     runUnscoped(
@@ -46,9 +38,7 @@ export async function requestPasswordOtp(email: string): Promise<ActionResult<{ 
           return fail("No active employee account was found for this email.")
         }
 
-        // The reset now targets the platform identity (M2). `employeeId` is still
-        // written so the pre-M2 build deployed on the VPS can complete a reset it
-        // started; it comes off with the column in M4.
+        // employeeId is still written for legacy readers until that column is dropped.
         const userId = await userIdForEmployee(employee.id)
         if (!userId) return fail("No active employee account was found for this email.")
 
@@ -76,9 +66,7 @@ export async function requestPasswordOtp(email: string): Promise<ActionResult<{ 
   )
 }
 
-// ---------------------------------------------------------------------------
-// Step 2 - verify the code; on success hand back the token for the reset step.
-// ---------------------------------------------------------------------------
+// Step 2: verify the code and hand back the token for the reset step.
 export async function verifyPasswordOtp(
   email: string,
   otp: string,
@@ -123,8 +111,7 @@ export async function verifyPasswordOtp(
           return fail(`Incorrect code. ${MAX_ATTEMPTS - attempts} attempt(s) left.`)
         }
 
-        // Verified: clear the OTP so it can't be replayed; the token now authorizes
-        // the final reset step.
+        // Clear the OTP so it can't be replayed; the token now authorizes the reset.
         await db.passwordReset.update({
           where: { id: reset.id },
           data: { otpHash: null, attempts: 0 },
@@ -136,9 +123,7 @@ export async function verifyPasswordOtp(
   )
 }
 
-// ---------------------------------------------------------------------------
-// Step 3 - set the new password (only valid once the OTP cleared the token).
-// ---------------------------------------------------------------------------
+// Step 3: set the new password (only once the OTP has been verified).
 export async function resetPasswordWithToken(
   token: string,
   password: string,
@@ -158,9 +143,7 @@ export async function resetPasswordWithToken(
           return fail("Invalid or expired reset session. Please start over.")
         }
 
-        // setPassword writes the platform credential AND the legacy profile column,
-        // so a rollback to the pre-M2 build still honours the new password.
-        // Completing the OTP flow also satisfies any "must change" requirement.
+        // Also clears any "must change password" requirement.
         await setPassword({ userId: reset.userId }, parsed.data.password)
         await db.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } })
 
@@ -170,18 +153,14 @@ export async function resetPasswordWithToken(
   )
 }
 
-// ---------------------------------------------------------------------------
-// Forced first-login change: the signed-in user sets their own password, which
-// clears the mustChangePassword flag so the proxy stops funneling them here.
-// ---------------------------------------------------------------------------
+// Forced first-login change; clears mustChangePassword so the proxy stops redirecting here.
 export async function setOwnPassword(newPassword: string): Promise<ActionResult<{ ok: true }>> {
   return runAction(async () => {
     const session = await requireSession()
     if (typeof newPassword !== "string" || newPassword.length < 8) {
       return fail("Password must be at least 8 characters")
     }
-    // session.user.id is the EMPLOYEE id (unchanged by M2); setPassword resolves
-    // the platform identity from it and writes both.
+    // session.user.id is the EMPLOYEE id; setPassword resolves the platform identity from it.
     await setPassword({ employeeId: session.user.id }, newPassword)
     return ok({ ok: true as const })
   })

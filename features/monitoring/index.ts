@@ -1,7 +1,4 @@
-// Public API for the "monitoring" feature (CLAUDE.md §1, rule #2).
-// Server-only modules (server/*.service) are intentionally NOT re-exported -
-// API routes import those directly, so nothing drags `server-only` into a
-// client bundle. Same rule as features/projects.
+// Public API; server-only modules are not re-exported (API routes import them directly).
 
 export {
   ASSET_KINDS,

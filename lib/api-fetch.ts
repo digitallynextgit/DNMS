@@ -1,13 +1,8 @@
 import type { ActionResult } from "@/server/action-result"
 
 /**
- * Centralized client-side fetch for API route handlers.
- *
- * On a non-2xx response it throws an `Error` carrying the server's message
- * (so React Query's `onError` / toast handling keeps working). On success it
- * returns the parsed JSON body UNCHANGED - callers read `.data` / `.pagination`
- * / `.meta` themselves, exactly as they did with `await res.json()`. An empty
- * body resolves to `null`.
+ * Client fetch for API routes. Non-2xx throws an Error with the server's message; otherwise returns
+ * the parsed body as-is (callers read `.data` themselves), or null when empty.
  */
 export async function apiFetch<T>(input: string, init?: RequestInit): Promise<T> {
   const res = await fetch(input, init)
@@ -20,12 +15,9 @@ export async function apiFetch<T>(input: string, init?: RequestInit): Promise<T>
     const error = new Error(
       typeof message === "string" ? message : `Request failed (${res.status})`,
     ) as ApiError
-    // Carry the machine-readable part of the failure, not just its prose. A
-    // caller that wants to ACT on a specific rejection (ask the user a question,
-    // retry with a flag) otherwise has to string-match the message.
+    // Machine-readable status/code, so callers can act on a specific rejection without string-matching.
     error.status = res.status
-    // Routes that answer with a bare `{ error, code }` are read too - the
-    // envelope is the house style, not a guarantee.
+    // Also accept bare `{ error, code }` bodies.
     error.code = body?.error?.code ?? body?.code
     error.details = body?.error?.details ?? body?.details
     throw error
@@ -33,18 +25,13 @@ export async function apiFetch<T>(input: string, init?: RequestInit): Promise<T>
   return body as T
 }
 
-/** What `apiFetch` throws: a normal Error plus the server's error envelope. */
 export interface ApiError extends Error {
   status?: number
   code?: string
   details?: unknown
 }
 
-/**
- * Re-throw a server action's returned error so client React Query hooks get a
- * thrown Error (their existing `onError`/toast path), otherwise return `data`.
- * Replaces the repeated `if (!r.ok) throw new Error(r.error); return r.data`.
- */
+/** Throws a server action's error (for React Query's onError), otherwise returns `data`. */
 export function unwrap<T>(result: ActionResult<T>): T {
   if (!result.ok) throw new Error(result.error)
   return result.data

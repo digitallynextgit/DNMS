@@ -1,6 +1,5 @@
 import { PageHeaderSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
 
-// Hikvision Devices: header with an "Add Device" action, then the devices table.
 export default function DevicesLoading() {
   return (
     <div className="space-y-6">

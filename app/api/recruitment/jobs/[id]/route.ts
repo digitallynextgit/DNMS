@@ -16,9 +16,7 @@ function emptyToNull(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
-// GET returns include:{ applicants } - candidate names, emails, phones, resume
-// URLs, HR notes. Gate on recruitment:read, matching the applicants/applications
-// siblings; bare withSession leaks third-party PII to every staffer.
+// recruitment:read: the response includes applicants' PII, so plain withSession would leak it to all staff.
 export const GET = withAuth(
   PERMISSIONS.RECRUITMENT_READ,
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {

@@ -17,11 +17,7 @@ const PHASE_LABEL: Record<SyncProgressState["phase"], string> = {
   error: "Sync failed",
 }
 
-/**
- * Live progress for a device sync: a REAL percentage (the server knows the total
- * window count before it starts walking), an elapsed timer, and an ETA measured from
- * the average time per window so far.
- */
+/** Live device-sync progress: real percent, elapsed time, and an ETA from the average window. */
 export function SyncProgressBar({
   progress,
   onCancel,
@@ -35,8 +31,7 @@ export function SyncProgressBar({
 
   const running =
     progress.phase === "probing" || progress.phase === "fetching" || progress.phase === "writing"
-  // Until the first window lands we have no total, so show an honest indeterminate
-  // bar rather than a fabricated percentage.
+  // No total until the first window lands, so show an indeterminate bar.
   const indeterminate = progress.windowsTotal === 0 && running
 
   return (

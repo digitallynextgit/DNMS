@@ -17,18 +17,8 @@ import {
   verifiedClientName,
 } from "./redirects"
 
-// =============================================================================
-// The OAuth 2.1 authorization server (authorization-code + PKCE S256 only).
-//
-//   GET  /api/oauth/authorize  → startAuthorization()   → /oauth/consent/<id>
-//   Allow / Deny on the page   → approve/denyAuthorization() → back to the app
-//   POST /api/oauth/token      → exchangeCode() / refreshTokens()
-//   POST /api/oauth/revoke     → revokeToken()
-//
-// OAuthGrant is tenant-scoped, but these flows run BEFORE the company is known
-// (the token is what decides it), so grant reads here go through runUnscoped -
-// the same pattern sign-in uses.
-// =============================================================================
+// OAuth 2.1 authorization server (authorization code + PKCE S256 only). Grant reads run
+// unscoped: the company isn't known until the token decides it (same as sign-in).
 
 /** OAuth error as returned by the token / revoke endpoints (RFC 6749 §5.2). */
 export class OAuthFlowError extends Error {
@@ -46,9 +36,7 @@ const sameResource = (a: string, b: string) =>
 
 function parseScopes(raw: string | null | undefined): string[] {
   const requested = (raw ?? "").split(/\s+/).filter((s) => SUPPORTED_SCOPES.includes(s))
-  // `offline_access`, OIDC scopes and anything unknown are ignored rather than
-  // refused - refresh tokens are always issued, and refusing would only break
-  // clients that ask for a little extra.
+  // Unknown scopes (offline_access, OIDC...) are ignored, not refused - refresh is always on.
   return requested.length ? Array.from(new Set(requested)) : [...DEFAULT_SCOPES]
 }
 
@@ -60,10 +48,6 @@ function withParams(uri: string, params: Record<string, string | null | undefine
   }
   return url.toString()
 }
-
-// ---------------------------------------------------------------------------
-// 1. Authorization request
-// ---------------------------------------------------------------------------
 
 export type AuthorizeOutcome =
   | { type: "consent"; requestId: string }
@@ -148,8 +132,7 @@ export async function startAuthorization(sp: URLSearchParams): Promise<Authorize
     },
   })
 
-  // Opportunistic cleanup of long-dead requests: cheap, and keeps the table
-  // from growing without a cron.
+  // Opportunistic cleanup of long-dead requests, so no cron is needed.
   if (Math.random() < 0.05) {
     void db.oAuthAuthorization
       .deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } } })
@@ -158,10 +141,6 @@ export async function startAuthorization(sp: URLSearchParams): Promise<Authorize
 
   return { type: "consent", requestId: row.id }
 }
-
-// ---------------------------------------------------------------------------
-// 2. Consent
-// ---------------------------------------------------------------------------
 
 export interface ConsentRequest {
   id: string
@@ -211,10 +190,7 @@ export async function getConsentScreen(
   return { request, workspace: tenant?.name ?? session.user.tenantSlug }
 }
 
-/**
- * The person clicked Allow. `session` is their normal cookie session (the
- * consent page is login-protected). Returns where to send the browser.
- */
+/** The person clicked Allow (on the login-protected consent page). Returns the redirect URL. */
 export async function approveAuthorization(id: string, session: Session): Promise<string> {
   if (session.user.kind !== "employee") {
     throw new OAuthFlowError("access_denied", "AI apps can only be connected by staff accounts")
@@ -239,8 +215,7 @@ export async function approveAuthorization(id: string, session: Session): Promis
 
   const client = await db.oAuthClient.findUnique({ where: { clientId: row.clientId } })
 
-  // The grant is created inside the person's own company - getSession() on the
-  // consent action already entered it, and tenantId is set explicitly too.
+  // Created in the person's company (the consent action entered it); tenantId is set too.
   const grant = await db.oAuthGrant.create({
     data: {
       tenantId: membership.tenantId,
@@ -288,10 +263,6 @@ export async function denyAuthorization(id: string): Promise<string | null> {
   })
 }
 
-// ---------------------------------------------------------------------------
-// 3. Token endpoint
-// ---------------------------------------------------------------------------
-
 export interface TokenResponse {
   access_token: string
   token_type: "Bearer"
@@ -304,8 +275,7 @@ async function issueTokens(grantId: string, scope: string): Promise<TokenRespons
   const access = generateToken(TOKEN_PREFIX.ACCESS)
   const refresh = generateToken(TOKEN_PREFIX.REFRESH)
   const now = Date.now()
-  // Two plain creates rather than createMany (see the Prisma 7 + pg adapter
-  // note on createMany in prisma/seed.ts).
+  // Two creates, not createMany - see safeCreateMany in prisma/seed.ts.
   await db.$transaction([
     db.oAuthToken.create({
       data: {
@@ -405,9 +375,8 @@ export async function refreshTokens(form: URLSearchParams): Promise<TokenRespons
   }
 
   if (token.usedAt) {
-    // Rotation means a refresh token works once. Seeing it again is a theft
-    // signal (OAuth 2.1 §4.3.1) - unless it is the same client racing itself
-    // within a few seconds (proactive + reactive refresh), which is common.
+    // A refresh token works once; reuse is a theft signal (OAuth 2.1 §4.3.1) - unless it's the
+    // same client racing itself within a few seconds, which is common.
     if (Date.now() - token.usedAt.getTime() > REFRESH_RACE_MS) {
       await revokeGrant(token.grantId, "refresh_token_reused")
     }

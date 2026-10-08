@@ -6,10 +6,7 @@ import { analyseBrandDocuments } from "@/features/projects/server/brand-ai.servi
 import { AiError, AiNotConfiguredError } from "@/lib/ai"
 import { createAuditLog } from "@/lib/audit"
 
-// POST /api/projects/[id]/brand/analyse  body { assetIds?: string[] }
-// Draft a brand brief + recommendations from the uploaded brief documents.
-// Same guard as saving the brief (withProjectManager): the result is meant to
-// be pasted into that field. Nothing is stored; the client applies it.
+// Same guard as saving the brief, since the result is pasted there. Nothing is stored.
 export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const body = (await req.json().catch(() => ({}))) as { assetIds?: unknown }
@@ -29,10 +26,7 @@ export const POST = withProjectManager(
       })
       return NextResponse.json({ data })
     } catch (error) {
-      // "AI is down" must never read as "the brief is broken": map the AI
-      // layer's errors to statuses the client can explain. Everything else
-      // (unknown project, unreadable documents) is an AppError and falls
-      // through to withSession's funnel.
+      // Map AI-layer errors to statuses the client can explain; AppErrors fall through to withSession.
       if (error instanceof AiNotConfiguredError) {
         return NextResponse.json(
           { error: "AI is not configured on the server (MISTRAL_API_KEY is missing)" },

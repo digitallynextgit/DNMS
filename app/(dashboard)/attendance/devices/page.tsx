@@ -45,10 +45,8 @@ export default function DevicesPage() {
 
   const deleteDevice = useDeleteDevice()
   const testDevice = useTestDevice()
-  // Streaming sync: gives a real % + ETA instead of an indeterminate spinner.
   const { progress, isRunning, start: startSync, cancel: cancelSync } = useSyncProgress()
 
-  // Client-side pagination (devices is a small, full-list config resource).
   const PAGE_SIZE = 10
   const [page, setPage] = useUrlPage()
   const totalPages = Math.max(1, Math.ceil(devices.length / PAGE_SIZE))
@@ -78,9 +76,8 @@ export default function DevicesPage() {
     }
   }
 
-  // Full re-sync: rebuild every day from the device (from each employee's joining
-  // date), overwriting device rows. Fixes historical data captured wrong before
-  // a sync-logic fix; HR manual corrections are always preserved.
+  // Rebuilds every day from the device (from each joining date), overwriting device rows.
+  // HR manual corrections are always preserved.
   async function handleFullSync(id: string) {
     setSyncingId(id)
     try {
@@ -139,14 +136,8 @@ export default function DevicesPage() {
       cell: (device) => device.location ?? "-",
     },
     {
-      // "Enabled", not "Active", and a power glyph rather than a Wifi one.
-      //
-      // This is `isActive` - a stored flag meaning "DNMS should poll this
-      // device". It says nothing about whether the device is reachable right
-      // now. Rendering it as a green "Active" behind a Wifi icon read as live
-      // connectivity, so a device sitting on an unroutable network still looked
-      // online and a failing sync looked like a bug in the app. Reachability is
-      // what the Test button answers.
+      // "Enabled", not "Active": isActive means "DNMS should poll this device", not that it's
+      // reachable now. The Test button answers reachability.
       header: "Enabled",
       cell: (device) => (
         <StatusBadge
@@ -264,16 +255,11 @@ export default function DevicesPage() {
         </BulkActionBar>
       )}
 
-      {/* Live sync progress: real % (the server knows the total window count before
-          it starts), elapsed timer and a measured ETA. Rendered above the table so it
-          stays visible for the whole run, which can be minutes on a full backfill. */}
+      {/* Above the table so it stays visible for the whole run (minutes on a full backfill). */}
       <SyncProgressBar progress={progress} onCancel={cancelSync} />
 
       {canWrite && <RealtimePushPanel />}
 
-      {/* The table renders from the first paint: while `isLoading` it draws
-          skeleton rows inside its own real <thead>, derived from `columns`, so
-          the column count follows `canWrite` instead of being hand-counted. */}
       {isLoading || devices.length > 0 ? (
         <DataTable
           columns={columns}
@@ -313,14 +299,12 @@ export default function DevicesPage() {
         itemLabel="device"
       />
 
-      {/* Per-employee sync + attendance summary */}
       {canWrite && devices.length > 0 && (
         <EmployeeSyncPanel
           devices={devices.map((d) => ({ id: d.id, name: d.name, isActive: d.isActive }))}
         />
       )}
 
-      {/* Add / Edit dialog */}
       <DeviceFormDialog
         open={formOpen}
         onOpenChange={(open) => {
@@ -330,7 +314,6 @@ export default function DevicesPage() {
         editDevice={editDevice}
       />
 
-      {/* Bulk delete confirmation */}
       <ConfirmDialog
         open={bulkOpen}
         onOpenChange={setBulkOpen}
@@ -342,7 +325,6 @@ export default function DevicesPage() {
         isLoading={deleteDevice.isPending}
       />
 
-      {/* Delete confirmation */}
       <ConfirmDialog
         open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}
@@ -354,7 +336,6 @@ export default function DevicesPage() {
         isLoading={deleteDevice.isPending}
       />
 
-      {/* Full re-sync confirmation */}
       <ConfirmDialog
         open={!!fullSyncId}
         onOpenChange={(open) => !open && setFullSyncId(null)}

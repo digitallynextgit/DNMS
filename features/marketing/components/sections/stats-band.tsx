@@ -1,10 +1,7 @@
 import { STATS } from "../../marketing.constants"
 import { CountUp, DotBackdrop, Reveal } from "../fx"
 
-/**
- * A quiet band of four headline numbers, count-up on scroll, over a dotted
- * backdrop. Pure signal - the shape of the platform in four figures.
- */
+/** Four headline numbers that count up on scroll. */
 export function StatsBand() {
   return (
     <section className="relative overflow-hidden py-20 sm:py-24">

@@ -28,28 +28,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { EmptyState } from "@/components/shared/empty-state"
 import { cn } from "@/lib/utils"
 
-// =============================================================================
-// The charts on the Progress page, and the primitives the drill-downs reuse.
-//
-// Four questions, four forms, all clickable:
-//   1. What state is the work in?     -> donut (part-to-whole, exclusive states)
-//   2. Which client / team is at risk? -> stacked bar by state, one row each
-//   3. Who is carrying what?           -> stacked bar by state, one row each
-//   4. Is the pace holding?            -> line, completed vs due, 8 weeks
-//
-// EVERY MARK IS A DOOR. A slice opens the tasks in that state; a bar opens the
-// client or person it names, on the segment's state. The old page drew the
-// same counts three ways and none of them went anywhere, which is how a
-// dashboard turns into a report. The click is the feature; the chart is how
-// you find the click.
-//
-// Colour: states use the --state-* tokens, validated as an ORDERED set in both
-// themes (see globals.css). The pace line is the one categorical pair and uses
-// --viz-1/--viz-2 - a series colour never impersonates a state.
-//
-// Three state fills sit under 3:1 on the light card, so every chart carries a
-// legend with counts and the numbers are readable without hover.
-// =============================================================================
+// Every mark opens its tasks. States use the ordered --state-* tokens; the pace line uses --viz-1/--viz-2.
 
 export type State = "overdue" | "todo" | "hold" | "progress" | "done"
 
@@ -88,7 +67,6 @@ export interface ChartRow extends ChartBucket {
   name: string
 }
 
-/** The five exclusive states for one bucket, ready to stack or slice. */
 export function statesOf(b: ChartBucket): Record<State, number> {
   return {
     overdue: b.overdue,
@@ -113,10 +91,7 @@ export function Tip({ title, rows }: { title: string; rows: { label: string; val
   )
 }
 
-/**
- * Shared legend. Required, not decorative - see the palette note above. With
- * `onPick` each entry is a button, which is also the keyboard route to a slice.
- */
+/** Required, not decorative: some state fills are under 3:1 contrast. With `onPick` entries are buttons. */
 export function StateLegend({
   counts,
   onPick,
@@ -167,13 +142,7 @@ export function StateLegend({
 const datumOf = <T,>(d: unknown): T | undefined =>
   (d as { payload?: T } | undefined)?.payload ?? (d as T | undefined)
 
-/**
- * The state mix as a donut, with the headline in the hole.
- *
- * Only states with a count are drawn - an empty slice is a 0px gap - but the
- * legend still lists all five with their counts, so "no overdue" is a visible
- * zero rather than an absence someone has to notice.
- */
+/** Only non-zero states are drawn, but the legend lists all five with counts. */
 export function StateDonut({
   bucket,
   centre,
@@ -247,14 +216,7 @@ export function StateDonut({
   )
 }
 
-/**
- * A horizontal stacked-by-state bar chart, one row per client, team or person.
- *
- * Horizontal because the names are long, and rotated tick labels are the usual
- * reason a bar chart stops being readable. Clicking a segment reports the row
- * AND the state, so "the red part of KYG" opens KYG's overdue tasks, not just
- * KYG.
- */
+/** Horizontal because names are long; a segment click reports the row AND the state. */
 export function StateStack({
   rows,
   height,
@@ -331,10 +293,7 @@ export function StateStack({
   )
 }
 
-/**
- * Completed vs due, per Monday-start week. Two series of the same unit on one
- * axis - never a second scale - with the legend inline in the title row.
- */
+/** Completed vs due per Monday-start week, on one shared axis. */
 export function PaceLine({
   trend,
   height = 200,
@@ -441,17 +400,10 @@ const withStates = (rows: ChartRow[]) =>
   [...rows]
     .map((r) => ({ ...r, states: statesOf(r) }))
     .sort((a, b) => b.assigned - a.assigned)
-    // Past ten the rows get too thin to read; the table twin in the drill-down
-    // carries the tail.
+    // Past ten the rows get too thin; the drill-down table has the rest.
     .slice(0, 10)
 
-/**
- * The 2x2 on the Progress page.
- *
- * `mode` decides the second card: across the portfolio it is one bar per
- * CLIENT; inside one project a single bar would say nothing, so it becomes one
- * bar per TEAM instead.
- */
+/** Across the portfolio the second card is per client; inside one project it is per team. */
 export function PortfolioCharts({
   summary,
   scopeLabel,

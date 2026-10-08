@@ -1,20 +1,10 @@
 import "server-only"
 
-// =============================================================================
-// Polls, events and shared contacts - the WhatsApp-style cards that are not files.
-// =============================================================================
-// Personal chat and project messages need identical behaviour here, so this is
-// one module rather than a copy in each feature. Everything below works on
-// whichever parent it is handed: a chat message or a project reply.
-//
-// Access is NOT decided here. Each surface's route proves the caller may write
-// to that conversation first, then calls in - mixing the two would leave one
-// authorisation path per card type and no single place to review.
-// =============================================================================
+// Poll, event and contact cards, shared by chat and project messages.
+// Access is NOT checked here: each route authorises the caller for its conversation first.
 
 import { db } from "@/server/db"
 
-/** Which conversation a card hangs off. Exactly one field is ever set. */
 export type CardParent = { chatMessageId: string } | { projectReplyId: string }
 
 export const POLL_SELECT = {
@@ -63,7 +53,6 @@ export const CONTACT_SELECT = {
   },
 } as const
 
-/** Every card kind in one spread, for a message select. */
 export const CARD_SELECT = {
   poll: POLL_SELECT,
   event: EVENT_SELECT,
@@ -86,14 +75,7 @@ type RawPoll = {
   }[]
 }
 
-/**
- * Turn raw vote rows into what a poll card draws: a count and a share per
- * option, plus whether YOU picked it.
- *
- * Shares are computed against the number of PEOPLE who voted, not the number of
- * votes cast - in a multiple-choice poll those differ, and dividing by votes
- * would show percentages that add up to more than a whole.
- */
+/** Shares are per VOTER, not per vote cast - the two differ in a multiple-choice poll. */
 export function shapePoll(poll: RawPoll | null, viewerId: string) {
   if (!poll) return null
 
@@ -114,7 +96,6 @@ export function shapePoll(poll: RawPoll | null, viewerId: string) {
       count: o.votes.length,
       share: voterCount === 0 ? 0 : Math.round((o.votes.length / voterCount) * 100),
       mine: o.votes.some((v) => v.voterId === viewerId),
-      // Enough to show a row of faces under an option without another request.
       voters: o.votes.slice(0, 8).map((v) => ({
         id: v.voterId,
         firstName: v.voter.firstName,
@@ -132,7 +113,6 @@ export interface PollInput {
   closesAt?: string | null
 }
 
-/** Create a poll on an existing message. Options keep the order they were typed. */
 export async function createPoll(parent: CardParent, input: PollInput) {
   const options = input.options
     .map((o) => o.trim())
@@ -174,12 +154,7 @@ export async function createEvent(parent: CardParent, input: EventInput) {
   })
 }
 
-/**
- * Share a colleague's card.
- *
- * The details are copied in, not joined: the card is a statement about who that
- * person was when it was sent, and should not blank out when they leave.
- */
+/** Details are copied, not joined, so the card survives the colleague leaving. */
 export async function createContact(parent: CardParent, employeeId: string) {
   const employee = await db.employee.findUnique({
     where: { id: employeeId },
@@ -209,13 +184,7 @@ export async function createContact(parent: CardParent, employeeId: string) {
   })
 }
 
-/**
- * Cast (or withdraw) a vote.
- *
- * Toggling: clicking the option you already picked takes the vote back, which is
- * the only way to change your mind in a single-choice poll without a separate
- * "clear" control.
- */
+/** Toggles: voting for the option you already picked withdraws the vote. */
 export async function votePoll(pollId: string, optionId: string, voterId: string) {
   const poll = await db.messagePoll.findUnique({
     where: { id: pollId },
@@ -245,7 +214,7 @@ export async function votePoll(pollId: string, optionId: string, voterId: string
   }
 
   if (poll.allowMultiple) {
-    // Multiple-choice: just add this option; a duplicate (double-tap) is a no-op.
+    // A duplicate (double-tap) is a no-op.
     try {
       await db.messagePollVote.create({ data: { optionId, voterId } })
     } catch (e) {
@@ -254,11 +223,8 @@ export async function votePoll(pollId: string, optionId: string, voterId: string
     return { error: null, status: 200 }
   }
 
-  // Single-choice: the previous pick must go before the new one lands. Run at
-  // Serializable isolation so two near-simultaneous votes for DIFFERENT options
-  // cannot both delete-nothing then insert, leaving the voter holding two
-  // (API-03) - the @@unique(optionId,voterId) can't catch that since the option
-  // ids differ. On a serialization conflict (P2034) retry a couple of times.
+  // Single-choice: Serializable, so two near-simultaneous votes for different options can't both
+  // land (the unique key can't catch that). Retry a serialization conflict (P2034).
   for (let attempt = 0; ; attempt++) {
     try {
       await db.$transaction(

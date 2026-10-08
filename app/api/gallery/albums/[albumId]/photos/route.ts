@@ -12,17 +12,11 @@ const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"]
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024
-/**
- * Videos are stored exactly as uploaded (no server-side transcode), so this cap
- * is the real ceiling on what lands in the bucket. Kept below
- * `proxyClientMaxBodySize` (260 MB, next.config.mjs) with room for the multipart
- * envelope - above that the body is truncated and formData() dies on the missing
- * boundary rather than returning a clean "too large".
- */
+// Videos are stored as uploaded, so this is the real cap. Keep it below proxyClientMaxBodySize
+// (260 MB, next.config.mjs) or formData() fails instead of returning a clean "too large".
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024
 
-/** Gallery photos are viewed full-screen, so they keep more resolution than an
- *  email image - but a 6000px phone photo is still pure download weight. */
+/** Viewed full-screen, so larger than email images. */
 const MAX_DIM = 2000
 const QUALITY = 82
 
@@ -40,25 +34,12 @@ interface StoredFile {
   height: number | null
 }
 
-/**
- * POST /api/gallery/albums/:albumId/photos - upload one or more photos/videos.
- *
- * Open to EVERY signed-in employee (withSession), not just gallery:write: the
- * gallery is the company's shared album, and the people at the event are the
- * ones holding the photos. Destructive actions stay privileged - deleting an
- * album still needs gallery:write, and an employee may only delete their own
- * uploads.
- *
- * Multiple files per request: a Diwali album is thirty photos, and thirty
- * round trips is thirty chances for one to fail halfway.
- */
+// Open to every employee: the people at the event hold the photos. Deleting stays privileged.
 export const POST = withSession(async (req: NextRequest, ctx, session) => {
   if (!(await isB2Configured())) {
     return NextResponse.json({ error: "Backblaze B2 storage is not configured." }, { status: 500 })
   }
-  // Resolve BEFORE using it: this route writes albumId onto every photo row and
-  // into the object key. Storing the slug there would break the foreign key and
-  // scatter files under a path that stops matching the moment anything changes.
+  // Resolve the slug first: albumId goes into every photo row (FK) and into the object key.
   const albumId = await resolveAlbumId(ctx.params.albumId)
   if (!albumId) return NextResponse.json({ error: "Album not found" }, { status: 404 })
 
@@ -87,8 +68,7 @@ export const POST = withSession(async (req: NextRequest, ctx, session) => {
     }
 
     const original = Buffer.from(await file.arrayBuffer())
-    // Videos go up byte-for-byte: sharp cannot touch them, and transcoding on
-    // the request thread would hold a 200 MB buffer for minutes.
+    // Videos go up byte-for-byte; transcoding here would hold a 200 MB buffer for minutes.
     const stored: StoredFile = isVideo
       ? {
           bytes: original,
@@ -106,9 +86,7 @@ export const POST = withSession(async (req: NextRequest, ctx, session) => {
     )
     await uploadFile(objectKey, stored.bytes, stored.contentType)
 
-    // Images also get a small WebP thumbnail so the grid/covers don't pull the
-    // 2000px master. Best-effort: a failed thumb just leaves the grid on the
-    // master for this one image, never a failed upload. Videos have no thumb.
+    // Best-effort WebP thumbnail for grid/covers; on failure the grid falls back to the master.
     let thumbKey: string | null = null
     if (isImage) {
       const thumb = await makeThumb(original)
@@ -139,8 +117,7 @@ export const POST = withSession(async (req: NextRequest, ctx, session) => {
     created.push(photo)
   }
 
-  // Partial success is reported, not hidden: 28 of 30 uploaded is useful to
-  // know, and silently dropping two is how an album ends up incomplete.
+  // Report partial success rather than silently dropping files.
   return NextResponse.json(
     { data: { uploaded: created.length, created, skipped } },
     { status: 201 },

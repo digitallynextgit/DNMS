@@ -6,13 +6,11 @@ import {
   deleteDepartment,
 } from "@/features/employees/server/departments.service"
 
-// GET /api/departments/[id] - one department.
 export const GET = withErrorHandler(async (_req: NextRequest, ctx: { params: { id: string } }) => {
   const { id } = ctx.params
   return respond(await getDepartment(id))
 })
 
-// PATCH /api/departments/[id] - update a department; parentId moves it in the tree.
 export const PATCH = withErrorHandler(async (req: NextRequest, ctx: { params: { id: string } }) => {
   const { id } = ctx.params
   const body = (await req.json()) as {
@@ -26,7 +24,6 @@ export const PATCH = withErrorHandler(async (req: NextRequest, ctx: { params: { 
   return respond(await updateDepartment(id, body))
 })
 
-// DELETE /api/departments/[id]?permanent=true - deactivate or hard-delete.
 export const DELETE = withErrorHandler(
   async (req: NextRequest, ctx: { params: { id: string } }) => {
     const { id } = ctx.params

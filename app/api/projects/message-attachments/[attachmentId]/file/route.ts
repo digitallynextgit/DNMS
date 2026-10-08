@@ -6,19 +6,11 @@ import { getSignedUrl, getCachedSignedUrl } from "@/lib/storage"
 
 export const runtime = "nodejs"
 
-// Signature must OUTLIVE the cache window, or a cached redirect starts serving
-// 403s. Same invariant as the chat, gallery and mailer image routes.
+// Must outlive the cache window, or a cached redirect starts serving 403s.
 const SIGNED_TTL_SECONDS = 24 * 60 * 60
 const CACHE_SECONDS = 12 * 60 * 60
 
-/**
- * GET /api/projects/message-attachments/:id/file
- *
- * Not nested under /projects/:id/ on purpose: the project a file belongs to is a
- * property OF the file, and taking it from the URL would let anyone with access
- * to ONE project read attachments from every other by swapping the id. Access is
- * resolved from the attachment's own row instead.
- */
+// Not nested under /projects/:id/: access comes from the attachment's own row, not a swappable URL id.
 export async function GET(req: NextRequest, ctx: { params: Promise<{ attachmentId: string }> }) {
   const wantsDownload = req.nextUrl.searchParams.get("download") === "1"
   const session = await getSession()
@@ -42,9 +34,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ attachmentI
   }
 
   try {
-    // Only a deliberate download is named and forced. Leaving it off for
-    // pictures and video is what lets them render inline instead of landing in
-    // the downloads folder the moment the thread scrolls past them.
+    // Only a deliberate download sets the filename; images and video must render inline.
     const url = wantsDownload
       ? await getSignedUrl(attachment.objectKey, SIGNED_TTL_SECONDS, {
           downloadFileName: attachment.fileName,

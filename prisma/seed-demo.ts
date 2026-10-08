@@ -1,28 +1,10 @@
 /**
- * The demo workspace for Help & Guides screenshots.
- *
- *   pnpm db:demo            # (re)build the "demo" company from scratch
- *   pnpm db:demo --remove   # delete the demo company and stop
- *
- * Builds a separate company (tenant slug "demo") full of MADE-UP people and
- * work, so the Help screenshots never show a real salary, leave reason or
- * phone number. Who exists is defined in features/help/demo/dataset.ts; what
- * they have done is defined module by module in prisma/demo/*.ts, all dated
- * relative to today so the screens always look current.
- *
- * Every run removes the previous demo company and provisions it fresh
- * (idempotent: same people, same story, dates moved to today).
- *
- * ── SAFETY ───────────────────────────────────────────────────────────────────
- * DATABASE_URL is the shared production database. This script only ever:
- *   - deletes the tenant whose slug is exactly "demo" (never the founding
- *     company - deprovisionTenant refuses that too), and
- *   - writes rows stamped with the demo tenant's id (prisma/demo/context.ts),
- *     plus platform `users` rows for demo-domain addresses only.
- * It never uploads files, sends mail, or calls app services that notify.
- *
- * Needs DEMO_PASSWORD (in .env) - the password of every demo login.
- * Use the pnpm script: @/server/db needs the react-server export condition.
+ * Builds the "demo" company (made-up people and work, dated relative to today) for Help & Guides screenshots.
+ *   pnpm db:demo            # (re)build it from scratch
+ *   pnpm db:demo --remove   # delete it and stop
+ * Safety: DATABASE_URL is the shared production database. This only deletes the tenant whose slug is exactly
+ * "demo", writes rows stamped with the demo tenant id (plus users for demo-domain addresses), and never uploads,
+ * mails or notifies. Needs DEMO_PASSWORD in .env; use the pnpm script (@/server/db needs react-server).
  */
 import "dotenv/config"
 import bcrypt from "bcryptjs"
@@ -75,7 +57,6 @@ async function removeDemoTenant(): Promise<number | null> {
 async function main() {
   const started = Date.now()
 
-  // ── preflight ──────────────────────────────────────────────────────────────
   if (DEMO_TENANT_SLUG !== "demo")
     fail(`DEMO_TENANT_SLUG is "${DEMO_TENANT_SLUG}", expected "demo".`)
   if (!isValidSlug(DEMO_TENANT_SLUG)) fail(`"${DEMO_TENANT_SLUG}" is a reserved or invalid slug.`)
@@ -104,7 +85,6 @@ async function main() {
     if (!isDemoEmail(p.email)) fail(`${p.email} is not on ${DEMO_EMAIL_DOMAIN}.`)
   }
 
-  // ── fresh tenant ───────────────────────────────────────────────────────────
   const removed = await removeDemoTenant()
   if (removed !== null) console.log(`Removed the previous demo company (${removed} rows).`)
 

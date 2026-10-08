@@ -3,11 +3,6 @@ import { withSession } from "@/server/api-handler"
 import { getMyDashboard } from "@/features/dashboard/server/dashboard.queries"
 import type { Session } from "next-auth"
 
-// Personal self-service dashboard for regular employees. Unlike
-// /api/dashboard/stats (org-wide HR data, gated by dashboard:read), this only
-// ever returns data scoped to the signed-in employee. The query lives in
-// features/dashboard/server/dashboard.queries.ts so the dashboard page can
-// prefetch it server-side without an HTTP hop.
 export const GET = withSession(
   async (_req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {

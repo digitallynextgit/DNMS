@@ -10,13 +10,10 @@ import { useMarketingSession } from "../../hooks/use-marketing-session"
 import { GridBackdrop } from "../fx"
 import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
-// The mockup is a 400-line interactive component that pulls in motion/react.
-// Code-split so the hero (and the headline's paint) never waits for it; its
-// server HTML still renders, the interactivity hydrates when the chunk lands.
+// Code-split: the mockup pulls in motion/react, and the headline shouldn't wait for it.
 const HeroAppMockup = dynamic(() => import("../hero-app-mockup").then((m) => m.HeroAppMockup))
 
-// Headline words as one flowing line so `text-balance` can split them into two
-// even-width lines; "one platform" is the brand-red accent.
+// One flowing line so `text-balance` splits it evenly; "one platform" gets the red accent.
 const WORDS: { text: string; red?: boolean }[] = [
   { text: "Run" },
   { text: "your" },
@@ -38,33 +35,21 @@ const MODULES_LIST = [
   "SEO",
 ]
 
-/**
- * Entrances are PURE CSS (animate-dnms-fade-up), not motion/react variants.
- * The old framer variants SSR'd the headline at opacity:0 + blur(8px), so the
- * page's LCP element could not paint until the whole client bundle hydrated -
- * on a slow connection the hero was a blank column. CSS animations start on
- * first paint with no JS, and prefers-reduced-motion turns them off in
- * globals.css.
- */
+/** Pure CSS entrances, so the headline (the LCP element) paints before hydration. */
 const enter = (delaySeconds: number): { className: string; style: React.CSSProperties } => ({
   className: "animate-dnms-fade-up",
   style: { animationDelay: `${delaySeconds}s` },
 })
 
 export function Hero() {
-  // Both CTA sets are rendered; `auth-member` / `auth-guest` (globals.css) pick
-  // one before first paint - see useMarketingSession.
   const { appHref } = useMarketingSession()
 
   return (
     <section id="top" className="relative overflow-hidden">
-      {/* Minimalist backdrop: faint grid. */}
       <GridBackdrop className="opacity-[0.5]" />
 
       <div className="relative mx-auto max-w-[1600px] px-4 pt-24 pb-16 sm:px-6 sm:pt-28">
-        {/* ---- Top band: text left, panel right ---- */}
         <div className="grid items-start gap-12 lg:grid-cols-[1.65fr_1fr] lg:gap-16">
-          {/* Left */}
           <div>
             <div {...enter(0)}>
               <a
@@ -132,11 +117,7 @@ export function Hero() {
             </div>
           </div>
 
-          {/* Right: clean panel (modules) - desktop only. Offset so its top
-              lines up with the title, not the pill. The placeholder avatar/star
-              "social proof" block that used to sit under the list was removed:
-              fabricated trust signals on a public page are worse than none.
-              Reinstate the section when there is REAL proof to show. */}
+          {/* Desktop only; offset so its top lines up with the title. */}
           <div {...enter(0.35)} className="animate-dnms-fade-up hidden lg:mt-14 lg:block">
             <div className="border-border bg-card/50 rounded-sm border p-6 sm:p-7">
               <div className="text-muted-foreground text-xs font-medium tracking-[0.16em] uppercase">
@@ -164,7 +145,6 @@ export function Hero() {
           </div>
         </div>
 
-        {/* ---- Interactive product mockup, centered below ---- */}
         <div {...enter(0.5)} className="animate-dnms-fade-up relative mx-auto mt-20 max-w-7xl">
           <HeroAppMockup />
 

@@ -1,24 +1,6 @@
 /**
- * How far along a team's month is, and whether it may be called done.
- *
- * ── THE RULE ─────────────────────────────────────────────────────────────────
- * A team that promised 4 items has to have handed over 4 things before its row
- * can read DONE. What counts as "a thing handed over" is a LINK or a FILE,
- * added together: some work ships as a URL (a published page, a task, a Drive
- * folder) and some as a file, and which one it is says nothing about whether
- * the work happened.
- *
- * The count is the only evidence the calendar has. Without it, DONE is a
- * checkbox somebody ticks on the last day of the month, and a month of DONE
- * rows with nothing attached tells you nothing you did not already believe.
- *
- * ── WHY quantity 0 IS EXEMPT ─────────────────────────────────────────────────
- * 0 means "on the plan, not yet quantified" (see the column comment), not "owes
- * nothing". A row nobody has put a number against must not be held to a number,
- * so it may be closed whenever the team says it is closed.
- *
- * Pure and dependency-free: the server enforces this and the client renders it,
- * and the two must not be able to disagree about what "done" means.
+ * DONE needs as many links + files handed in as the quantity promised. Quantity 0 means "not yet
+ * quantified" (not "owes nothing") and is exempt. Shared by server and client.
  */
 
 export const WORKBOOK_TEAM_STATUSES = ["TODO", "IN_PROGRESS", "DONE", "STUCK", "DISCARDED"] as const
@@ -33,7 +15,6 @@ export const STATUS_LABEL: Record<WorkbookTeamStatus, string> = {
   DISCARDED: "Discarded",
 }
 
-/** One line each, so the picker explains itself rather than being a guess. */
 export const STATUS_HINT: Record<WorkbookTeamStatus, string> = {
   TODO: "Agreed, not started",
   IN_PROGRESS: "Being worked on",
@@ -51,7 +32,6 @@ export interface TeamProgress {
   fraction: number
   /** How many more are needed before DONE is allowed. 0 when it already is. */
   shortBy: number
-  /** Whether DONE is reachable right now. */
   canComplete: boolean
 }
 
@@ -75,13 +55,7 @@ export function teamProgress(input: {
   }
 }
 
-/**
- * Why a status change is refused, or null when it is allowed.
- *
- * Only DONE is gated. STUCK and DISCARDED must stay reachable at any count -
- * they are how a team says the work is NOT going to arrive, and a rule that
- * demanded the work first to admit it is not coming would be absurd.
- */
+/** Why a status change is refused, or null. Only DONE is gated; STUCK/DISCARDED never are. */
 export function statusProblem(next: WorkbookTeamStatus, progress: TeamProgress): string | null {
   if (next !== "DONE") return null
   if (progress.canComplete) return null
@@ -90,12 +64,7 @@ export function statusProblem(next: WorkbookTeamStatus, progress: TeamProgress):
   } or file${progress.shortBy === 1 ? "" : "s"} before marking this done.`
 }
 
-/**
- * Does this row still count as owed?
- *
- * DISCARDED work was never made and DONE work has arrived; neither should show
- * up in "what is outstanding", and neither should make a month read as overdue.
- */
+/** DISCARDED (never made) and DONE (arrived) are not owed and never make a month overdue. */
 export function isOutstanding(status: WorkbookTeamStatus): boolean {
   return status !== "DONE" && status !== "DISCARDED"
 }

@@ -21,14 +21,11 @@ import { startOfDayUTC } from "@/lib/dates"
 import { renderLeaveDecisionLetter, renderLeaveRequestEmail } from "@/lib/email-layout"
 import { getConfig } from "@/server/app-config"
 import { recomputeAccrued } from "./leave-accrual.service"
-// Canonical probation rule (pure helpers) - keep leave eligibility in lockstep
-// with how the rest of the app decides who is on probation.
 import { isOnProbation } from "@/features/employees/probation"
 
 const REQUEST_INCLUDE = {
   employee: {
-    // managerId so we can tell whether the viewer is the applicant's reporting
-    // manager (an advisory reviewer) for this request.
+    // managerId: tells whether the viewer is the applicant's reporting manager.
     select: { ...EMPLOYEE_SUMMARY_SELECT, managerId: true },
   },
   leaveType: { select: { id: true, name: true, code: true, isPaid: true } },
@@ -42,8 +39,7 @@ function countCalendarDays(start: Date, end: Date): number {
   return Math.round((e.getTime() - s.getTime()) / 86400000) + 1
 }
 
-// Probation completion (confirmed early → recorded date; else joining + months).
-// Mirrors the accrual engine so leave eligibility stays in lockstep.
+// Probation end: the confirmation date if confirmed early, else joining + probation months.
 function probationDone(e: {
   confirmationDate: Date | null
   dateOfJoining: Date | null
@@ -63,9 +59,6 @@ function addMonths(d: Date, n: number): Date {
   return x
 }
 
-// ─── Approval routing ─────────────────────────────────────────────────────────
-// Who must approve a request depends on who applied:
-//   employee -> their manager · manager -> HR · HR -> Admin · admin_ -> auto.
 type ApprovalStage = "MANAGER" | "HR" | "ADMIN"
 type ApprovalRoute = {
   stage: ApprovalStage | null
@@ -73,9 +66,7 @@ type ApprovalRoute = {
   autoApprove: boolean
 }
 
-/** Exported so the apply screen can PREVIEW who a request will go to, using the
- *  exact same routing the submit path uses - a preview that recomputed the rule
- *  separately would drift from reality the moment either changed. */
+/** Exported so the apply-screen preview uses exactly the same routing as submit. */
 export async function resolveApprovalRoute(
   applicantId: string,
   roles: string[],
@@ -88,10 +79,7 @@ export async function resolveApprovalRoute(
     return { stage: "ADMIN", currentApproverId: null, autoApprove: false }
   if (has(SYSTEM_ROLES.HR_MANAGER) || has(SYSTEM_ROLES.HR_EMPLOYEE))
     return { stage: "ADMIN", currentApproverId: null, autoApprove: false }
-  // Everyone else: HR makes the FINAL call (stage "HR"). A manager applying for
-  // their own leave has no advisory reviewer; a regular employee with an active
-  // manager gets that manager as an advisory reviewer (currentApproverId) whose
-  // decision HR can still override - mirroring floating-holiday requests.
+  // Everyone else goes to the HR stage; a regular employee's active manager can also decide.
   if (permissions.includes(PERMISSIONS.LEAVE_APPROVE))
     return { stage: "HR", currentApproverId: null, autoApprove: false }
   const emp = await db.employee.findUnique({
@@ -102,12 +90,7 @@ export async function resolveApprovalRoute(
   return { stage: "HR", currentApproverId: advisoryManagerId, autoApprove: false }
 }
 
-/**
- * Whether the session can make the FINAL decision on a request (sets it
- * APPROVED/REJECTED). HR owns the "HR" stage; Admin owns "ADMIN" and any stage.
- * The legacy "MANAGER" stage and un-routed requests keep their old single-
- * approver behaviour so any in-flight requests still resolve.
- */
+/** Can the session approve/reject? The "MANAGER" stage is legacy, kept for in-flight requests. */
 function canFinalizeRequest(
   roles: string[],
   permissions: string[],
@@ -121,24 +104,18 @@ function canFinalizeRequest(
     case "ADMIN":
       return false // admins handled above
     case "MANAGER":
-      return request.currentApproverId === userId // legacy single-approver
+      return request.currentApproverId === userId
     default:
       return permissions.includes(PERMISSIONS.LEAVE_APPROVE)
   }
 }
 
-/**
- * Whether the session is the advisory reporting manager for a request still
- * awaiting HR's final call. Their decision is recorded but non-final - HR can
- * approve even over a manager's rejection (mirrors floating-holiday requests).
- */
 function canAdviseRequest(
   roles: string[],
   request: {
     approvalStage: string | null
     currentApproverId: string | null
-    /** The applicant's reporting manager, so a manager can always weigh in on
-     *  their own report's request even if it's staged elsewhere. */
+    /** Lets a manager act on their report's request even when it's staged elsewhere. */
     applicantManagerId?: string | null
   },
   userId: string,
@@ -149,17 +126,10 @@ function canAdviseRequest(
     roles.includes(SYSTEM_ROLES.HR_MANAGER) ||
     roles.includes(SYSTEM_ROLES.HR_EMPLOYEE)
   if (isHrOrAdmin) return false
-  // The assigned advisory approver, OR the applicant's own reporting manager.
   return request.currentApproverId === userId || request.applicantManagerId === userId
 }
 
-/**
- * Tag each request with what THIS viewer can do:
- *  - "FINAL"    -> approve/reject and email the employee (admin/HR)
- *  - "ADVISORY" -> only recommend to HR (the applicant's reporting manager)
- *  - null       -> view only
- * The employee row must include `managerId` for the advisory check.
- */
+/** Tags each request with what this viewer can do; the employee row must include managerId. */
 function attachViewerRole<
   T extends {
     status: string
@@ -177,9 +147,7 @@ function attachViewerRole<
   return requests.map((r) => {
     let viewerRole: "FINAL" | "ADVISORY" | null = null
     if (r.status === "PENDING" && r.employeeId !== userId) {
-      // Both tiers are FINAL now: whoever acts first settles the request, so
-      // labelling the manager "ADVISORY" would promise HR a second look that
-      // never comes. "ADVISORY" is kept in the type for in-flight UI code.
+      // First decision wins, so the manager is FINAL too; "ADVISORY" stays in the type for the UI.
       if (
         canFinalizeRequest(roles, permissions, r, userId) ||
         canAdviseRequest(roles, { ...r, applicantManagerId: r.employee.managerId ?? null }, userId)
@@ -191,28 +159,16 @@ function attachViewerRole<
 }
 
 export interface LeaveMailEnvelope {
-  /** Nobody is mailed - the request self-approves. */
   autoApprove: boolean
   /** The addressee of the letter: the applicant's manager when they have one. */
   to: { id: string; name: string; email: string; firstName: string } | null
   /** The single HR mailbox (HR_EMAIL), or null when HR is already the addressee. */
   ccHr: string | null
-  /** Everyone who gets an in-app notification (approval queue + manager, minus self). */
   notifyIds: string[]
 }
 
-/**
- * Who a leave request's mail actually goes to. ONE function, used by both the
- * sender and the apply-screen preview, so the preview can never promise a
- * different recipient than we send to.
- *
- * The letter is addressed to the applicant's REPORTING MANAGER whenever they have
- * one - including for admins/HR. `resolveApprovalRoute` deliberately routes an
- * admin's own leave to the Admin tier with no named approver, which previously
- * made the addressee "whichever admin the DB returned first" (and could even be
- * the applicant themselves). Approval *rights* are unchanged - this only decides
- * who the mail is addressed to.
- */
+/** Who a leave request's mail goes to; shared by the sender and the apply-screen preview.
+ *  Addressed to the applicant's reporting manager whenever they have one, even for admins/HR. */
 export async function resolveLeaveMailEnvelope(
   applicantId: string,
   route: ApprovalRoute,
@@ -231,8 +187,7 @@ export async function resolveLeaveMailEnvelope(
   })
   const mgr = applicant?.manager?.isActive ? applicant.manager : null
 
-  // The role queue that makes the final call - always minus the applicant, since
-  // nobody should be asked to approve (or be emailed about) their own leave.
+  // The role queue that makes the final call, never including the applicant.
   const queue = route.stage
     ? await db.employee.findMany({
         where: {
@@ -268,7 +223,6 @@ export async function resolveLeaveMailEnvelope(
         ? hrInbox
         : null
 
-  // In-app: the approval queue plus the manager, deduped, never the applicant.
   const notifyIds = [...new Set([...queue.map((q) => q.id), ...(mgr ? [mgr.id] : [])])].filter(
     (id) => id !== applicantId,
   )
@@ -287,23 +241,17 @@ function buildLeaveMessageId(key: string): string {
   return `<${key}@${host}>`
 }
 
-/** Deterministic Message-ID for a leave request's application email, so the
- *  approve/reject reply can thread onto the same conversation without us having
- *  to capture the async-sent message's id. */
+/** Deterministic Message-ID for the application email, so the decision reply can thread onto it. */
 function buildLeaveThreadMessageId(requestId: string): string {
   return buildLeaveMessageId(`leave-${requestId}`)
 }
 
-/** A phantom "root" id carried in the References header of BOTH the application
- *  letter and the decision reply. Gmail REWRITES the Message-ID of anything sent
- *  through smtp.gmail.com, so the reply's In-Reply-To can end up pointing at an
- *  id that no longer exists on the thread; a References root both messages share
- *  still links them into one conversation. */
+/** Shared References root for the application and its reply: Gmail rewrites Message-IDs sent
+ *  through smtp.gmail.com, so In-Reply-To alone can break the thread. */
 function buildLeaveThreadRootId(requestId: string): string {
   return buildLeaveMessageId(`leave-thread-${requestId}`)
 }
 
-/** Deterministic Message-ID for the approve/reject reply. */
 function buildLeaveDecisionMessageId(requestId: string): string {
   return buildLeaveMessageId(`leave-decision-${requestId}`)
 }
@@ -322,9 +270,7 @@ async function notifyApprovers(
   leaveTypeName: string,
   employeeNo: string | null,
   applicantId: string,
-  /** The employee's edited letter; overrides the auto-composed body when set. */
   customBody: string | null = null,
-  /** The employee's edited subject; overrides the auto subject when set. */
   customSubject: string | null = null,
 ): Promise<void> {
   const envelope = await resolveLeaveMailEnvelope(applicantId, route)
@@ -334,8 +280,6 @@ async function notifyApprovers(
   const end = new Date(request.endDate).toDateString()
   const detail = `${applicantName} · ${leaveTypeName} · ${start} - ${end} (${request.totalDays} day${request.totalDays !== 1 ? "s" : ""})`
 
-  // In-app to every approver + the manager (never the applicant). Each is its own
-  // <1s push.
   for (const employeeId of envelope.notifyIds) {
     try {
       await createNotification({
@@ -352,7 +296,6 @@ async function notifyApprovers(
 
   if (!envelope.to) return
 
-  // ONE letter: TO the manager, CC the HR mailbox.
   try {
     const appUrl = (await getConfig("APP_URL")) ?? process.env.NEXTAUTH_URL ?? ""
     const applicant = await db.employee.findUnique({
@@ -370,8 +313,6 @@ async function notifyApprovers(
       approverFirstName: envelope.to.firstName,
       applicantName,
       employeeNo,
-      // Job role in the signature; fall back to the L-grade designation when no
-      // job role is set.
       designation: applicant?.jobRole?.name ?? applicant?.designation?.title ?? null,
       department: applicant?.department?.name ?? null,
       applicantEmail: applicant?.email ?? null,
@@ -385,48 +326,38 @@ async function notifyApprovers(
       subjectText: customSubject,
       reviewUrl: appUrl ? `${appUrl.replace(/\/$/, "")}/leave/leave-directory` : undefined,
     })
-    // Cc the applicant so the letter lands in their mailbox too - that's what
-    // gives the approve/reject reply an existing thread to attach to.
+    // Cc the applicant so the decision reply has a thread to land on in their mailbox.
     const cc = [envelope.ccHr, applicant?.email].filter(
       (v): v is string => Boolean(v) && v !== envelope.to!.email,
     )
     const messageId = buildLeaveThreadMessageId(request.id)
 
-    // Send AS the employee from their own Gmail (via their stored App Password) so
-    // the letter genuinely comes from them - and lands in their Gmail "Sent",
-    // which anchors the approve/reject reply thread. Falls back to the system
-    // "notifications" mailer automatically if they have no App Password on file.
+    // Sent as the employee from their Gmail (App Password); falls back to the system mailer.
     addEmailAsJob(applicantId, {
       to: envelope.to.email,
       cc: cc.length ? cc : undefined,
       subject: email.subject,
       html: email.html,
       text: email.text,
-      // It reads as the employee's letter, so Reply should reach the employee.
       replyTo: applicant?.email ?? undefined,
       messageId,
-      // Shared phantom root - the decision reply carries the same id, so the two
-      // thread together even when Gmail rewrites this message's Message-ID.
       references: buildLeaveThreadRootId(request.id),
       profile: "notifications",
     })
 
-    // Remember the Message-ID + subject so the decision reply threads onto this
-    // exact conversation.
     await db.leaveRequest
       .update({
         where: { id: request.id },
         data: { requestMailMessageId: messageId, requestMailSubject: email.subject },
       })
       .catch(() => {
-        // Non-blocking - threading is a nicety, not worth failing the request.
+        // Non-blocking: threading is a nicety.
       })
   } catch {
     // Non-blocking - email must never fail the request.
   }
 }
 
-// ─── Leave types ────────────────────────────────────────────────────────────
 export async function getLeaveTypes(): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     await requireSession()
@@ -438,8 +369,7 @@ export async function getLeaveTypes(): Promise<ActionResult<unknown>> {
   })
 }
 
-// Leave types the CURRENT user may actually apply for - same gates as applyLeave:
-// during probation only unpaid leave is available, and Maternity is female-only.
+// Leave types the current user may apply for (same gates as applyLeave).
 export async function getEligibleLeaveTypes(): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
@@ -451,12 +381,8 @@ export async function getEligibleLeaveTypes(): Promise<ActionResult<unknown>> {
         select: { leaveTypeId: true, allocated: true },
       }),
     ])
-    // A PAID leave type is applicable only when the employee actually has an
-    // allocation for it this year. The accrual engine already encodes every rule
-    // (probation, intern/contract policy, ML gender, prorated entitlement), so a
-    // positive `allocated` is the single source of truth - no separate probation
-    // flag to drift out of sync. Unpaid types (e.g. LWP) are always available, so
-    // interns/probationers can still take unpaid time off.
+    // A paid type needs a positive allocation this year - the accrual engine already applies
+    // probation, intern/contract policy, gender and pro-rating. Unpaid types are always available.
     const entitled = new Set(
       balances.filter((b) => Number(b.allocated) > 0).map((b) => b.leaveTypeId),
     )
@@ -560,9 +486,7 @@ export async function deleteLeaveType(
     if (!existing) return fail("Leave type not found")
 
     if (permanent) {
-      // Permanent (hard) delete is far more destructive than deactivation, so it's
-      // restricted to HR Managers and Admins - other leave:approve holders can only
-      // deactivate.
+      // Hard delete is limited to HR Managers and Admins; others can only deactivate.
       const roles = session.user.roles ?? []
       const canHardDelete =
         roles.includes(SYSTEM_ROLES.ADMIN_) ||
@@ -572,8 +496,7 @@ export async function deleteLeaveType(
         return fail(
           "Only HR Managers and Admins can permanently delete a leave type. You can deactivate it instead.",
         )
-      // Remove the type and everything tied to it. Balances & policy rows cascade
-      // on delete; leave requests are Restrict-guarded, so clear them first.
+      // Balances and policy rows cascade; leave requests are Restrict-guarded: delete those first.
       await db.$transaction([
         db.leaveRequest.deleteMany({ where: { leaveTypeId: id } }),
         db.leaveType.delete({ where: { id } }),
@@ -600,7 +523,6 @@ export async function deleteLeaveType(
   })
 }
 
-// ─── Balances ───────────────────────────────────────────────────────────────
 export async function getLeaveBalances(
   employeeId?: string,
   year?: number,
@@ -618,8 +540,7 @@ export async function getLeaveBalances(
     }
 
     const balances = await db.leaveBalance.findMany({
-      // Only surface balances for still-active leave types; a deleted/deactivated
-      // type (e.g. Maternity) must disappear from the employee's view.
+      // Hide balances of deleted/deactivated leave types.
       where: { employeeId: targetId, year: resolvedYear, leaveType: { isActive: true } },
       include: { leaveType: true },
       orderBy: { leaveType: { name: "asc" } },
@@ -628,9 +549,7 @@ export async function getLeaveBalances(
   })
 }
 
-// HR view: every active employee with their leave balances by type for a year.
-// Gated by leave:approve. Excludes the hidden admin_ watch account, like the
-// rest of the app.
+// HR view: every active employee's balances for a year (needs leave:approve).
 export async function getAllLeaveBalances(year?: number): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     await requirePermission(PERMISSIONS.LEAVE_APPROVE)
@@ -656,8 +575,6 @@ export async function getAllLeaveBalances(year?: number): Promise<ActionResult<u
         department: { select: { id: true, name: true } },
         leaveBalances: {
           where: { year: resolvedYear, leaveType: { isActive: true } },
-          // Explicit select: `include: { leaveType: true }` repeated the ENTIRE
-          // leave-type row on every balance of every employee.
           select: {
             id: true,
             employeeId: true,
@@ -733,7 +650,6 @@ export async function allocateLeave(body: {
   })
 }
 
-// ─── Requests ───────────────────────────────────────────────────────────────
 type RequestFilters = {
   status?: string
   employeeId?: string
@@ -780,8 +696,6 @@ export async function getLeaveRequests(
       db.leaveRequest.count({ where }),
     ])
 
-    // Tell the client, per request, whether THIS viewer can finalise (admin/HR)
-    // or only advise (the applicant's manager), so the table + dialog adapt.
     const withViewer = attachViewerRole(
       requests,
       session.user.roles ?? [],
@@ -823,7 +737,7 @@ export async function getTeamLeaveRequests(
 
     const where: Record<string, unknown> = {
       OR: orConds,
-      NOT: { employeeId: session.user.id }, // never your own request in an approval queue
+      NOT: { employeeId: session.user.id },
     }
     if (filters.status) where.status = filters.status
 
@@ -861,14 +775,8 @@ export async function getTeamLeaveRequests(
   })
 }
 
-/**
- * The logged-in user's team leave requests - their direct reports' requests.
- * Available to any manager identified by the reporting relationship (NOT a
- * permission), so a line manager without leave:approve still sees their team.
- * Returns `isManager` so the My Leave page shows the tab only when the person
- * actually manages someone. Their decision here is advisory; HR makes the final
- * call (see updateLeaveRequest).
- */
+/** A manager's direct reports' requests - by reporting line, not permission, so a line
+ *  manager without leave:approve still sees their team. */
 export async function getMyTeamLeaveRequests(
   filters: { status?: string; page?: number; limit?: number } = {},
 ): Promise<ActionResult<unknown>> {
@@ -936,10 +844,8 @@ export async function applyLeave(body: {
   endDate: string
   reason?: string
   isHalfDay?: boolean
-  /** The exact letter the employee composed/edited in the preview. When present
-   *  it's what gets emailed to the manager (signature still auto-appended). */
+  /** The letter the employee edited in the preview (the signature is still appended). */
   emailBody?: string
-  /** The subject line the employee edited in the preview. */
   emailSubject?: string
 }): Promise<ActionResult<unknown>> {
   return runAction(async () => {
@@ -953,11 +859,6 @@ export async function applyLeave(body: {
     if (isNaN(start.getTime()) || isNaN(end.getTime())) return fail("Invalid date format")
     if (end < start) return fail("End date must be on or after start date")
 
-    // These three are independent of each other, so they go together rather
-    // than as three sequential round trips at the head of every application.
-    // (An invalid leaveType now costs two extra reads that are thrown away -
-    // that is the error path, and it buys two fewer round trips on every
-    // successful apply.)
     const [leaveType, employee, acceptedResignation] = await Promise.all([
       db.leaveType.findUnique({ where: { id: leaveTypeId } }),
       db.employee.findUnique({
@@ -978,24 +879,19 @@ export async function applyLeave(body: {
 
     if (!leaveType || !leaveType.isActive) return fail("Leave type not found or inactive")
 
-    // Paid leave is blocked during probation; unpaid leave (e.g. LWP) is always
-    // available - this is how interns/probationers can still take unpaid time off.
+    // Paid leave is blocked during probation; unpaid leave (e.g. LWP) is always allowed.
     if (leaveType.isPaid && employee && isOnProbation(employee))
       return fail(
         "Paid leave is not available during probation. You may apply for unpaid leave (LWP) instead.",
       )
 
-    // No leave during the notice period (after an accepted resignation). Any
-    // exception is at management's discretion, handled offline by HR.
+    // No leave in the notice period (accepted resignation); HR handles exceptions offline.
     if (acceptedResignation)
       return fail(
         "You can't apply for leave during your notice period. Any exception is at management's discretion - please contact HR.",
       )
 
-    // A half-day only makes sense on a SINGLE day. Without this guard (API-02)
-    // a multi-day range with isHalfDay charged just 0.5 for the whole span, so
-    // someone could be off a week for half a day's deduction. The POST route
-    // calls this service directly, so the check must live here, not only in the UI.
+    // Half-day only on a single day; checked here because the POST route calls this directly.
     if (isHalfDay && countCalendarDays(start, end) > 1) {
       return fail("A half-day leave must start and end on the same day.")
     }
@@ -1004,7 +900,7 @@ export async function applyLeave(body: {
     if (leaveType.code === "SHORT") totalDays = 0.5
     if (totalDays === 0) return fail("Selected date range results in zero leave days")
 
-    // #2 Advance-notice windows: EL 60 days (else not approved), CL/LWP 2 days.
+    // Advance notice: EL 60 days, CL/LWP 2 days.
     const noticeDays = Math.floor(
       (start.getTime() - startOfDayUTC(new Date()).getTime()) / 86_400_000,
     )
@@ -1012,10 +908,6 @@ export async function applyLeave(body: {
       return fail("Earned Leave must be applied at least 60 days in advance.")
     if ((leaveType.code === "CL" || leaveType.code === "LWP") && noticeDays < 2)
       return fail(`${leaveType.name} must be applied at least 2 days in advance.`)
-
-    // EL no longer has an extra post-probation wait - being paid leave, it is
-    // already blocked during probation above and becomes available right at
-    // probation end (matching the accrual engine).
 
     if (leaveType.code === "ML") {
       // Maternity Leave: female employees only, after 2 years of service.
@@ -1033,14 +925,14 @@ export async function applyLeave(body: {
       if (totalDays < 3)
         return fail("Earned Leave requires a minimum of 3 consecutive days per application.")
       if (totalDays > 7) return fail("Earned Leave allows a maximum of 7 days per application.")
-      // #1 Eligible only after probation is COMPLETED plus 6 months of service.
+      // EL only after probation is completed plus 6 months of service.
       const done = employee ? probationDone(employee) : null
       const elEligibleFrom = done ? addMonths(done, 6) : null
       if (elEligibleFrom && new Date() < elEligibleFrom)
         return fail(
           "Earned Leave is available only after completing probation plus 6 months of service.",
         )
-      // #3 Half-year cap: max 7 EL in Jan-Jun and 7 in Jul-Dec.
+      // Half-year cap: max 7 EL in Jan-Jun and 7 in Jul-Dec.
       const y = start.getUTCFullYear()
       const firstHalf = start.getUTCMonth() < 6
       const halfStart = new Date(Date.UTC(y, firstHalf ? 0 : 6, 1))
@@ -1062,11 +954,7 @@ export async function applyLeave(body: {
     }
 
     if (leaveType.code === "CL") {
-      // Date.UTC, matching the EL half-year window above and the WFH month
-      // bounds (API-09). `new Date(y, m, 1)` is LOCAL midnight, so on an IST
-      // server the window started at 18:30 UTC on the last day of the previous
-      // month - a request dated the 1st (stored as UTC midnight, @db.Date) fell
-      // outside this month's quota and into the previous one's.
+      // Date.UTC, not new Date(y, m, 1): dates are stored at UTC midnight and local time is IST.
       const monthStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1))
       const monthEnd = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0))
       const existing = await db.leaveRequest.findMany({
@@ -1085,11 +973,7 @@ export async function applyLeave(body: {
     }
 
     if (leaveType.code === "SHORT") {
-      // Date.UTC, matching the EL half-year window above and the WFH month
-      // bounds (API-09). `new Date(y, m, 1)` is LOCAL midnight, so on an IST
-      // server the window started at 18:30 UTC on the last day of the previous
-      // month - a request dated the 1st (stored as UTC midnight, @db.Date) fell
-      // outside this month's quota and into the previous one's.
+      // UTC month bounds, as for CL above.
       const monthStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1))
       const monthEnd = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0))
       const usedCount = await db.leaveRequest.count({
@@ -1174,10 +1058,7 @@ export async function applyLeave(body: {
       where: { employeeId_leaveTypeId_year: { employeeId: session.user.id, leaveTypeId, year } },
     })
     if (leaveType.isPaid && leaveType.maxDaysPerYear > 0) {
-      // Paid, quota-based leave needs an allocation. No balance (or a zero
-      // allocation) means the employee isn't entitled to it this year - e.g.
-      // interns, or anyone still on probation. The balance is the source of
-      // truth, so this can't be bypassed by a stale probation flag.
+      // Paid leave needs a positive allocation this year (interns and probationers have none).
       if (!balance || balance.allocated <= 0)
         return fail(
           `You don't have any ${leaveType.name} allocated this year. You may apply for unpaid leave (LWP) instead.`,
@@ -1205,7 +1086,6 @@ export async function applyLeave(body: {
           endDate: end,
           totalDays,
           reason: reason ? String(reason).trim() : null,
-          // admin_'s own leave is auto-granted; everyone else is routed.
           status: route.autoApprove ? "APPROVED" : "PENDING",
           approvedAt: route.autoApprove ? new Date() : null,
           approverId: route.autoApprove ? session.user.id : null,
@@ -1260,7 +1140,6 @@ export async function updateLeaveRequest(
   id: string,
   action: "CANCEL" | "APPROVE" | "REJECT",
   rejectionReason?: string,
-  /** The approver's edited reply letter (from the approve/reject dialog). */
   emailBody?: string,
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
@@ -1277,9 +1156,7 @@ export async function updateLeaveRequest(
 
     const roles = session.user.roles ?? []
     const permissions = session.user.permissions ?? []
-    // The applicant's reporting manager may record an advisory decision on this
-    // request even when it's staged elsewhere - and the decision email to the
-    // employee is sent FROM this manager (their signature, their Gmail).
+    // The applicant's manager can decide too; the decision email is then sent from them.
     const applicant = await db.employee.findUnique({
       where: { id: request.employeeId },
       select: {
@@ -1324,11 +1201,8 @@ export async function updateLeaveRequest(
     }
 
     const updatedRequest = await db.$transaction(async (tx) => {
-      // Atomic compare-and-set (API-01): claim the transition only while the row
-      // is still PENDING. Under READ COMMITTED a concurrent decider blocks on the
-      // row lock and then matches 0 rows, so the balance delta below runs exactly
-      // once - previously two near-simultaneous approvals both applied it,
-      // driving pending negative and double-incrementing used.
+      // Compare-and-set: claim only while still PENDING, so concurrent deciders apply the
+      // balance change exactly once.
       const claimData =
         action === "CANCEL"
           ? { status: "CANCELLED" as const }
@@ -1384,8 +1258,7 @@ export async function updateLeaveRequest(
           },
         })
       } else {
-        // REJECT: the status transition was already claimed above; just release
-        // the pending hold.
+        // REJECT: the status was already claimed above; just release the pending hold.
         await tx.leaveBalance.updateMany({
           where: { employeeId: request.employeeId, leaveTypeId: request.leaveTypeId, year },
           data: { pending: { decrement: request.totalDays } },
@@ -1405,11 +1278,7 @@ export async function updateLeaveRequest(
         select: { name: true },
       })
       if (emp && action !== "CANCEL") {
-        // FIRST DECISION WINS (see the transaction above): manager, HR and admin
-        // all finalise the request, so every one of them mails the employee. This
-        // used to branch on `!isFinalizer && isAdvisor` and send only an in-app
-        // notice, which left a manager-approved request marked APPROVED in DNMS
-        // with no email ever going out.
+        // First decision wins, so whoever decides (manager, HR or admin) mails the employee.
         const isApproved = action === "APPROVE"
         const startDate = new Date(request.startDate).toDateString()
         await createNotification({
@@ -1421,9 +1290,7 @@ export async function updateLeaveRequest(
           type: isApproved ? "success" : "error",
           link: "/leave",
         })
-        // Thread the decision onto the original application email when we
-        // captured its Message-ID at apply time. Subject becomes "Re: <the
-        // exact subject that was sent>".
+        // Thread onto the original application email when its Message-ID was captured.
         const threadId = request.requestMailMessageId ?? undefined
         const threadRoot = buildLeaveThreadRootId(request.id)
         const hrEmail = (await getConfig("HR_EMAIL"))?.trim() || null
@@ -1432,9 +1299,7 @@ export async function updateLeaveRequest(
             ? `Re: ${request.requestMailSubject}`
             : `Leave ${isApproved ? "approved" : "declined"} - ${emp.firstName}`
 
-        // The reply is signed by, and sent FROM, whoever actually made the call:
-        // the reporting manager when the manager approved, HR when HR did. Falls
-        // back to the manager, then to a plain company signature.
+        // Signed and sent by whoever decided; falls back to the manager, then a company signature.
         const actor = await db.employee.findUnique({
           where: { id: session.user.id },
           select: {
@@ -1451,9 +1316,7 @@ export async function updateLeaveRequest(
         const isHrActor =
           roles.includes(SYSTEM_ROLES.HR_MANAGER) || roles.includes(SYSTEM_ROLES.HR_EMPLOYEE)
 
-        // Keep the application letter's participants on the trail (HR mailbox +
-        // the reporting manager) so everyone's copy stays one conversation -
-        // minus the sender and the recipient, who are already on it.
+        // Keep the HR mailbox and manager on the thread, minus the sender and the recipient.
         const onThread = new Set(
           [emp.email, signer?.email]
             .filter((e): e is string => Boolean(e))
@@ -1478,9 +1341,7 @@ export async function updateLeaveRequest(
           approverEmail: signer?.email ?? null,
           approverPhone: signer?.phone ?? null,
         })
-        // Send AS the approver from their own Gmail so it's authentic and lands in
-        // their Sent. With no App Password on file it falls back to the system
-        // mailer - the "hr" mailbox for an HR approver, notifications otherwise.
+        // Sent from the approver's Gmail; with no App Password it falls back to the system mailer.
         addEmailAsJob(signer?.id ?? session.user.id, {
           to: emp.email,
           cc: cc.length ? cc : undefined,

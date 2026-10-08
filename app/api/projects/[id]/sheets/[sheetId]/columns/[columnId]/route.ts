@@ -9,7 +9,6 @@ import { SHEET_COLUMN_TYPES, type SheetColumnType } from "@/features/projects/li
 import { AppError } from "@/lib/errors"
 import type { Session } from "next-auth"
 
-/** PATCH - rename, retype, resize. Anyone on the project. */
 export const PATCH = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, sheetId, columnId } = ctx.params
@@ -44,13 +43,7 @@ export const PATCH = withProjectAccess(
   },
 )
 
-/**
- * DELETE - manager only.
- *
- * Sharper than deleting a row: it discards this column's value in EVERY row at
- * once. The values are copied into the history first so the loss is at least
- * legible afterwards.
- */
+// Manager only: discards this column in every row (the values are copied to history first).
 export const DELETE = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, sheetId, columnId } = ctx.params

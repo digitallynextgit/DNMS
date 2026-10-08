@@ -1,14 +1,6 @@
 "use client"
 
-/**
- * Subject + body + live preview, shared by the template editor and the campaign
- * composer so the two can never drift apart.
- *
- * Two authoring modes over ONE stored value: both produce HTML, because that is
- * what gets sent either way. `mode` only decides which editor opens - switching
- * to HTML shows you exactly what the rich editor produced, and switching back
- * keeps it.
- */
+/** Subject + body + preview for templates and campaigns. Both editor modes edit one HTML value. */
 
 import * as React from "react"
 import { PenLine, Code2, ImagePlus, Loader2 } from "lucide-react"
@@ -59,12 +51,7 @@ export function BodyComposer({
   const fileRef = React.useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = React.useState(false)
 
-  /**
-   * HTML mode's own image insert. The rich editor has its own button; a raw
-   * textarea has no caret API of its own, so the tag is spliced in at
-   * selectionStart rather than appended - pasting an image at the end of the
-   * document is almost never where you wanted it.
-   */
+  /** HTML mode's image insert: spliced in at the caret (selectionStart), not appended. */
   async function handleHtmlImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ""
@@ -130,7 +117,6 @@ export function BodyComposer({
         </div>
       </div>
 
-      {/* Editor and preview side by side, so a change is visible as it is typed. */}
       <div className="grid gap-3 lg:grid-cols-2">
         {mode === "RICH" ? (
           <RichTextEditor

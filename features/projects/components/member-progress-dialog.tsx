@@ -67,13 +67,6 @@ function Stat({
   )
 }
 
-/**
- * Drill-down for one person on one project: their numbers, then the actual
- * tasks behind them.
- *
- * The row you clicked shows aggregates; this answers the obvious next question,
- * "which tasks are those?", without leaving the page.
- */
 export function MemberProgressDialog({
   projectId,
   member,
@@ -81,7 +74,7 @@ export function MemberProgressDialog({
   onClose,
 }: {
   projectId: string
-  /** Null closes the dialog; a member opens it. */
+  /** null = closed. */
   member: MemberProgress | null
   range?: { from?: string | null; to?: string | null }
   onClose: () => void
@@ -127,7 +120,6 @@ export function MemberProgressDialog({
               </DialogDescription>
             </DialogHeader>
 
-            {/* Their performance, same definitions as the table row. */}
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
               <Stat
                 label="Completion"

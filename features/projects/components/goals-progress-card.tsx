@@ -25,25 +25,7 @@ import {
 import { GoalTargetList } from "./goal-targets"
 import { Tip } from "./portfolio-charts"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Goals on the Progress page.
-//
-// The tiles above count TASKS - what people are doing. Goals are what the work
-// was supposed to add up to. A portfolio view that reports throughput without
-// reporting whether the plan is being met is half an answer, and until this
-// strip the two lived on different pages.
-//
-// ── A STRIP, NOT A LIST ──────────────────────────────────────────────────────
-// One row per project with a bar and its two warning counts; the detail (the
-// goal tree) lives in the drill-down, like everything else on this page. The
-// first version expanded inline and was the only thing on the page that did -
-// it read as a different app.
-//
-// ── ALWAYS AS OF TODAY ───────────────────────────────────────────────────────
-// The page's date range filters tasks by due date. Goals target months out, so
-// "This week" would blank this strip on almost every load. It follows the
-// project picker, not the dates, and says so.
-// ─────────────────────────────────────────────────────────────────────────────
+// Goals show as of today (they target months out): they follow the project picker, not the dates.
 
 export interface ProjectGoalsRow {
   projectId: string
@@ -56,11 +38,7 @@ export interface ProjectGoalsRow {
   overdueGoals: number
   /** Flagged at risk by a person - a judgement someone made and wrote down. */
   atRiskGoals: number
-  /**
-   * Behind where the calendar says they should be, without anyone having said
-   * so. The early half of `overdueGoals`: by the time a goal is overdue, the
-   * conversation about it is already late.
-   */
+  /** Behind schedule without anyone flagging it - the early half of `overdueGoals`. */
   slippingGoals: number
   discardedGoals: number
   nextTargetDate: string | null
@@ -95,7 +73,6 @@ export function useGoalsPortfolio(projectId?: string) {
   })
 }
 
-/** Main goals by state across the scope - the goals twin of the task donut. */
 export function goalStateMix(rows: ProjectGoalsRow[]) {
   const tally = new Map<Status, number>(STATUS_ORDER.map((s) => [s, 0]))
   for (const r of rows) for (const g of r.goals) tally.set(g.status, (tally.get(g.status) ?? 0) + 1)
@@ -107,7 +84,6 @@ export function goalStateMix(rows: ProjectGoalsRow[]) {
   }))
 }
 
-/** Small donut of goal states, with the overall % in the hole. */
 export function GoalDonut({
   rows,
   overall,
@@ -174,7 +150,6 @@ export function GoalDonut({
   )
 }
 
-/** One goal and its sub-goals, read-only. The detail behind a project row. */
 export function GoalTree({ goals }: { goals: GoalNode[] }) {
   if (goals.length === 0) {
     return <p className="text-muted-foreground py-4 text-center text-sm">No goals set.</p>
@@ -224,11 +199,7 @@ export function GoalTree({ goals }: { goals: GoalNode[] }) {
             {goal.createdByName && <span>set by {goal.createdByName}</span>}
           </p>
           {goal.progressIsDerived && <ProgressBar value={goal.progress} className="mt-1.5 w-40" />}
-          {/* Read-only here: this is the drill-down, and what was promised is
-              changed on the project's own Goals tab where the history lives. */}
           <GoalTargetList targets={goal.targets} className="mt-1.5" />
-          {/* The reason a goal is at risk or was dropped is the most useful line
-              here - it is the bit a status colour cannot carry. */}
           {goal.statusReason && (
             <p className="text-muted-foreground border-border/60 mt-1 border-l-2 pl-2 text-[11px] italic">
               {goal.statusReason}
@@ -293,7 +264,6 @@ function Tile({
   )
 }
 
-/** One project's line in the strip. Click opens its goals in the drill-down. */
 function ProjectRow({ row, onOpen }: { row: ProjectGoalsRow; onOpen: () => void }) {
   if (row.totalGoals === 0) {
     return (
@@ -329,10 +299,7 @@ function ProjectRow({ row, onOpen }: { row: ProjectGoalsRow; onOpen: () => void 
           {row.atRiskGoals} at risk
         </span>
       )}
-      {/* Not the same thing as "at risk", and the difference is who noticed:
-          at risk is a person's call, slipping is the arithmetic's. Shown
-          separately so a project already flagged does not hide the ones
-          nobody has looked at. */}
+      {/* At risk is a person's call, slipping is the arithmetic's - shown separately. */}
       {row.slippingGoals > 0 && (
         <span
           className="shrink-0 text-[11px] font-medium text-amber-500/90"
@@ -363,7 +330,6 @@ export function GoalsProgressCard({
   onOpen,
 }: {
   projectId?: string
-  /** Open the goals drill-down - for one project, or for the whole scope. */
   onOpen: (projectId?: string) => void
 }) {
   const { data, isLoading } = useGoalsPortfolio(projectId)
@@ -411,9 +377,6 @@ export function GoalsProgressCard({
                   value={t.atRiskGoals}
                   tone={t.atRiskGoals > 0 ? "warn" : undefined}
                 />
-                {/* Summed from the rows rather than the server's totals: the
-                    per-project figure is already on the wire, and one more
-                    roll-up field is one more thing to keep in step. */}
                 <Tile label="Slipping" value={slipping} tone={slipping > 0 ? "warn" : undefined} />
                 <Tile
                   label="Overdue"

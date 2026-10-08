@@ -1,7 +1,4 @@
-// Public API for the "noticeboard" feature (CLAUDE.md §1, rule #2).
-// Server modules are NOT re-exported: these components are client components, so
-// anything reachable here lands in the browser bundle and `import "server-only"`
-// would fail the build.
+// Public API; server modules are not re-exported, since anything here reaches the browser bundle.
 
 export {
   announcementSchema,

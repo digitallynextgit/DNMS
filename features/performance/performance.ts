@@ -1,8 +1,4 @@
-// =============================================================================
-// Performance rating scale. Ratings in HRMS are 1 to 5; the policy bands are on a
-// 0 to 100 scale, so a 1 to 5 rating is scaled ×20. PERFORMANCE_BANDS is the single
-// source of truth - the evaluation verdict and the on-screen scale both use it.
-// =============================================================================
+// Ratings are 1-5 but the policy bands are 0-100, so a rating is scaled ×20.
 
 export type PerformanceTone = "green" | "amber" | "red"
 
@@ -13,7 +9,6 @@ export interface PerformanceBand {
   range: string
   /** Rating label, e.g. "Outstanding Performer". */
   rating: string
-  /** Action / outcome. */
   action: string
   tone: PerformanceTone
 }
@@ -65,7 +60,6 @@ export const PERFORMANCE_BANDS: PerformanceBand[] = [
 ]
 
 export interface PerformanceAction {
-  /** The band's display range (kept for existing callers). */
   band: string
   rating: string
   action: string

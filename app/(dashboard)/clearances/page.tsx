@@ -18,13 +18,7 @@ import {
   type MyChecklistItem,
 } from "@/features/hr-checklists"
 
-/**
- * "Waiting on you" - every checklist item assigned to the signed-in user.
- *
- * Deliberately open to everyone: the people who use it most - a Finance head,
- * an IT lead, a reporting manager - hold no HR permission at all. Gating this
- * page would lock out exactly the population the exit process depends on.
- */
+/** Open to everyone: Finance, IT and line managers sign off exits but hold no HR permission. */
 export default function ClearancesPage() {
   const { data: items, isLoading } = useMyClearances()
   const setDone = useSetItemDone()

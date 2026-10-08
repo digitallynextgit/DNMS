@@ -10,11 +10,7 @@ const RANGE_CELL: Record<PerformanceTone, string> = {
   red: "bg-red-500/15 text-red-700 dark:text-red-300",
 }
 
-/**
- * The performance rating scale - how a final score maps to a rating and the
- * resulting action/outcome. Shown to every employee. Pass `highlightPct` (0 to 100)
- * to emphasise the band a given score falls into.
- */
+/** `highlightPct` (0-100) emphasises the band a score falls into. */
 export function PerformanceScale({ highlightPct }: { highlightPct?: number | null }) {
   return (
     <Card>

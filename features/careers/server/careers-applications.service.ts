@@ -7,9 +7,7 @@ import { PERMISSIONS } from "@/lib/constants"
 import { getObjectKey, isB2Configured, uploadFile } from "@/lib/storage"
 import type { CareersApplicationInput } from "../schemas/application.schema"
 
-// Applications posted by the marketing site. The guiding rule throughout: NEVER
-// lose an applicant. A closed role, a deleted role, a repeat submission - all of
-// them still get stored and flagged for HR rather than rejected.
+// Rule: NEVER lose an applicant - closed/deleted roles and repeats are stored and flagged for HR.
 
 export interface CreateApplicationResult {
   id: string
@@ -19,16 +17,10 @@ export interface CreateApplicationResult {
   warning?: "ROLE_CLOSED" | "REPEAT_APPLICATION"
 }
 
-/** A re-application by the same person for the same role inside this window is
- *  flagged as a repeat (a DIFFERENT idempotency key, i.e. a real second submit -
- *  a network retry reuses the key and is handled as an idempotent replay). */
+/** Same person + role inside this window with a NEW idempotency key = a repeat (retries reuse the key). */
 const REPEAT_WINDOW_MS = 24 * 60 * 60 * 1000
 
-/**
- * Resolve the published slugs back to the live CareerRole.
- * Returns null when the role no longer exists or is no longer PUBLISHED - the
- * site serves a cached/snapshotted tree, so this is expected, not exceptional.
- */
+/** Null when the role is gone or unpublished - expected, since the site serves a cached tree. */
 async function resolveRole(
   mode: "FULL_TIME" | "INTERNSHIP",
   groupSlug: string,
@@ -50,8 +42,7 @@ async function resolveRole(
   return role?.id ?? null
 }
 
-/** Tell HR someone applied. Non-blocking + forced: an application arriving via an
- *  API key has no session, and this is a direct "a human is waiting" signal. */
+/** Non-blocking, and forced: an API-key request has no session and a human is waiting. */
 async function notifyHr(app: {
   id: string
   fullName: string
@@ -59,9 +50,7 @@ async function notifyHr(app: {
   roleResolved: boolean
 }) {
   try {
-    // Selected by PERMISSION, not by role name: hr_employee holds
-    // recruitment:write and does the actual triage, but the old role list
-    // (hr_manager, admin) never notified them.
+    // By PERMISSION, not role name, so hr_employee (who does the triage) is notified too.
     const recipients = await db.employee.findMany({
       where: {
         isActive: true,
@@ -98,13 +87,8 @@ async function notifyHr(app: {
   }
 }
 
-// ---------------------------------------------------------------------------
-// CV copy. resumeUrl is a link into the MARKETING SITE'S storage - it can
-// expire or be cleaned up, and then the CV is gone with no trace. Copy it into
-// our own bucket right after the application is stored. Best-effort: a failed
-// copy costs nothing (resumeUrl still works today), so it never blocks or
-// fails the application itself.
-// ---------------------------------------------------------------------------
+// resumeUrl points at the marketing site's storage and can expire, so copy the CV into our bucket.
+// Best-effort: never blocks or fails the application.
 const RESUME_MAX_BYTES = 15 * 1024 * 1024
 const RESUME_FETCH_TIMEOUT_MS = 20_000
 
@@ -132,25 +116,12 @@ async function copyResumeToStorage(applicationId: string, resumeUrl: string): Pr
       data: { resumeKey: key },
     })
   } catch (err) {
-    // The application is already stored and the external link still works -
-    // log and move on; the null resumeKey records that no copy exists.
+    // A null resumeKey records that no copy exists; the external link still works.
     console.error(`[careers-application] resume copy failed for ${applicationId}:`, err)
   }
 }
 
-/**
- * What the candidate typed -> employee id, or null.
- *
- * Accepts an employee NUMBER or a work EMAIL, because employee numbers here are
- * bare digits ("145", "7") plus a few odd ones ("SA-002", "EMP-PENDING-4"): a
- * candidate cannot guess that, and most employees do not know their own number
- * offhand. An email is the thing a colleague actually passes on.
- *
- * Matched case-insensitively and trimmed - this is typed by a candidate reading
- * it off a WhatsApp message, so " 145 " and "sa-002" must both land. An INACTIVE
- * employee still resolves: they made the introduction while they were here, and
- * the record should say so.
- */
+/** Employee number or email -> employee id. Case-insensitive, trimmed; inactive employees still match. */
 async function resolveReferrer(typed: string): Promise<string | null> {
   const value = typed.trim()
   if (!value) return null
@@ -171,7 +142,7 @@ async function resolveReferrer(typed: string): Promise<string | null> {
 export async function createCareerApplication(
   input: CareersApplicationInput,
 ): Promise<CreateApplicationResult> {
-  // 1. Idempotent replay - the site retries on network failure with the same key.
+  // Idempotent replay: the site retries with the same key.
   const existing = await db.careerApplication.findUnique({
     where: { idempotencyKey: input.idempotencyKey },
     select: { id: true },
@@ -181,7 +152,6 @@ export async function createCareerApplication(
   const mode = input.mode === "internship" ? "INTERNSHIP" : "FULL_TIME"
   const careerRoleId = await resolveRole(mode, input.groupId, input.departmentId, input.roleId)
 
-  // 2. A genuine re-apply (different key, same person + role, recent).
   const repeat = await db.careerApplication.findFirst({
     where: {
       email: input.applicant.email,
@@ -191,9 +161,7 @@ export async function createCareerApplication(
     select: { id: true },
   })
 
-  // 3. Resolve the referrer, if the candidate named one. Stored verbatim either
-  //    way: an id that matches nobody is a typo HR can still act on, and losing
-  //    it would erase the only record that a referral was ever claimed.
+  // Stored verbatim even if unmatched: a typo is still something HR can act on.
   const referrerEmployeeNo = input.referrerEmployeeNo?.trim() || null
   const referrerId = referrerEmployeeNo ? await resolveReferrer(referrerEmployeeNo) : null
 
@@ -228,8 +196,7 @@ export async function createCareerApplication(
       },
     })
   } catch (err) {
-    // Two concurrent retries of the same key: the loser re-reads the winner's row
-    // instead of failing (the site would otherwise fall back to email and double-send).
+    // Concurrent retries of the same key: the loser re-reads the winner's row.
     const dup = await db.careerApplication.findUnique({
       where: { idempotencyKey: input.idempotencyKey },
       select: { id: true },

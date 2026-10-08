@@ -1,17 +1,7 @@
 "use client"
 
-/**
- * The full-screen media viewer you get by tapping a picture in a conversation:
- * who sent it and when, zoom, download, and the rest of that chat's media along
- * the bottom to step through.
- *
- * It replaces a lightbox that showed one image with a close button - opening the
- * third photo somebody sent meant closing, scrolling, and tapping again.
- *
- * The gallery is assembled by the THREAD, not by a message: a viewer that only
- * knew its own message could never offer next/previous across a conversation,
- * which is the whole point of the filmstrip.
- */
+// Full-screen media viewer: sender, zoom, download, and a filmstrip of the conversation's media.
+// The thread builds the gallery, so next/previous works across messages.
 
 import * as React from "react"
 import {
@@ -54,7 +44,6 @@ export function MediaViewer({
   index: number
   onIndexChange: (i: number) => void
   onClose: () => void
-  /** Resolves an attachment id to its streaming URL. */
   urlFor: (id: string) => string
 }) {
   const [zoom, setZoom] = React.useState(1)
@@ -64,12 +53,13 @@ export function MediaViewer({
 
   const current = items[index]
 
-  // A new picture starts fitted - carrying a 3× zoom onto the next one lands you
-  // somewhere in the middle of an image you have not seen yet.
-  React.useEffect(() => {
+  // A new picture starts fitted, not at the previous zoom.
+  const [prevIndex, setPrevIndex] = React.useState(index)
+  if (index !== prevIndex) {
+    setPrevIndex(index)
     setZoom(1)
     setPan({ x: 0, y: 0 })
-  }, [index])
+  }
 
   // Keep the active thumbnail in view as you arrow through.
   React.useEffect(() => {
@@ -122,7 +112,6 @@ export function MediaViewer({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/95" role="dialog" aria-modal="true">
-      {/* Who and when, then the actions. */}
       <div className="flex h-14 shrink-0 items-center gap-3 px-3 text-white">
         <AvatarDisplay
           src={current.authorPhoto ?? null}
@@ -163,9 +152,7 @@ export function MediaViewer({
           </>
         )}
 
-        {/* ?download=1 signs the object with Content-Disposition: attachment.
-            A plain `download` attribute cannot do it - the route redirects to
-            storage, and the attribute is dropped on a cross-origin hop. */}
+        {/* ?download=1 signs with Content-Disposition: attachment; `download` is dropped on the cross-origin redirect. */}
         <ViewerButton label="Download" asChild>
           <a href={`${urlFor(current.id)}?download=1`} download={current.fileName}>
             <Download className="h-4 w-4" />
@@ -177,7 +164,6 @@ export function MediaViewer({
         </ViewerButton>
       </div>
 
-      {/* Stage */}
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
         {index > 0 && <ArrowButton side="left" onClick={() => go(-1)} />}
 
@@ -221,7 +207,6 @@ export function MediaViewer({
         {index < items.length - 1 && <ArrowButton side="right" onClick={() => go(1)} />}
       </div>
 
-      {/* Everything else in this conversation. One item needs no filmstrip. */}
       {items.length > 1 && (
         <div ref={stripRef} className="flex shrink-0 items-center gap-2 overflow-x-auto px-3 py-3">
           {items.map((m, i) => (
@@ -265,7 +250,7 @@ export function MediaViewer({
   )
 }
 
-/** Header action. White-on-dark, because the viewer is always dark. */
+/** White-on-dark: the viewer is always dark. */
 function ViewerButton({
   label,
   children,

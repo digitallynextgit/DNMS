@@ -1,18 +1,9 @@
-/**
- * GET  /api/roles - list all roles with permission / employee counts
- * POST /api/roles - create a new (non-system) role
- *
- * Both endpoints are guarded by the PBAC `withAuth` wrapper from lib/permissions.ts.
- */
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS, HIDDEN_ROLES } from "@/lib/constants"
 import { createAuditLog } from "@/lib/audit"
 
-// ---------------------------------------------------------------------------
-// GET /api/roles
-// ---------------------------------------------------------------------------
 export const GET = withAuth(PERMISSIONS.ROLE_READ, async () => {
   const roles = await db.role.findMany({
     where: { name: { notIn: [...HIDDEN_ROLES] } },
@@ -30,9 +21,6 @@ export const GET = withAuth(PERMISSIONS.ROLE_READ, async () => {
   return NextResponse.json({ data: roles })
 })
 
-// ---------------------------------------------------------------------------
-// POST /api/roles
-// ---------------------------------------------------------------------------
 export const POST = withAuth(PERMISSIONS.ROLE_WRITE, async (req: NextRequest, _ctx, session) => {
   let body: unknown
   try {
@@ -54,7 +42,6 @@ export const POST = withAuth(PERMISSIONS.ROLE_WRITE, async (req: NextRequest, _c
 
   const normalizedName = name.toLowerCase().replace(/\s+/g, "_")
 
-  // Check for duplicate name
   const existing = await db.role.findFirst({ where: { name: normalizedName } })
   if (existing) {
     return NextResponse.json(

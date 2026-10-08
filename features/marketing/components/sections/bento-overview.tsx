@@ -5,11 +5,7 @@ import { cn } from "@/lib/utils"
 import { Reveal, SpotlightCard } from "../fx"
 import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
-/**
- * Per-module column span on the lg 6-col grid. Every consecutive PAIR sums to 6,
- * so the ten cards tile into five clean rows of two (no stranded last cell). The
- * three cards carrying live mockups all land on the wide 2/3 (col-span-4) side.
- */
+/** Column span per module on the lg 6-col grid: each consecutive pair sums to 6. */
 const COL_SPAN: Record<string, string> = {
   "HR & People": "lg:col-span-2",
   "Attendance & Time": "lg:col-span-4",
@@ -51,8 +47,7 @@ function AttendanceMock() {
             />
           ))}
         </div>
-        {/* Full-height track: translateY% in dnms-scan is relative to THIS
-            element, so the 1px line at its top scans compositor-only. */}
+        {/* Full-height track: dnms-scan's translateY% is relative to this element. */}
         <div className="animate-dnms-scan pointer-events-none absolute inset-x-3 top-0 h-full">
           <div className="via-primary/70 h-px bg-gradient-to-r from-transparent to-transparent" />
         </div>
@@ -178,8 +173,6 @@ function ModuleCell({ m, index }: { m: MarketingModule; index: number }) {
           <h3 className="text-base font-semibold tracking-tight">{m.name}</h3>
         </div>
         <p className="text-muted-foreground mt-3 text-sm text-pretty">{m.text}</p>
-        {/* Flagship cards show a live mini-mockup; the rest fill with their
-            real capability list so no card is left half-empty. */}
         {mock ?? (
           <ul className="mt-4 space-y-2.5">
             {m.points.map((p) => (
@@ -206,7 +199,6 @@ export function BentoOverview() {
       className="border-border/60 bg-muted/20 relative scroll-mt-20 border-y py-20 sm:py-24"
     >
       <div className="relative mx-auto max-w-[1600px] px-4 sm:px-6">
-        {/* Hero-style pill */}
         <Reveal>
           <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
@@ -220,7 +212,6 @@ export function BentoOverview() {
           </span>
         </Reveal>
 
-        {/* Two columns, top-aligned: title (left) + supporting copy (right) */}
         <div className="mt-6 grid items-start gap-8 lg:grid-cols-2 lg:gap-16">
           <Reveal>
             <h2 className="text-4xl font-bold tracking-tight text-balance sm:text-5xl">

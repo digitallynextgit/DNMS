@@ -1,25 +1,6 @@
-// =============================================================================
-// Client portal module registry
-// =============================================================================
-// THE allowlist. A package stores module KEYS; this file is the only place that
-// decides what a key means and what it unlocks. Two rules make it safe:
-//
-//   1. A key not listed here is ignored at read time (see resolveModules), so a
-//      typo or a stale key left in a package NARROWS access, never widens it.
-//   2. Nothing in the portal reads project data without first asking
-//      `canAccessModule` - there is no "and also show…" path.
-//
-// Deliberately NOT here, and not addable without a code change: project
-// passwords, timesheets/hours, budget, INTERNAL activity (audit_logs) and staff
-// messages. Those are staff-only by construction, not by configuration.
-//
-// Note the "activity" module below is NOT that. It reads client_activity_logs -
-// the client's own actions, scoped to their own account - and never touches
-// audit_logs, which is where staff activity lives. The two are separate tables
-// for exactly this reason.
-//
-// Client-safe (no server imports): the admin package editor renders from it too.
-// =============================================================================
+// THE allowlist of portal modules. Unknown keys are ignored, so a stale key narrows access, never
+// widens it. Staff-only data (passwords, hours, budget, audit_logs, messages) is never a module.
+// Client-safe: the admin package editor renders from it too.
 
 export type ClientModuleKey =
   | "plan"
@@ -44,10 +25,7 @@ export const CLIENT_MODULES: readonly ClientModule[] = [
   {
     key: "plan",
     label: "Content plan",
-    // The second module a client can WRITE to, and the further-reaching of the
-    // two: this one lets them commit the team to work and close it off. The
-    // description says both halves, because whoever ticks the box is agreeing
-    // to both.
+    // Modules the client can WRITE to say so in their description.
     description:
       "What is planned between two dates and what has been made against it. The client can add plan items, attach finished work, and finalise or send back what the team delivers.",
     path: "plan",
@@ -55,9 +33,6 @@ export const CLIENT_MODULES: readonly ClientModule[] = [
   {
     key: "documents",
     label: "Documents & assets",
-    // A module the client can WRITE to. Says so plainly, for the same reason
-    // the mailer does: whoever ticks this box should know before they tick it.
-    // Deciding on work happens in the content plan, not here.
     description:
       "Shared process documents and campaign assets, to read and download. The client can upload files here.",
     path: "documents",
@@ -65,11 +40,6 @@ export const CLIENT_MODULES: readonly ClientModule[] = [
   {
     key: "calendars",
     label: "Calendars",
-    // The third module a client can WRITE to, so it says so - and says what it
-    // does NOT let them do, because "fill a sheet" could reasonably be read as
-    // "edit the sheet". Granting this module does not share anything on its
-    // own: each calendar is published separately from the project's Calendars
-    // tab, so a package with this ticked and nothing shared shows an empty page.
     description:
       "Content calendars the team has shared with this client. They can fill cells and add rows; the columns and the calendars themselves stay yours. Each calendar is shared individually from the project.",
     path: "calendars",
@@ -95,8 +65,6 @@ export const CLIENT_MODULES: readonly ClientModule[] = [
   {
     key: "mailer",
     label: "Email campaigns",
-    // Says plainly that this one SENDS, unlike every other module, which only
-    // shows data. Whoever ticks this box should know that before they tick it.
     description:
       "Compose and send campaigns from the project's own address, with templates and the subscriber list. This module can send email to real people.",
     path: "mailer",

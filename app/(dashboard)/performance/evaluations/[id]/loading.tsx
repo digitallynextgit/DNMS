@@ -1,11 +1,8 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Evaluation scorecard: back + title/description + print action, a status/score
-// summary card, then side-by-side scorecards (Manager + Self) of rating rows.
 export default function Loading() {
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="space-y-2 py-4">
         <Skeleton className="bg-muted h-8 w-40 animate-pulse rounded-sm" />
         <div className="flex items-center justify-between gap-4">
@@ -17,7 +14,6 @@ export default function Loading() {
         </div>
       </div>
 
-      {/* Status / final score summary */}
       <div className="border-border bg-card rounded-sm border">
         <div className="flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="flex items-center gap-6">
@@ -37,7 +33,6 @@ export default function Loading() {
         </div>
       </div>
 
-      {/* Scorecards */}
       <div className="grid gap-6 lg:grid-cols-2">
         <SidePanelSkeleton />
         <SidePanelSkeleton />
@@ -46,8 +41,6 @@ export default function Loading() {
   )
 }
 
-/** A scorecard panel: tinted header + two sections of criterion rows, each with
- *  five 7x7 rating buttons and a score cell. */
 function SidePanelSkeleton() {
   return (
     <div className="border-border bg-card overflow-hidden rounded-sm border">

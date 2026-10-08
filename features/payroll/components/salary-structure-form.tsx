@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
@@ -13,8 +13,7 @@ import {
 import { EmployeeCombobox } from "@/features/employees"
 import { cn } from "@/lib/utils"
 
-// The six salary brackets (matching the company payslip) with sensible default
-// percentages of the monthly gross. HR can edit any percentage; they must total 100%.
+// The six payslip brackets as default % of monthly gross; HR may edit them but they must total 100%.
 const COMPONENTS = [
   { key: "basic", label: "Basic", defaultPct: 50 },
   { key: "hra", label: "HRA", defaultPct: 25 },
@@ -56,39 +55,41 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
   const createMutation = useCreateSalaryStructure()
   const updateMutation = useUpdateSalaryStructure()
 
-  // Populate when opening (edit → derive gross + percentages from stored amounts).
-  useEffect(() => {
-    if (!open) return
-    if (editData) {
-      const amounts: Record<CompKey, number> = {
-        basic: editData.basicSalary,
-        hra: editData.hra,
-        transport: editData.conveyance,
-        medical: editData.medicalAllowance,
-        telephone: editData.telephoneAllowance,
-        special: editData.otherAllowances,
+  // Re-seed whenever the dialog opens or the record changes while open.
+  const [seededFor, setSeededFor] = useState({ open: false, editData })
+  if (open !== seededFor.open || editData !== seededFor.editData) {
+    setSeededFor({ open, editData })
+    if (open) {
+      if (editData) {
+        const amounts: Record<CompKey, number> = {
+          basic: editData.basicSalary,
+          hra: editData.hra,
+          transport: editData.conveyance,
+          medical: editData.medicalAllowance,
+          telephone: editData.telephoneAllowance,
+          special: editData.otherAllowances,
+        }
+        const g = COMPONENTS.reduce((s, c) => s + (amounts[c.key] || 0), 0)
+        setGross(g ? String(g) : "")
+        setPct(
+          g > 0
+            ? (Object.fromEntries(
+                COMPONENTS.map((c) => [c.key, Math.round((amounts[c.key] / g) * 1000) / 10]),
+              ) as Record<CompKey, number>)
+            : DEFAULT_PCT,
+        )
+        setSelectedEmployeeId(editData.employeeId)
+      } else {
+        setGross("")
+        setPct(DEFAULT_PCT)
+        setSelectedEmployeeId("")
       }
-      const g = COMPONENTS.reduce((s, c) => s + (amounts[c.key] || 0), 0)
-      setGross(g ? String(g) : "")
-      setPct(
-        g > 0
-          ? (Object.fromEntries(
-              COMPONENTS.map((c) => [c.key, Math.round((amounts[c.key] / g) * 1000) / 10]),
-            ) as Record<CompKey, number>)
-          : DEFAULT_PCT,
-      )
-      setSelectedEmployeeId(editData.employeeId)
-    } else {
-      setGross("")
-      setPct(DEFAULT_PCT)
-      setSelectedEmployeeId("")
     }
-  }, [editData, open])
+  }
 
   const grossNum = n(gross)
 
-  // Each amount = round(gross × pct%). Rounding residual is absorbed into Special
-  // so the six components always sum to exactly the gross.
+  // The rounding residual goes to Special, so the six always sum to exactly the gross.
   const amounts = useMemo(() => {
     const a = {} as Record<CompKey, number>
     let allocated = 0
@@ -120,8 +121,7 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
         medicalAllowance: amounts.medical,
         telephoneAllowance: amounts.telephone,
         otherAllowances: amounts.special,
-        // No user-facing "effective from" - default to today on create, leave
-        // the existing date untouched on edit.
+        // No user-facing "effective from": today on create, unchanged on edit.
         ...(isEdit ? {} : { effectiveFrom: new Date().toISOString().split("T")[0] }),
       }
 
@@ -149,7 +149,6 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
       contentClassName="max-w-2xl"
     >
       <div className="space-y-6">
-        {/* Employee */}
         {!isEdit ? (
           <div className="space-y-2">
             <Label htmlFor="employeeId">Employee *</Label>
@@ -169,7 +168,6 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
           </div>
         )}
 
-        {/* Gross */}
         <div className="space-y-2">
           <Label htmlFor="gross">Monthly Gross Salary (in-hand) *</Label>
           <Input
@@ -181,8 +179,7 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
             placeholder="e.g. 50000"
             value={gross}
             onChange={(e) => {
-              // Clamp to a sane monthly ceiling (₹1 crore) so a fat-fingered
-              // value can't produce absurd amounts.
+              // Clamp to ₹1 crore/month so a fat-fingered value can't produce absurd amounts.
               const v = e.target.value
               if (v === "") return setGross("")
               setGross(String(Math.min(Math.max(0, Number(v)), 10000000)))
@@ -196,7 +193,6 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
 
         <Separator />
 
-        {/* Bracket split */}
         <div>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-foreground text-sm font-semibold">Salary Split</h3>
@@ -234,8 +230,7 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
                   value={pct[c.key]}
                   onChange={(e) => setPct((p) => ({ ...p, [c.key]: n(e.target.value) }))}
                 />
-                {/* min-w-0 + overflow keeps a large amount scrolling inside the cell
-                      instead of stretching the whole dialog wider. */}
+                {/* min-w-0 + overflow keeps a large amount inside the cell instead of widening the dialog. */}
                 <div className="min-w-0 overflow-x-auto">
                   <span className="text-foreground block text-right text-sm font-medium whitespace-nowrap tabular-nums">
                     {fmt(amounts[c.key] || 0)}
@@ -248,7 +243,7 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
 
         <Separator />
 
-        {/* Preview - gross == net, no deductions */}
+        {/* gross == net: no deductions */}
         <div className="bg-muted/30 grid grid-cols-2 gap-4 rounded-sm border p-4 text-sm">
           <div className="min-w-0">
             <p className="text-muted-foreground">Gross (= Net, no deductions)</p>

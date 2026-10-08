@@ -14,9 +14,6 @@ export const GET = withAuth(
       const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
       const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0)
 
-      // Every query below is INDEPENDENT, but they used to be awaited one group at a
-      // time - ~10 sequential DB round trips per request. One Promise.all issues them
-      // all at once, so the handler costs the SLOWEST query, not the sum of them.
       const hireTrendMonths = Array.from({ length: 6 }, (_, i) => {
         const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
         const end = new Date(now.getFullYear(), now.getMonth() - (5 - i) + 1, 0)
@@ -137,11 +134,7 @@ export const GET = withAuth(
           },
         },
         {
-          // This rollup is ~16 queries. Executive numbers don't need to be to the
-          // second, so let a re-open within a minute serve from cache (and revalidate
-          // in the background for two more) instead of re-running every query.
-          // `private`: it varies per viewer's permissions and must not sit in a
-          // shared proxy cache.
+          // Executive numbers can be a minute stale. `private` because the result varies per viewer.
           headers: {
             "Cache-Control": "private, max-age=60, stale-while-revalidate=120",
           },

@@ -41,7 +41,6 @@ export const GET = withProjectAccess(
 
       if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 })
 
-      // Provide flat members list for list-card compatibility
       const decorated = {
         ...project,
         members: project.teams.flatMap((t) => t.members),
@@ -83,7 +82,6 @@ export const PATCH = withProjectManager(
         if (!client) return NextResponse.json({ error: "Client not found" }, { status: 422 })
       }
 
-      // Validate new Account Manager if provided
       if (accountManagerId) {
         const emp = await db.employee.findUnique({
           where: { id: accountManagerId },
@@ -115,10 +113,8 @@ export const PATCH = withProjectManager(
         },
       })
 
-      // Filing the project under a client files its portal people there too:
-      // logins that belong to no client yet and can see this project join it,
-      // so they appear on its Contacts tab - the only place portal access is
-      // managed. A login already at another company is left alone.
+      // Filing under a client moves this project's unaffiliated portal logins to it (so they show on its
+      // Contacts tab); logins at another company are left alone.
       if (clientId) {
         await db.clientUser.updateMany({
           where: { clientId: null, access: { some: { projectId: ctx.params.id } } },

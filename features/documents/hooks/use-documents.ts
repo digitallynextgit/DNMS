@@ -5,8 +5,6 @@ import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export interface DocumentRecord {
   id: string
   title: string
@@ -43,8 +41,6 @@ export interface CompanyDocumentsResult {
   pagination: PaginationMeta
 }
 
-// ─── Query Keys ───────────────────────────────────────────────────────────────
-
 export const documentKeys = {
   all: ["documents"] as const,
   employee: (employeeId: string) => ["documents", "employee", employeeId] as const,
@@ -53,11 +49,6 @@ export const documentKeys = {
   url: (id: string) => ["documents", "url", id] as const,
 }
 
-// ─── Hooks ────────────────────────────────────────────────────────────────────
-
-/**
- * Fetch all documents belonging to a specific employee.
- */
 export function useEmployeeDocuments(employeeId: string) {
   return useQuery<DocumentRecord[]>({
     queryKey: documentKeys.employee(employeeId),
@@ -71,10 +62,6 @@ export function useEmployeeDocuments(employeeId: string) {
   })
 }
 
-/**
- * Fetch company-wide documents, optionally filtered by category. Paginated
- * (server-side); defaults to page 1, limit 10.
- */
 export function useCompanyDocuments(category?: string, page = 1, limit = 10) {
   return useQuery<CompanyDocumentsResult>({
     queryKey: documentKeys.company(category, page),
@@ -88,9 +75,6 @@ export function useCompanyDocuments(category?: string, page = 1, limit = 10) {
   })
 }
 
-/**
- * Upload a document via multipart FormData.
- */
 export function useUploadDocument() {
   const qc = useQueryClient()
 
@@ -106,7 +90,6 @@ export function useUploadDocument() {
       invalidate: [["documents", "company"]],
       success: "Document uploaded successfully",
       onSuccess: (doc) => {
-        // Invalidate both employee and company caches
         if (doc.employeeId) {
           qc.invalidateQueries({ queryKey: documentKeys.employee(doc.employeeId) })
         }
@@ -118,9 +101,6 @@ export function useUploadDocument() {
   )
 }
 
-/**
- * Delete a document by id.
- */
 export function useDeleteDocument() {
   const qc = useQueryClient()
 
@@ -138,11 +118,7 @@ export function useDeleteDocument() {
   )
 }
 
-/**
- * Upload a PERSONAL (employee locker) document → /api/employees/[id]/documents.
- * Separate from useUploadDocument because the locker uses the EmployeeDocument
- * table, not the company Document table.
- */
+/** Personal locker documents live in the EmployeeDocument table, not Document. */
 export function useUploadEmployeeDocument(employeeId: string) {
   const qc = useQueryClient()
   return useMutation<unknown, Error, FormData>(
@@ -161,7 +137,6 @@ export function useUploadEmployeeDocument(employeeId: string) {
   )
 }
 
-/** Delete a personal (employee locker) document. */
 export function useDeleteEmployeeDocument(employeeId: string) {
   const qc = useQueryClient()
   return useMutation<void, Error, string>(
@@ -180,10 +155,6 @@ export function useDeleteEmployeeDocument(employeeId: string) {
   )
 }
 
-/**
- * Fetch a pre-signed download URL for a document.
- * Disabled by default; enable by passing a valid id.
- */
 export function useDocumentUrl(id: string | null) {
   return useQuery<DocumentUrlData>({
     queryKey: documentKeys.url(id ?? ""),

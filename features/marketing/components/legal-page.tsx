@@ -7,10 +7,7 @@ import { LEGAL_INDEX, type LegalDoc } from "@/features/marketing/legal.content"
 import { GridBackdrop, Reveal } from "./fx"
 import { SectionNav } from "./section-nav"
 
-/**
- * Heading -> URL fragment. Deterministic, so a link someone shares today still
- * lands on the same section after the copy around it is edited.
- */
+/** Heading -> stable URL fragment, so shared links survive copy edits. */
 function anchorFor(heading: string): string {
   return heading
     .toLowerCase()
@@ -19,22 +16,8 @@ function anchorFor(heading: string): string {
 }
 
 /**
- * Split a title so its tail can carry the brand accent, matching the hero and
- * the About and Contact headings.
- *
- * Presentational only: `doc.title` stays a plain string everywhere it has to be
- * one - the contents rail, the footer, the sitemap and the <title> tag - so the
- * accent never leaks into a place that cannot render markup.
- *
- * The last word is the default and reads well for most titles: "Privacy
- * POLICY", "Terms & CONDITIONS", "Cookie POLICY". A document can override it
- * with `titleAccent` where that splits a phrase that belongs together - the
- * refund policy accents "Cancellation Policy" rather than stranding "Policy".
- *
- * An override that is not actually a suffix of the title is ignored rather than
- * trusted: rendering `lead` and `accent` from mismatched strings would drop or
- * duplicate characters in the heading, which is worse than the wrong word being
- * red.
+ * Split a title so its tail gets the brand accent (default: the last word; `titleAccent`
+ * overrides it). An override that isn't a suffix of the title is ignored.
  */
 function splitTitle(title: string, override?: string): { lead: string; accent: string } {
   if (override && override !== title && title.endsWith(override)) {
@@ -46,26 +29,8 @@ function splitTitle(title: string, override?: string): { lead: string; accent: s
 }
 
 /**
- * Renderer for every legal document. The documents themselves are data in
- * legal.content.ts, so all four pages stay typographically identical and a new
- * one is a content edit rather than a new component.
- *
- * ── WHY THREE COLUMNS ──────────────────────────────────────────────────────
- *
- * This page uses the full 1600px marketing container, but a document cannot
- * simply be stretched into it: prose stops being readable somewhere around 80
- * characters, and a 900px line is exhausting. The first attempt put a 68ch
- * article in a two-column 1600px grid, which left a ~600px dead strip and made
- * the text look abandoned in the corner.
- *
- * So the width is filled with content rather than with the article: navigation
- * on the left, the document in the middle, related documents on the right. Both
- * rails are sticky and useful, the measure stays readable, and there is content
- * at both edges of the screen.
- *
- * Prose is capped at 76ch. The definition lists are NOT - a term/detail pair
- * reads perfectly well wide, and letting them fill the column gives the page
- * some rhythm instead of one uniform ribbon of text.
+ * Renderer for every legal document (content lives in legal.content.ts). Three columns - contents,
+ * document, related docs - so prose stays at a readable 76ch in the wide container.
  */
 export function LegalPage({ doc }: { doc: LegalDoc }) {
   const { lead, accent } = splitTitle(doc.title, doc.titleAccent)
@@ -75,7 +40,6 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
       <GridBackdrop />
 
       <div className="relative mx-auto max-w-[1600px] px-4 pt-28 pb-24 sm:px-6 lg:pt-32">
-        {/* ── Header ─────────────────────────────────────────────────────── */}
         <Reveal>
           <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
@@ -97,11 +61,8 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
           <p className="text-muted-foreground mt-4 max-w-3xl text-lg text-pretty">{doc.summary}</p>
         </Reveal>
 
-        {/* Three columns from lg. Below that everything stacks, with the
-            contents list first - on a phone it is the fastest way into a long
-            document rather than something to scroll past. */}
+        {/* Stacks below lg, contents first - the fastest way into a long document on a phone. */}
         <div className="mt-14 grid gap-12 lg:grid-cols-[200px_minmax(0,1fr)_240px] lg:gap-8 xl:grid-cols-[230px_minmax(0,1fr)_290px] xl:gap-14">
-          {/* ── Left rail: contents ──────────────────────────────────────── */}
           <SectionNav
             heading="On this page"
             accent={BRAND_RED}
@@ -111,12 +72,10 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
             }))}
           />
 
-          {/* ── Document ─────────────────────────────────────────────────── */}
           <article className="min-w-0">
             {doc.sections.map((section, i) => (
               <Reveal key={section.heading} delay={Math.min(i * 40, 240)}>
-                {/* scroll-mt clears the sticky header when arriving by anchor -
-                    without it the heading lands underneath the nav bar. */}
+                {/* scroll-mt clears the sticky header when arriving by anchor. */}
                 <section
                   id={anchorFor(section.heading)}
                   className="border-border/60 scroll-mt-28 border-t py-8 first:border-t-0 first:pt-0"
@@ -147,9 +106,7 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
                     </ul>
                   )}
 
-                  {/* Deliberately uncapped: a term beside its detail reads fine
-                      at full column width, and these carry the densest content
-                      on the page - the sub-processor and data-category tables. */}
+                  {/* Not width-capped: term/detail rows read fine wide. */}
                   {section.rows && (
                     <dl className="border-border/60 mt-5 divide-y rounded-sm border">
                       {section.rows.map((row) => (
@@ -169,7 +126,6 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
             ))}
           </article>
 
-          {/* ── Right rail: sibling documents ────────────────────────────── */}
           <aside className="lg:sticky lg:top-28 lg:self-start">
             <h2 className="text-foreground text-xs font-semibold tracking-wide uppercase">
               Other documents

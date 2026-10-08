@@ -9,19 +9,15 @@ import {
   tenantScopedSession,
 } from "@/server/tenant-request"
 
-/**
- * Portal route group. proxy.ts already keeps staff out and signed-out visitors
- * on /login; this re-checks server-side (defence in depth) and, like the
- * dashboard layout, re-reads isActive on every navigation - a stateless JWT
- * outlives an account being disabled.
- */
-/** A customer's private workspace - never a search result. See the dashboard layout. */
+// proxy.ts already keeps staff out; this re-checks server-side and, like the dashboard layout,
+// re-reads isActive on every navigation (a stateless JWT outlives a disabled account).
+/** A customer's private workspace - never a search result. */
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  // Establishes the tenant context for everything this layout renders (M4).
+  // Establishes the tenant context for everything this layout renders.
   const session = await tenantScopedSession()
   if (!session) redirect("/login")
   if (session.user.kind !== "client") redirect(await tenantPath("/dashboard"))
@@ -41,7 +37,7 @@ export default async function PortalLayout({ children }: { children: React.React
     )
   }
 
-  // The tenant for every <Link> in the portal (M3) - see the dashboard layout.
+  // The tenant for every <Link> in the portal - see the dashboard layout.
   const tenantSlug = await currentTenantSlugOrFounding()
 
   return (

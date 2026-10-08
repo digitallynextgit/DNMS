@@ -39,9 +39,7 @@ export function EmployeeSyncPanel({ devices }: { devices: DeviceOption[] }) {
   const [deviceId, setDeviceId] = useState(activeDevices[0]?.id ?? "")
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
-  // Every employeeNo currently syncing. A Set (not a single value) so multiple
-  // rows can sync at once and each keeps its own spinner until IT finishes,
-  // regardless of what else you click.
+  // A Set so several rows can sync at once, each keeping its own spinner.
   const [busy, setBusy] = useState<Set<string>>(new Set())
 
   const rows = data?.data ?? []

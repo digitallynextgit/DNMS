@@ -37,12 +37,6 @@ interface PickerProps {
   onCancel: () => void
 }
 
-/**
- * "Move to..." target chooser: the project's folder tree with the top level
- * as the first row. The folders being moved and everything under them are
- * shown but cannot be picked - moving a folder into itself is the one target
- * that can never be right.
- */
 export function FolderPickerDialog({
   open,
   onOpenChange,
@@ -54,8 +48,7 @@ export function FolderPickerDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        {/* Selection state lives in a child that only exists while open, so
-            each opening starts at the current folder without an effect. */}
+        {/* Mounted only while open, so each opening starts at the current folder. */}
         <PickerBody {...picker} onCancel={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
@@ -98,7 +91,6 @@ function PickerBody({
     return out
   }, [folders])
 
-  // The moved folders and all their descendants.
   const blocked = useMemo(() => {
     const set = new Set<string>()
     if (!excludeFolderIds?.length) return set

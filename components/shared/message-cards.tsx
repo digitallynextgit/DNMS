@@ -1,14 +1,7 @@
 "use client"
 
-/**
- * Polls, events and shared contacts - the parts of a message that are neither
- * text nor a file.
- *
- * Composers and renderers live together because they are two halves of one
- * shape: change what a poll can hold and both sides have to move. Shared by
- * personal chat and project messages; the only thing either surface supplies is
- * the endpoint to post to.
- */
+// Polls, events and shared contacts: composers and renderers together, shared by chat and project
+// messages (each surface supplies only the endpoint).
 
 import * as React from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -38,8 +31,6 @@ import { DateField, toDateString } from "@/components/shared/date-field"
 import { EmployeeProfileDialog } from "@/components/shared/employee-profile-dialog"
 import { TimeField } from "@/components/shared/time-field"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-
-// ─── shapes ─────────────────────────────────────────────────────────────────
 
 export interface PollCardData {
   id: string
@@ -77,15 +68,11 @@ export interface ContactCardData {
   photo: string | null
 }
 
-/** What a surface hands the composers so a card knows where to post. */
 export interface CardEndpoint {
-  /** POST target that creates the message AND the card. */
+  /** POST target that creates the message and the card. */
   createUrl: string
-  /** Query keys to refresh once something lands. */
   invalidate: unknown[][]
 }
-
-// ─── poll ───────────────────────────────────────────────────────────────────
 
 export function PollComposer({
   open,
@@ -98,9 +85,7 @@ export function PollComposer({
 }) {
   const qc = useQueryClient()
   const [question, setQuestion] = React.useState("")
-  // Each option carries a stable id so React keys survive a mid-list removal
-  // (UI-08) - keying by array index moved focus/caret to a different option when
-  // one above it was deleted.
+  // Stable ids so React keys survive removing an option mid-list.
   const newOption = () => ({ id: crypto.randomUUID(), text: "" })
   const [options, setOptions] = React.useState<{ id: string; text: string }[]>(() => [
     newOption(),
@@ -182,9 +167,7 @@ export function PollComposer({
                     )
                   }
                   onKeyDown={(e) => {
-                    // Enter adds the next option rather than submitting - a poll
-                    // is usually more than two lines and reaching for the mouse
-                    // between each one is the annoying part.
+                    // Enter on the last option adds another rather than submitting.
                     if (e.key === "Enter" && i === options.length - 1 && options.length < 12) {
                       e.preventDefault()
                       setOptions((list) => [...list, newOption()])
@@ -281,8 +264,7 @@ export function PollCard({
               poll.closed && "cursor-default",
             )}
           >
-            {/* The bar is a background layer, so the label never reflows as the
-                numbers move. */}
+            {/* The bar is a background layer, so the label never reflows. */}
             <span
               className="absolute inset-y-0 left-0 bg-current opacity-15 transition-all"
               style={{ width: `${o.share}%` }}
@@ -312,23 +294,13 @@ export function PollCard({
   )
 }
 
-// ─── event ──────────────────────────────────────────────────────────────────
-
-/**
- * "2026-08-20" + "15:30" as a real instant.
- *
- * Built from the local parts rather than parsed from a string, so 3:30pm means
- * 3:30pm where the person typing it is sitting - `new Date("...T15:30")` and
- * `new Date("...T15:30Z")` differ by the whole offset, and only one of them is
- * what was meant.
- */
+/** Built from local parts, so "15:30" means 15:30 where the person typing is. */
 function toInstant(date: string, time: string): Date {
   const [y, m, d] = date.split("-").map(Number)
   const [hh, mm] = time.split(":").map(Number)
   return new Date(y ?? 0, (m ?? 1) - 1, d ?? 1, hh ?? 0, mm ?? 0)
 }
 
-/** The next half hour, so the common case is one click rather than four. */
 function nextHalfHour(): string {
   const now = new Date()
   now.setSeconds(0, 0)
@@ -364,13 +336,15 @@ export function EventComposer({
     setNotes("")
   }
 
-  // Seeded when the dialog opens, not during render: reading the clock while
-  // rendering is what makes a server and client pass disagree.
-  React.useEffect(() => {
-    if (!open) return
-    setStartDate((d) => d || toDateString(new Date()))
-    setStartTime((t) => t || nextHalfHour())
-  }, [open])
+  // Seeded on open; the dialog body is portalled, so it never server-renders to disagree.
+  const [prevOpen, setPrevOpen] = React.useState(false)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+    if (open) {
+      setStartDate((d) => d || toDateString(new Date()))
+      setStartTime((t) => t || nextHalfHour())
+    }
+  }
 
   const create = useMutation({
     mutationFn: () =>
@@ -396,8 +370,7 @@ export function EventComposer({
 
   const hasStart = !!startDate && !!startTime
   const hasEnd = !!endDate && !!endTime
-  // Half an end is not an end: one field filled and the other empty is a
-  // mistake, not an intention, so say so rather than quietly dropping it.
+  // One end field without the other is a mistake, so flag it.
   const halfEnd = !!endDate !== !!endTime
   const endsBeforeStart =
     hasEnd && hasStart && toInstant(endDate, endTime) <= toInstant(startDate, startTime)
@@ -438,7 +411,6 @@ export function EventComposer({
               <Label required className="text-xs">
                 Starts
               </Label>
-              {/* modal: the popover has to layer above the dialog it sits in. */}
               <DateField value={startDate} onChange={setStartDate} modal />
               <TimeField value={startTime} onChange={setStartTime} modal />
             </div>
@@ -448,8 +420,6 @@ export function EventComposer({
                 value={endDate}
                 onChange={setEndDate}
                 modal
-                // Nothing can end before it starts, so those days are simply not
-                // offered rather than rejected after the fact.
                 disabled={startDate ? (date) => date < toInstant(startDate, "00:00") : undefined}
               />
               <TimeField value={endTime} onChange={setEndTime} modal />
@@ -497,7 +467,6 @@ export function EventComposer({
   )
 }
 
-/** Escapes the characters iCalendar treats as syntax. */
 function icsEscape(value: string): string {
   return value
     .replace(/\\/g, "\\\\")
@@ -517,10 +486,7 @@ export function EventCard({ event, compact }: { event: EventCardData; compact?: 
   const start = new Date(event.startsAt)
   const end = event.endsAt ? new Date(event.endsAt) : null
 
-  /**
-   * A calendar file, built here rather than fetched: everything it needs is
-   * already on screen, so a round trip would only add a way for it to fail.
-   */
+  /** Built locally - everything it needs is already on screen. */
   function addToCalendar() {
     const lines = [
       "BEGIN:VCALENDAR",
@@ -583,8 +549,6 @@ export function EventCard({ event, compact }: { event: EventCardData; compact?: 
     </div>
   )
 }
-
-// ─── contact ────────────────────────────────────────────────────────────────
 
 interface Colleague {
   id: string
@@ -723,7 +687,6 @@ export function ContactCard({ contact, compact }: { contact: ContactCardData; co
         {contact.designation && (
           <p className="truncate text-[11px] opacity-70">{contact.designation}</p>
         )}
-        {/* Real links: a contact card you cannot act on is a screenshot. */}
         <div className="mt-1 flex flex-wrap gap-2">
           {contact.email && (
             <a
@@ -755,7 +718,6 @@ export function ContactCard({ contact, compact }: { contact: ContactCardData; co
   )
 }
 
-/** One entry point, so a bubble does not need to know which card it holds. */
 export function MessageCards({
   poll,
   event,

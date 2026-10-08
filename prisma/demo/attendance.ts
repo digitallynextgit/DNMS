@@ -1,17 +1,5 @@
-// =============================================================================
-// Attendance: device punches for everyone from the start of the month two
-// months back up to today.
-//
-// Mirrors how the app stores and reads them (features/attendance):
-//   - only days somebody actually punched have a row; weekends, holidays,
-//     leave, WFH, floating holidays and absences are DERIVED by the calendar,
-//     so no row is written for them (ctx.away says which days those are)
-//   - date = the IST day as a UTC midnight; checkIn/checkOut are real instants
-//   - workHours = decimal hours; status PRESENT (8h+), HALF_DAY (4-8h); LATE is
-//     stored for a few late arrivals (the employee dashboard counts it)
-//   - source "device" + notes "Synced from device", like the device sync
-//   - today: punched in if the time has passed, punched out only after 18:30
-// =============================================================================
+// Demo attendance: device punches from the start of the month two months back up to today. Only days with a
+// punch get a row; weekends, holidays, leave, WFH and absences are derived by the calendar (see ctx.away).
 
 import { DEMO_FORMER_PEOPLE, DEMO_PEOPLE } from "@/features/help/demo/dataset"
 import {
@@ -31,7 +19,6 @@ import { priyaAnchors } from "./timeoff"
 
 const MODULE = "Attendance"
 
-/** "HH:MM" from minutes after midnight. */
 const hhmm = (mins: number) =>
   `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`
 
@@ -53,8 +40,7 @@ export async function seedAttendance(ctx: DemoContext): Promise<void> {
   const days = workingDays(ctx, from, ctx.today)
   const nowIstMins = Math.floor(((ctx.now.getTime() + 330 * 60_000) % 86_400_000) / 60_000)
 
-  // A couple of forgotten punch-outs and one HR correction, by working-days-ago.
-  // Priya's previous-month half day and missing punch are fixed (guide shots).
+  // A few forgotten punch-outs and one HR correction, by working-days-ago. Priya's are fixed (guide shots).
   const priya = priyaAnchors(ctx)
   const forcedHalfDay = new Map([["priya", dayKey(priya.halfDay)]])
   const missingPunch = new Map([

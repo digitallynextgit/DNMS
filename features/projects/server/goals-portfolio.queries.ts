@@ -15,34 +15,13 @@ import {
   type GoalRowLite,
 } from "./goals.service"
 
-// =============================================================================
-// Goals across the whole portfolio, for the Progress page.
-//
-// The Goals tab answers "how is THIS project's plan going". This answers the
-// question a manager opens Progress to ask: "across everything I run, what did
-// we say we would achieve, and are we going to?" Tasks tell you what people are
-// doing; goals tell you whether it adds up to what was promised. The page had
-// only the first half.
-//
-// ── ONE QUERY, NOT ONE PER PROJECT ───────────────────────────────────────────
-// Every goal for every in-scope project comes back in a single findMany and is
-// grouped in memory, then each group is handed to summariseGoalRows - the exact
-// function the Goals tab uses. So the progress bar on this page and the progress
-// bar on the tab are computed by the same code from the same columns, and cannot
-// disagree. Looping getProjectGoals() would have been N round-trips AND a second
-// place for the rollup to drift.
-//
-// ── DEACTIVATED GOALS ARE OUT ────────────────────────────────────────────────
-// Always. `includeInactive` is a Goals-tab affordance for someone auditing one
-// project; a portfolio roll-up that silently included soft-deleted goals would
-// report a denominator nobody can see.
-// =============================================================================
+// Goals across the portfolio for the Progress page: one query, summarised per project with the
+// Goals tab's own summariseGoalRows so the two can't disagree. Deactivated goals are always out.
 
 export interface ProjectGoalsRow {
   projectId: string
   projectName: string
   projectCode: string
-  /** For linking straight to the project's Goals tab. */
   projectSlug: string | null
   /** 0-100, averaged over countable MAIN goals - the tab's own figure. */
   overallProgress: number
@@ -50,11 +29,7 @@ export interface ProjectGoalsRow {
   doneGoals: number
   overdueGoals: number
   atRiskGoals: number
-  /**
-   * Behind where the calendar says they should be, without anyone having said
-   * so. The early half of `overdueGoals`: by the time a goal is overdue the
-   * conversation about it is already late.
-   */
+  /** Behind schedule but not yet overdue - the early warning. */
   slippingGoals: number
   discardedGoals: number
   nextTargetDate: string | null
@@ -67,14 +42,13 @@ export interface GoalsPortfolio {
   totals: {
     /** Projects that actually have goals - the ones the percentages describe. */
     projectsWithGoals: number
-    /** In scope but with no goals set at all. Worth naming: a project with no
-     *  stated goal is not a project at 0%, it is a project nobody has aimed. */
+    /** In scope but no goals set: unaimed, not 0%. */
     projectsWithoutGoals: number
     totalGoals: number
     doneGoals: number
     overdueGoals: number
     atRiskGoals: number
-    /** Averaged over PROJECTS, not goals - see the note in the code. */
+    /** Averaged over projects, not goals. */
     overallProgress: number
     nextTargetDate: string | null
   }
@@ -82,15 +56,7 @@ export interface GoalsPortfolio {
   allTags: string[]
 }
 
-/**
- * Which projects this person may see goals for.
- *
- * Mirrors canAccessProject (features/projects/server/project-access.ts) applied
- * across the whole table rather than to one id: the global readers see
- * everything, everyone else sees what they own or sit on a team for. Kept in
- * step with that function deliberately - a goal visible here but 403 when opened
- * is worse than one that never appeared.
- */
+/** Mirrors canAccessProject across the table - keep in step, or a listed goal 403s when opened. */
 function scopeWhere(session: Session) {
   if (
     hasPermission(session, PERMISSIONS.PROJECT_READ) ||
@@ -138,8 +104,7 @@ export async function getGoalsPortfolio(
   const rows = await db.projectGoal.findMany({
     where: { projectId: { in: projects.map((p) => p.id) }, isActive: true },
     orderBy: GOAL_ORDER,
-    // LITE: no event history. Nothing on the Progress page renders it, and it
-    // is `take: 25` per goal - the largest thing in this payload by far.
+    // LITE: no event history (nothing here renders it, and it is the bulk of the payload).
     select: { ...GOAL_SELECT_LITE, projectId: true },
   })
 
@@ -150,14 +115,10 @@ export async function getGoalsPortfolio(
     else byProject.set(r.projectId, [r])
   }
 
-  // One `today` for the whole sweep: computing it per project would let the date
-  // roll over mid-loop and mark one project's goal overdue and another's not.
+  // One `today` for the whole sweep so the date can't roll over mid-loop.
   const today = todayUtc()
 
-  // ONE query for every project's output, not one per project. The map is keyed
-  // by goal id, so handing the same one to each group is safe - a project's
-  // summariser only ever looks up its own goals' ids. Costs nothing when no
-  // goal anywhere in scope carries a target.
+  // One query for every project's output; each summariser only reads its own goals' ids.
   const outputs = await loadGoalOutputs(
     projects.map((p) => p.id),
     targetTypeKeys(rows),
@@ -175,12 +136,9 @@ export async function getGoalsPortfolio(
       totalGoals: summary.totalGoals,
       doneGoals: summary.doneGoals,
       overdueGoals: summary.overdueGoals,
-      // Main goals only, matching totalGoals - a portfolio row that counted
-      // at-risk sub-goals against a denominator of main goals could report
-      // "5 at risk of 3".
+      // Main goals only, matching totalGoals (else "5 at risk of 3").
       atRiskGoals: summary.goals.filter((g) => g.status === "AT_RISK").length,
-      // Flat, sub-goals included: unlike "at risk" this is not compared against
-      // a denominator of main goals, it is a count of rows worth looking at.
+      // Includes sub-goals: a count of rows to look at, not compared against main goals.
       slippingGoals: summary.slippingGoals,
       discardedGoals: summary.discardedGoals,
       nextTargetDate: summary.nextTargetDate,
@@ -188,8 +146,7 @@ export async function getGoalsPortfolio(
     })
   }
 
-  // Busiest and most at-risk first: the row you need is the one in trouble, not
-  // the one that sorts first alphabetically.
+  // Busiest and most at-risk first.
   out.sort(
     (a, b) =>
       b.overdueGoals - a.overdueGoals ||
@@ -219,11 +176,7 @@ export async function getGoalsPortfolio(
       doneGoals: out.reduce((s, p) => s + p.doneGoals, 0),
       overdueGoals: out.reduce((s, p) => s + p.overdueGoals, 0),
       atRiskGoals: out.reduce((s, p) => s + p.atRiskGoals, 0),
-      // Averaged over PROJECTS rather than pooling every goal, so an account
-      // with twenty goals cannot drown out one with three. The question this
-      // page asks is "how are my projects doing", and each project is one
-      // answer. Projects with NO goals are excluded from the denominator - they
-      // are unaimed, not failing, and counting them as 0% would say otherwise.
+      // Per-project average so big accounts don't drown small ones; goal-less projects are excluded.
       overallProgress:
         withGoals.length === 0
           ? 0

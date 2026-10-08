@@ -24,11 +24,7 @@ export interface TaskStatusPayload {
   discardReason?: string
 }
 
-/**
- * Collects the required context when a task moves to On Hold (reason + expected
- * completion date) or Discarded (reason). Shared by the status dropdown and the
- * kanban drag-drop. `mode` opens it; `onConfirm` returns the full status payload.
- */
+/** Collects the reason (plus expected completion date for On Hold) when a task moves to On Hold or Discarded. */
 export function TaskStatusReasonDialog({
   mode,
   onOpenChange,
@@ -41,8 +37,7 @@ export function TaskStatusReasonDialog({
   const [reason, setReason] = React.useState("")
   const [date, setDate] = React.useState("")
 
-  // Midnight today, so "before today" excludes past days without excluding today
-  // itself. Memoised: a fresh Date each render would remount the calendar.
+  // Midnight today. Memoised: a fresh Date each render would remount the calendar.
   const today = React.useMemo(() => {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
@@ -54,12 +49,14 @@ export function TaskStatusReasonDialog({
     return d
   }, [today])
 
-  React.useEffect(() => {
+  const [prevMode, setPrevMode] = React.useState(mode)
+  if (mode !== prevMode) {
+    setPrevMode(mode)
     if (mode) {
       setReason("")
       setDate("")
     }
-  }, [mode])
+  }
 
   const canConfirm = mode === "ON_HOLD" ? !!reason.trim() && !!date : !!reason.trim()
 
@@ -103,8 +100,6 @@ export function TaskStatusReasonDialog({
               <Label required className="text-sm">
                 Expected completion date
               </Label>
-              {/* A date the work is expected to be finished by can only be in
-                  the future, so past days are not selectable. */}
               <DateField
                 value={date}
                 onChange={setDate}

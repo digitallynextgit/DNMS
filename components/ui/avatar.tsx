@@ -34,9 +34,7 @@ const AvatarFallback = React.forwardRef<
   <AvatarPrimitive.Fallback
     ref={ref}
     className={cn(
-      // leading-none is load-bearing: without it the fallback keeps text-sm's
-      // 20px line-height, which in an h-5 (20px) avatar makes the glyph box
-      // exactly fill the container - the initials then sit ON the border.
+      // leading-none is load-bearing: without it, initials sit on the border of small avatars.
       "bg-muted flex h-full w-full items-center justify-center rounded-sm text-sm leading-none font-medium tracking-tight select-none",
       className,
     )}

@@ -3,11 +3,7 @@ import { auth } from "@/server/auth"
 import { listClientGrants } from "@/server/client-guard"
 import { moduleByKey } from "@/features/client-portal"
 
-/**
- * A project has no landing page of its own - it opens on the first section the
- * client's grant allows. Which section that is therefore differs per client on
- * the same project, which is the point.
- */
+/** No landing page: opens on the first section the client's grant allows. */
 export default async function PortalProjectPage({
   params,
 }: {

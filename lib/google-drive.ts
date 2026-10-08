@@ -6,17 +6,9 @@ import { getConfig } from "@/server/app-config"
 import { currentTenant } from "@/server/tenant-context"
 import { FOUNDING_TENANT_ID } from "@/lib/tenant-url"
 
-// =============================================================================
-// Google Drive client (service account -> a company Shared Drive).
-//
-// Files live in a Shared Drive owned by the org, so they survive people leaving
-// and don't count against any one person's quota. The service account is a member
-// (Content Manager) of that Shared Drive. Credentials resolve from config (DB) ->
-// env, so nothing is hard-coded:
-//   GOOGLE_DRIVE_CREDENTIALS      - the service-account JSON, inline (use in prod)
-//   GOOGLE_DRIVE_KEY_FILE         - OR a path to that JSON (handy in dev)
-//   GOOGLE_DRIVE_SHARED_DRIVE_ID  - the Shared Drive id
-// =============================================================================
+// Google Drive via a service account (Content Manager) on the company Shared Drive, so files outlive
+// people. Config (DB -> env): GOOGLE_DRIVE_CREDENTIALS (inline JSON) or GOOGLE_DRIVE_KEY_FILE, plus
+// GOOGLE_DRIVE_SHARED_DRIVE_ID.
 
 export const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
 
@@ -45,12 +37,8 @@ async function readCredentials(): Promise<{ client_email: string; private_key: s
 }
 
 /**
- * The Shared Drive and its credentials are platform-wide settings (AppSetting
- * has no tenantId), so they belong to the founding tenant - the same rule
- * assertPlatformScope applies to the Integrations page. Any other company gets
- * no Drive: otherwise just opening one of its projects' Repository tab would
- * create a folder in Digitally Next's Drive and share it with that company's
- * people. No tenant context (a platform job) counts as the founding tenant.
+ * Drive settings are platform-wide, so only the founding tenant (or a platform job) gets Drive.
+ * Otherwise another company's Repository tab would create folders in Digitally Next's Drive.
  */
 function driveAllowedHere(): boolean {
   const tenant = currentTenant()
@@ -82,7 +70,7 @@ async function getDrive(): Promise<{ drive: drive_v3.Drive; sharedDriveId: strin
   return cached
 }
 
-// Shared-drive calls all need these flags, so wrap them once.
+// Every Shared Drive call needs this flag.
 const SD = { supportsAllDrives: true } as const
 const SD_LIST = { supportsAllDrives: true, includeItemsFromAllDrives: true } as const
 
@@ -93,12 +81,11 @@ export interface DriveFile {
   size: number | null
   webViewLink: string | null
   iconLink: string | null
-  /** Short-lived preview image (Drive only); the Repository card grid uses it. */
+  /** Short-lived preview image. */
   thumbnailLink: string | null
   modifiedTime: string | null
-  /** Display name of whoever last touched it in Drive; the Files tab's "Added by". */
   modifiedBy: string | null
-  /** The containing folder (Drive files have exactly one parent inside a Shared Drive). */
+  /** Exactly one parent inside a Shared Drive. */
   parentId: string | null
   isFolder: boolean
 }
@@ -122,20 +109,12 @@ function toFile(f: drive_v3.Schema$File): DriveFile {
 const FILE_FIELDS =
   "id,name,mimeType,size,webViewLink,iconLink,thumbnailLink,modifiedTime,parents,lastModifyingUser(displayName)"
 
-// In-process guard: two requests for the same project (e.g. two members opening the
-// Files tab at once) must not each create a folder. They share one in-flight promise.
+// So concurrent calls for one project share a single folder creation.
 const ensureLocks = new Map<string, Promise<DriveFile>>()
 
 /**
- * Find the folder tagged with this projectId (via appProperties), or create it.
- * Using appProperties means the project<->folder link lives in Drive itself, so no
- * new DB column is needed.
- *
- * Two guards against duplicates, because Drive's `files.list` is EVENTUALLY
- * CONSISTENT (a just-created folder isn't instantly findable by search):
- *   1. an in-process lock so concurrent calls share one creation, and
- *   2. self-healing on read - if more than one folder is found for a project, the
- *      OLDEST is kept and the rest are trashed, so any past duplicate converges.
+ * Find the folder tagged with this projectId (appProperties) or create it. files.list is eventually
+ * consistent, so duplicates are also healed on read: the oldest is kept, the rest trashed.
  */
 export async function ensureFolderForProject(
   projectId: string,
@@ -156,7 +135,6 @@ export async function ensureFolderForProject(
     })
     const files = found.data.files ?? []
     if (files.length > 0) {
-      // Self-heal: trash any duplicate folders (keep the oldest).
       for (const dup of files.slice(1)) {
         await drive.files
           .update({ fileId: dup.id!, ...SD, requestBody: { trashed: true } })
@@ -186,7 +164,7 @@ export async function ensureFolderForProject(
   }
 }
 
-/** Files inside a folder (non-recursive), folders first then by modified. */
+/** Non-recursive; folders first, then by modified. */
 export async function listFolder(folderId: string): Promise<DriveFile[]> {
   const { drive, sharedDriveId } = await getDrive()
   const res = await drive.files.list({
@@ -218,7 +196,6 @@ export async function uploadToFolder(
   return toFile(res.data)
 }
 
-/** Create a blank Google Doc or Sheet in the folder. */
 export async function createGoogleFile(
   folderId: string,
   name: string,
@@ -237,23 +214,19 @@ export async function createGoogleFile(
   return toFile(res.data)
 }
 
-/**
- * Export a Google-native file (Sheet/Doc/Slides) in another format - e.g. a
- * Google Sheet as .xlsx, which keeps every tab. Drive caps exports at 10 MB.
- */
+/** Export a Google-native file (e.g. a Sheet as .xlsx, keeping every tab). Drive caps exports at 10 MB. */
 export async function exportDriveFile(fileId: string, mimeType: string): Promise<Buffer> {
   const { drive } = await getDrive()
   const res = await drive.files.export({ fileId, mimeType }, { responseType: "arraybuffer" })
   return Buffer.from(res.data as ArrayBuffer)
 }
 
-/** Trash a file/folder (Content Manager can trash; hard-delete needs Manager). */
+/** Trash only: a Content Manager can't hard-delete. */
 export async function trashDriveFile(fileId: string): Promise<void> {
   const { drive } = await getDrive()
   await drive.files.update({ fileId, ...SD, requestBody: { trashed: true } })
 }
 
-/** Create a sub-folder inside `parentId`. */
 export async function createDriveFolder(parentId: string, name: string): Promise<DriveFile> {
   const { drive } = await getDrive()
   const res = await drive.files.create({
@@ -292,7 +265,7 @@ export async function moveDriveFile(
   return toFile(res.data)
 }
 
-/** One file's metadata, or null when it is gone/trashed/not visible. */
+/** Null when gone, trashed or not visible. */
 export async function getDriveFile(fileId: string): Promise<DriveFile | null> {
   const { drive } = await getDrive()
   try {
@@ -308,10 +281,8 @@ export async function getDriveFile(fileId: string): Promise<DriveFile | null> {
 }
 
 /**
- * Is `fileId` somewhere under `rootId` (any depth)? Walks up the parent chain.
- * This is the ownership check behind every write to a Drive file: the service
- * account can see every project's folder, so without it a member of one
- * project could rename/move/trash another project's files by id (SEC-07).
+ * Ownership check behind every Drive write: the service account sees every project, so without it
+ * one project's member could edit another project's files by id.
  */
 export async function isUnderFolder(fileId: string, rootId: string): Promise<boolean> {
   if (fileId === rootId) return true
@@ -324,8 +295,6 @@ export async function isUnderFolder(fileId: string, rootId: string): Promise<boo
   }
   return false
 }
-
-// ── Per-file permission sync (item-level sharing inside the Shared Drive) ──────
 
 export interface DrivePermission {
   id: string
@@ -368,15 +337,7 @@ export async function revokeAccess(fileId: string, permissionId: string): Promis
   await drive.permissions.delete({ fileId, permissionId, ...SD })
 }
 
-/**
- * Withdraw any "anyone with the link" access a file has.
- *
- * This Workspace refuses to CREATE such a permission (publishOutNotPermitted),
- * so the app never grants one - but a person can still publish a file by hand
- * from Drive's own UI on a Workspace where it is allowed. Deleting our row must
- * not leave that behind, so the delete path clears it either way. A no-op when
- * there is nothing to revoke.
- */
+/** Remove any "anyone with the link" permission someone added by hand in Drive. No-op if none. */
 export async function revokeAnyoneAccess(fileId: string): Promise<void> {
   const { drive } = await getDrive()
   const perms = await listPermissions(fileId)
@@ -384,8 +345,6 @@ export async function revokeAnyoneAccess(fileId: string): Promise<void> {
     await drive.permissions.delete({ fileId, permissionId: p.id, ...SD }).catch(() => {})
   }
 }
-
-// ── Streaming (what the public share route serves) ────────────────────────────
 
 export interface DriveStream {
   /** 200, or 206 when the caller sent a Range header Drive honoured. */
@@ -397,15 +356,7 @@ export interface DriveStream {
   contentRange: string | null
 }
 
-/**
- * Read a file's bytes through the service account.
- *
- * `range` is passed straight through to Drive rather than being parsed here, and
- * Drive's own status and Content-Range come straight back. That is deliberate:
- * a <video> element seeks by asking for byte ranges, so mishandling this gives a
- * clip that plays from the start and refuses to scrub. Letting Drive do the
- * arithmetic keeps the semantics exactly right.
- */
+/** `range` passes straight to Drive and its status/Content-Range come straight back, so <video> seeking works. */
 export async function streamDriveFile(fileId: string, range?: string | null): Promise<DriveStream> {
   const { drive } = await getDrive()
   const res = await drive.files.get(
@@ -422,14 +373,8 @@ export async function streamDriveFile(fileId: string, range?: string | null): Pr
 }
 
 /**
- * Read one response header from whatever googleapis hands back.
- *
- * It returns a Headers-LIKE object: its constructor is named `Headers` but it is
- * not an instance of the global one, and indexing it (`h["content-range"]`)
- * yields undefined while `.get()` works. Reading it the obvious way therefore
- * fails SILENTLY - the stream still plays, the 206 is still correct, and only
- * seeking is dead, because Content-Range never reaches the browser. Older
- * versions did hand back a plain object, so try both.
+ * googleapis returns a Headers-like object: indexing gives undefined but .get() works (older versions
+ * gave a plain object), so try both. Getting this wrong silently breaks video seeking.
  */
 function header(h: unknown, name: string): string | null {
   if (h && typeof (h as Headers).get === "function") {

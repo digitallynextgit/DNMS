@@ -3,22 +3,9 @@ import "server-only"
 import { readFileSync } from "fs"
 import { getConfig } from "@/server/app-config"
 
-// =============================================================================
-// One place that answers "which Google service account do we authenticate as?"
-//
-// Resolution order for a purpose (GSC, GA4):
-//   1. <PURPOSE>_CREDENTIALS   - inline service-account JSON
-//   2. <PURPOSE>_KEY_FILE      - path to that JSON
-//   3. GOOGLE_DRIVE_CREDENTIALS / GOOGLE_DRIVE_KEY_FILE
-//
-// The Drive fallback exists because the SAME service account can be granted on
-// Search Console properties and GA4 properties - one credential to manage
-// instead of three. Set a purpose-specific key only when that product lives in
-// a different Cloud project.
-//
-// Whichever account ends up being used must have (a) the relevant API enabled
-// on ITS OWN Cloud project and (b) access granted on each property.
-// =============================================================================
+// Service account per purpose: <PURPOSE>_CREDENTIALS (inline JSON), then <PURPOSE>_KEY_FILE, then the
+// Drive credentials (one account can be granted on GSC and GA4 too). The account needs the API
+// enabled on its own Cloud project and access on each property.
 
 export type GooglePurpose = "GSC" | "GA4"
 
@@ -71,7 +58,6 @@ export async function readGoogleCredentials(
   return null
 }
 
-/** The service-account email to grant access to, or null if none is configured. */
 export async function googleServiceAccountEmail(purpose: GooglePurpose): Promise<string | null> {
   return (await readGoogleCredentials(purpose))?.client_email ?? null
 }

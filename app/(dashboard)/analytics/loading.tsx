@@ -1,9 +1,6 @@
 import { PageHeaderSkeleton, CardGridSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Analytics: header + stat cards + a tall chart area. Section-level so a slow
-// analytics query skeletons THIS page instead of blanking the whole shell via
-// the group-level fallback.
 export default function AnalyticsLoading() {
   return (
     <div className="space-y-8">

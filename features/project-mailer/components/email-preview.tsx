@@ -1,17 +1,6 @@
 "use client"
 
-// =============================================================================
-// Live preview
-// =============================================================================
-// Renders inside a SANDBOXED IFRAME, for two reasons:
-//
-//   1. Honesty. The app's CSS reset and Tailwind base styles would restyle the
-//      email, so a preview rendered inline in the page would look nothing like
-//      what lands in an inbox. The iframe starts from the browser's own
-//      defaults, which is much closer to what a mail client does.
-//   2. Containment. Template bodies are hand-written HTML. `sandbox` with no
-//      allow-scripts means nothing in a body can run script or reach the app.
-// =============================================================================
+// Rendered in a sandboxed iframe: app CSS can't restyle the email, and body HTML can't run script.
 
 import * as React from "react"
 import { Eye } from "lucide-react"
@@ -40,15 +29,10 @@ export function EmailPreview({
     const used = extractVars(subject, bodyHtml)
     const vars = previewVars(used, overrides)
 
-    // Anything the preview can only show as a placeholder is a variable the list
-    // may not carry - worth flagging before 2,000 people get a blank.
+    // Placeholder values mark variables the list may not carry - flag them before sending.
     const unresolved = used.filter((k) => vars[k] === `[${k}]`)
 
-    // The SAME normalisation the sender applies, rather than a stylesheet rule.
-    // This used to carry `img { max-width:100% }` below, which quietly made every
-    // preview look correct while the delivered mail overflowed: no mail client
-    // applies our stylesheet, so the preview was showing a layout that only ever
-    // existed here. Anything that shapes the email must happen to the HTML itself.
+    // The same normalisation the sender applies - mail clients never see our stylesheet.
     const body = makeImagesResponsive(renderMerge(bodyHtml, vars))
     const doc = `<!doctype html><html><head><meta charset="utf-8">
 <style>
@@ -77,8 +61,7 @@ export function EmailPreview({
         <p className="truncate text-xs font-medium">{renderedSubject || "(no subject)"}</p>
       </div>
 
-      {/* Emails render at ~600px; a full-width preview would flatter a layout
-          that breaks in a real client. */}
+      {/* Emails render at ~600px; a full-width preview would flatter the layout. */}
       <iframe
         title="Email preview"
         srcDoc={srcDoc}

@@ -1,19 +1,13 @@
 /** Where a referred candidate has got to. Mirrors CareerApplicationStatus. */
 export type ReferralStage = "RECEIVED" | "IN_REVIEW" | "SHORTLISTED" | "REJECTED" | "HIRED"
 
-/**
- * The reward's own lifecycle, derived rather than stored - the inputs (hire
- * link, joining date, payout stamp) already say everything, and a stored status
- * would be one more thing that can disagree with them.
- */
+/** The reward's lifecycle - derived from hire link, joining date and payout, never stored. */
 export type RewardState =
-  /** Not hired (yet). Nothing is owed. */
   | "none"
   /** Hired, but the one-year mark has not arrived. */
   | "pending"
   /** One year served - the referrer is owed the reward. */
   | "due"
-  /** Paid out. */
   | "paid"
 
 export interface ReferralRow {

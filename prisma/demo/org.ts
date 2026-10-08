@@ -1,8 +1,5 @@
-// =============================================================================
-// Organisation: departments (with sub-departments), designations, job roles,
-// the people from features/help/demo/dataset.ts, their roles, and the platform
-// identities + memberships that let each of them sign in.
-// =============================================================================
+// Demo organisation: departments, designations, job roles, the people from features/help/demo/dataset.ts,
+// their roles, and the users + memberships that let them sign in.
 
 import { db } from "@/server/db"
 import { provisionIdentity } from "@/server/identity"
@@ -113,9 +110,7 @@ const PROFILE: Record<
   rohan: { dob: [1990, 6, 21], blood: "A+", city: "Gurugram", area: "Sushant Lok 1" },
   priya: { dob: [1997, 12, 9], blood: "B+", city: "Gurugram", area: "Sector 56" },
   karthik: { dob: [1993, 1, 30], blood: "O-", city: "Gurugram", area: "Sohna Road" },
-  // Two birthdays in the coming days (never today - a birthday is a day off
-  // on the attendance calendar), so the dashboard and the birthdays calendar
-  // always have something to celebrate whenever the seed is run.
+  // Two birthdays in the coming days (never today: a birthday is a day off), so the birthday widgets always show one.
   ananya: { dob: { inDays: 9 }, blood: "AB+", city: "New Delhi", area: "Lajpat Nagar" },
   vikram: { dob: [1994, 8, 17], blood: "B-", city: "Noida", area: "Sector 62" },
   sneha: { dob: { inDays: 2 }, blood: "O+", city: "Gurugram", area: "Sector 45" },
@@ -164,7 +159,6 @@ export async function seedOrganisation(
   ctx: DemoContext,
   opts: { passwordHash: string; adminEmployeeId: string },
 ): Promise<void> {
-  // ── departments, parents first ─────────────────────────────────────────────
   for (const d of DEMO_DEPARTMENTS) {
     ctx.dept[d.name] = await make(ctx, "department", {
       name: d.name,
@@ -175,7 +169,6 @@ export async function seedOrganisation(
   }
   ctx.summary.add(MODULE, "departments (incl. sub-departments)", DEMO_DEPARTMENTS.length)
 
-  // ── designations + job roles ───────────────────────────────────────────────
   const designationId: Record<string, string> = {}
   for (const [title, grade] of Object.entries(DESIGNATION_GRADES)) {
     designationId[title] = await make(ctx, "designation", {
@@ -211,10 +204,8 @@ export async function seedOrganisation(
   }
   ctx.summary.add(MODULE, "job roles", Object.keys(jobRoleId).length)
 
-  // ── people ─────────────────────────────────────────────────────────────────
-  // Managers before reports, so managerId always points at a row that exists.
-  // Current staff, then the one who has left (GUIDE REQUIREMENT, analytics:
-  // the status chart needs more than "Active").
+  // Managers before reports, so managerId always points at an existing row. The one leaver gives the status
+  // chart more than "Active" (guide requirement).
   const everyone: (DemoPerson | DemoFormerPerson)[] = [...DEMO_PEOPLE, ...DEMO_FORMER_PEOPLE]
   const ordered: (DemoPerson | DemoFormerPerson)[] = []
   const placed = new Set<string>()
@@ -237,8 +228,7 @@ export async function seedOrganisation(
     const lastDay = former ? joiningDate(ctx, former.leftDaysAgo) : null
     if (former && lastDay) ctx.ref[`left:${p.key}`] = dayKey(lastDay)
     const age = 24 + ((p.monthlyGross / 10000) | 0) // older for senior people, roughly
-    // Three months for this year's hires, six for everyone else; only Rahul is
-    // still on probation.
+    // Three months for this year's hires, six for everyone else; only Rahul is still on probation.
     const probation = p.joinedDaysAgo < 200 ? 3 : 6
     const onProbation = p.joinedDaysAgo < 91
     const phone = `+91 98765 43${String(phoneSeq++).padStart(3, "0")}`
@@ -278,8 +268,7 @@ export async function seedOrganisation(
       status: former ? former.exitStatus : ("ACTIVE" as const),
       resignationDate: lastDay ? addDays(lastDay, -30) : null,
       lastWorkingDate: lastDay,
-      // Biometric code on the attendance device. Rahul is not enrolled yet, so
-      // "Sync by employee" shows him as "No code".
+      // Biometric code on the device. Rahul is not enrolled, so "Sync by employee" shows "No code".
       deviceId: p.key === "rahul" ? null : String(100 + Number(p.employeeNo.slice(2))),
       dateOfJoining: joined,
       onProbation,
@@ -290,8 +279,7 @@ export async function seedOrganisation(
       passwordHash: opts.passwordHash,
       mustChangePassword: false,
       isActive: !former,
-      // The record was created the day they joined, so "new hires this month"
-      // and the six-month hire trend (both read createdAt) tell the truth.
+      // Created the day they joined, so the hire stats (which read createdAt) are right.
       createdAt: at(joined, "10:00"),
     }
 
@@ -319,9 +307,7 @@ export async function seedOrganisation(
       await db.membership.updateMany({ where: { employeeId: id }, data: { isActive: false } })
   }
 
-  // The platform `users` rows outlive the tenant (they are platform-level), so a
-  // re-run keeps the old credential unless it is reset here - and DEMO_PASSWORD
-  // may have changed since. Only demo-domain addresses, checked above.
+  // Platform `users` rows outlive the tenant, so reset demo-domain credentials or a re-run keeps the old one.
   const emails = DEMO_PEOPLE.map((p) => p.email.toLowerCase())
   if (!emails.every(isDemoEmail)) throw new Error("Refusing to touch non-demo users")
   await db.user.updateMany({

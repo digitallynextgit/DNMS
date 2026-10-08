@@ -183,7 +183,6 @@ export function useDeleteStockIssue() {
   })
 }
 
-/** One register row in the sheet-shaped matrix view. */
 export interface StockMatrixRow {
   key: string
   holderName: string
@@ -215,7 +214,6 @@ export function useStockMatrix(filters: {
   })
 }
 
-/** Save one edited matrix row (holder, date, link, quantity per item). */
 export function useUpdateRegisterRow() {
   const invalidate = useInvalidateStock()
   return useMutation({
@@ -234,7 +232,6 @@ export function useUpdateRegisterRow() {
   })
 }
 
-/** One request for the selection bar: link/unlink/delete many entries at once. */
 export function useBulkStockIssues() {
   const invalidate = useInvalidateStock()
   return useMutation({

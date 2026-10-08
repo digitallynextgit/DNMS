@@ -13,9 +13,7 @@ interface FooterColumn {
   links: FooterLinkItem[]
 }
 
-// "Explore" is deliberately absent: Platform / Modules / Benefits are in-page
-// anchors that only resolve on the homepage, and the header nav already carries
-// them.
+// No "Explore" column: those are homepage-only anchors, already in the header nav.
 const COLUMNS: FooterColumn[] = [
   {
     title: "Company",
@@ -29,8 +27,7 @@ const COLUMNS: FooterColumn[] = [
   },
   {
     title: "Legal",
-    // Sourced from LEGAL_INDEX so a new document appears here automatically
-    // rather than existing at a URL nothing links to.
+    // From LEGAL_INDEX, so new documents are linked automatically.
     links: LEGAL_INDEX.map((d) => ({ href: `/legal/${d.slug}`, label: d.title })),
   },
   {
@@ -64,16 +61,13 @@ function FooterLink({ href, label }: FooterLinkItem) {
   )
 }
 
-/** Informational footer: brand blurb + grouped link columns. */
 export function MarketingFooter() {
   return (
     <footer className="border-border/60 relative border-t">
       <div className="mx-auto flex max-w-[1600px] flex-col gap-10 px-4 py-12 lg:flex-row lg:items-start lg:justify-between lg:px-6">
-        {/* Brand */}
         <div className="max-w-sm">
           <Link href="/" className="inline-flex items-center gap-2" aria-label={siteConfig.name}>
-            {/* Dark logo only - the marketing site is forced-dark, see the
-                same change in marketing-header.tsx. */}
+            {/* Dark logo only - the marketing site is forced-dark. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/logo_dark_bg-96.webp"
@@ -102,7 +96,6 @@ export function MarketingFooter() {
           </p>
         </div>
 
-        {/* Link columns */}
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:gap-16">
           {COLUMNS.map((col) => (
             <div key={col.title}>
@@ -121,9 +114,6 @@ export function MarketingFooter() {
         </div>
       </div>
 
-      {/* Copyright only, centred. The legal documents are listed once, in the
-          "Legal" column above - repeating them down here made the bar busy and
-          told nobody anything new. */}
       <div className="border-border/60 text-muted-foreground border-t py-5 text-center text-xs">
         <p>
           © {new Date().getFullYear()} {siteConfig.legal.entity}. All rights reserved.

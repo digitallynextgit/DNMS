@@ -1,10 +1,4 @@
-// =============================================================================
-// The working week, counted one way.
-//
-// Which Monday, which days count, and how many hours were available - shared by
-// the allocation sheet and the weekly hours roll-up so the two can never
-// disagree about what week you are looking at.
-// =============================================================================
+// Shared by the allocation sheet and the weekly hours roll-up so they agree on the week.
 
 /** Local calendar day, e.g. "2026-08-03". Never an ISO instant - a week is days. */
 export function toDayKey(d: Date): string {
@@ -36,7 +30,6 @@ export function weekdaysFrom(monday: Date): Date[] {
   return Array.from({ length: 5 }, (_, i) => addDays(monday, i))
 }
 
-/** Why a day did not count towards capacity, or null when it did. */
 export type DayOff = "leave" | "holiday" | null
 
 export interface DayCapacity {
@@ -52,16 +45,8 @@ export interface WeekCapacity {
 }
 
 /**
- * What one person could have worked this week.
- *
- * Approved leave and company holidays remove a day each; everything else is a
- * full day at the policy's hours. Deliberately whole days: leave is recorded as
- * whole days, so pretending to half-day precision here would be inventing
- * detail the source does not have.
- *
- * A holiday falling on a day already taken as leave counts ONCE - the day is
- * simply not available, and subtracting it twice would understate capacity and
- * inflate everyone's utilisation.
+ * What one person could have worked this week. Leave and holidays remove whole days (leave is
+ * recorded in whole days); a holiday on a leave day counts once.
  */
 export function weekCapacity(args: {
   monday: Date
@@ -81,11 +66,7 @@ export function weekCapacity(args: {
   return { days, available: days.reduce((sum, d) => sum + d.hours, 0) }
 }
 
-/**
- * Logged over available, as a percentage - or null when there was nothing to be
- * available for. A full week of leave means "no expectation", not 0%, and a
- * zero there reads as a failure rather than as time off.
- */
+/** Logged / available as a %, or null when nothing was available (a week of leave isn't 0%). */
 export function utilisation(logged: number, available: number): number | null {
   if (available <= 0) return null
   return Math.round((logged / available) * 100)

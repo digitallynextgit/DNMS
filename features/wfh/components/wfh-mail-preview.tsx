@@ -8,20 +8,12 @@ import { apiFetch } from "@/lib/api-fetch"
 import { MailSignature, type MailSignatureData } from "@/components/shared/mail-signature"
 
 interface PreviewData {
-  /** The manager the letter is addressed to (null when nobody is set up). */
   to: { name: string; email: string } | null
-  /** The HR mailbox on Cc, or null. */
   ccHr: string | null
-  /** The applicant's email signature block (same source the real email uses). */
   signature: MailSignatureData | null
 }
 
-/**
- * A live, EDITABLE preview of the WFH letter - the twin of LeaveMailPreview.
- * The envelope (To/Cc) and signature are structural and read-only; the subject
- * and letter body are editable, and whatever they hold is exactly what gets
- * emailed (reported up via the callbacks, sent verbatim by the server).
- */
+/** Editable WFH letter preview (twin of LeaveMailPreview); the subject and body are sent verbatim. */
 export function WfhMailPreview({
   date,
   endDate,
@@ -32,18 +24,15 @@ export function WfhMailPreview({
   onBodyChange,
   onSubjectChange,
 }: {
-  /** "yyyy-MM-dd" - first day of the range. */
+  /** "yyyy-MM-dd" */
   date: string
-  /** "yyyy-MM-dd" - last day; equal to `date` for a single-day request. */
+  /** "yyyy-MM-dd"; equal to `date` for a single day. */
   endDate?: string
-  /** Working days the range covers (weekends/holidays inside it are skipped). */
   totalDays?: number
   reason: string
   isEmergency: boolean
   applicantName: string
-  /** Called with the current letter body (composed default, or the edited text). */
   onBodyChange?: (body: string) => void
-  /** Called with the current subject line. */
   onSubjectChange?: (subject: string) => void
 }) {
   const { data, isLoading } = useQuery({
@@ -52,16 +41,14 @@ export function WfhMailPreview({
     staleTime: 5 * 60_000,
   })
 
-  // Parse as a plain local date - `new Date("2026-08-24")` is UTC midnight, which
-  // renders as the previous day for anyone behind UTC.
+  // Parse as a local date: `new Date("2026-08-24")` is UTC midnight, the previous day behind UTC.
   const toLongDay = (value: string): string | null => {
     const [y, m, d] = value.split("-").map(Number)
     if (!y || !m || !d) return null
     return new Date(y, m - 1, d).toDateString()
   }
 
-  // One phrase for the whole request, so the subject and the letter always
-  // describe the same stretch of days. Mirrors renderWfhRequestEmail().
+  // Mirrors renderWfhRequestEmail().
   const { dateLine, whenPhrase } = useMemo(() => {
     const start = date ? toLongDay(date) : null
     if (!start) return { dateLine: "-", whenPhrase: "on -" }
@@ -76,7 +63,6 @@ export function WfhMailPreview({
 
   const managerFirst = data?.to?.name.split(" ")[0] ?? "Manager"
 
-  // The default letter the employee starts from (matches renderWfhRequestEmail).
   const composed = useMemo(() => {
     const reasonLine =
       reason.trim() || "I have submitted this request in Digitally Next for your consideration."
@@ -108,16 +94,23 @@ export function WfhMailPreview({
   const [subject, setSubject] = useState(composedSubject)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
 
-  // The form (date, reason, emergency) always regenerates the letter, so a reason
-  // edited AFTER touching the letter still flows in - manual letter tweaks simply
-  // persist until the next form change.
-  useEffect(() => {
+  // Form changes always regenerate the letter; manual tweaks last until the next form change.
+  const [prevComposed, setPrevComposed] = useState(composed)
+  if (composed !== prevComposed) {
+    setPrevComposed(composed)
     setBody(composed)
+  }
+  const [prevSubject, setPrevSubject] = useState(composedSubject)
+  if (composedSubject !== prevSubject) {
+    setPrevSubject(composedSubject)
+    setSubject(composedSubject)
+  }
+
+  useEffect(() => {
     onBodyChange?.(composed)
   }, [composed, onBodyChange])
 
   useEffect(() => {
-    setSubject(composedSubject)
     onSubjectChange?.(composedSubject)
   }, [composedSubject, onSubjectChange])
 
@@ -146,8 +139,6 @@ export function WfhMailPreview({
           </div>
         ) : (
           <>
-            {/* Envelope. To/Cc are read-only; Subject is editable. A shared grid
-                keeps all three VALUES aligned on the same left edge. */}
             <div className="space-y-1 border-b pb-2 text-[11px]">
               <div className="grid grid-cols-[3.25rem_1fr] items-center gap-1">
                 <span className="text-muted-foreground">To:</span>
@@ -163,8 +154,6 @@ export function WfhMailPreview({
               )}
               <div className="grid grid-cols-[3.25rem_1fr] items-center gap-1">
                 <span className="text-muted-foreground">Subject:</span>
-                {/* Dashed underline + pencil = clearly editable, but its text still
-                    lines up with To/Cc (no box padding pushing it right). */}
                 <div className="relative">
                   <input
                     value={subject}
@@ -173,8 +162,7 @@ export function WfhMailPreview({
                       onSubjectChange?.(e.target.value)
                     }}
                     aria-label="Email subject"
-                    // Inline outline:none beats the global :focus-visible outline
-                    // rule (unlayered CSS wins over Tailwind utilities).
+                    // Inline style beats the global :focus-visible outline (unlayered CSS wins over Tailwind).
                     style={{ outline: "none", boxShadow: "none" }}
                     className="border-muted-foreground/40 w-full appearance-none border-0 border-b border-dashed bg-transparent py-0.5 pr-5 text-[11px] font-medium focus:border-dashed"
                   />
@@ -183,14 +171,11 @@ export function WfhMailPreview({
               </div>
             </div>
 
-            {/* The letter - a distinct edit box so it's obviously editable. This
-                exact text is what gets emailed. */}
             <div className="bg-background relative rounded-sm border p-3">
               <span className="text-muted-foreground/60 pointer-events-none absolute top-1.5 right-2 z-10 inline-flex items-center gap-0.5 text-[9px] font-medium tracking-wide uppercase">
                 <Pencil className="h-2.5 w-2.5" /> Editable
               </span>
-              {/* Plain textarea (NOT the shadcn one) so no default focus ring /
-                  offset can draw a box. Full control over focus styling here. */}
+              {/* Plain textarea, not the shadcn one, so no default focus ring draws a box. */}
               <textarea
                 ref={bodyRef}
                 value={body}
@@ -200,14 +185,11 @@ export function WfhMailPreview({
                 }}
                 rows={1}
                 aria-label="Email message"
-                // Inline outline:none beats the global :focus-visible outline
-                // rule (unlayered CSS wins over Tailwind utilities).
                 style={{ outline: "none", boxShadow: "none" }}
                 className="text-foreground placeholder:text-muted-foreground w-full resize-none appearance-none overflow-hidden border-0 bg-transparent p-0 text-xs leading-relaxed"
               />
             </div>
 
-            {/* Signature block (auto-appended, read-only). */}
             {data.signature && <MailSignature sig={data.signature} />}
           </>
         )}

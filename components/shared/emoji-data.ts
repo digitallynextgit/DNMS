@@ -1,25 +1,7 @@
-// ============================================================================
-// GENERATED FILE - do not hand-edit.
-//
-// Every RGI emoji, from the Unicode Consortium's own emoji-test.txt
-// (https://unicode.org/Public/emoji/latest/emoji-test.txt), Unicode 17.0.
-// Groups and their order are Unicode's, so the picker reads the way every
-// other emoji keyboard does.
-//
-// Only `fully-qualified` entries are kept: `minimally-qualified` rows are the
-// same emoji missing a variation selector, and `component` rows are skin
-// tones and hair, not pickable emoji. Skin-tone VARIANTS are dropped too -
-// they are 2030 extra rows of the same faces and hands, which is what
-// a tone selector is for, not a grid.
-//
-// The name travels with each emoji so the picker can search by word
-// ("rocket", "party") rather than by glyph.
-//
-// To refresh: re-run the parser against a newer emoji-test.txt.
-// ============================================================================
+// GENERATED FILE - do not hand-edit. Every fully-qualified RGI emoji from Unicode's emoji-test.txt
+// (17.0), without skin-tone variants, in Unicode's group order.
 
-/** `[character, lowercase name]` - a tuple, not an object: at ~1914 entries the
- *  repeated `{ char: …, name: … }` keys were a third of the file. */
+/** A tuple, not an object, to keep this file small. */
 export type EmojiEntry = readonly [emoji: string, name: string]
 
 export interface EmojiGroup {

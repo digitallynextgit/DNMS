@@ -1,11 +1,5 @@
-// Public API for the "clients" feature (CLAUDE.md §1, rule #2).
-// Cross-feature & app imports use THIS barrel; internals stay private.
-//
-// NOTE: server-only modules (server/*.queries, *.service, client-access) are
-// intentionally NOT re-exported here - API routes and layouts import those
-// directly. The pages are client components, so anything reachable through this
-// barrel is pulled into the browser bundle; a service would drag
-// `import "server-only"` in with it and fail the build.
+// Public API for the clients feature. Server-only modules are not re-exported: the pages are
+// client components, and a service here would pull server-only code into the browser bundle.
 
 export { ClientsDirectory } from "./components/clients-directory"
 export { ClientDetail } from "./components/client-detail"

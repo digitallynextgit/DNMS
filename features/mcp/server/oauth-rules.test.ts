@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto"
 import { describe, expect, it, vi } from "vitest"
 
-// The modules under test are server-only; the guard package throws outside a
-// react-server build, which is irrelevant to these pure functions.
+// server-only throws outside a react-server build; irrelevant to these pure functions.
 vi.mock("server-only", () => ({}))
 
 const { pkceMatches, isValidChallenge, generateToken, sha256Hex } = await import("./tokens")

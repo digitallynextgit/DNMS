@@ -9,15 +9,8 @@ import {
   type ReportFormat,
 } from "@/features/projects/server/deliverables-report"
 
-// GET /api/projects/deliverables/report?from&to&projectIds&teamIds&employeeIds&ai
-//
-// The deliverables slide deck as a .pptx download. Scope is resolved from the
-// session (admin / account manager / team manager / member) and the query can
-// only narrow it - asking for a team you do not run is a 403, not an empty deck.
-//
-// `from` and `to` are REQUIRED and capped at a year, the same rule as the CSV
-// export: every other filter is optional, so a bare call would otherwise mean
-// "every deliverable ever" rendered into one file.
+// Scope comes from the session; the query can only narrow it (a team you don't run is a 403).
+// from/to are required and capped at a year.
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 

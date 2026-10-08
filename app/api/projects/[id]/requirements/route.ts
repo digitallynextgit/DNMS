@@ -7,8 +7,6 @@ import {
 } from "@/features/projects/server/requirements.service"
 import type { Session } from "next-auth"
 
-// GET /api/projects/[id]/requirements - everything the project is waiting on.
-// Open items first, then by the date they are needed.
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
@@ -25,12 +23,7 @@ export const GET = withProjectAccess(
   },
 )
 
-// POST /api/projects/[id]/requirements - raise one.
-//
-// Any project participant may raise a requirement: the person who hits the wall
-// is usually not the lead, and making them ask their manager to ask on their
-// behalf is how blockers stay invisible. `withProjectAccess` already limits this
-// to people on the project.
+// Any project participant may raise one - whoever hits the wall is usually not the lead.
 export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -45,8 +38,7 @@ export const POST = withProjectAccess(
       })
       if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 })
 
-      // Default recipient is the Account Manager - they own the client
-      // relationship, so documents and credentials are theirs to chase.
+      // Defaults to the Account Manager, who owns the client relationship.
       const requestedFromId: string = body.requestedFromId || project.ownerId
       const recipient = await db.employee.findUnique({
         where: { id: requestedFromId },

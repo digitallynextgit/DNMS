@@ -23,17 +23,6 @@ import { getConfig, getConfigSync, warmConfig } from "@/server/app-config"
 
 type Tier = 1 | 2 | 3
 
-/**
- * Fields needed to place an employee in a WFH tier. Probation is decided by the SAME
- * rule the rest of the app uses (features/employees/probation.ts) - the `onProbation`
- * toggle plus dateOfJoining + probationMonths.
- *
- * This used to be derived from `probationEndDate ?? confirmationDate` alone, so an
- * employee with neither column set (which is nearly everyone - those fields are only
- * populated on early confirmation) fell into `!probationEnd` and was declared TIER 1
- * "On Probation". 9 of 16 active employees were being shown the probation banner and
- * blocked from ordinary WFH despite having `onProbation: false`.
- */
 interface TierInput {
   onProbation?: boolean | null
   probationMonths?: number | null
@@ -41,8 +30,7 @@ interface TierInput {
   confirmationDate?: Date | null
 }
 
-/** When probation ended (or is scheduled to end): the early-confirmation date if HR
- *  recorded one, else joiningDate + probationMonths. Null when there is no joining date. */
+/** Early-confirmation date if set, else joining date + probationMonths. */
 function probationCompletionDate(emp: TierInput): Date | null {
   if (emp.confirmationDate) return new Date(emp.confirmationDate)
   return getProbationEndDate(emp)
@@ -55,11 +43,9 @@ function addMonths(d: Date, n: number): Date {
 }
 
 function getEmployeeTier(emp: TierInput, now: Date = new Date()): Tier {
-  // TIER 1 = genuinely on probation, per the shared rule.
   if (isOnProbation(emp, now)) return 1
   const completed = probationCompletionDate(emp)
-  // No joining date at all -> we cannot place them in a window; treat as fully
-  // eligible rather than falsely branding them "On Probation".
+  // No joining date: treat as fully eligible rather than "On Probation".
   if (!completed) return 3
   return now < addMonths(completed, 6) ? 2 : 3
 }
@@ -70,27 +56,19 @@ const WFH_INCLUDE = {
   hrApprover: { select: { id: true, firstName: true, lastName: true } },
 } as const
 
-// HR/admin roles whose decision is FINAL on a WFH request. A manager's call is
-// advisory (mirrors leave / floating-holiday requests).
+// HR/admin roles that may decide any WFH request.
 const HR_ROLE_NAMES: string[] = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.ADMIN_]
 
 /** Active = still occupying the calendar. Rejected/cancelled rows free their days. */
 const ACTIVE_WFH_STATUSES = ["PENDING", "APPROVED"] as const
 
-/**
- * A single request may not span more than this many CALENDAR days. WFH is meant
- * to be a day or a short stretch, not an open-ended arrangement; the cap keeps a
- * slipped date-picker click from silently booking a month.
- */
+/** Max CALENDAR days per request, so a slipped date-picker click can't book a month. */
 const MAX_WFH_RANGE_DAYS = 14
 
 /** Ordinary (non-emergency) WFH days a fully-eligible employee gets per month. */
 const TIER_3_MONTHLY_QUOTA = 1
 
-// ─── Range helpers ────────────────────────────────────────────────────────────
-
-/** Non-optional company holidays in [start, end] as "YYYY-MM-DD" keys. Optional
- *  (floating) holidays are excluded because WFH may be applied for on those. */
+/** Non-optional holidays as YYYY-MM-DD keys (WFH may be applied for on floating ones). */
 async function loadHolidayKeys(start: Date, end: Date): Promise<Set<string>> {
   const holidays = await db.holiday.findMany({
     where: { isOptional: false, date: { gte: start, lte: end } },
@@ -106,15 +84,7 @@ function formatWfhRange(date: Date | string, endDate: Date | string): string {
   return start === end ? start : `${start} - ${end}`
 }
 
-/**
- * Ordinary WFH days this employee already holds in the given month - the figure
- * the tier-3 monthly quota is spent against.
- *
- * Counts DAYS, not rows: one request can now cover several days, so counting
- * rows would let a 3-day request through as "1 used". Emergency requests are
- * excluded because they are allowed to exceed the quota (they need Manager + HR
- * sign-off instead), so they must not consume it either.
- */
+/** Ordinary WFH DAYS (not rows) held in the month; emergencies don't consume the quota. */
 async function countOrdinaryWfhDaysInMonth(
   employeeId: string,
   monthStart: Date,
@@ -126,8 +96,7 @@ async function countOrdinaryWfhDaysInMonth(
       employeeId,
       status: { in: [...ACTIVE_WFH_STATUSES] },
       isEmergency: false,
-      // Overlap, not containment: a range starting in August and ending in
-      // September spends days from both months.
+      // Overlap, not containment: a range can span two months.
       date: { lte: monthEnd },
       endDate: { gte: monthStart },
     },
@@ -136,7 +105,6 @@ async function countOrdinaryWfhDaysInMonth(
 
   let used = 0
   for (const row of rows) {
-    // Clip each range to the month before counting.
     const from = row.date > monthStart ? row.date : monthStart
     const to = row.endDate < monthEnd ? row.endDate : monthEnd
     used += workingDaysBetween(from, to, holidays).length
@@ -144,24 +112,12 @@ async function countOrdinaryWfhDaysInMonth(
   return used
 }
 
-// ─── Application letter (to the manager, HR on Cc) ────────────────────────────
-
 export interface WfhMailEnvelope {
-  /** The manager the letter is addressed to (null when nobody is set up). */
   to: { id: string; name: string; firstName: string; email: string } | null
-  /** The HR mailbox on Cc, or null. */
   ccHr: string | null
 }
 
-/**
- * Who a WFH request's letter actually goes to. ONE function, used by both the
- * sender and the apply-screen preview, so the preview can never promise a
- * different recipient than we send to (same contract as leave).
- *
- * Addressed to the applicant's REPORTING MANAGER whenever they have an active
- * one; otherwise the first HR/admin approver, since those are exactly the people
- * `updateWfhRequest` lets decide. Never the applicant themselves.
- */
+/** Used by both the sender and the preview so they never disagree. To = active manager, else first HR/admin. */
 export async function resolveWfhMailEnvelope(applicantId: string): Promise<WfhMailEnvelope> {
   const applicant = await db.employee.findUnique({
     where: { id: applicantId },
@@ -173,7 +129,6 @@ export async function resolveWfhMailEnvelope(applicantId: string): Promise<WfhMa
   })
   const mgr = applicant?.manager?.isActive ? applicant.manager : null
 
-  // Fallback queue: the HR/admin roles whose decision is final on WFH.
   const queue = mgr
     ? []
     : await db.employee.findMany({
@@ -213,11 +168,6 @@ function buildWfhMessageId(key: string): string {
   return `<${key}@${host}>`
 }
 
-/**
- * The envelope + signature the apply screen previews. Read-only - nothing is
- * created. It calls resolveWfhMailEnvelope(), the SAME function the send path
- * uses, so a preview can't show a recipient we don't mail.
- */
 export async function getWfhMailPreview(): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
@@ -235,8 +185,7 @@ export async function getWfhMailPreview(): Promise<ActionResult<unknown>> {
         designation: { select: { title: true } },
       },
     })
-    // Populate the config cache so the sync getConfigSync() reads below see the
-    // DB-stored company/social values, not just process.env.
+    // Must run before the getConfigSync() reads below, or they only see process.env.
     await warmConfig()
 
     return ok({
@@ -245,7 +194,6 @@ export async function getWfhMailPreview(): Promise<ActionResult<unknown>> {
       signature: applicant
         ? {
             name: `${applicant.firstName} ${applicant.lastName}`.trim(),
-            // Job role first; fall back to the L-grade designation.
             designation: applicant.jobRole?.name ?? applicant.designation?.title ?? null,
             email: applicant.email,
             phone: applicant.phone,
@@ -263,14 +211,7 @@ export async function getWfhMailPreview(): Promise<ActionResult<unknown>> {
   })
 }
 
-/**
- * Send the application letter for a freshly-created request: TO the manager, Cc
- * HR and the applicant. Sent AS the employee from their own Gmail (via their
- * stored App Password) so it genuinely comes from them, falling back to the
- * system mailer when they have none on file.
- *
- * Always non-blocking - a mail failure must never fail the request.
- */
+/** Sent AS the employee via their Gmail App Password (falls back to the system mailer). Never throws. */
 async function sendWfhRequestLetter(
   applicantId: string,
   request: {
@@ -283,7 +224,7 @@ async function sendWfhRequestLetter(
   },
   applicantName: string,
   employeeNo: string | null,
-  /** The employee's edited letter/subject from the preview; null = auto-composed. */
+  /** Null = auto-composed. */
   customBody: string | null,
   customSubject: string | null,
 ): Promise<void> {
@@ -318,13 +259,10 @@ async function sendWfhRequestLetter(
       isEmergency: request.isEmergency,
       bodyText: customBody,
       subjectText: customSubject,
-      // /wfh, not /wfh/requests: the letter goes to the MANAGER, and approvals
-      // live on the "WFH Requests" tab of that page for managers and HR alike
-      // (/wfh/requests is the HR-only view, gated on wfh:approve).
+      // /wfh, not /wfh/requests (HR-only): managers approve from the /wfh tab.
       reviewUrl: appUrl ? `${appUrl.replace(/\/$/, "")}/wfh` : undefined,
     })
 
-    // Cc the applicant so the letter lands in their mailbox too.
     const cc = [envelope.ccHr, applicant?.email].filter(
       (v): v is string => Boolean(v) && v !== envelope.to!.email,
     )
@@ -335,11 +273,9 @@ async function sendWfhRequestLetter(
       subject: email.subject,
       html: email.html,
       text: email.text,
-      // It reads as the employee's letter, so Reply should reach the employee.
       replyTo: applicant?.email ?? undefined,
       messageId: buildWfhMessageId(`wfh-${request.id}`),
-      // Shared phantom root, so a later reply threads onto this conversation even
-      // when Gmail rewrites the Message-ID above.
+      // Phantom thread root, so replies still thread when Gmail rewrites the Message-ID.
       references: buildWfhMessageId(`wfh-thread-${request.id}`),
       profile: "notifications",
     })
@@ -371,7 +307,6 @@ export async function getWfhEligibility(): Promise<ActionResult<unknown>> {
 
     if (tier === 1) {
       label = "On Probation - WFH allowed only in emergencies (Manager + HR approval required)"
-      // Ordinary WFH unlocks 6 months AFTER probation completes.
       if (completed) eligibleFromDate = toDateOnly(addMonths(completed, 6))
     } else if (tier === 2) {
       label =
@@ -383,15 +318,11 @@ export async function getWfhEligibility(): Promise<ActionResult<unknown>> {
 
     let usedThisMonth = 0
     if (tier === 3) {
-      // UTC boundaries (API-09): rows are stored at UTC midnight; local-midnight
-      // bounds on a TZ ahead of UTC (e.g. IST) push the last calendar day out of
-      // the window, undercounting the monthly quota.
+      // UTC bounds: rows are stored at UTC midnight; IST bounds would drop the last day.
       const { start: monthStart, end: monthEnd } = monthRange(
         now.getUTCFullYear(),
         now.getUTCMonth(),
       )
-      // DAYS, not rows - a request can cover several - and ordinary ones only,
-      // matching exactly what applyWfh() spends the quota against.
       usedThisMonth = await countOrdinaryWfhDaysInMonth(
         session.user.id,
         monthStart,
@@ -434,8 +365,7 @@ export async function getWfhRequests(filters: WfhFilters = {}): Promise<ActionRe
     if (canApprove) {
       if (filters.status) where.status = filters.status
       if (filters.employeeId) where.employeeId = filters.employeeId
-      // Overlap, not containment: a request running Sep 30 - Oct 2 belongs in a
-      // search for October even though it starts in September.
+      // Overlap, not containment.
       if (filters.to) where.date = { lte: startOfDayUTC(filters.to) }
       if (filters.from) where.endDate = { gte: startOfDayUTC(filters.from) }
     } else {
@@ -470,13 +400,11 @@ export async function getWfhRequests(filters: WfhFilters = {}): Promise<ActionRe
 }
 
 export async function applyWfh(body: {
-  /** First day of the range. */
   date: string
-  /** Last day. Omitted (or equal to `date`) = a single-day request. */
+  /** Omitted = single-day request. */
   endDate?: string
   reason?: string
   isEmergency?: boolean
-  /** Subject + letter exactly as composed/edited in the apply-screen preview. */
   emailSubject?: string
   emailBody?: string
 }): Promise<ActionResult<unknown>> {
@@ -488,7 +416,6 @@ export async function applyWfh(body: {
     const wfhDate = startOfDayUTC(date)
     if (isNaN(wfhDate.getTime())) return fail("Invalid date format")
 
-    // No end date = the single-day request this feature started as.
     const wfhEnd = endDate ? startOfDayUTC(endDate) : wfhDate
     if (isNaN(wfhEnd.getTime())) return fail("Invalid end date format")
     if (wfhEnd < wfhDate) return fail("The end date cannot be before the start date")
@@ -502,12 +429,9 @@ export async function applyWfh(body: {
     const today = startOfDayUTC(new Date())
     if (wfhDate < today) return fail("Cannot apply for WFH in the past")
 
-    // Weekends/holidays INSIDE a range are simply skipped, but the two ends must
-    // be real working days - otherwise the dates on the request (and in the
-    // letter) name days nobody is actually working from home.
+    // Days inside a range may be weekends/holidays (skipped), but both ends must be working days.
     if (isWeekend(wfhDate) || isWeekend(wfhEnd)) return fail("WFH cannot be applied for weekends")
 
-    // One holiday read covers the range AND the per-month quota maths below.
     const { start: spanFrom } = monthRange(wfhDate.getUTCFullYear(), wfhDate.getUTCMonth())
     const { end: spanTo } = monthRange(wfhEnd.getUTCFullYear(), wfhEnd.getUTCMonth())
     const holidayKeys = await loadHolidayKeys(spanFrom, spanTo)
@@ -518,15 +442,12 @@ export async function applyWfh(body: {
       return fail(`${bound.toDateString()} is a holiday (${holiday?.name ?? "company holiday"})`)
     }
 
-    // The days this request actually costs: weekends and company holidays inside
-    // the range don't count, so Fri-Mon is 2 days, not 4.
+    // Weekends and holidays inside the range don't count, so Fri-Mon is 2 days.
     const workingDays = workingDaysBetween(wfhDate, wfhEnd, holidayKeys)
     if (workingDays.length === 0)
       return fail("That range has no working days - every day in it is a weekend or a holiday.")
 
-    // Same tier rule as getWfhEligibility - the banner the employee is shown and the
-    // rule enforced here MUST come from one place, or the UI says "you may apply" and
-    // the server refuses (or vice-versa).
+    // Same tier rule as getWfhEligibility, so the banner and this check always agree.
     const employee = await db.employee.findUnique({
       where: { id: session.user.id },
       select: {
@@ -546,13 +467,8 @@ export async function applyWfh(body: {
       return fail(tierMsg)
     }
 
-    // The tier-3 monthly quota is spent per CALENDAR MONTH, so a range crossing a
-    // month boundary is checked against each month it touches - Sep 30 + Oct 1 is
-    // one day out of each month's allowance, not two out of September's.
-    //
-    // Emergency requests are exempt: they buy that exemption with Manager + HR
-    // sign-off, and (see countOrdinaryWfhDaysInMonth) they don't consume the
-    // ordinary allowance either.
+    // The quota is per calendar month, so a range is checked against each month it touches.
+    // Emergencies are exempt (they need Manager + HR sign-off instead).
     if (tier === 3 && !isEmergency) {
       const newDaysPerMonth = new Map<string, { year: number; month: number; count: number }>()
       for (const day of workingDays) {
@@ -615,17 +531,8 @@ export async function applyWfh(body: {
         `You already have a WFH request covering ${formatWfhRange(duplicate.date, duplicate.endDate)}.`,
       )
 
-    // The `duplicate` check above is a friendly pre-check, not a guarantee: two
-    // concurrent submissions both pass it. The partial EXCLUDE constraint
-    // `wfh_requests_no_active_overlap` (PENDING/APPROVED only, so re-applying
-    // after a rejection still works) is what actually enforces it. A violation
-    // is that race surfacing - report it as the same user-facing message rather
-    // than a 500.
-    //
-    // Two codes, because the guard changed shape with ranges: P2002 is the older
-    // partial UNIQUE (still in place on databases whose role could not create
-    // btree_gist), 23P01 is the EXCLUDE. Prisma has no mapped code for the
-    // latter, so it arrives as a raw SQLSTATE.
+    // Concurrent submits can both pass the pre-check; the DB guard catches them. P2002 = older
+    // partial UNIQUE, 23P01 = the btree_gist EXCLUDE (raw SQLSTATE, Prisma doesn't map it).
     let request
     try {
       request = await db.wfhRequest.create({
@@ -652,7 +559,6 @@ export async function applyWfh(body: {
       throw e
     }
 
-    // Route to the employee's manager (advisory) + HR (final), like leave.
     const rangeLabel = formatWfhRange(wfhDate, wfhEnd)
     await notifyApprovers({
       requesterId: session.user.id,
@@ -665,8 +571,6 @@ export async function applyWfh(body: {
       link: "/wfh",
     })
 
-    // …and the letter itself, so an approver who isn't in the app still hears
-    // about it. This is the mail the apply screen previews, sent verbatim.
     await sendWfhRequestLetter(
       session.user.id,
       request,
@@ -703,10 +607,7 @@ export async function updateWfhRequest(
     if (action === "CANCEL") {
       if (request.employeeId !== session.user.id)
         return fail("You can only cancel your own WFH requests")
-      // Claim the row the same way APPROVE/REJECT do: the status check above is
-      // a read from before this write, so a cancel racing an approval would
-      // otherwise silently overwrite the decision. Re-asserting PENDING in the
-      // WHERE makes the loser a no-op we can report.
+      // Re-assert PENDING so a cancel racing an approval can't overwrite the decision.
       const claimed = await db.wfhRequest.updateMany({
         where: { id, status: "PENDING" },
         data: { status: "CANCELLED" },
@@ -716,10 +617,7 @@ export async function updateWfhRequest(
       return ok(serialize({ data: updated }))
     }
 
-    // HR or the employee's own manager may act, and the FIRST decision is final.
-    // A manager's call used to be advisory - the request stayed PENDING until HR
-    // repeated it, which meant every WFH day needed two people. Either can now
-    // settle it; the record still stores which of them did.
+    // HR or the employee's own manager may act; the FIRST decision is final.
     const roles = session.user.roles ?? []
     const isHr = roles.some((r) => HR_ROLE_NAMES.includes(r))
     const isManager = request.employee.managerId === session.user.id
@@ -727,10 +625,7 @@ export async function updateWfhRequest(
     if (action === "REJECT" && !rejectionReason?.trim()) return fail("Rejection reason is required")
     const reason = rejectionReason?.trim()
 
-    // Build the transition, then claim it atomically so two near-simultaneous
-    // deciders (manager + HR under "first decision wins") can't both settle it
-    // and fire duplicate notifications/emails (API-01). updateMany with the
-    // status guard is a single conditional UPDATE; the loser matches 0 rows.
+    // Conditional claim, so two near-simultaneous deciders can't both settle it and double-notify.
     const decisionData = isHr
       ? action === "APPROVE"
         ? { status: "APPROVED" as const, hrApproverId: session.user.id, hrApprovedAt: new Date() }
@@ -786,8 +681,6 @@ export async function updateWfhRequest(
           })
         }
       }
-      // No "awaiting HR" branch any more: a decision by either party is final,
-      // so the request always leaves PENDING here.
     } catch {
       // Non-blocking
     }
@@ -796,14 +689,7 @@ export async function updateWfhRequest(
   })
 }
 
-/**
- * WFH requests inbox.
- *   scope "team" - the current user's direct reports' requests (the manager tab
- *     on the My WFH page; advisory). isApprover = the user manages someone.
- *   scope "all"  - every employee's requests for HR / admin / wfh:approve (the
- *     HR Work From Home section; final decision).
- * Returns `isApprover` so the caller can show the surface only when applicable.
- */
+/** scope "team" = my direct reports; "all" = everyone (HR / wfh:approve). */
 export async function getWfhInbox(
   scope: "team" | "all",
   filters: { status?: string; page?: number; limit?: number } = {},

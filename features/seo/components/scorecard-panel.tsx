@@ -11,13 +11,7 @@ import type { ScorecardView, VitalsView } from "../types"
 import { useRebuildScorecard, useRunVitals, useScorecard, useVitals } from "../hooks/use-seo"
 import { exportScorecard } from "../lib/seo-export"
 
-// =============================================================================
-// The plan's step-10 scorecard, plus the Core Web Vitals that feed it.
-//
-// The design point: `coverage` is shown as prominently as the score. A site
-// scoring 82/100 on 55% coverage is NOT the same claim as 82 on 95%, and hiding
-// that would turn the number into a vanity metric.
-// =============================================================================
+// Scorecard plus the Core Web Vitals that feed it. `coverage` is shown as prominently as the score.
 
 const BANDS = {
   HEALTHY: { label: "Healthy", cls: "text-emerald-600", ring: "stroke-emerald-500" },

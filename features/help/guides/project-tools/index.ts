@@ -8,7 +8,6 @@ import { projectMonitoringGuide } from "./project-monitoring"
 import { projectMailerGuide } from "./project-mailer"
 import { clientsGuide } from "./clients"
 
-/** Project tools (deliverables, content calendar, brand, SEO, mailer...) and Clients. In the order they are listed. */
 export const projectToolGuides: HelpGuide[] = [
   projectDeliverablesGuide,
   projectContentCalendarGuide,

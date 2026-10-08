@@ -3,12 +3,7 @@
 import { useEffect } from "react"
 import { Button } from "@/components/ui/button"
 
-/**
- * Group-level boundary for every dashboard section. Sitting INSIDE the
- * (dashboard) layout, it keeps the sidebar/topbar chrome when one section
- * throws - without it, an error anywhere fell through to the root app/error.tsx
- * and replaced the entire frame, so recovering meant losing your place.
- */
+/** Inside the (dashboard) layout, so one section failing keeps the sidebar and topbar. */
 export default function DashboardError({
   error,
   reset,

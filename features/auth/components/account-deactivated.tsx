@@ -4,13 +4,7 @@ import { useEffect } from "react"
 import { signOut } from "next-auth/react"
 import { Spinner } from "@/components/shared/spinner"
 
-/**
- * Rendered by the dashboard layout when the signed-in employee's account is no
- * longer active (e.g. an approved resignation deactivated them mid-session).
- * Because sessions are stateless JWTs, the existing cookie stays valid until it
- * expires - so we force a client-side sign-out here, which clears the cookie and
- * sends them to the login page where authorize() will refuse a fresh login.
- */
+/** Sessions are stateless JWTs, so an inactive account is signed out client-side; login then refuses it. */
 export function AccountDeactivated() {
   useEffect(() => {
     signOut({ callbackUrl: "/login" })

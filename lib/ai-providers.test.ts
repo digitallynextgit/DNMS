@@ -22,8 +22,7 @@ describe("readKeys", () => {
   })
 
   it("survives however the clipboard shaped it", () => {
-    // Trailing commas, newlines and stray spaces are what a pasted list of
-    // keys actually looks like.
+    // What a pasted list of keys really looks like.
     expect(readKeys(groq, { GROQ_API_KEYS: " a , b,\n c,,  " })).toEqual(["a", "b", "c"])
   })
 
@@ -110,8 +109,7 @@ describe("buildCandidates", () => {
   })
 
   it("gives every key a turn at a model before giving up on that model", () => {
-    // The point of two keys: a 429 is per key, so the same model is worth
-    // asking again with the other one.
+    // A 429 is per key, so the same model is worth asking again with the other key.
     const out = buildCandidates("smart", {
       AI_PROVIDER_ORDER: "groq",
       GROQ_API_KEYS: "k1,k2",

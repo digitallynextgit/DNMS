@@ -3,24 +3,9 @@ import "server-only"
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto"
 import { publicOrigin } from "./config"
 
-// =============================================================================
-// Download links for files the AI connector produces.
-//
-// Claude and ChatGPT cannot receive a file through MCP, so the tool hands back
-// a link instead and the person clicks it. The link:
-//   - is signed (HMAC with a key derived from AUTH_SECRET), so it cannot be
-//     forged or edited,
-//   - expires after 10 minutes,
-//   - names the CONNECTION it was issued to - revoke the connection, or
-//     deactivate the person, and the link dies with it; the route re-checks
-//     both when it is opened,
-//   - for generated files, points at a copy held in memory for those 10
-//     minutes; a GET report can be rebuilt as the same person if the copy is
-//     gone (a restart), a POST one cannot (it may have side effects).
-//
-// It is a capability link: anyone holding it can download THAT file until it
-// expires - the same trade-off as any "share" link, kept short on purpose.
-// =============================================================================
+// Signed download links for files the AI connector produces (AI apps can't receive files via
+// MCP). HMAC-signed, 10-minute expiry, tied to the connection - revoking it or deactivating the
+// person kills the link. Anyone holding a link can download that file until it expires.
 
 export const LINK_TTL_MS = 10 * 60 * 1000
 /** One generated file may be at most this big; larger ones are refused. */
@@ -80,9 +65,6 @@ export const linkUrl = (token: string) => `${publicOrigin()}/api/mcp/files/${tok
 
 export const newNonce = () => randomBytes(12).toString("base64url")
 
-// ---------------------------------------------------------------------------
-// The short-lived copy store
-// ---------------------------------------------------------------------------
 interface Held {
   bytes: Uint8Array
   contentType: string

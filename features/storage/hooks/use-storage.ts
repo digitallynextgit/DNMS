@@ -7,8 +7,7 @@ import type { StorageOverview } from "../types"
 
 export function useStorageOverview(accountId?: string) {
   return useQuery({
-    // accountId in the key: two buckets are different result sets, not one
-    // filtered, so they must not share a cache entry.
+    // Per-account cache entry: two buckets are different result sets.
     queryKey: ["admin-storage", accountId ?? "default"],
     queryFn: () =>
       apiFetch<{ data: StorageOverview }>(

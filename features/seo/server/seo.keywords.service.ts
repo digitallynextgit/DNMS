@@ -2,15 +2,8 @@ import "server-only"
 
 import { db } from "@/server/db"
 
-// =============================================================================
-// The keyword backlog (plan step 4). Turns stored Search Console queries into a
-// prioritized work-queue, scored by demand x winnability x business value.
-//
-// The score is deliberately transparent, not a black box:
-//   score = demand(impressions) x positionOpportunity x winnability x value
-// so a human can see WHY one keyword outranks another and adjust the two human
-// inputs (winnable?, businessValue) to re-rank.
-// =============================================================================
+// Keyword backlog: Search Console queries scored by demand x position opportunity x winnability
+// x business value - transparent, so a human can see and adjust why one outranks another.
 
 export type KeywordIntent = "commercial" | "informational" | "branded" | "navigational" | "other"
 
@@ -20,7 +13,6 @@ export function classifyIntent(query: string, brandTerms: string[]): KeywordInte
   // Branded first - a brand term anywhere makes it a brand query.
   if (brandTerms.some((b) => b && q.includes(b.toLowerCase()))) return "branded"
 
-  // Commercial / transactional signals.
   if (
     /\b(buy|price|cost|cheap|deal|discount|coupon|for sale|near me|best|top|vs|versus|review|reviews|agency|agencies|company|companies|service|services|provider|hire|quote|pricing|plans?)\b/.test(
       q,
@@ -28,7 +20,6 @@ export function classifyIntent(query: string, brandTerms: string[]): KeywordInte
   )
     return "commercial"
 
-  // Informational signals.
   if (
     /\b(how|what|why|when|where|who|guide|tutorial|meaning|examples?|tips|ideas|vs\.?|difference)\b/.test(
       q,
@@ -42,12 +33,7 @@ export function classifyIntent(query: string, brandTerms: string[]): KeywordInte
   return "other"
 }
 
-/**
- * Position opportunity: the plan's "fastest available wins" are positions 5-20
- * (striking distance) - already relevant to Google, close enough that on-page
- * work moves them onto page one. Page-one-but-not-top has some headroom;
- * anything past 30 is a long haul.
- */
+/** Positions 5-20 (striking distance) are the fastest wins; past 30 is a long haul. */
 function positionOpportunity(position: number): number {
   if (position === 0) return 0.3 // unknown / not ranking
   if (position >= 5 && position <= 20) return 1.0 // striking distance
@@ -56,33 +42,19 @@ function positionOpportunity(position: number): number {
   return 0.3 // 30+
 }
 
-/**
- * The priority score. Winnable=null (unassessed) uses a neutral 0.6 so a fresh
- * backlog is still ranked sensibly by demand + opportunity; a human decision
- * then pushes it up (winnable) or nearly out (not winnable).
- */
+/** Priority score. Unassessed winnability uses a neutral 0.6 until a human decides. */
 export function scoreKeyword(k: {
   impressions: number
   position: number
   winnable: boolean | null
   businessValue: number
   /**
-   * True when we have no impression data for this phrase, which is the normal
-   * case for a keyword mined from a competitor's pages. Without a floor those
-   * rows score log10(1) = 0 and sink out of sight, so a competitor's entire
-   * keyword map would be invisible.
+   * No impression data (normal for competitor-mined keywords) - use a demand floor instead of 0.
    */
   demandUnknown?: boolean
 }): number {
-  // Log-scale demand so a 10,000-impression query doesn't drown everything else.
-  //
-  // The floor for unknown demand sits just BELOW one impression
-  // (log10(2) = 0.30). It used to be 1.0, which is worth about ten impressions -
-  // so on any site getting fewer than that per query, every zero-evidence phrase
-  // mined from a competitor outranked every query the site genuinely appears
-  // for. That is exactly backwards, and it bites hardest on the small sites this
-  // backlog is most useful for: knowyourgenes.in had 22 impressions in total and
-  // all nine of its real queries sat below 75 competitor guesses.
+  // Log-scale demand so a huge query doesn't drown the rest. The unknown-demand floor sits just
+  // below one real impression (log10(2) = 0.30), so mined guesses never outrank real queries.
   const UNKNOWN_DEMAND = 0.25
   const demand =
     k.demandUnknown && k.impressions === 0 ? UNKNOWN_DEMAND : Math.log10(k.impressions + 1)
@@ -99,11 +71,8 @@ export interface GenerateResult {
 }
 
 /**
- * (Re)generate the backlog from the latest snapshot's queries. Existing rows keep
- * their human fields (winnable, businessValue, status, notes) and only refresh
- * their Search Console signals + recomputed score. New queries are inserted.
- * Nothing is deleted - a query that drops out of the latest window stays as
- * history until a human parks it.
+ * (Re)generate the backlog from the latest snapshot. Existing rows keep their human fields and
+ * only refresh signals and score; nothing is deleted.
  */
 export async function generateKeywordBacklog(propertyId: string): Promise<GenerateResult> {
   const property = await db.seoProperty.findUnique({
@@ -127,8 +96,7 @@ export async function generateKeywordBacklog(propertyId: string): Promise<Genera
     select: { query: true, impressions: true, clicks: true, position: true, ctr: true },
   })
 
-  // Brand terms for intent classification: the money keywords plus the domain's
-  // second-level label (e.g. "knowyourgenes").
+  // Brand terms: the money keywords plus the domain's label (e.g. "knowyourgenes").
   const brandLabel = property.domain
     .replace(/^https?:\/\//, "")
     .replace(/^www\./, "")
@@ -192,32 +160,16 @@ export async function generateKeywordBacklog(propertyId: string): Promise<Genera
   return { added, updated, total: await db.seoKeyword.count({ where: { propertyId } }) }
 }
 
-// =============================================================================
-// Mining keywords from competitors (plan step 5, point 3: "their titles/H1s ARE
-// their keyword map").
-//
-// What this can honestly do: read the page titles and headings we already
-// crawled from each competitor and treat them as the phrases that competitor is
-// targeting. Where the same phrase also appears in OUR Search Console queries we
-// attach the real impressions and position, because that is measured fact.
-//
-// What it deliberately does NOT do: invent search volume, or claim a competitor's
-// ranking position. Neither is available for free, and a fabricated number in a
-// client report is worse than an absent one. Rows with no demand data are stored
-// with impressions 0 and flagged in the UI as unverified so a human checks them.
-// =============================================================================
+// Mining competitor keywords: their crawled titles/headings become candidates. Real impressions
+// are attached only where our own Search Console has the phrase - no invented volumes.
 
 /** Phrases that are page furniture rather than a keyword anyone searches. */
 const NOT_A_KEYWORD =
   /^(home|about( us)?|contact( us)?|blog|news|careers|privacy|terms|login|sign in|sign up|menu|search|faqs?|cookie|newsletter|subscribe|follow us|share|read more|back to top|all rights reserved)$/i
 
 /**
- * The brand words in a set of competitor domains: "mapmygenome.in" -> "mapmygenome".
- *
- * Their page titles are full of them ("Why choose Mapmygenome", "Freedom Sale:
- * 40% off Mapmygenome kits"), and those are the one class of phrase no amount of
- * work will ever win - you cannot outrank a company for its own name. Mining
- * them wastes a slot in the backlog and makes the whole list look untrustworthy.
+ * Brand words from competitor domains ("mapmygenome.in" -> "mapmygenome") - you can't outrank a
+ * company for its own name.
  */
 function competitorBrandTokens(domains: string[]): string[] {
   const tokens = new Set<string>()
@@ -227,7 +179,6 @@ function competitorBrandTokens(domains: string[]): string[] {
       .replace(/^https?:\/\//, "")
       .replace(/^www\./, "")
       .replace(/\/.*$/, "")
-    // "mapmygenome.in" -> "mapmygenome"; "strandls.com" -> "strandls".
     const name = host.split(".")[0]
     if (name && name.length >= 4) tokens.add(name)
   }
@@ -266,10 +217,7 @@ export interface MineResult {
   error?: string
 }
 
-/**
- * Turn the latest competitor crawl into backlog candidates. Requires a
- * competitor analysis to have been run first (that is what does the crawling).
- */
+/** Turn the latest competitor crawl into backlog candidates (run a competitor analysis first). */
 export async function mineCompetitorKeywords(propertyId: string): Promise<MineResult> {
   const empty: MineResult = {
     added: 0,
@@ -301,8 +249,7 @@ export async function mineCompetitorKeywords(propertyId: string): Promise<MineRe
     topics?: { topic: string }[]
   }[]
 
-  // Best phrase per competitor, deduped across competitors (first one wins, so
-  // the earliest configured competitor is credited).
+  // First competitor wins, so the earliest configured one is credited.
   const brands = competitorBrandTokens(reports.map((r) => r.domain))
   const isBranded = (phrase: string) => brands.some((b) => phrase.includes(b))
 
@@ -326,8 +273,7 @@ export async function mineCompetitorKeywords(propertyId: string): Promise<MineRe
   if (candidates.size === 0)
     return { ...empty, competitors: reports.length, error: "No usable phrases found in the crawl." }
 
-  // Our own Search Console queries, so a mined phrase we already get impressions
-  // for carries its real numbers instead of a blank.
+  // Attach real numbers where we already get impressions for a mined phrase.
   const latest = await db.seoSnapshot.findFirst({
     where: { propertyId },
     orderBy: { periodEnd: "desc" },
@@ -362,8 +308,7 @@ export async function mineCompetitorKeywords(propertyId: string): Promise<MineRe
     if (ours) withDemandData++
 
     const prior = existingByQuery.get(phrase)
-    // A row that already came from Search Console keeps that provenance: it is
-    // backed by real data, and downgrading it to "mined" would lose that.
+    // Rows from Search Console keep that provenance.
     if (prior && prior.source === "GSC") continue
 
     const impressions = ours?.impressions ?? 0
@@ -456,9 +401,7 @@ export async function updateKeyword(
     position: kw.position,
     winnable,
     businessValue,
-    // Keep the mined-keyword floor. Without this a competitor keyword with no
-    // impressions would drop to score 0 the moment someone marked it winnable,
-    // which is the opposite of what they meant.
+    // Keep the mined-keyword floor, or marking it winnable would drop its score to 0.
     demandUnknown: kw.source === "COMPETITOR" && kw.impressions === 0,
   })
 

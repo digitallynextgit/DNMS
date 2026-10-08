@@ -3,10 +3,7 @@ import { OAuthFlowError, exchangeCode, refreshTokens } from "@/features/mcp/serv
 import { oauthError, oauthJson, preflight, readForm } from "@/features/mcp/server/http"
 import { clientIp, rateLimited } from "@/lib/rate-limit"
 
-// POST /api/oauth/token - OAuth 2.1 token endpoint (AI connector).
-// grant_type=authorization_code (+ PKCE code_verifier) or refresh_token.
-// Public clients only; RFC 6749 error codes, which Claude/ChatGPT rely on
-// (an invalid refresh token MUST be `invalid_grant` so they re-authorize).
+// RFC 6749 error codes matter: an invalid refresh token MUST be `invalid_grant` so AI apps re-authorize.
 
 export const dynamic = "force-dynamic"
 

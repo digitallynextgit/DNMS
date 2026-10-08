@@ -1,21 +1,6 @@
-// =============================================================================
-// Holidays, leave, WFH and floating holidays.
-//
-// Everything here is dated relative to today. Each approved/pending day off is
-// also recorded in ctx.away, so attendance (next module) leaves those days
-// without a punch and payroll pays them correctly - the three never disagree.
-//
-// Rules mirrored from the app (features/leave, features/wfh):
-//   - leave totalDays = calendar days inclusive (the sandwich rule)
-//   - a regular employee's PENDING request: approvalStage "HR",
-//     currentApproverId = their manager; HR/admin applicants: stage "ADMIN"
-//   - decided requests: approvalStage/currentApproverId null; managerDecision
-//     only when the manager (not HR/admin) decided
-//   - balances: UPFRONT, accrued = allocated; used/pending = sums of the
-//     APPROVED/PENDING requests; admins and people on probation get none
-//   - WFH: totalDays = working days; no overlapping active ranges per person;
-//     one ordinary WFH day a month (emergencies extra)
-// =============================================================================
+// Demo holidays, leave, WFH and floating holidays, dated relative to today. Every day off is also recorded in
+// ctx.away so attendance and payroll agree. Request fields (approvalStage, currentApproverId, managerDecision)
+// and balances mirror what features/leave and features/wfh write.
 
 import { DEMO_PEOPLE, demoPerson } from "@/features/help/demo/dataset"
 import {
@@ -34,8 +19,6 @@ import {
   ymd,
   type DemoContext,
 } from "./context"
-
-// ── Holidays ─────────────────────────────────────────────────────────────────
 
 type HolidayDef = { name: string; date: [number, number]; optional: boolean; description?: string }
 
@@ -132,19 +115,13 @@ export async function seedHolidays(ctx: DemoContext): Promise<void> {
   ctx.summary.add("Holidays", `holidays ${year}-${year + 1} (floating)`, made.length - fixed)
 }
 
-// ── Leave + WFH plan ─────────────────────────────────────────────────────────
-
-/**
- * A day in week `w` relative to this week (0 = this week, -1 = last week),
- * `dow` 0 = Monday .. 4 = Friday. Rolls forward past a weekend or holiday.
- */
+/** A day in week `w` from this week (0 = this, -1 = last), `dow` 0 = Mon .. 4 = Fri; rolls past weekends/holidays. */
 function wk(ctx: DemoContext, w: number, dow: number): Date {
   let d = addDays(mondayOf(ctx.today), w * 7 + dow)
   while (isWeekend(d) || ctx.holidayKeys.has(dayKey(d))) d = addDays(d, 1)
   return d
 }
 
-/** The first working day after today. */
 function nextWorkingDay(ctx: DemoContext): Date {
   let d = addDays(ctx.today, 1)
   while (isWeekend(d) || ctx.holidayKeys.has(dayKey(d))) d = addDays(d, 1)
@@ -171,14 +148,8 @@ function notAfter(ctx: DemoContext, d: Date, minutesAgo: number): Date {
 const calendarDays = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / 86_400_000) + 1
 
 /**
- * Fixed days in the CALENDAR MONTH BEFORE today for Priya (the employee
- * persona), so the "previous month" attendance screenshots always show the
- * same mix - never left to the random generator. Working days only, and never
- * a floating holiday, so nothing here can collide with a pick.
- *
- * GUIDE REQUIREMENT (self-service): in that month Priya has >= 1 present day,
- * a half day, a missing punch-out, an approved leave day, an approved WFH day,
- * and a rejected WFH request.
+ * Fixed days in the month before today for Priya, so the "previous month" attendance shots never change.
+ * Guide requirement: a present day, a half day, a missing punch-out, approved leave, approved WFH, rejected WFH.
  */
 export function priyaAnchors(ctx: DemoContext) {
   const prev = workingDays(ctx, firstOfMonth(ctx.today, -1), lastOfMonth(ctx.today, -1)).filter(
@@ -223,7 +194,7 @@ function leavePlan(ctx: DemoContext): LeavePlan[] {
   const w = (week: number, dow: number) => wk(ctx, week, dow)
   const priya = priyaAnchors(ctx)
   return [
-    // ── Pending: Priya's casual leave next week (for Rohan), Rohan's team ─────
+    // Pending: Priya's casual leave next week (for Rohan), Rohan's team.
     {
       who: "priya",
       code: "CL",
@@ -260,7 +231,7 @@ function leavePlan(ctx: DemoContext): LeavePlan[] {
       reason: "Fever and body ache - doctor advised two days' rest.",
       appliedBefore: -1,
     },
-    // ── Pending for the admin's queue ──────────────────────────────────────────
+    // Pending for the admin's queue.
     {
       who: "meera",
       code: "CL",
@@ -279,7 +250,7 @@ function leavePlan(ctx: DemoContext): LeavePlan[] {
       reason: "House shifting.",
       appliedBefore: 14,
     },
-    // ── Rejected / cancelled ─────────────────────────────────────────────────
+    // Rejected / cancelled.
     {
       who: "sneha",
       code: "CL",
@@ -312,7 +283,7 @@ function leavePlan(ctx: DemoContext): LeavePlan[] {
       reason: "Personal work.",
       appliedBefore: 6,
     },
-    // ── Approved, in the last few weeks ────────────────────────────────────────
+    // Approved, in the last few weeks.
     {
       who: "priya",
       code: "SL",
@@ -465,7 +436,7 @@ function leavePlan(ctx: DemoContext): LeavePlan[] {
       reason: "Visa appointment.",
       appliedBefore: 10,
     },
-    // ── Approved, coming up ─────────────────────────────────────────────────────
+    // Approved, coming up.
     {
       who: "karthik",
       code: "CL",
@@ -537,7 +508,7 @@ function wfhPlan(ctx: DemoContext): WfhPlan[] {
       emergency: true,
       appliedBefore: 2,
     },
-    // GUIDE REQUIREMENT (review): an EMERGENCY pending request in Rohan's team view.
+    // Guide requirement: an EMERGENCY pending request in Rohan's team view.
     {
       who: "sneha",
       day: nextWorkingDay(ctx),
@@ -639,13 +610,8 @@ function wfhPlan(ctx: DemoContext): WfhPlan[] {
 }
 
 /**
- * Floating-holiday picks, by POSITION relative to today so they stay sensible
- * whenever the seed runs: past[0] = the most recent floating holiday already
- * gone, future[0] = the next one coming up.
- *
- * GUIDE REQUIREMENT (calendar): Priya has an approved and a pending pick (2 of
- * her 3) and the NEXT floating holiday (future[0]) is left for her to pick;
- * Rohan has a pending request from a direct report (Ananya) in his inbox.
+ * Floating-holiday picks by position relative to today (past[0] = latest gone, future[0] = next one).
+ * Guide requirement: Priya has an approved and a pending pick with future[0] left to pick; Rohan has Ananya's request.
  */
 type FloatingPick = {
   who: string
@@ -676,7 +642,6 @@ const FLOATING_PICKS: FloatingPick[] = [
   { who: "arjun", when: ["past", 2], status: "REJECTED", reason: "Two shoots booked that day." },
 ]
 
-/** Annual entitlement by leave code. */
 const ENTITLEMENT: Record<string, number> = { CL: 7, SL: 7, EL: 14 }
 
 const roundHalf = (n: number) => Math.round(n * 2) / 2
@@ -712,7 +677,7 @@ export async function seedTimeOff(ctx: DemoContext): Promise<void> {
   const year = ctx.today.getUTCFullYear()
   const r = ctx.rand
 
-  // ── leave types (provisioning made CL/SL/EL/LWP) + policy matrix ───────────
+  // Leave types (provisioning made CL/SL/EL/LWP) + policy matrix.
   const types = await db.leaveType.findMany({ select: { id: true, code: true } })
   for (const t of types) ctx.leaveType[t.code] = t.id
   const descriptions: Record<string, string> = {
@@ -755,11 +720,9 @@ export async function seedTimeOff(ctx: DemoContext): Promise<void> {
       })),
   )
 
-  // ── leave requests ─────────────────────────────────────────────────────────
   const plans = leavePlan(ctx)
 
-  // A little older history (earlier this year), so "used" is not just the
-  // last few weeks. Before the attendance window, so it never collides.
+  // Some older history (earlier this year, before the attendance window) so "used" is not just recent weeks.
   const windowStart = firstOfMonth(ctx.today, -2)
   const yearStart = ymd(year, 1, 5)
   const OLD_REASONS: Record<string, string[]> = {
@@ -794,8 +757,7 @@ export async function seedTimeOff(ctx: DemoContext): Promise<void> {
     }
   }
 
-  // Entitlements, so a plan that would overdraw a balance is dropped (only
-  // ever the random older history - the hand-written plan fits).
+  // Entitlements, so a random history plan that would overdraw a balance is dropped.
   const allocated: Record<string, Record<string, number>> = {}
   for (const p of DEMO_PEOPLE) {
     if (p.role === "admin" || p.key === "rahul") continue
@@ -899,7 +861,6 @@ export async function seedTimeOff(ctx: DemoContext): Promise<void> {
   for (const [s, n] of Object.entries(byStatus)) ctx.summary.add(M, `  leave ${s}`, n)
   byStatus = {}
 
-  // ── balances ───────────────────────────────────────────────────────────────
   const balances: Record<string, unknown>[] = []
   for (const [key, codes] of Object.entries(allocated)) {
     for (const [code, alloc] of Object.entries(codes)) {
@@ -919,7 +880,6 @@ export async function seedTimeOff(ctx: DemoContext): Promise<void> {
   await makeMany(ctx, "leaveBalance", balances)
   ctx.summary.add(M, `leave balances (${year})`, balances.length)
 
-  // ── WFH ────────────────────────────────────────────────────────────────────
   const wfhRows: Record<string, unknown>[] = []
   for (const plan of wfhPlan(ctx)) {
     let day = plan.day
@@ -961,7 +921,6 @@ export async function seedTimeOff(ctx: DemoContext): Promise<void> {
   ctx.summary.add(M, "WFH requests", wfhRows.length)
   for (const [s, n] of Object.entries(byStatus)) ctx.summary.add(M, `  WFH ${s}`, n)
 
-  // ── floating holidays ──────────────────────────────────────────────────────
   const thisYear = [...ctx.floatingHoliday]
     .map(([k, id]) => ({ id, date: new Date(`${k}T00:00:00Z`) }))
     .filter((h) => h.date.getUTCFullYear() === year && !isWeekend(h.date))
@@ -1014,7 +973,7 @@ export async function seedTimeOff(ctx: DemoContext): Promise<void> {
   await makeMany(ctx, "floatingHolidaySelection", floatRows)
   ctx.summary.add(M, "floating holiday picks", floatRows.length)
 
-  // ── a few unplanned absences (no request at all) ───────────────────────────
+  // A few unplanned absences (no request at all).
   for (const [who, week, dow] of [
     ["ishaan", -3, 2],
     ["arjun", -6, 3],

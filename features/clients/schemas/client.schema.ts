@@ -6,11 +6,7 @@ export type ClientStatusValue = (typeof CLIENT_STATUSES)[number]
 /** An optional free-text field: absent, empty, or trimmed text up to `max`. */
 const optionalText = (max: number) => z.string().trim().max(max).optional().or(z.literal(""))
 
-/**
- * A client is a company. The people at it who can sign in to the portal are
- * ClientUsers, managed by the client-portal feature; this is the account they
- * hang off.
- */
+/** A client company; its portal users (ClientUsers) are managed by the client-portal feature. */
 export const clientCreateSchema = z.object({
   name: z.string().trim().min(2, "Name is required").max(120),
   status: z.enum(CLIENT_STATUSES).default("ACTIVE"),

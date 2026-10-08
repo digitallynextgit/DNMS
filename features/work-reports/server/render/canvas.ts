@@ -1,8 +1,5 @@
-// The drawing surface the slide layout is written against. Two implementations:
-// PptxCanvas (native, editable PowerPoint objects) and PdfCanvas (pdfkit). The
-// layout in slides.ts never knows which one it is drawing on, which is what
-// keeps the PDF and the deck the same report. Units are inches on a 13.333 x
-// 7.5 in (16:9) page; colours are 6-digit hex without '#'.
+// The drawing surface slides.ts is written against: PptxCanvas (editable PowerPoint) or
+// PdfCanvas (pdfkit). Units are inches on a 13.333 x 7.5 in page; colours are hex without '#'.
 
 export const PAGE_W = 13.333
 export const PAGE_H = 7.5

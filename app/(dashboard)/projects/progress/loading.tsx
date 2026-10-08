@@ -1,18 +1,11 @@
 import { PageHeaderSkeleton, ChartSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-/**
- * Progress: header (project picker + date range) → a 6-up strip of icon stat
- * cards → the AI-insights card → the portfolio charts (or per-project detail).
- * Reserve that exact space so numbers and charts land without a reflow.
- */
 export default function Loading() {
   return (
     <div className="space-y-6">
       <PageHeaderSkeleton withActions />
 
-      {/* Stat tiles: grid-cols-2 / md:grid-cols-3 / lg:grid-cols-6, each an
-          icon box + label + value */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="border-border bg-card rounded-sm border">
@@ -27,7 +20,6 @@ export default function Loading() {
         ))}
       </div>
 
-      {/* AI insights card: title + action buttons */}
       <div className="border-border bg-card rounded-sm border p-5">
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-2">
@@ -41,7 +33,6 @@ export default function Loading() {
         </div>
       </div>
 
-      {/* Portfolio charts */}
       <ChartSkeleton />
     </div>
   )

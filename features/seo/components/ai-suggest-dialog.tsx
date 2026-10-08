@@ -19,15 +19,8 @@ import { toast } from "sonner"
 import type { CompetitorSuggestionView, KeywordSuggestionView } from "../types"
 import { useSeoAi, useSeoSites, useUpdateSeoSite } from "../hooks/use-seo"
 
-// =============================================================================
-// AI suggestions for money keywords / competitors.
-//
-// The model proposes; a human picks. Nothing is written until "Add selected" is
-// pressed, and even then it goes through the ordinary site-settings update - so
-// unreviewed machine output can never land in a client's tracked keywords.
-// Each keyword the site ALREADY gets impressions for is badged, because those
-// are facts from Search Console rather than the model's opinion.
-// =============================================================================
+// AI suggestions for money keywords / competitors. Nothing saves until "Add selected", and then
+// through the normal site-settings update. Keywords the site already ranks for are badged.
 
 export function AiSuggestDialog({
   projectId,
@@ -53,15 +46,13 @@ export function AiSuggestDialog({
   const [keywords, setKeywords] = useState<KeywordSuggestionView[]>([])
   const [competitors, setCompetitors] = useState<CompetitorSuggestionView[]>([])
   const [picked, setPicked] = useState<Set<string>>(new Set())
-  const [ran, setRan] = useState(false)
 
   const site = sitesData?.properties.find((p) => p.id === propertyId) ?? null
   const isKeywords = task === "keywords"
 
-  // Fetch once per open.
+  // Fetch once per open (the effect only re-runs when `open` flips).
   useEffect(() => {
-    if (!open || ran) return
-    setRan(true)
+    if (!open) return
     ai.mutate(
       { propertyId, task },
       {
@@ -78,14 +69,16 @@ export function AiSuggestDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  // Reset when closed so reopening asks again.
-  useEffect(() => {
-    if (open) return
-    setRan(false)
-    setKeywords([])
-    setCompetitors([])
-    setPicked(new Set())
-  }, [open])
+  // Clear the results when closed, so reopening starts empty.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (!open) {
+      setKeywords([])
+      setCompetitors([])
+      setPicked(new Set())
+    }
+  }
 
   const items: { key: string; primary: string; secondary: string; badge?: string }[] = isKeywords
     ? keywords.map((k) => ({

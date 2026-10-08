@@ -3,9 +3,8 @@
 import { useCallback, useSyncExternalStore } from "react"
 import type { HelpLang } from "../types"
 
-// The reader's guide language, remembered in this browser. A store rather than
-// state + effect, so every open guide and the language switch agree instantly,
-// and the server render (no storage) is plain English.
+// A store, not state + effect, so every open guide and the switch agree instantly; the server
+// render (no storage) is English.
 
 const KEY = "dnms-help-lang"
 const listeners = new Set<() => void>()

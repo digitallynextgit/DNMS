@@ -10,15 +10,8 @@ export interface SeededTeam {
 }
 
 /**
- * Give a project every catalogue team it is missing. Idempotent: existing teams
- * are never touched, so this runs on project creation and is safe to run again.
- *
- * A new team is staffed the way the company already staffs it elsewhere: the
- * active person who manages that team on most other projects becomes its
- * manager and first member ("teams don't change between projects - members
- * do"). `managers` pins a person for a team explicitly, which is how ADMIN got
- * its default before any ADMIN team existed. With nobody to copy, the team is
- * created unstaffed.
+ * Give a project every catalogue team it is missing (existing teams are never touched). A new team
+ * gets the person who manages it on most other projects; `managers` pins one explicitly.
  */
 export async function ensureProjectTeams(
   projectId: string,
@@ -45,8 +38,7 @@ export async function ensureProjectTeams(
     let managerId =
       opts.managers?.[name] ?? (await usualManagerFor(name, projectId, project.tenantId, client))
 
-    // One team per project per person. If the usual manager already sits on
-    // another team of this project, the team starts unstaffed instead.
+    // One team per person per project: if the usual manager is already on one, start unstaffed.
     if (managerId) {
       const elsewhere = await client.projectTeamMember.findFirst({
         where: { projectId, employeeId: managerId },
@@ -68,10 +60,6 @@ export async function ensureProjectTeams(
   return created
 }
 
-/**
- * The active person managing this team on most of the tenant's other projects,
- * or null when nobody does.
- */
 async function usualManagerFor(
   name: ProjectTeamName,
   projectId: string,

@@ -65,12 +65,6 @@ interface Props {
   canManage: boolean
 }
 
-/**
- * The Brand Brief tab: the brief, objectives, guidelines and manifestations.
- * The content calendar that used to sit behind a Strategy/Calendar toggle here
- * is its own project tab now (see project-sheet.tsx), so this is just the
- * strategy content.
- */
 export function BrandTab({ projectId, canManage }: Props) {
   return (
     <div className="mt-4">
@@ -78,8 +72,6 @@ export function BrandTab({ projectId, canManage }: Props) {
     </div>
   )
 }
-
-// ─── A section card with its own Save button ──────────────────────────────────
 
 function SectionCard({
   icon: Icon,
@@ -145,16 +137,7 @@ function SectionCard({
   )
 }
 
-// ─── Strategy ─────────────────────────────────────────────────────────────────
-
-/**
- * What the file picker offers on the document sections.
- *
- * Spreadsheets are in the list because the two sections that grew uploads last -
- * objectives and the manifestation plan - are the ones people already keep in
- * Excel. `accept` is a filter on the picker, not a security control; the server
- * has the blocklist and the size cap.
- */
+/** A picker filter, not a security control; the server has the blocklist and size cap. */
 const DOC_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,image/*"
 
 const THEME_ACCENT: Record<string, string> = {
@@ -185,10 +168,7 @@ function StrategySection({ projectId, canManage }: Props) {
   const origManifestation = { ...emptyManifestation(), ...(d?.manifestation ?? {}) }
   const origGuidelines = { ...EMPTY_GUIDELINES, ...(d?.guidelines ?? {}) }
 
-  // Seeded ONCE. `d` is a new object identity on every refetch, so this used
-  // to re-run on each one and overwrite whatever the user had typed but not yet
-  // saved. After the first load the local fields are the source of truth until
-  // they save or discard.
+  // Seeded once: `d` is a new object on every refetch and would overwrite unsaved edits.
   const seededRef = useRef(false)
   useEffect(() => {
     if (!d || seededRef.current) return
@@ -203,13 +183,7 @@ function StrategySection({ projectId, canManage }: Props) {
   const assets = d?.assets ?? []
   const filesFor = (kind: BrandAssetKind) => assets.filter((a) => a.kind === kind)
 
-  /**
-   * Which section is mid-upload.
-   *
-   * Read off the mutation's own variables rather than a bare `upload.isPending`:
-   * one shared flag put a spinner on all five upload buttons at once, so a file
-   * going into Brand Brief looked like it was going into everything.
-   */
+  /** Which section is uploading, so only its button shows a spinner. */
   const uploadingKind = upload.isPending ? upload.variables?.kind : undefined
 
   function saveSection(key: string, payload: Partial<ProjectBrandData>) {
@@ -315,8 +289,7 @@ function StrategySection({ projectId, canManage }: Props) {
   ]
 
   return (
-    // One sub-tab per section. Every section's draft lives in this component,
-    // not in the cards, so switching tabs never discards an unsaved edit.
+    // Drafts live here, not in the cards, so switching tabs never discards an edit.
     <Tabs defaultValue="brief" className="space-y-4">
       <TabsBar
         spacing="none"
@@ -329,7 +302,6 @@ function StrategySection({ projectId, canManage }: Props) {
         ]}
       />
 
-      {/* 1 · Brand Brief */}
       <TabsContent value="brief">
         <SectionCard
           step={1}
@@ -389,7 +361,6 @@ function StrategySection({ projectId, canManage }: Props) {
         </SectionCard>
       </TabsContent>
 
-      {/* 2 · Digital Objectives */}
       <TabsContent value="objectives">
         <SectionCard
           step={2}
@@ -427,9 +398,7 @@ function StrategySection({ projectId, canManage }: Props) {
               <Plus className="h-3.5 w-3.5" /> Add objective
             </Button>
           )}
-          {/* Outside the Save flow, like every other AssetRow: a file is stored the
-            moment it is picked, so attaching the client's target sheet does not
-            depend on remembering to press Save on the table above it. */}
+          {/* Outside the Save flow: a file is stored the moment it is picked. */}
           <AssetRow
             label="Target sheets & reports"
             files={filesFor("OBJECTIVES")}
@@ -442,7 +411,6 @@ function StrategySection({ projectId, canManage }: Props) {
         </SectionCard>
       </TabsContent>
 
-      {/* 3 · Manifestation Plan */}
       <TabsContent value="manifestation">
         <SectionCard
           step={3}
@@ -508,9 +476,6 @@ function StrategySection({ projectId, canManage }: Props) {
               </div>
             ))}
           </div>
-          {/* Section-level, not per-theme. Four upload rows inside a four-card grid
-            would read as part of each theme's form; the plan is presented as one
-            document, so its attachments hang off the whole plan. */}
           <AssetRow
             label="Plan documents"
             files={filesFor("MANIFESTATION")}
@@ -523,7 +488,6 @@ function StrategySection({ projectId, canManage }: Props) {
         </SectionCard>
       </TabsContent>
 
-      {/* 4 · Brand Overview */}
       <TabsContent value="overview">
         <SectionCard
           step={4}
@@ -556,7 +520,6 @@ function StrategySection({ projectId, canManage }: Props) {
         </SectionCard>
       </TabsContent>
 
-      {/* 5 · Brand Guidelines */}
       <TabsContent value="guidelines">
         <SectionCard
           step={5}
@@ -697,8 +660,6 @@ function updateColor(
   set((g) => ({ ...g, colors: g.colors.map((c, j) => (j === i ? { ...c, ...patch } : c)) }))
 }
 
-// ─── Files (uploads are saved immediately, not part of a section's Save) ───────
-
 function AssetRow({
   label,
   files,
@@ -713,8 +674,7 @@ function AssetRow({
   files: ProjectBrandData["assets"]
   canManage: boolean
   uploading: boolean
-  /** Called once per picked file, in order; return the upload promise so the
-   *  next file waits (the server buffers each upload whole - see drive-tab). */
+  /** Called once per file, in order; return the promise so the next file waits. */
   onUpload: (file: File) => Promise<unknown> | void
   onDelete: (id: string) => void
   accept?: string
@@ -740,12 +700,10 @@ function AssetRow({
             className="bg-muted/40 flex items-center gap-2 rounded-sm border px-2.5 py-1.5 text-xs"
           >
             <Icon className="text-muted-foreground h-4 w-4 shrink-0" />
-            {/* Full file name - breaks across lines instead of truncating. */}
             <span className="min-w-0 flex-1 font-medium break-all" title={f.fileName}>
               {f.fileName}
             </span>
             <div className="flex shrink-0 items-center gap-0.5">
-              {/* View: opens inline in a new tab. */}
               <a
                 href={f.url}
                 target="_blank"
@@ -755,8 +713,7 @@ function AssetRow({
               >
                 <Eye className="h-3.5 w-3.5" />
               </a>
-              {/* Download: saves the file under its real name (signed URL carries a
-                  content-disposition header, so it downloads even cross-origin). */}
+              {/* The signed URL carries content-disposition, so it downloads even cross-origin. */}
               <a
                 href={f.downloadUrl ?? f.url}
                 download={f.fileName}
@@ -765,8 +722,6 @@ function AssetRow({
               >
                 <Download className="h-3.5 w-3.5" />
               </a>
-              {/* Delete: always visible (was hidden until hover). Gated on canManage,
-                  which is admin OR the project's account manager - see the project page. */}
               {canManage && (
                 <button
                   type="button"

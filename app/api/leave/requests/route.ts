@@ -2,7 +2,6 @@ import { NextRequest } from "next/server"
 import { withErrorHandler, respond } from "@/server/api-handler"
 import { getLeaveRequests, applyLeave } from "@/features/leave/server/leave.service"
 
-// GET /api/leave/requests?status=&employeeId=&leaveTypeId=&from=&to=&page=&limit=
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const sp = req.nextUrl.searchParams
   const filters: {
@@ -24,7 +23,6 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   return respond(await getLeaveRequests(filters))
 })
 
-// POST /api/leave/requests - apply for leave.
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const body = (await req.json()) as {
     leaveTypeId: string

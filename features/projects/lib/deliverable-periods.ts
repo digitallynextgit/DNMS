@@ -1,21 +1,9 @@
 import { STATUS_ORDER, type DeliverableStatus } from "./deliverable-lifecycle"
 import { formatPeriod } from "./delivery-period"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// A DELIVERABLE, as the account manager means the word.
-//
-// They plan "14-18 Sep 2026": four blogs from WEB, two reels from VIDEO. That
-// week is the deliverable - one row on the board - and the per-team items are
-// what it is made of. On disk each team item is its own row carrying the same
-// periodStart/periodEnd, so a deliverable is the set of rows sharing a window,
-// and its name is the window. Nothing else is stored for it: a period with a
-// separate title would be a second name for a thing that already has one.
-//
-// Pure, so the rollup (what is a period's status, is it overdue, how much of
-// it landed) is tested without a component.
-// ─────────────────────────────────────────────────────────────────────────────
+// A deliverable, to the account manager, is a planned window ("14-18 Sep 2026"): the set of
+// per-team rows sharing periodStart/periodEnd. Its name is the window; nothing else is stored.
 
-/** The fields a row needs for the rollup - the UI row type satisfies it. */
 export interface PeriodRowLike {
   periodStart: string | null
   periodEnd: string | null
@@ -26,12 +14,7 @@ export interface PeriodRowLike {
   team?: { id: string; name: string } | null
 }
 
-/**
- * Where a period is, taken as a whole.
- *
- * Deliberately the same five words as a single row, so the pill on the period
- * row reads the same as the pills inside it.
- */
+/** The same five words as a single row, so the period pill reads like the pills inside it. */
 export type PeriodStatus = DeliverableStatus
 
 export interface DeliverablePeriod<R extends PeriodRowLike = PeriodRowLike> {
@@ -46,13 +29,7 @@ export interface DeliverablePeriod<R extends PeriodRowLike = PeriodRowLike> {
   teams: string[]
   /** Units promised - the sum of quantities, not the number of rows. */
   planned: number
-  /**
-   * Units actually made, whatever the status says.
-   *
-   * Summed from each row s own progress rather than counting a DELIVERED row
-   * whole: four blogs with one written is one unit made, and a bar that showed
-   * nothing until the fourth landed would hide a week of real work.
-   */
+  /** Units actually made, summed per row - one of four blogs written counts as one. */
   made: number
   status: PeriodStatus
   /** The window has closed and something in it is still not made. */
@@ -66,10 +43,7 @@ export const UNPLANNED_LABEL = "Logged without a plan"
 
 const isMade = (s: DeliverableStatus) => s === "DELIVERED" || s === "ACCEPTED"
 
-// ─── The URL form of a period ────────────────────────────────────────────────
-// A deliverable has its own page, so its key has to survive a path segment.
-// ".." inside a segment is legal but reads like a parent reference to every
-// human who sees it, so the slug joins the two days with "_" instead.
+// URL form of a period: "_" joins the days, since ".." in a path segment reads like a parent ref.
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 
@@ -88,26 +62,14 @@ export function periodKeyFromSlug(slug: string): string | null {
 }
 
 /**
- * One status for a set of rows.
- *
- *   any sent back            -> REJECTED   (somebody has to act)
- *   everything accepted      -> ACCEPTED
- *   everything at least made -> DELIVERED
- *   anything started or made -> IN_PROGRESS
- *   nothing touched          -> PLANNED
- *
- * Rejection wins over everything because it is the one state that is waiting
- * on the team, and a period that says "Delivered" while a piece of it is
- * bounced would hide the thing needing attention.
+ * One status for a set of rows: any sent back -> REJECTED (it waits on the team, so it wins);
+ * all accepted -> ACCEPTED; all made -> DELIVERED; anything touched -> IN_PROGRESS; else PLANNED.
  */
 export function derivePeriodStatus(statuses: readonly DeliverableStatus[]): PeriodStatus {
   if (statuses.length === 0) return "PLANNED"
   if (statuses.some((s) => s === "REJECTED")) return "REJECTED"
 
-  // Dropped rows are not evidence about the period - a week whose only surviving
-  // item is made should read "made", not be dragged back to "in progress" by the
-  // one that was called off. So they are set aside before the rest is judged,
-  // and only a period that is ENTIRELY discarded reports as discarded.
+  // Discarded rows say nothing about the period; only an all-discarded period reads as discarded.
   const live = statuses.filter((s) => s !== "DISCARDED")
   if (live.length === 0) return "DISCARDED"
 
@@ -120,12 +82,7 @@ export function derivePeriodStatus(statuses: readonly DeliverableStatus[]): Peri
 
 const day = (ymd: string) => new Date(`${ymd}T00:00:00.000Z`)
 
-/**
- * Fold rows into their periods, newest first, with the unplanned bucket last.
- *
- * `today` is yyyy-MM-dd so "overdue" is a plain string comparison, the same
- * way the rest of the ledger reads dates - and so a test can pin it.
- */
+/** Fold rows into periods, newest first, unplanned last. `today` is yyyy-MM-dd (string compare). */
 export function groupIntoPeriods<R extends PeriodRowLike>(
   rows: readonly R[],
   today: string,
@@ -159,8 +116,7 @@ export function groupIntoPeriods<R extends PeriodRowLike>(
 
   for (const p of map.values()) {
     p.status = derivePeriodStatus(p.rows.map((r) => r.status))
-    // Overdue is about the window, not the deadline on any one row: the week
-    // is over and the client is still waiting on part of it.
+    // Overdue is about the window: it has closed and part of it is still not made.
     p.overdue = Boolean(p.end && p.end < today && !isMade(p.status))
   }
 
@@ -172,23 +128,13 @@ export function groupIntoPeriods<R extends PeriodRowLike>(
   })
 }
 
-// ─── Reading one period ──────────────────────────────────────────────────────
-
-/** Units and items sitting at one status. */
 export interface StatusUnits {
   status: DeliverableStatus
   units: number
   items: number
 }
 
-/**
- * Units and items per status, in reading order, zeroes included.
- *
- * Units, not items, is the headline number everywhere else - "10 product
- * pages" logged once is ten - so the tracker counts the way its own progress
- * bar counts. Items come too, because four units spread over four rows is a
- * different day's work from one row of four.
- */
+/** Units and items per status, in reading order, zeroes included. Units are the headline number. */
 export function unitsByStatus(rows: readonly PeriodRowLike[]): StatusUnits[] {
   return STATUS_ORDER.map((status) => {
     const at = rows.filter((r) => r.status === status)
@@ -209,13 +155,7 @@ export interface TeamSlice<R> {
   status: PeriodStatus
 }
 
-/**
- * One period split by team, in the order the teams first appear.
- *
- * The tabs and the tracker above them both read a period team by team, and
- * working it out twice is two chances for a tab's count and the bar beside it
- * to disagree.
- */
+/** One period split by team, in first-appearance order (shared by the tabs and the tracker). */
 export function splitByTeam<R extends PeriodRowLike>(rows: readonly R[]): TeamSlice<R>[] {
   const map = new Map<string, TeamSlice<R>>()
   for (const r of rows) {

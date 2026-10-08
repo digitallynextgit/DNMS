@@ -46,14 +46,8 @@ export interface PortalProject {
 }
 
 /**
- * The portal's left rail - deliberately the SAME shell as the staff sidebar
- * (components/layout/sidebar.tsx): identical widths, logo header, section
- * label, nav item sizing, collapsed rail with tooltips, and the shared
- * useSidebarStore so the collapse state and Ctrl+B behave the same way.
- *
- * What differs is what fills it. Staff nav comes from a static config filtered
- * by permission scopes; a client's comes from the modules on their grant, so the
- * rail literally cannot offer a section they were not given.
+ * The portal's left rail - the staff sidebar's shell, filled from the client's granted modules
+ * so it can't offer a section they weren't given.
  */
 export function PortalSidebar({
   projects,
@@ -62,17 +56,12 @@ export function PortalSidebar({
   projects: PortalProject[]
   current: PortalProject
 }) {
-  // NOT usePathname(): that returns the tenant-prefixed URL on the client and
-  // the rewritten one on the server, so nav highlighting broke on hydration.
   const pathname = useAppPathname()
   const { isCollapsed, toggle } = useSidebarStore()
   const modules = CLIENT_MODULES.filter((m) => current.modules.includes(m.key))
 
-  // Ctrl+B (Windows/Linux) and Cmd+B (macOS) toggle the sidebar. The staff
-  // sidebar binds this on ITS component, so the portal got the shortcut's
-  // tooltip from the shared topbar but none of its behaviour - copied verbatim
-  // rather than lifted, since hoisting it would mean both sidebars registering
-  // a listener whenever they ever render together.
+  // Ctrl/Cmd+B toggles the sidebar. Copied from the staff sidebar rather than hoisted, so the two
+  // never both register a listener.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "b") {
@@ -97,7 +86,6 @@ export function PortalSidebar({
         isCollapsed ? "w-14" : "w-56",
       )}
     >
-      {/* Logo - same theme-aware wordmark pair the staff sidebar uses. */}
       <div
         className={cn(
           "border-border flex h-14.25 shrink-0 items-center overflow-hidden border-b",
@@ -123,10 +111,6 @@ export function PortalSidebar({
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
-        {/* No project name for a single-project client: with nothing to switch
-            between it was a static label eating the top of the rail. The
-            switcher still appears for anyone holding more than one, where
-            naming the current project is the whole point. */}
         {projects.length > 1 && (
           <>
             {!isCollapsed && (
@@ -165,8 +149,6 @@ export function PortalSidebar({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Separator between the switcher and the sections - only needed
-                when the switcher is actually there. */}
             {isCollapsed ? (
               <div className="border-border mx-1 my-2 border-t" />
             ) : (

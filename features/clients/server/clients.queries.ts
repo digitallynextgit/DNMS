@@ -11,15 +11,8 @@ import { resolveModules } from "@/features/client-portal/modules"
 import { clientListQuerySchema } from "../schemas/client.schema"
 import { resolveClientId } from "./client-access"
 
-// =============================================================================
-// Reads for the client book.
-//
-// A client is a company. What the directory wants to know about one is not its
-// own columns but what hangs off it: how many projects, how many of those are
-// live, how many people can sign in, and when one of them last did. Those are
-// worked out here from the relations rather than kept as counters, so they can
-// never drift from the rows they describe.
-// =============================================================================
+// Client summaries (project counts, people, last sign-in) are derived from relations, not
+// stored counters, so they can't drift.
 
 const PERSON_SELECT = { id: true, firstName: true, lastName: true, profilePhoto: true } as const
 
@@ -40,12 +33,7 @@ function summarise(
   }
 }
 
-/**
- * The directory: paginated, searchable, with the per-client summary and the
- * whole-book totals for the strip above the table. The totals ignore the
- * filters on purpose - "how many clients do we have" should not change because
- * someone typed in the search box.
- */
+/** The directory: paginated and searchable, plus whole-book totals that ignore the filters. */
 export async function listClients(raw: unknown): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const q = clientListQuerySchema.parse(raw)
@@ -108,11 +96,7 @@ export async function listClients(raw: unknown): Promise<ActionResult<unknown>> 
   })
 }
 
-/**
- * One client with everything the detail page shows: its projects, its people
- * and what each of them can see. One request rather than one per tab, because
- * the header's counts need all of it anyway.
- */
+/** One client with its projects, people and their access - one request for every tab. */
 export async function getClient(id: string): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const client = await db.client.findUnique({
@@ -168,8 +152,7 @@ export async function getClient(id: string): Promise<ActionResult<unknown>> {
       serialize({
         ...rest,
         projects,
-        // Report only modules this build understands - same rule as the
-        // project's own portal-access list.
+        // Only modules this build understands, as on the project's portal-access list.
         contacts: contacts.map((c) => ({
           ...c,
           access: c.access.map((a) => ({ ...a, modules: resolveModules(a.modules) })),
@@ -180,13 +163,7 @@ export async function getClient(id: string): Promise<ActionResult<unknown>> {
   })
 }
 
-/**
- * What this client's people have done in the portal, newest first.
- *
- * Read across every contact rather than per project: the question on a client
- * page is "is anyone at Acme using this", and the project pages already answer
- * the per-project version.
- */
+/** The client's portal activity across all contacts, newest first. */
 export async function listClientActivity(
   id: string,
   raw: { page?: string | null; limit?: string | null },
@@ -217,14 +194,7 @@ export async function listClientActivity(
   })
 }
 
-/**
- * A client's name, for the browser tab.
- *
- * Feeds `generateMetadata` in app/(dashboard)/projects/clients/[id]/layout.tsx.
- * Gated on the same permission as the page's data, so someone who cannot open
- * the client does not get its name in their tab either. Null on no match or no
- * permission, so the layout can fall back to a generic title.
- */
+/** A client's name for the browser tab; null if missing or not permitted (the page's gate). */
 export async function getClientTitle(idOrSlug: string, session: Session): Promise<string | null> {
   if (!hasPermission(session, PERMISSIONS.CLIENT_READ)) return null
   const id = await resolveClientId(idOrSlug)

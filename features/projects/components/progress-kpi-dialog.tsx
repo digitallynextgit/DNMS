@@ -22,12 +22,7 @@ import { cn, formatDate } from "@/lib/utils"
 import { DELIVERABLE_STATUS_LABELS, type DeliverableStatus } from "../lib/deliverable-lifecycle"
 import type { DeliverablesProgress, ProgressItem } from "../lib/deliverables-progress"
 
-// The popup behind each KPI tile on the Progress page: the rows that make up
-// the number, one tab per project (or per person, for anyone looking at a
-// team) so a project's rows are a click away instead of a scroll through every
-// other project's. "All" keeps the whole list, sectioned, for anyone who wants
-// it. Everything here is derived from the payload the page already holds - no
-// extra fetch, so what you click on is exactly what the tile counted.
+// Derived from the page's payload - no extra fetch, so the rows match what the tile counted.
 
 const ALL = "all"
 
@@ -68,8 +63,7 @@ const KPI: Record<
   },
 }
 
-// In step with DELIVERABLE_STATUS_CHIP - the same status must not be one colour
-// on a row and another in this dialog.
+// Keep in step with DELIVERABLE_STATUS_CHIP.
 const STATUS_TONE: Record<DeliverableStatus, string> = {
   PLANNED: "text-muted-foreground",
   IN_PROGRESS: "text-blue-500",
@@ -115,7 +109,6 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
 
   const [query, setQuery] = useState("")
   const [groupBy, setGroupBy] = useState<GroupBy>("project")
-  // Which tab is open: a project / person key, or ALL for the sectioned list.
   const [tab, setTab] = useState(ALL)
   const changeGroupBy = (g: GroupBy) => {
     setGroupBy(g)
@@ -146,13 +139,10 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
   }, [items, query, groupBy])
 
   const shownCount = groups.reduce((n, g) => n + g.items.length, 0)
-  // A search can empty the open tab out; fall back to the whole list rather
-  // than showing a blank table under a tab that is no longer there.
+  // A search can empty the open tab; fall back to the whole list.
   const active = groups.some((g) => g.key === tab) ? tab : ALL
   const visible = active === ALL ? groups : groups.filter((g) => g.key === active)
-  // Flat list of items for the table (no section headers).
   const flatItems = visible.flatMap((g) => g.items)
-  // One project needs no tabs - the header already says what it is.
   const showTabs = groups.length > 1
 
   return (

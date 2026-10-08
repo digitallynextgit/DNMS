@@ -14,9 +14,8 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { cn, formatWorkHours } from "@/lib/utils"
 import type { CalendarDay, CalendarDayStatus } from "@/features/attendance/hooks/use-attendance"
 
-// Reuses the calendar's own colour language rather than the app-wide attendance
-// map: this grid has statuses (MISSING_PUNCH, WFH, UPCOMING) the log table does
-// not, and the badge should match the cell the user just tapped.
+// Calendar-specific labels: this grid has statuses (MISSING_PUNCH, WFH, UPCOMING) the log
+// table doesn't.
 const STATUS_LABEL: Record<CalendarDayStatus, string> = {
   PRESENT: "Present",
   HALF_DAY: "Half day",
@@ -68,8 +67,7 @@ function cellStyle(status: CalendarDayStatus): string {
 
 function fmtTime(t: string | null): string {
   if (!t) return "--:--"
-  // Always render in IST (the device/office timezone), independent of the
-  // viewer's browser timezone.
+  // Always IST (the device/office timezone), whatever the browser's timezone.
   return new Date(t).toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
@@ -95,10 +93,8 @@ function DayCell({ d, onSelect }: { d: CalendarDay; onSelect: (d: CalendarDay) =
   const showLabel =
     d.label && (d.status === "HOLIDAY" || d.status === "LEAVE" || d.status === "WFH")
   return (
-    // Below `sm` a cell is only ~33px wide (a 320px screen / 7 columns), which
-    // cannot hold "09:32" let alone "Missing punch" - so the phone cell carries
-    // just the day number and leans on the status colour, and the punch detail
-    // returns from `sm` up. The native title tooltip keeps it reachable.
+    // Phone cells (~33px) only fit the day number + status colour; punch detail returns at sm
+    // (and is in the title tooltip).
     <button
       type="button"
       onClick={() => onSelect(d)}
@@ -135,10 +131,7 @@ function DayCell({ d, onSelect }: { d: CalendarDay; onSelect: (d: CalendarDay) =
   )
 }
 
-/**
- * The day detail a phone cell has no room for. Tapping any day opens it, so the
- * punch times and hours the narrow grid hides are one tap away rather than lost.
- */
+/** Day detail for phone cells, which have no room for punch times and hours. */
 function DayDetailDialog({ day, onClose }: { day: CalendarDay | null; onClose: () => void }) {
   const heading = day
     ? new Date(day.date).toLocaleDateString("en-GB", {
@@ -175,8 +168,7 @@ function DayDetailDialog({ day, onClose }: { day: CalendarDay | null; onClose: (
               size="sm"
             />
 
-            {/* Punch detail only means something on a day that had (or should
-                have had) punches - a weekend or holiday row of dashes is noise. */}
+            {/* Punch detail only for days that had (or should have had) punches. */}
             {(day.status === "PRESENT" ||
               day.status === "HALF_DAY" ||
               day.status === "MISSING_PUNCH") && (

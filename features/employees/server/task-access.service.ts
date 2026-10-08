@@ -4,19 +4,8 @@ import { db } from "@/server/db"
 import { NotFoundError, ValidationError } from "@/lib/errors"
 import { createNotification } from "@/lib/notifications"
 
-// =============================================================================
-// The task-edit override.
-//
-// Normally whoever raised a task may correct it for 15 minutes and no longer;
-// after that only the team manager can (lib/edit-window.ts).
-// That is right for a commitment other people plan around, and wrong when
-// somebody has to write up a day they forgot to fill in, or fix last week's
-// sheet before it is reported on.
-//
-// HR/admin lifts the window for one person, from that person's profile. It is
-// deliberately narrow: it lets them correct work THEY raised. It does not let
-// them touch a colleague's task, and it does not let them delete anything.
-// =============================================================================
+// Task-edit override: lifts the 15-minute edit window (lib/edit-window.ts) for one person, so
+// they can correct tasks THEY raised - never a colleague's, and never delete.
 
 /** Does this person currently have the window lifted? */
 export async function hasPastTaskAccess(employeeId: string): Promise<boolean> {
@@ -55,22 +44,14 @@ export async function getTaskAccess(employeeId: string): Promise<TaskAccessState
   }
 }
 
-/**
- * Turn the override on or off.
- *
- * Always records WHO decided and when. A standing bypass of a control that
- * nobody can trace back to a person is how the control quietly stops meaning
- * anything - and the employee is told either way, because a permission that
- * changes silently is one they will not use, or will not know they lost.
- */
+/** Turn the override on or off; always records who decided, and the employee is told. */
 export async function setTaskAccess(
   employeeId: string,
   enabled: boolean,
   actorId: string,
 ): Promise<TaskAccessState> {
   if (employeeId === actorId) {
-    // Otherwise an admin quietly widens their own permissions, which is the one
-    // grant nobody else is watching.
+    // Otherwise an admin could quietly widen their own permissions.
     throw new ValidationError(
       "You cannot change your own task-edit access. Ask another admin to do it.",
     )
@@ -87,8 +68,7 @@ export async function setTaskAccess(
     where: { id: employeeId },
     data: {
       canEditPastTasks: enabled,
-      // Kept on revoke too: "granted by X, then taken away" is the history worth
-      // having, and blanking it loses who ever thought it was a good idea.
+      // Kept on revoke too, so the history shows who granted it.
       pastTaskAccessGrantedAt: new Date(),
       pastTaskAccessGrantedById: actorId,
     },

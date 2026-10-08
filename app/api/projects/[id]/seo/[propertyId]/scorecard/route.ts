@@ -10,11 +10,8 @@ async function owned(projectId: string, propertyId: string) {
   return db.seoProperty.findFirst({ where: { id: propertyId, projectId }, select: { id: true } })
 }
 
-// GET - the latest stored scorecard. If none exists yet but the site HAS data to
-// score, build one on the spot: a site with weeks of Search Console history was
-// showing an empty Scorecard tab purely because nothing had triggered the first
-// build (the weekly cron only fills it going forward). Read stays cheap in the
-// normal case - the build happens at most once, then it's stored.
+// Builds the first scorecard on read if the site has data but none is stored yet (the weekly cron
+// only fills it going forward).
 export const GET = withAuth(
   PERMISSIONS.PROJECT_READ,
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
@@ -28,8 +25,7 @@ export const GET = withAuth(
     })
     if (card) return NextResponse.json({ data: card })
 
-    // Nothing stored: only worth building if there is at least one snapshot,
-    // otherwise every metric would be "no data" and the card would mislead.
+    // Only build with at least one snapshot; otherwise every metric would read "no data".
     const hasData = await db.seoSnapshot.count({ where: { propertyId } })
     if (!hasData) return NextResponse.json({ data: null })
 
@@ -38,7 +34,6 @@ export const GET = withAuth(
   },
 )
 
-// POST - recompute now from whatever data is stored.
 export const POST = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _s: Session) => {
     const { id, propertyId } = ctx.params

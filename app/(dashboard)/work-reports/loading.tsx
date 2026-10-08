@@ -1,6 +1,5 @@
 import { PageHeaderSkeleton, ListSkeleton } from "@/components/shared/loading-skeleton"
 
-// Work report: header + the build-a-report card.
 export default function WorkReportsLoading() {
   return (
     <div className="space-y-6">

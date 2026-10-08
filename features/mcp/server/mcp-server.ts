@@ -24,19 +24,9 @@ import { exportTable, prepareDownload, type FileOutcome } from "./download.servi
 import { principalFrom, runAsPrincipal, type Principal } from "./principal"
 import { logToolCall } from "./usage"
 
-// =============================================================================
-// The DNMS MCP server: the tools Claude / ChatGPT see.
-//
-// Two layers:
-//   - SHORTCUTS for the questions managers ask most (dashboard, approvals,
-//     who is away, find a person) - one call, no endpoint hunting.
-//   - The PASS-THROUGH (dnms_find_endpoints → dnms_get / dnms_change) that
-//     reaches every DNMS API route the person can use. This is what makes it
-//     "everything": all modules, read and write, bounded by their permissions.
-//
-// Reads and writes are separate tools on purpose: AI apps can run reads freely
-// and ask the person before a write (dnms_change is marked destructive).
-// =============================================================================
+// The MCP tools: shortcuts for common questions, plus a pass-through (dnms_find_endpoints ->
+// dnms_get / dnms_change) to every route the person can use. Reads and writes are separate tools
+// so apps can ask before writing.
 
 const INSTRUCTIONS = `DNMS is Digitally Next's HR and project-management system (HRMS): people, leave, attendance, WFH, payroll, performance, recruitment, projects, tasks, deliverables, clients, stock and more.
 
@@ -140,7 +130,6 @@ const can = (p: Principal, scope: string) =>
 function registerTools(server: McpServer) {
   const readOnly = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const
 
-  // ── Profile ────────────────────────────────────────────────────────────────
   server.registerTool(
     "whoami",
     {
@@ -188,7 +177,6 @@ function registerTools(server: McpServer) {
       }),
   )
 
-  // ── Shortcuts ──────────────────────────────────────────────────────────────
   server.registerTool(
     "dnms_dashboard",
     {
@@ -313,9 +301,7 @@ function registerTools(server: McpServer) {
             for (const e of chunk) byPerson.set(e.id, days[e.id] ?? [])
           }
 
-          // A public holiday shows up on EVERYONE's list; report it once as a
-          // company holiday instead of repeating it per person. (A floating
-          // holiday someone took is theirs alone and stays on their row.)
+          // A public holiday is on everyone's list - report it once, as a company holiday.
           const holidayCount = new Map<string, number>()
           for (const list of byPerson.values()) {
             for (const d of list) {
@@ -404,7 +390,6 @@ function registerTools(server: McpServer) {
       ),
   )
 
-  // ── Pass-through: everything else ──────────────────────────────────────────
   server.registerTool(
     "dnms_find_endpoints",
     {
@@ -544,12 +529,7 @@ function registerTools(server: McpServer) {
   )
 }
 
-/**
- * The MCP HTTP handler (bearer-gated in app/api/mcp/route.ts). Stateless: a
- * fresh server per request, serving the 2026-07-28 protocol natively and
- * 2025-era clients through the SDK's stateless fallback - no sessions, so it
- * scales on one Node process or many without shared state.
- */
+/** MCP HTTP handler, bearer-gated in app/api/mcp/route.ts. Stateless: one server per request. */
 export const mcpHttpHandler = createMcpHandler(
   () => {
     const server = new McpServer(

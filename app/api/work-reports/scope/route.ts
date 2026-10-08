@@ -7,10 +7,7 @@ import {
   resolveWorkReportScope,
 } from "@/features/work-reports/server/work-report.scope"
 
-// GET /api/work-reports/scope
-//
-// The people the caller may put in a work report, from the same resolver the
-// download uses - so the page can never offer someone the route would refuse.
+// Same resolver as the download, so the page never offers someone the route would refuse.
 export const dynamic = "force-dynamic"
 
 export const GET = withSession(

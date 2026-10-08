@@ -100,21 +100,13 @@ import { MonitorStatus } from "./monitor-status"
 import { SetupGuide } from "./setup-guide"
 import { AiExplain, TabHeader } from "./seo-toolbar"
 
-// =============================================================================
-// SEO tab. A project can track MANY sites (KYG = 13 subdomains under one
-// account), so the default view is the roll-up across all of them and each site
-// drills down to its own full report.
-// =============================================================================
+// SEO tab. A project can track many sites, so the default view is the roll-up across them all.
 
 const ALL = "__all__"
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`
 const num = (v: number) => v.toLocaleString("en-IN")
 
-/**
- * Whether showing the domain next to the label tells you anything new. Most
- * sites are labelled after their host, so "Knowyourgenes.in" alongside
- * "www.knowyourgenes.in" is noise that pushed the real name out of the trigger.
- */
+/** Whether the domain adds anything beside the label (most labels are just the host). */
 function domainAddsInfo(label: string, domain: string): boolean {
   const norm = (s: string) =>
     s
@@ -126,8 +118,7 @@ function domainAddsInfo(label: string, domain: string): boolean {
   return norm(label) !== norm(domain)
 }
 
-/** Signed change. `change` already carries a corrected sign from the server, so
- *  positive always means "better", even for average position. */
+/** Signed change. The server already flips the sign, so positive always means better. */
 function Delta({
   change,
   changePct,
@@ -201,8 +192,7 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
 
   const sites = data?.properties ?? []
   const gscConfigured = !!data?.gscConfigured
-  // A site can vanish (deleted elsewhere) while it's selected - fall back rather
-  // than querying an id that no longer exists.
+  // The selected site may have been deleted elsewhere - fall back.
   const current = sites.find((s) => s.id === selected) ?? null
   const activeId = current?.id ?? null
 
@@ -256,13 +246,9 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Select value={selected} onValueChange={setSelected}>
-            {/* The trigger's default [&>span]:line-clamp-1 sets display:-webkit-box
-                on the value span, which would break the flex row inside it. Swap it
-                for flex + truncate so the label ellipsises cleanly instead. */}
+            {/* line-clamp-1's -webkit-box breaks the flex row, so use flex + truncate. */}
             <SelectTrigger className="w-full min-w-0 sm:w-72 [&>span]:line-clamp-none [&>span]:flex [&>span]:min-w-0 [&>span]:overflow-hidden">
-              {/* Children here override Radix's default of echoing the selected
-                  item's markup, so the two-line options below can be richer than
-                  what the single-line trigger shows. */}
+              {/* Custom children, so the trigger can be simpler than the two-line options. */}
               <SelectValue>
                 {current ? (
                   <span className="flex min-w-0 items-center gap-1.5">
@@ -449,8 +435,6 @@ function SiteActions({
     </>
   )
 }
-
-// --- roll-up ----------------------------------------------------------------
 
 function RollupView({
   projectId,
@@ -651,14 +635,7 @@ function SitesTable({
   )
 }
 
-// --- one site ---------------------------------------------------------------
-
-/**
- * Period controls for the whole site report. Search Console data is stored one
- * week per snapshot, so the choices are which stored week to end on and how many
- * of them to combine. Both are real stored windows rather than an arbitrary date
- * range, which keeps every number traceable to data we actually hold.
- */
+/** Period controls: which stored week to end on and how many weeks to combine. */
 function PeriodFilter({
   overview: o,
   periodEnd,
@@ -735,8 +712,7 @@ function PeriodFilter({
             endMonth={maxDate}
             defaultMonth={parseDateString(o.period?.end ?? newest.end)}
             selected={parseDateString(o.period?.end ?? newest.end)}
-            // Any day inside a stored week resolves server side to that week, so
-            // only dates outside the stored range need blocking.
+            // Any day in a stored week resolves to that week; only block out-of-range dates.
             disabled={(d) => (!!minDate && d < minDate) || (!!maxDate && d > maxDate)}
             onSelect={(d) => {
               if (!d) return
@@ -786,9 +762,7 @@ function formatRange(start: string, end: string): string {
   return `${day(s)} to ${day(e)} ${mon(e)} ${yr(e)}`
 }
 
-/** The tabs, grouped by the question each one answers. Ten flat tabs made it
- *  impossible to tell where anything lived; these seven each own a job, and the
- *  description under the heading says what that job is. */
+/** The tabs, grouped by the question each one answers. */
 const TABS = [
   { value: "start", label: "Start here", Icon: Rocket },
   { value: "performance", label: "Performance", Icon: Search },
@@ -812,8 +786,7 @@ function SiteReport({
   canManage: boolean
   onEditSite: (field?: SetupField) => void
 }) {
-  // null end = the newest stored week. Both live here so every tab below reads
-  // the same window.
+  // null end = newest stored week. Lives here so every tab reads the same window.
   const [periodEnd, setPeriodEnd] = useState<string | null>(null)
   const [weeks, setWeeks] = useState(1)
   const {
@@ -848,7 +821,6 @@ function SiteReport({
       <MonitorStatus projectId={projectId} propertyId={propertyId} canManage={canManage} />
 
       <Tabs value={active} onValueChange={setTab} className="space-y-4">
-        {/* Tabs on the left, period filter on the right, sharing one row. */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsBar
             spacing="none"
@@ -857,8 +829,7 @@ function SiteReport({
               value,
               label,
               icon: Icon,
-              // Only two of the seven carry a number, and they say different
-              // things: steps still to do (loud) vs tasks that exist (quiet).
+              // Only two tabs show a count: setup steps left (loud) and open tasks (quiet).
               ...(value === "start" && needsSetup
                 ? {
                     badge: setup!.total - setup!.completed,
@@ -881,7 +852,6 @@ function SiteReport({
           />
         </div>
 
-        {/* 1. Start here - the guided checklist */}
         <TabsContent value="start" className="space-y-4">
           <TabHeader
             title="Set this site up, step by step"
@@ -897,7 +867,6 @@ function SiteReport({
           />
         </TabsContent>
 
-        {/* 2. Performance - is it growing? */}
         <TabsContent value="performance" className="space-y-4">
           <TabHeader
             title="Performance"
@@ -922,7 +891,6 @@ function SiteReport({
           <StatTable title="Top pages" rows={o.topPages} isUrl />
         </TabsContent>
 
-        {/* 3. Keywords - what should we target? */}
         <TabsContent value="keywords" className="space-y-4">
           <TabHeader
             title="Keywords"
@@ -942,7 +910,6 @@ function SiteReport({
           />
         </TabsContent>
 
-        {/* 4. Content - what do we write? */}
         <TabsContent value="content" className="space-y-4">
           <TabHeader
             title="Content"
@@ -963,7 +930,6 @@ function SiteReport({
           />
         </TabsContent>
 
-        {/* 5. Health - is anything broken? */}
         <TabsContent value="health" className="space-y-4">
           <TabHeader
             title="Health"
@@ -983,7 +949,6 @@ function SiteReport({
           />
         </TabsContent>
 
-        {/* 6. Links - who links to us? */}
         <TabsContent value="links" className="space-y-4">
           <TabHeader
             title="Links"
@@ -997,7 +962,6 @@ function SiteReport({
           />
         </TabsContent>
 
-        {/* 7. Work - what is the team doing? */}
         <TabsContent value="work" className="space-y-4">
           <TabHeader
             title="Work"
@@ -1114,9 +1078,7 @@ function GrowthReport({ o, canManage }: { o: SeoOverview; canManage: boolean }) 
                     tickLine={false}
                     axisLine={false}
                   />
-                  {/* No itemStyle: the row colours ARE the key here (teal =
-                      clicks, grey = impressions), and a flat foreground would
-                      erase the only thing telling the two lines apart. */}
+                  {/* No itemStyle: the row colours are the only key to the two lines. */}
                   <ReTooltip
                     contentStyle={CHART_TOOLTIP_STYLE}
                     labelStyle={CHART_TOOLTIP_LABEL_STYLE}
@@ -1312,8 +1274,7 @@ function StatTable({
   )
 }
 
-/** What the team is actually doing for this site - the answer to "the numbers
- *  moved, so what are we doing about it?" */
+/** What the team is doing for this site. */
 function SiteWork({ o }: { o: SeoOverview }) {
   if (o.tasks.length === 0) {
     return (

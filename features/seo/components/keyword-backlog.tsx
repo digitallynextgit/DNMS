@@ -25,12 +25,6 @@ import {
 } from "../hooks/use-seo"
 import { exportKeywords } from "../lib/seo-export"
 
-// =============================================================================
-// The keyword backlog (plan step 4): a prioritized, human-refined work-queue of
-// queries worth targeting. Score = demand x winnability x business value, so the
-// top of the list is genuinely "what to write next".
-// =============================================================================
-
 const INTENT_STYLE: Record<string, string> = {
   commercial: "bg-emerald-500/15 text-emerald-600",
   informational: "bg-sky-500/15 text-sky-600",

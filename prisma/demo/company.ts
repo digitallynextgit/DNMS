@@ -1,14 +1,6 @@
-// =============================================================================
-// Company-wide: announcements, photo gallery, company + personal documents,
-// 1:1 chat, email templates and the audit log.
-//
-// ── FILES ARE ROWS ONLY ──────────────────────────────────────────────────────
-// Nothing is uploaded to storage. Photos, documents and chat attachments get a
-// fake object key under "demo/..." - no real object exists there. The Help
-// screenshot script intercepts the file routes (/api/gallery/photos/<id>/file,
-// /api/chat/attachments/<id>/file) and serves generated images itself. Opened
-// in a normal browser those files 404; everything else on the page renders.
-// =============================================================================
+// Demo company-wide data: announcements, gallery, documents, 1:1 chat, email templates and the audit log.
+// Files are rows only: the "demo/..." object keys do not exist. The Help screenshot script serves generated
+// images for them; in a normal browser those files 404.
 
 import { randomUUID } from "node:crypto"
 import { DEMO_EMAIL_DOMAIN } from "@/lib/demo"
@@ -23,8 +15,6 @@ import {
   shiftWorkingDays,
   type DemoContext,
 } from "./context"
-
-// ── Announcements ────────────────────────────────────────────────────────────
 
 /** The next date of a fixed holiday called `name`, today or later. */
 function nextHoliday(ctx: DemoContext, name: string): Date | null {
@@ -49,8 +39,7 @@ async function seedAnnouncements(ctx: DemoContext): Promise<void> {
   })()
   const lastMonth = addDays(firstOfMonth(ctx.today, -1), 6)
 
-  // GUIDE REQUIREMENT (company): exact titles/categories; "Office closed for
-  // Diwali" is the ONLY high-priority notice.
+  // Guide requirement: exact titles/categories; "Office closed for Diwali" is the only high-priority notice.
   const rows = [
     {
       title: "Office closed for Diwali",
@@ -119,8 +108,6 @@ async function seedAnnouncements(ctx: DemoContext): Promise<void> {
   ctx.summary.add("Announcements", "announcements (1 HIGH, 1 draft, 1 expired)", rows.length)
 }
 
-// ── Gallery ──────────────────────────────────────────────────────────────────
-
 async function seedGallery(ctx: DemoContext): Promise<void> {
   const holi = [...ctx.holidayNames]
     .filter(([k, n]) => n === "Holi" && new Date(`${k}T00:00:00Z`) < ctx.today)
@@ -131,8 +118,7 @@ async function seedGallery(ctx: DemoContext): Promise<void> {
     .map(([k]) => new Date(`${k}T00:00:00Z`))
     .sort((a, b) => b.getTime() - a.getTime())[0]
 
-  // GUIDE REQUIREMENT (company): "Team Outing - Lonavala" with ~8 photos, at
-  // least two by Priya; three more albums of 4-6 photos.
+  // Guide requirement: "Team Outing - Lonavala" with ~8 photos (2+ by Priya); three more albums of 4-6.
   const albums: {
     title: string
     slug: string
@@ -239,12 +225,9 @@ async function seedGallery(ctx: DemoContext): Promise<void> {
   ctx.summary.add("Photo gallery", "photos (rows only, fake demo/ keys)", photoCount)
 }
 
-// ── Documents ────────────────────────────────────────────────────────────────
-
 async function seedDocuments(ctx: DemoContext): Promise<void> {
   const neha = idOf(ctx, "neha")
-  // GUIDE REQUIREMENT (company): "Leave Policy" is among the three newest and
-  // no other title contains "Leave Policy".
+  // Guide requirement: "Leave Policy" is among the three newest and no other title contains it.
   const company: {
     title: string
     category: string
@@ -373,8 +356,6 @@ async function seedDocuments(ctx: DemoContext): Promise<void> {
   ctx.summary.add("Documents", "Priya's personal documents (rows only)", personal.length)
 }
 
-// ── Chat ─────────────────────────────────────────────────────────────────────
-
 type Msg = {
   from: string
   body: string
@@ -471,10 +452,8 @@ async function conversation(
 }
 
 async function seedChat(ctx: DemoContext): Promise<void> {
-  // Minutes ago. ~1500 = yesterday morning; everything at least 20 minutes old.
-  // GUIDE REQUIREMENT (company): Priya-Rohan thread with "banner", a reaction,
-  // a reply, a pinned message and an image; Rohan has read everything (blue
-  // ticks); the thread is pinned for Priya.
+  // Minutes ago (~1500 = yesterday morning; all at least 20 min old). Guide requirement: Priya-Rohan thread with
+  // "banner", a reaction, a reply, a pinned message and an image; Rohan has read all; pinned for Priya.
   const rohanThread: Msg[] = [
     {
       from: "rohan",
@@ -691,12 +670,9 @@ async function seedChat(ctx: DemoContext): Promise<void> {
   ctx.summary.add("Chat", "messages (incl. 1 image row, Priya: 2 unread)", total)
 }
 
-// ── Email templates + audit log ──────────────────────────────────────────────
-
 async function seedEmailTemplates(ctx: DemoContext): Promise<void> {
-  // GUIDE REQUIREMENT (admin): "Welcome Email" (slug welcome-email, active,
-  // first_name merge field) and "Password Reset", as prisma/seed.ts creates them
-  // for the founding company.
+  // Guide requirement: "Welcome Email" (slug welcome-email, active, first_name field) and "Password Reset",
+  // as prisma/seed.ts creates them.
   const templates = [
     {
       slug: "welcome-email",
@@ -752,8 +728,7 @@ async function seedAuditLog(ctx: DemoContext): Promise<void> {
   const ua =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"
   const ip = (n: number) => `203.0.113.${n}` // documentation range (RFC 5737)
-  // GUIDE REQUIREMENT (admin): 20-30 rows over ~2 weeks, several "role"
-  // actions, some without an IP, one system row (no actor).
+  // Guide requirement: 20-30 rows over ~2 weeks, several "role" actions, some without an IP, one system row.
   type Row = {
     actor: string | null
     action: string

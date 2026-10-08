@@ -5,11 +5,6 @@ import { withProjectAccess, canManageProject } from "@/features/projects/server/
 import { setGoalActive } from "@/features/projects/server/goals.service"
 import { AppError } from "@/lib/errors"
 
-// POST /api/projects/[id]/goals/[goalId]/reactivate
-//
-// Its own route rather than a PATCH field: reactivating is the undo for a
-// destructive-looking action, and it should be as easy to find in the API as it
-// is on the screen.
 export const dynamic = "force-dynamic"
 
 export const POST = withProjectAccess(

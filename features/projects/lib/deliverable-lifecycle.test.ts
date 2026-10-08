@@ -24,13 +24,10 @@ import {
 
 const ACTORS: DeliverableActor[] = ["none", "maker", "team_manager", "project_manager"]
 
-// The whole table, written out rather than derived: a test that computes the
-// answer the same way the code does proves nothing.
+// Written out, not derived: a test that computes the answer like the code does proves nothing.
 const ALLOWED: { from: DeliverableStatus; to: DeliverableStatus; min: DeliverableActor }[] = [
   { from: "PLANNED", to: "IN_PROGRESS", min: "maker" },
-  // Staff may not jump straight to made - that hides the state a manager reads.
-  // The account manager can, because a client recording "this exists" arrives
-  // through them and never passed through IN_PROGRESS.
+  // Staff may not jump straight to made; the account manager can (client-reported work).
   { from: "PLANNED", to: "DELIVERED", min: "project_manager" },
   { from: "PLANNED", to: "STUCK", min: "maker" },
   { from: "PLANNED", to: "DISCARDED", min: "maker" },
@@ -51,8 +48,7 @@ const ALLOWED: { from: DeliverableStatus; to: DeliverableStatus; min: Deliverabl
   { from: "DELIVERED", to: "DISCARDED", min: "maker" },
   { from: "REJECTED", to: "DELIVERED", min: "maker" },
   { from: "ACCEPTED", to: "DELIVERED", min: "project_manager" },
-  // Revived only back to the start: straight to "made" would skip the question
-  // of whether it was ever actually done.
+  // Revived only back to the start, so nobody skips asking whether it was done.
   { from: "DISCARDED", to: "PLANNED", min: "maker" },
 ]
 
@@ -109,7 +105,6 @@ describe("allowedTransition", () => {
   it("names the same-status case instead of falling through to 'not a step'", () => {
     const res = allowedTransition("DELIVERED", "DELIVERED", "project_manager")
     expect(res.ok).toBe(false)
-    // Built from DELIVERABLE_STATUS_LABELS, so it followed the rename to "Made".
     if (!res.ok) expect(res.why).toBe("It is already made.")
   })
 
@@ -134,14 +129,12 @@ describe("allowedTransition", () => {
 
 describe("nextActions", () => {
   it("gives a maker start-or-stop on a to-do row, but never a jump to made", () => {
-    // Finishing still comes after starting for staff; stopping does not, because
-    // work can be blocked or called off before anyone touches it.
+    // Staff start before finishing; blocking or dropping can happen before anyone starts.
     expect(nextActions("PLANNED", "maker")).toEqual(["IN_PROGRESS", "STUCK", "DISCARDED"])
   })
 
   it("gives a maker no VERDICT on a delivered row - that part is not theirs", () => {
-    // They may reopen, block or drop it; they may not accept or reject it. That
-    // distinction is the original intent of this test, and it still holds.
+    // They may reopen, block or drop it, but not accept or reject it.
     const moves = nextActions("DELIVERED", "maker")
     expect(moves).not.toContain("ACCEPTED")
     expect(moves).not.toContain("REJECTED")
@@ -178,12 +171,7 @@ describe("status sets", () => {
   })
 
   it("puts every status in made or open, bar the one deliberate exception", () => {
-    // THE invariant that stops a status silently falling out of every report:
-    // a value in neither set is counted nowhere, and nothing else complains.
-    //
-    // DISCARDED is the single intended exception - dropped work was never made
-    // and is no longer owed. Any OTHER status landing in neither set is a bug,
-    // so this asserts both directions rather than just the exclusivity.
+    // Every status must be in OPEN or DONE, or it is counted nowhere. DISCARDED is the one exception.
     const NEITHER: DeliverableStatus[] = ["DISCARDED"]
     for (const s of STATUS_ORDER) {
       const made = (MADE_STATUSES as readonly string[]).includes(s)
@@ -194,9 +182,7 @@ describe("status sets", () => {
   })
 
   it("counts stuck work as still owed, and discarded work as neither", () => {
-    // Why it matters: STUCK in OPEN is what keeps blocked work on the "what do
-    // we owe" lists instead of vanishing; DISCARDED in neither is what stops
-    // called-off work being chased or credited.
+    // STUCK stays on the "what do we owe" lists; DISCARDED is neither chased nor credited.
     expect((OPEN_STATUSES as readonly string[]).includes("STUCK")).toBe(true)
     expect(isMadeStatus("STUCK")).toBe(false)
     expect(isMadeStatus("DISCARDED")).toBe(false)
@@ -284,8 +270,6 @@ describe("splitTaskHours", () => {
   })
 })
 
-// ─── Repeating commitments ────────────────────────────────────────────────────
-
 describe("repeatDueDates", () => {
   const day = (s: string) => new Date(`${s}T00:00:00.000Z`)
   const ymd = (d: Date) => d.toISOString().slice(0, 10)
@@ -325,8 +309,7 @@ describe("repeatDueDates", () => {
   })
 
   it("measures every step from the FIRST date, so a clamp cannot cascade", () => {
-    // If March were computed from 28 Feb it would land on the 28th, and every
-    // month after it would be wrong too.
+    // Computing March from 28 Feb would drift every later month.
     const out = run("2028-01-31", "MONTH", 3)
     expect(out[1]).toBe("2028-02-29") // leap year
     expect(out[2]).toBe("2028-03-31")
@@ -374,20 +357,13 @@ describe("hasProof", () => {
   })
 })
 
-// ─── The client actor ────────────────────────────────────────────────────────
-// Written out separately from ACTORS on purpose. The client is not a rung on
-// the staff ladder - they may accept, which outranks a team manager, and may
-// not start work, which a maker can - so folding them into the ranked loop
-// would test a relationship that does not exist.
+// The client is not a rung on the staff ladder (may accept, may not start work), so tested apart.
 
 describe("the client actor", () => {
-  // Every move the portal may make, named one at a time. The portal is a
-  // tracker now, not an approval queue: the client sets the state of the work
-  // and does NOT give a verdict on it.
+  // Every move the portal may make. The client tracks the work's state; it gives no verdict.
   const CLIENT_ALLOWED: Record<string, string[]> = {
     "PLANNED>IN_PROGRESS": [],
-    // No completedOn from the portal - they are recording that it happened,
-    // not filing it against a date. The server dates it today.
+    // No completedOn from the portal; the server dates it today.
     "PLANNED>DELIVERED": [],
     "PLANNED>STUCK": ["reason"],
     "PLANNED>DISCARDED": ["reason"],
@@ -417,10 +393,7 @@ describe("the client actor", () => {
     }
   }
 
-  // ── The approval loop is closed to the portal ──────────────────────────────
-  // These two used to be the ONLY client moves. They are now staff-only, which
-  // is the whole "drop the approval flow" change - asserted here because the
-  // portal draws its buttons from this table and nothing else guards it.
+  // Accept/reject are staff-only. The portal's buttons come from this table, so assert it.
 
   it("no longer finalises work - that is the account manager's again", () => {
     const res = allowedTransition("DELIVERED", "ACCEPTED", "client")
@@ -450,8 +423,7 @@ describe("the client actor", () => {
   })
 
   it("must say why before flagging stuck or discarding", () => {
-    // "Blocked" with nothing named is a row nobody can act on - the same thing
-    // REJECTED's reason has always existed to prevent.
+    // "Blocked" with no reason is a row nobody can act on.
     for (const to of ["STUCK", "DISCARDED"] as DeliverableStatus[]) {
       const res = allowedTransition("IN_PROGRESS", to, "client")
       expect(res.ok, to).toBe(true)

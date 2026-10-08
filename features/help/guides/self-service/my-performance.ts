@@ -63,8 +63,7 @@ export const myPerformanceGuide: HelpGuide = {
             highlight: [
               { role: "tab", name: "My Evaluations" },
               { css: "th:text-is('Final score')" },
-              // The period filter: a Radix Select trigger (<button role="combobox">,
-              // no accessible name) whose value reads "All periods".
+              // The period filter: a nameless Radix Select trigger whose value reads "All periods".
               { css: 'button[role="combobox"]:has-text("All periods")' },
               { role: "link", name: "Fill self-evaluation" },
             ],

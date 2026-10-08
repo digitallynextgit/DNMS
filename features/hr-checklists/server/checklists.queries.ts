@@ -9,10 +9,6 @@ import { checklistProgress, type ChecklistItemState } from "../lib/checklist-rul
 import { checklistListQuerySchema, type ChecklistListQuery } from "../schemas/checklist.schema"
 import { readScopeFor, writeScopeFor } from "./checklists.service"
 
-// =============================================================================
-// Reads for the checklist screens.
-// =============================================================================
-
 const EMPLOYEE_CARD_SELECT = {
   id: true,
   firstName: true,
@@ -100,13 +96,7 @@ export async function listChecklists(
   })
 }
 
-/**
- * One checklist in full.
- *
- * Readable by anyone holding the read scope, by the employee it is about, and
- * by anyone who owns an item on it - a Finance head has no HR scope at all and
- * still has to see the exit they are being asked to sign.
- */
+/** One checklist in full. Also readable by its subject and by item owners (e.g. a Finance head). */
 export async function getChecklist(instanceId: string): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
@@ -150,8 +140,7 @@ export async function getChecklist(instanceId: string): Promise<ActionResult<unk
         data: {
           ...instance,
           progress,
-          // What THIS viewer may do, so the UI never offers a button the server
-          // will refuse.
+          // What this viewer may do, so the UI never offers a refused button.
           canWrite,
           myItemIds: instance.items
             .filter((i) => i.assigneeId === session.user.id)
@@ -162,13 +151,7 @@ export async function getChecklist(instanceId: string): Promise<ActionResult<unk
   })
 }
 
-/**
- * "Awaiting my sign-off" - every open item assigned to the caller.
- *
- * Needs NO permission scope. The people this exists for - a Finance head, an
- * IT lead, a reporting manager - hold no HR scope, and gating it would lock out
- * exactly the population the feature depends on.
- */
+/** Every open item assigned to the caller. No scope needed - signers have no HR scope. */
 export async function getMyChecklistItems(): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
@@ -190,8 +173,7 @@ export async function getMyChecklistItems(): Promise<ActionResult<unknown>> {
           },
         },
       },
-      // Clearances first - they are what blocks somebody's relieving letter -
-      // then by due date, soonest first.
+      // Clearances first (they block relieving), then soonest due.
       orderBy: [{ itemKind: "desc" }, { dueDate: "asc" }],
       take: 100,
     })

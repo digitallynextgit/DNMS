@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 import { CalendarDays } from "lucide-react"
 
 import { MODULES } from "../../marketing.constants"
@@ -19,17 +19,26 @@ interface CalData {
   holidays: Holiday[]
 }
 
-/** Current month + its real company holidays, fetched from the public API.
- *  Client-side so the marketing page stays static and the month is always live;
- *  falls back to a fixed month until it mounts (deterministic → no hydration
- *  mismatch). */
+const noopSubscribe = () => () => {}
+/** Months since year 0 - a plain number, so useSyncExternalStore can compare snapshots. */
+const currentMonthIndex = () => {
+  const now = new Date()
+  return now.getFullYear() * 12 + now.getMonth()
+}
+
+/** Current month plus real company holidays. Fixed fallback month, so no hydration mismatch. */
 function useMonthCalendar(): CalData | null {
+  // null on the server and while hydrating, so the first client render matches the HTML.
+  const monthIndex = useSyncExternalStore<number | null>(
+    noopSubscribe,
+    currentMonthIndex,
+    () => null,
+  )
   const [data, setData] = useState<CalData | null>(null)
   useEffect(() => {
     const now = new Date()
     const year = now.getFullYear()
     const month = now.getMonth()
-    setData({ year, month, holidays: [] }) // show the month immediately
     fetch(`/api/marketing/holidays?year=${year}&month=${month + 1}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((j) => {
@@ -39,11 +48,12 @@ function useMonthCalendar(): CalData | null {
       })
       .catch(() => {})
   }, [])
-  return data
+  if (data) return data
+  // Show the month immediately, before its holidays arrive.
+  if (monthIndex === null) return null
+  return { year: Math.floor(monthIndex / 12), month: monthIndex % 12, holidays: [] }
 }
 
-/** Bespoke visual: a dynamic month calendar (working days, remote Fridays,
- *  weekends and real company holidays) beside a leave-balance card. */
 function LeaveVisual() {
   const data = useMonthCalendar()
   // Deterministic fallback until mounted (Aug 2025) - no hydration mismatch.
@@ -78,7 +88,6 @@ function LeaveVisual() {
 
   return (
     <div className="flex h-full flex-col gap-3 sm:flex-row">
-      {/* calendar */}
       <div className="border-border bg-background flex flex-1 flex-col rounded-sm border p-4">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-xs font-semibold">{monthName}</span>
@@ -116,7 +125,6 @@ function LeaveVisual() {
           </span>
         </div>
       </div>
-      {/* balance */}
       <div className="border-border bg-background flex flex-1 flex-col rounded-sm border p-4">
         <div className="text-muted-foreground mb-3 text-[10px] font-medium uppercase">Balance</div>
         <div className="flex flex-1 flex-col justify-between gap-3">

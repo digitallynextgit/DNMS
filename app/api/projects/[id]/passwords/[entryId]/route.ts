@@ -4,17 +4,12 @@ import { canManageProject, withProjectManager } from "@/features/projects/server
 import { encrypt, tryDecrypt } from "@/lib/crypto"
 import type { Session } from "next-auth"
 
-// GET /api/projects/[id]/passwords/[entryId] - returns decrypted password
-//
-// The reveal endpoint, so if anything on this route is manager-only it is this
-// one. Same guard as the list above and as every write.
+// The reveal endpoint - returns the decrypted password.
 export const GET = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId, entryId } = ctx.params
-      // Scope to the guarded project: withProjectManager only proved rights over
-      // THIS project, so an entry id from another project must 404 here rather
-      // than have its password decrypted (SEC-02).
+      // Scope to the guarded project, so another project's entry id 404s instead of being decrypted.
       const entry = await db.projectPasswordEntry.findFirst({
         where: { id: entryId, projectId },
       })
@@ -27,13 +22,11 @@ export const GET = withProjectManager(
   },
 )
 
-// PATCH /api/projects/[id]/passwords/[entryId]
 export const PATCH = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId, entryId } = ctx.params
-      // Bind the entry to the authorized project BEFORE the ownership check -
-      // otherwise a manager of project A could edit project B's entry (SEC-02).
+      // Bind to the guarded project first, or a manager of project A could edit B's entry.
       const entry = await db.projectPasswordEntry.findFirst({
         where: { id: entryId, projectId },
         select: { id: true, createdById: true },
@@ -75,12 +68,10 @@ export const PATCH = withProjectManager(
   },
 )
 
-// DELETE /api/projects/[id]/passwords/[entryId]
 export const DELETE = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId, entryId } = ctx.params
-      // Bind to the authorized project first (SEC-02).
       const entry = await db.projectPasswordEntry.findFirst({
         where: { id: entryId, projectId },
         select: { id: true, createdById: true },

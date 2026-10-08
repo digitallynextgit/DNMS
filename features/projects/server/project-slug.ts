@@ -4,14 +4,8 @@ import { db } from "@/server/db"
 import { slugify } from "@/lib/utils"
 
 /**
- * Build a unique URL slug for a project name.
- *
- * "RUDIONE / LEOCYM" -> "rudione-leocym". A name that collides with an existing
- * project gets "-2", "-3"… appended rather than failing the create, and a name
- * with no usable characters at all falls back to the caller's code.
- *
- * Slugs are generated ONCE, at creation. Renaming a project deliberately leaves
- * the slug alone: a URL that moves silently breaks every link already shared.
+ * "RUDIONE / LEOCYM" -> "rudione-leocym"; a collision gets "-2", "-3"…, an unusable name the code.
+ * Set once at creation - a rename keeps the slug so shared links don't break.
  */
 export async function generateProjectSlug(name: string, fallback: string): Promise<string> {
   const base = slugify(name) || slugify(fallback)

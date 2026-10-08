@@ -28,9 +28,7 @@ interface ProductCard {
   channel: { id: string; name: string; provider: string } | null
 }
 
-// The API envelope nests twice: withClientSession → respond() → ok(result.data),
-// where result.data is itself { data, pagination }. Same shape the leave hooks
-// unwrap - see features/leave/hooks/use-leave.ts.
+// The envelope nests twice: ok(result.data), where result.data is { data, pagination }.
 interface ProductsResponse {
   data: {
     data: ProductCard[]
@@ -57,13 +55,11 @@ function stockLabel(qty: number | null): { text: string; tone: string } {
   return { text: `${qty} in stock`, tone: "text-muted-foreground" }
 }
 
-/** The client-facing catalog for one project. */
 export function PortalProductGrid({ projectRef }: { projectRef: string }) {
   const [search, setSearch] = React.useState("")
   const [debounced, setDebounced] = React.useState("")
   const [page, setPage] = React.useState(1)
 
-  // Debounce so typing doesn't fire a query per keystroke.
   React.useEffect(() => {
     const t = setTimeout(() => {
       setDebounced(search)
@@ -147,8 +143,7 @@ export function PortalProductGrid({ projectRef }: { projectRef: string }) {
               >
                 <div className="bg-muted relative aspect-square">
                   {p.imageUrl ? (
-                    // Remote storefront images: <img> rather than next/image so a
-                    // new marketplace domain doesn't need a next.config change.
+                    // <img>, not next/image, so new marketplace domains need no config change.
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={p.imageUrl}

@@ -1,20 +1,9 @@
-/**
- * Showing WHERE a search matched, not just that it did.
- *
- * Lifted out of the project message tab once personal chat needed the same
- * thing: a hit buried in a long message is useless if the result list starts at
- * the top of the paragraph and the matched words are not marked.
- */
-
 import * as React from "react"
 
 /** Below this a query matches almost everything, so searching is not worth it. */
 export const MIN_SEARCH_QUERY = 2
 
-/**
- * A window of text around the first match, so a hit deep in a long message is
- * shown in context rather than from the beginning.
- */
+/** A window around the first match, so a deep hit is shown in context. */
 export function snippet(text: string, query: string, pad = 40): string {
   const at = text.toLowerCase().indexOf(query.toLowerCase())
   if (at < 0) return text.length > 120 ? `${text.slice(0, 120)}…` : text
@@ -23,7 +12,6 @@ export function snippet(text: string, query: string, pad = 40): string {
   return `${start > 0 ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}`
 }
 
-/** Wraps every occurrence of the query in a <mark> so the hit is visible at a glance. */
 export function HighlightedText({ text, query }: { text: string; query: string }) {
   if (!query) return <>{text}</>
 

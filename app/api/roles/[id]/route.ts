@@ -1,13 +1,3 @@
-/**
- * GET    /api/roles/:id - fetch a single role with its full permission list
- * PATCH  /api/roles/:id - update a role's displayName, description, and permissions
- * DELETE /api/roles/:id - delete a non-system role
- *
- * Rules:
- *  - System roles (isSystem = true) cannot have their `name` changed.
- *  - System roles cannot be deleted.
- *  - All three verbs require ROLE_READ / ROLE_WRITE permission respectively.
- */
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
@@ -16,9 +6,6 @@ import { createAuditLog } from "@/lib/audit"
 
 type RouteContext = { params: { id: string } }
 
-// ---------------------------------------------------------------------------
-// GET /api/roles/:id
-// ---------------------------------------------------------------------------
 export const GET = withAuth(PERMISSIONS.ROLE_READ, async (_req: NextRequest, ctx: RouteContext) => {
   const { id } = ctx.params
 
@@ -40,9 +27,6 @@ export const GET = withAuth(PERMISSIONS.ROLE_READ, async (_req: NextRequest, ctx
   return NextResponse.json({ data: role })
 })
 
-// ---------------------------------------------------------------------------
-// PATCH /api/roles/:id
-// ---------------------------------------------------------------------------
 export const PATCH = withAuth(
   PERMISSIONS.ROLE_WRITE,
   async (req: NextRequest, ctx: RouteContext, session) => {
@@ -75,7 +59,6 @@ export const PATCH = withAuth(
       )
     }
 
-    // If a new name is provided for a non-system role, ensure it's unique.
     let normalizedName: string | undefined
     if (name && !role.isSystem) {
       normalizedName = name.toLowerCase().replace(/\s+/g, "_")
@@ -92,15 +75,12 @@ export const PATCH = withAuth(
       }
     }
 
-    // Build the update payload
     const updateData: Parameters<typeof db.role.update>[0]["data"] = {}
     if (normalizedName !== undefined) updateData.name = normalizedName
     if (displayName !== undefined) updateData.displayName = displayName.trim()
     if (description !== undefined) updateData.description = description?.trim() ?? null
 
-    // Replace all permissions when permissionIds is provided in the request.
     if (permissionIds !== undefined) {
-      // Delete existing and re-create in a transaction.
       const [updatedRole] = await db.$transaction([
         db.role.update({
           where: { id },
@@ -124,7 +104,6 @@ export const PATCH = withAuth(
         changes: { ...updateData, permissionIds } as object,
       })
 
-      // Re-fetch to get the updated rolePermissions after transaction
       const freshRole = await db.role.findUnique({
         where: { id },
         include: {
@@ -136,7 +115,6 @@ export const PATCH = withAuth(
       return NextResponse.json({ data: freshRole ?? updatedRole })
     }
 
-    // No permission changes - just update the role metadata.
     const updatedRole = await db.role.update({
       where: { id },
       data: updateData,
@@ -158,9 +136,6 @@ export const PATCH = withAuth(
   },
 )
 
-// ---------------------------------------------------------------------------
-// DELETE /api/roles/:id
-// ---------------------------------------------------------------------------
 export const DELETE = withAuth(
   PERMISSIONS.ROLE_WRITE,
   async (_req: NextRequest, ctx: RouteContext, session) => {
@@ -175,7 +150,6 @@ export const DELETE = withAuth(
       return NextResponse.json({ error: "System roles cannot be deleted" }, { status: 422 })
     }
 
-    // Check if there are employees currently assigned to this role.
     const employeeCount = await db.employeeRole.count({ where: { roleId: id } })
     if (employeeCount > 0) {
       return NextResponse.json(

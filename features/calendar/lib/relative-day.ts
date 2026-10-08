@@ -1,5 +1,4 @@
-// "Today" / "Tomorrow" / "in 12 days" / "in 3 months" / "Passed" for a calendar
-// date, measured from the viewer's own today. Shared by the calendars' tables.
+// "Today" / "Tomorrow" / "in 12 days" / "Passed" for a date, measured from the viewer's own today.
 
 const pad = (n: number) => String(n).padStart(2, "0")
 

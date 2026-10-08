@@ -1,18 +1,5 @@
-// =============================================================================
-// The roles every tenant starts with (M5).
-//
-// Extracted from prisma/seed.ts so that provisioning a NEW company and seeding a
-// fresh database create the same five roles with the same grants. They were the
-// same list written twice before this existed, which is how the second copy
-// quietly falls behind the first.
-//
-// Roles and role_permissions are TENANT-SCOPED - each company owns its own copy
-// and may edit them. `permissions` (the 39 scopes) are platform-level and shared,
-// because a scope is a fact about what the software can do, not about a customer.
-//
-// No framework or server imports: prisma/seed.ts runs standalone with its own
-// client, and features/tenants/ runs inside the app.
-// =============================================================================
+// Starting roles for every tenant, shared by prisma/seed.ts and new-company provisioning.
+// Roles are per-tenant and editable; permission scopes are platform-wide. No framework imports.
 
 export interface RoleDefinition {
   name: string
@@ -60,8 +47,7 @@ export const ROLE_CATALOGUE: readonly RoleDefinition[] = [
       "holiday:write",
       "resignation:read",
       "resignation:approve",
-      // Runs both HR checklists, including the exit sign-off that issues
-      // relieving and closes the account.
+      // Includes the exit sign-off that closes the account.
       "onboarding:read",
       "onboarding:write",
       "exit:read",
@@ -84,7 +70,6 @@ export const ROLE_CATALOGUE: readonly RoleDefinition[] = [
       "project:write",
       "project:delete",
       "audit:read",
-      // Company noticeboard management (announcements + gallery albums).
       "announcement:write",
       "gallery:write",
     ],
@@ -101,11 +86,7 @@ export const ROLE_CATALOGUE: readonly RoleDefinition[] = [
       "dashboard:read",
       "attendance:read",
       "leave:read",
-      // Self-service: an HR employee is still an employee who applies for their
-      // own leave/WFH/self-assessment and views their own payslips.
-      // payroll:read is self-scoped by the route (non payroll:write callers see
-      // only their own records), so it grants payslip access without exposing
-      // anyone else's pay.
+      // Self-service. payroll:read is self-scoped by the route, so it only shows their own payslips.
       "leave:write",
       "leave:approve",
       "wfh:read",
@@ -115,9 +96,7 @@ export const ROLE_CATALOGUE: readonly RoleDefinition[] = [
       "performance:read",
       "performance:write",
       "resignation:read",
-      // Read-only on both checklists: an HR employee follows a joiner's
-      // progress, but running an exit - and the sign-off that deactivates the
-      // account - stays with hr_manager.
+      // Read-only: running an exit (which deactivates the account) stays with hr_manager.
       "onboarding:read",
       "exit:read",
       "recruitment:read",
@@ -145,8 +124,6 @@ export const ROLE_CATALOGUE: readonly RoleDefinition[] = [
   },
 ] as const
 
-/** The role the first person in a new company gets. */
 export const FOUNDER_ROLE = "admin"
 
-/** The role every subsequent hire gets by default. */
 export const DEFAULT_ROLE = "employee"

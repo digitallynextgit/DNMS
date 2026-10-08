@@ -2,12 +2,6 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-// =============================================================================
-// The ONE calendar colour key - the swatch row under a month grid. The
-// attendance calendar and the holiday calendar each had a private copy of it
-// (`LegendItem` / `LegendSwatch`).
-// =============================================================================
-
 export interface CalendarLegendItem {
   /** Swatch fill classes, e.g. "bg-green-100 dark:bg-green-950/40". */
   swatch: string

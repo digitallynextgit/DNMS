@@ -7,12 +7,7 @@ import {
 } from "@/features/projects/server/sheets.service"
 import type { Session } from "next-auth"
 
-/**
- * PATCH - write cells. Anyone on the project.
- *
- * The body is { cells: { <columnId>: value } } and is MERGED, so two people
- * editing different columns of the same row do not overwrite each other.
- */
+// Merged, so two people editing different columns of one row don't overwrite each other.
 export const PATCH = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, sheetId, rowId } = ctx.params
@@ -28,7 +23,7 @@ export const PATCH = withProjectAccess(
   },
 )
 
-/** DELETE - manager only. The row's values are kept in the history. */
+// The row's values are kept in the history.
 export const DELETE = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, sheetId, rowId } = ctx.params

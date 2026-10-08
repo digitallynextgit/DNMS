@@ -30,8 +30,7 @@ export const assetSchema = z.object({
 export type AssetInput = z.infer<typeof assetSchema>
 
 export const monitorSchema = z.object({
-  // http(s) only: the probe uses fetch, and a bare hostname would throw rather
-  // than report the site as down, which would look like a monitoring failure.
+  // http(s) only: a bare hostname would make the fetch probe throw instead of reporting down.
   url: z
     .string()
     .trim()
@@ -45,9 +44,7 @@ export const monitorSchema = z.object({
 })
 export type MonitorInput = z.infer<typeof monitorSchema>
 
-// `autoRenew` / `isActive` carry .default(), so zod's INPUT type (where they are
-// optional) differs from its OUTPUT type (where they are guaranteed). react-hook-form
-// needs the input type for its field values and the output type for what
-// handleSubmit hands you - passing only one makes zodResolver unassignable.
+// .default() fields make zod's input and output types differ; react-hook-form needs both, or
+// zodResolver is unassignable.
 export type AssetFormInput = z.input<typeof assetSchema>
 export type MonitorFormInput = z.input<typeof monitorSchema>

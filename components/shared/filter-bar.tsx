@@ -21,7 +21,6 @@ interface FilterToolbarProps {
   className?: string
 }
 
-/** The shared filter-row shell + standardized Clear button. */
 export function FilterToolbar({
   children,
   hasActiveFilters = false,
@@ -56,11 +55,7 @@ interface FilterSelectProps {
   className?: string
 }
 
-/**
- * A Select that encapsulates the repeated `value || "all"` /
- * `onValueChange={(v) => onChange(v === "all" ? "" : v)}` sentinel idiom: an
- * empty `value` means "no filter" and shows the `allLabel` row.
- */
+/** An empty `value` means "no filter" and shows the `allLabel` row. */
 export function FilterSelect({
   value,
   onChange,
@@ -71,7 +66,6 @@ export function FilterSelect({
 }: FilterSelectProps) {
   return (
     <Select value={value || "all"} onValueChange={(v) => onChange(v === "all" ? "" : v)}>
-      {/* h-9 is the SelectTrigger default now - no local override needed. */}
       <SelectTrigger className={cn("w-40", className)}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>

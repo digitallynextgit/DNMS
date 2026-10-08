@@ -20,7 +20,6 @@ export function PayslipView({ open, onOpenChange, record }: PayslipViewProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
-        {/* Toolbar - hidden when printing/saving as PDF. */}
         <SheetHeader className="no-print mb-4 flex-row items-center justify-between gap-2 space-y-0">
           <SheetTitle className="flex items-center gap-3">
             Payslip

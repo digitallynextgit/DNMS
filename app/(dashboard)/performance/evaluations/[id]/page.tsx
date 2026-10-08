@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { use, useEffect, useMemo, useState, useCallback } from "react"
+import { use, useMemo, useState, useCallback } from "react"
 import { Printer } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
@@ -71,11 +71,8 @@ function Rating({
   )
 }
 
-// ─── Scorecard panels ─────────────────────────────────────────────────────────
-// These MUST live at module scope. They used to be declared inside the page
-// component, which gave them a new function identity on every render - React then
-// treated them as a different component type and unmounted + remounted the whole
-// scorecard on EVERY keystroke in the comment box and every rating click.
+// Module scope on purpose: declared inside the page they'd get a new identity each render,
+// remounting the whole scorecard on every keystroke and rating click.
 
 interface SectionProps {
   label: string
@@ -226,11 +223,7 @@ const SidePanel = React.memo(function SidePanel({
   )
 })
 
-/**
- * Placeholder shaped like a real SidePanel: the same tinted header (real title,
- * so the two scorecards are identifiable while loading) over criterion rows -
- * label + the five 7x7 rating buttons + the score column.
- */
+/** Shaped like a real SidePanel (real title, so the two scorecards are identifiable while loading). */
 function SidePanelSkeleton({ title, accent }: { title: string; accent: string }) {
   return (
     <Card className="overflow-hidden">
@@ -302,23 +295,30 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
   const [ratings, setRatings] = useState<Record<string, number>>({})
   const [comment, setComment] = useState("")
 
-  useEffect(() => {
-    if (!ev || !editableSide) return
-    const map =
-      editableSide === "SELF"
-        ? ev.selfRatings
-        : editableSide === "CONTROLLER"
-          ? ev.controllerRatings
-          : ev.managerRatings
-    const cmt =
-      editableSide === "SELF"
-        ? ev.selfComment
-        : editableSide === "CONTROLLER"
-          ? ev.controllerComment
-          : ev.managerComment
-    setRatings(map ?? {})
-    setComment(cmt ?? "")
-  }, [ev, editableSide])
+  // Seeded from the saved side whenever the evaluation (re)loads.
+  const [seededFrom, setSeededFrom] = useState<{ ev: typeof ev; side: Side | null }>({
+    ev: undefined,
+    side: null,
+  })
+  if (seededFrom.ev !== ev || seededFrom.side !== editableSide) {
+    setSeededFrom({ ev, side: editableSide })
+    if (ev && editableSide) {
+      const map =
+        editableSide === "SELF"
+          ? ev.selfRatings
+          : editableSide === "CONTROLLER"
+            ? ev.controllerRatings
+            : ev.managerRatings
+      const cmt =
+        editableSide === "SELF"
+          ? ev.selfComment
+          : editableSide === "CONTROLLER"
+            ? ev.controllerComment
+            : ev.managerComment
+      setRatings(map ?? {})
+      setComment(cmt ?? "")
+    }
+  }
 
   // Must sit with the other hooks, above every early return.
   const onRate = useCallback((id: string, n: number) => {
@@ -345,8 +345,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
     submit.mutate({ role: editableSide, ratings, comment }, { onSuccess: () => undefined })
   }
 
-  // Only a LOADED-but-missing evaluation is "not found"; while loading we paint
-  // the shell and placehold just the scorecards.
+  // Only a LOADED-but-missing evaluation is "not found"; while loading, the shell paints.
   if (!isLoading && !ev)
     return (
       <p className="text-muted-foreground py-20 text-center text-sm">
@@ -366,7 +365,6 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
       isEditableHere,
       effective: isEditableHere ? ratings : (storedRatings ?? {}),
       hidden: !isEditableHere && !storedRatings, // e.g. employee before manager submits
-      // The submitted note for this side, shown read-only under its ratings.
       comment: storedComment ?? null,
       sectionALabel: ev?.sectionALabel ?? "",
       sectionBLabel: ev?.sectionBLabel ?? "",
@@ -377,9 +375,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
   return (
     <div className="space-y-6">
       <div id="print-area" className="space-y-6">
-        {/* The title/description are part of the printed PDF, but the controls are not:
-            the print action carries .no-print, and print:[&>a]:hidden drops PageHeader's
-            back link (the header's only <a>) from the printout. */}
+        {/* Controls stay out of the printed PDF: .no-print on the action, print:[&>a]:hidden on the back link. */}
         <PageHeader
           className="print:[&>a]:hidden"
           title={
@@ -408,7 +404,6 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
           }
         />
 
-        {/* Status / final score */}
         <Card>
           <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
             <div className="flex items-center gap-6 text-sm">
@@ -489,7 +484,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      {/* Comments + submit for the viewer's side (not part of the printed PDF) */}
+      {/* Not part of the printed PDF. */}
       {ev && editableSide && (
         <Card className="no-print">
           <CardHeader className="pb-2">

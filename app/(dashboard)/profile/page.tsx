@@ -79,8 +79,7 @@ export default function ProfilePage() {
   const userId = session?.user?.id ?? null
 
   const { data, isLoading, error, refetch } = useEmployee(userId)
-  // Your own 15-day joinee scorecard, read-only - the tab only appears once HR
-  // has started one. Same query the tab renders from, so no second request.
+  // Read-only; the tab appears once HR has started one. Same query as the tab, so no second request.
   const { data: scorecardData } = useScorecard(userId)
   const hasScorecard = !!scorecardData?.scorecard
 
@@ -93,8 +92,6 @@ export default function ProfilePage() {
 
   const [gmailPw, setGmailPw] = useState("")
   const [showGmailPw, setShowGmailPw] = useState(false)
-  // When a password is already set we show a "Change / Delete" panel; editing
-  // reveals the input. `gmailConfirm` drives the are-you-sure dialogs.
   const [editingGmail, setEditingGmail] = useState(false)
   const [gmailConfirm, setGmailConfirm] = useState<"change" | "delete" | null>(null)
 
@@ -155,8 +152,7 @@ export default function ProfilePage() {
   const emp = data.data
   const hasGmail = Boolean((emp as { hasGmailAppPassword?: boolean }).hasGmailAppPassword)
   const fullName = `${emp.firstName} ${emp.lastName}`
-  // Probation end is derived (dateOfJoining + probationMonths); the raw DB column
-  // is unused, so compute it the same way the admin/HR employee page does.
+  // Probation end is derived (dateOfJoining + probationMonths); the DB column is unused.
   const probation = getProbationStatus(emp)
 
   const ca = (emp.currentAddress ?? {}) as Record<string, string>
@@ -178,7 +174,6 @@ export default function ProfilePage() {
         }
       />
 
-      {/* Top card */}
       <Card>
         <CardContent className="pt-6 pb-6">
           <div className="flex flex-col items-start gap-6 sm:flex-row">
@@ -253,7 +248,6 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Tabs */}
       <Tabs defaultValue="info">
         <TabsBar
           items={[
@@ -266,7 +260,6 @@ export default function ProfilePage() {
           ]}
         />
 
-        {/* Info tab */}
         <TabsContent value="info" className="space-y-6">
           <Card>
             <CardContent className="pt-6">
@@ -360,7 +353,6 @@ export default function ProfilePage() {
           )}
         </TabsContent>
 
-        {/* Documents tab */}
         <TabsContent value="documents">
           <Card>
             <CardHeader>
@@ -392,7 +384,6 @@ export default function ProfilePage() {
           />
         </TabsContent>
 
-        {/* Roles tab */}
         <TabsContent value="roles">
           <Card>
             <CardHeader>
@@ -417,7 +408,6 @@ export default function ProfilePage() {
           </Card>
         </TabsContent>
 
-        {/* Security tab */}
         <TabsContent value="security" className="space-y-6">
           <Card>
             <CardHeader>
@@ -427,16 +417,8 @@ export default function ProfilePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* autoComplete="new-password" on ALL THREE, including the
-                  current one. The honest value there is "current-password",
-                  but that is precisely what invites the browser to fill it in
-                  from its saved credentials - and a current-password box the
-                  browser fills is not asking anybody anything. The field exists
-                  to re-authenticate whoever is at the keyboard right now, so
-                  that an unlocked laptop is not a password change waiting to
-                  happen. autoComplete="off" does not do it: Chrome ignores it
-                  on password inputs, and "new-password" is the one value it
-                  honours. */}
+              {/* new-password on all three, even the current one: "current-password" invites autofill, and
+                  this field re-authenticates whoever is at the keyboard. Chrome ignores "off". */}
               <div className="space-y-2">
                 <Label required htmlFor="current-password">
                   Current Password
@@ -507,7 +489,6 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Gmail App Password - used to send emails from this employee's address. */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -521,7 +502,6 @@ export default function ProfilePage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {hasGmail && !editingGmail ? (
-                /* Password already set → status + Change / Delete actions. */
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 rounded-sm border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
@@ -543,7 +523,6 @@ export default function ProfilePage() {
                   </div>
                 </div>
               ) : (
-                /* No password yet, or editing → show the input form. */
                 <>
                   <div className="space-y-2">
                     <Label>{hasGmail ? "New App Password" : "App Password"}</Label>
@@ -635,8 +614,7 @@ export default function ProfilePage() {
           </Card>
         </TabsContent>
 
-        {/* Notifications tab - the same card as the one on /notifications. Both
-            read and write the one preference record, so they cannot disagree. */}
+        {/* Same preference record as /notifications, so they can't disagree. */}
         <TabsContent value="notifications" className="space-y-6">
           <TaskReminderSettings />
         </TabsContent>

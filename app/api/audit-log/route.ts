@@ -1,26 +1,3 @@
-/**
- * GET /api/audit-log
- *
- * Returns a paginated, filterable list of audit log entries with the
- * acting employee's basic profile attached.
- *
- * Query parameters (all optional):
- *   page - page number, 1-based (default: 1)
- *   limit - entries per page (default: 20, max: 100)
- *   module - filter by module string (exact match)
- *   actorId - filter by the actor's employee id
- *   action - filter by action string (contains, case-insensitive)
- *   dateFrom - ISO-8601 date; only entries on/after this date
- *   dateTo - ISO-8601 date; only entries on/before this date
- *
- * Response shape:
- * {
- *   data: AuditLog[],
- *   pagination: { page, limit, total, totalPages }
- * }
- *
- * Requires AUDIT_READ permission.
- */
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
@@ -32,9 +9,6 @@ import type { Prisma } from "@prisma/client"
 export const GET = withAuth(PERMISSIONS.AUDIT_READ, async (req: NextRequest) => {
   const { searchParams } = req.nextUrl
 
-  // -----------------------------------------------------------------------
-  // Parse query parameters
-  // -----------------------------------------------------------------------
   const { page, limit, skip } = resolvePagination(
     { page: searchParams.get("page"), limit: searchParams.get("limit") },
     20,
@@ -46,9 +20,6 @@ export const GET = withAuth(PERMISSIONS.AUDIT_READ, async (req: NextRequest) => 
   const dateFrom = searchParams.get("dateFrom") ?? undefined
   const dateTo = searchParams.get("dateTo") ?? undefined
 
-  // -----------------------------------------------------------------------
-  // Build Prisma where clause
-  // -----------------------------------------------------------------------
   const where: Prisma.AuditLogWhereInput = {}
 
   if (moduleFilter) {
@@ -72,7 +43,7 @@ export const GET = withAuth(PERMISSIONS.AUDIT_READ, async (req: NextRequest) => 
       }
     }
     if (dateTo) {
-      // Include the entire `dateTo` day by setting time to end of day.
+      // Include the whole dateTo day.
       const to = new Date(dateTo)
       if (!isNaN(to.getTime())) {
         to.setHours(23, 59, 59, 999)
@@ -81,9 +52,6 @@ export const GET = withAuth(PERMISSIONS.AUDIT_READ, async (req: NextRequest) => 
     }
   }
 
-  // -----------------------------------------------------------------------
-  // Run count + page query in parallel
-  // -----------------------------------------------------------------------
   const [total, entries] = await Promise.all([
     db.auditLog.count({ where }),
     db.auditLog.findMany({

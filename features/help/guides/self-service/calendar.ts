@@ -166,9 +166,7 @@ export const calendarGuide: HelpGuide = {
           shot: {
             id: "calendar-floating",
             as: "employee",
-            // Page 1 is the year's holidays that have passed; the ones you can
-            // still pick or withdraw are on page 2. This list keeps its page in
-            // the URL (?page=), so it opens there directly.
+            // Page 1 is the year's past holidays; this list keeps its page in the URL, so open page 2.
             path: "/calendar?tab=floating&page=2",
             highlight: [
               { role: "button", name: "Apply", exact: true },
@@ -185,15 +183,15 @@ export const calendarGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Floating Holidays Availed (3) shows how many you have used out of your limit.",
-            hi: "Floating Holidays Availed (3) बताता है कि आपने अपनी लिमिट में से कितने ले लिए हैं।",
+            en: "Floating Holidays Availed (3) shows how many approved floating holidays you have out of your limit. Requests still waiting for approval don't count. A floating holiday is a paid day off.",
+            hi: "Floating Holidays Availed (3) बताता है कि आपकी लिमिट में से कितने floating holidays approve हो चुके हैं। जो requests अभी approval का इंतज़ार कर रही हैं, वो नहीं गिनी जातीं। Floating holiday एक paid छुट्टी है।",
           },
         },
       ],
       tips: [
         {
-          en: "Once you have used all your floating holidays, the Apply buttons turn grey. Withdraw one to choose a different day.",
-          hi: "सारे floating holidays इस्तेमाल हो जाने पर Apply बटन ग्रे हो जाते हैं। कोई दूसरा दिन चुनना हो तो पहले एक Withdraw करें।",
+          en: "Once all your floating holidays are approved, the Apply buttons turn grey. Withdraw one to choose a different day.",
+          hi: "सारे floating holidays approve हो जाने पर Apply बटन ग्रे हो जाते हैं। कोई दूसरा दिन चुनना हो तो पहले एक Withdraw करें।",
         },
         {
           en: "If a request is rejected, the reason shows under its status and you can click Re-apply.",

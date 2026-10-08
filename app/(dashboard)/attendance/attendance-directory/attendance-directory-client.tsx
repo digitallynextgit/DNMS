@@ -60,9 +60,7 @@ export function AttendanceDirectoryClient() {
       )
     : allRows
 
-  // The roster is fetched whole (one row per active employee), so paging is a
-  // client-side slice. Clamping to totalPages keeps the view valid when filtering
-  // shrinks the list below the current page.
+  // The roster is fetched whole, so paging is a client-side slice clamped to totalPages.
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
   const pagedRows = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
@@ -168,7 +166,6 @@ export function AttendanceDirectoryClient() {
         }
       />
 
-      {/* Summary (for the selected day / range) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Employees"
@@ -187,9 +184,7 @@ export function AttendanceDirectoryClient() {
           iconBg="bg-green-50"
         />
         <StatCard
-          // "Not Present", because that is what the number IS: everyone without
-          // a punch today (leave, absence, or an unsynced device). Labelling it
-          // "On Leave" showed a fresh install as the whole company on leave.
+          // "Not Present": everyone without a punch (leave, absence or an unsynced device), not "On Leave".
           title="Not Present"
           value={summary?.notPresent ?? 0}
           loading={isLoading}
@@ -207,7 +202,6 @@ export function AttendanceDirectoryClient() {
         />
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[200px] flex-1 space-y-1.5">
           <Label htmlFor="dir-search">Employee</Label>
@@ -236,10 +230,6 @@ export function AttendanceDirectoryClient() {
         )}
       </div>
 
-      {/* Roster - one row per employee, no per-row actions. Rendered while
-          loading too: `isSingleDay` falls back to `from === to`, so the correct
-          column set is known before the data arrives and the skeleton rows are
-          drawn inside the real <thead>. */}
       {isLoading || rows.length > 0 ? (
         <DataTable
           columns={columns}
@@ -261,7 +251,6 @@ export function AttendanceDirectoryClient() {
         <EmptyState variant="card" title="No employees found." />
       )}
 
-      {/* HR correction */}
       <ManualAttendanceDialog open={correctOpen} onOpenChange={setCorrectOpen} />
     </div>
   )

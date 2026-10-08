@@ -5,26 +5,9 @@ import { tryDecrypt } from "@/lib/crypto"
 import { getConfig } from "@/server/app-config"
 import { isDemoEmail } from "@/lib/demo"
 
-// ---------------------------------------------------------------------------
-// Mailer profiles
-// ---------------------------------------------------------------------------
-// Different use-cases can send from different mailboxes. Each named profile
-// reads SMTP_<PROFILE>_* config (DB settings → env), with the base SMTP_* keys
-// belonging to the "default" profile:
-//
-//   default       → SMTP_*                    (e.g. noreply@digitallynext.com)
-//   notifications → SMTP_NOTIFICATIONS_*      (REQUIRED - the guaranteed fallback)
-//   hr            → SMTP_HR_*                  (hr@digitallynext.com)
-//
-// The "notifications" profile is mandatory (enforced on the Integrations page)
-// and acts as the final fallback for EVERY other profile: when a requested
-// profile has no usable credentials of its own, mail is sent through the next
-// profile in the chain that does, ending at notifications. Credentials
-// (host/user/pass) are always taken as one coherent unit from a single profile
-// so we never mix one account's host with another's password.
-//
-// Add more by simply using a new profile name + matching SMTP_<NAME>_* keys.
-// ---------------------------------------------------------------------------
+// Mailer profiles: each reads SMTP_<PROFILE>_* (DB -> env); "default" uses plain SMTP_*. A profile
+// without credentials falls back down the chain to the mandatory "notifications" profile.
+// Host/user/pass always come from one profile, never mixed.
 export type MailerProfile = "default" | "notifications" | "hr" | (string & {})
 
 interface ProfileConfig {
@@ -36,12 +19,10 @@ interface ProfileConfig {
   pass?: string
 }
 
-// The config-key prefix for a profile. "default" uses the base SMTP_* keys.
 function keyPrefix(profile: string): string {
   return profile === "default" ? "SMTP_" : `SMTP_${profile.toUpperCase()}_`
 }
 
-// Read a profile's full SMTP config (DB settings → env) in one shot.
 async function readProfile(profile: string): Promise<ProfileConfig> {
   const p = keyPrefix(profile)
   const [from, host, port, secure, user, pass] = await Promise.all([
@@ -55,33 +36,26 @@ async function readProfile(profile: string): Promise<ProfileConfig> {
   return { from, host, port, secure, user, pass }
 }
 
-// A profile can actually authenticate and send only with all three of these.
 function hasCredentials(c: ProfileConfig): boolean {
   return Boolean(c.host && c.user && c.pass)
 }
 
-// Parse a configured port, falling back to 587 for missing or non-numeric values
-// (a stray DB/env value must never produce a NaN port on the transporter).
+// Falls back to 587 so a stray value never gives a NaN port.
 function toPort(value: string | undefined): number {
   const n = Number.parseInt(value ?? "", 10)
   return Number.isNaN(n) ? 587 : n
 }
 
-// Fallback order, ending at the mandatory "notifications" profile so mail still
-// sends when the Default or HR mailer isn't configured.
 function fallbackChain(profile: string): string[] {
   if (profile === "notifications") return ["notifications"]
   if (profile === "default") return ["default", "notifications"]
   return [profile, "default", "notifications"] // hr or any custom profile
 }
 
-// Build a fresh transporter from the current config (no caching, so admin edits
-// to SMTP settings on the Integrations page take effect immediately).
+// Read fresh each time, so SMTP edits on the Integrations page apply immediately.
 async function buildProfile(profile: string) {
   const requested = await readProfile(profile)
 
-  // Pick the first profile in the chain that has usable credentials; the
-  // mandatory notifications profile is the guaranteed tail of every chain.
   let account: ProfileConfig | null = hasCredentials(requested) ? requested : null
   if (!account) {
     for (const candidate of fallbackChain(profile)) {
@@ -93,11 +67,7 @@ async function buildProfile(profile: string) {
       }
     }
   }
-  // Nothing in the chain can authenticate: fail HERE with a message that names
-  // the problem. The old behaviour fell through to an UNAUTHENTICATED
-  // smtp.gmail.com transporter, which Gmail rejects with a 530 - so a missing
-  // config surfaced as a cryptic send failure (and the contact form silently
-  // lost enquiries) instead of "SMTP is not configured".
+  // Nothing can authenticate: fail here with a clear message, not a cryptic 530 from Gmail.
   if (!account || !hasCredentials(account)) {
     throw new Error(
       `SMTP is not configured: no profile in the "${profile}" fallback chain has host+user+pass. ` +
@@ -111,20 +81,12 @@ async function buildProfile(profile: string) {
     secure: account.secure === "true",
     auth: { user: account.user!, pass: account.pass },
   })
-  // Prefer the requested profile's own From (send-as), else the sending
-  // account's configured From, else a safe default.
   const from = requested.from || account.from || "DNMS <noreply@digitallynext.com>"
   return { transporter, from }
 }
 
-// ---------------------------------------------------------------------------
-// Pooled transporters
-// ---------------------------------------------------------------------------
-// Building a transporter per email meant a fresh TCP + TLS + SMTP AUTH handshake
-// for EVERY message (300ms-2s against Gmail). Transporters are now pooled and
-// cached by their exact SMTP config, so the connection is reused. Changing SMTP
-// settings yields a different cache key, so a new transporter is built - stale
-// entries just idle out.
+// Transporters are pooled and cached by exact SMTP config, so connections are reused; a config
+// change just builds a new one.
 type SmtpConfig = {
   host: string
   port: number
@@ -143,8 +105,7 @@ function getTransporter(cfg: SmtpConfig): nodemailer.Transporter {
     pool: true,
     maxConnections: 3,
     maxMessages: 100,
-    // Without these a dead SMTP host holds the caller (and its HTTP request)
-    // for the OS TCP timeout - minutes. Fail in seconds instead.
+    // Fail in seconds rather than hang for the OS TCP timeout when the SMTP host is dead.
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
     socketTimeout: 20_000,
@@ -161,25 +122,16 @@ interface SendEmailOptions {
   text?: string
   attachments?: Array<{ filename: string; content: Buffer; contentType: string }>
   replyTo?: string
-  // Threading headers: set both to a prior message's Message-ID so this email
-  // replies on the same email thread (Gmail conversation).
+  // Set both to a prior Message-ID to reply on the same thread.
   inReplyTo?: string
   references?: string | string[]
-  // Explicit Message-ID for THIS email (else nodemailer auto-generates one). Set
-  // it when a later email needs to reply onto this one's thread.
+  // Set when a later email needs to reply onto this one's thread.
   messageId?: string
-  // Which configured mailbox to send from (default: "default").
   profile?: MailerProfile
-  // Explicit From override; wins over the profile's configured From.
   from?: string
 }
 
-// Normalize an address (or list) into the comma-joined string nodemailer wants,
-// or undefined when there are no addresses.
-/**
- * Recipients as one header value. Demo-workspace addresses (lib/demo.ts) are
- * dropped: they can never receive mail, and every send path goes through here.
- */
+/** Demo-workspace addresses (lib/demo.ts) are dropped here - every send path goes through this. */
 function addressList(value?: string | string[]): string | undefined {
   if (!value) return undefined
   const all = (Array.isArray(value) ? value : value.split(","))
@@ -191,10 +143,10 @@ function addressList(value?: string | string[]): string | undefined {
 export async function sendEmail(options: SendEmailOptions): Promise<string | null> {
   const to = addressList(options.to)
   const cc = addressList(options.cc)
-  // Nobody left once demo addresses are dropped - nothing to send.
+  // Only demo addresses - nothing to send.
   if (!to && !cc) return null
   const { transporter, from } = await buildProfile(options.profile ?? "default")
-  // NOTE: no transporter.close() - it is pooled and shared (see getTransporter).
+  // No close(): the transporter is pooled and shared.
   const info = await transporter.sendMail({
     from: options.from ?? from,
     to,
@@ -212,12 +164,8 @@ export async function sendEmail(options: SendEmailOptions): Promise<string | nul
 }
 
 /**
- * Sends an email impersonating the given employee, using their stored Gmail App Password.
- * Falls back to the system mailer (sendEmail) if the employee has no App Password set.
- *
- * Use for emails that should appear to come from a specific person - e.g. a manager
- * approving a leave, a recruiter sending a stage-change message. System-level mail
- * (password resets, birthdays) should keep using sendEmail.
+ * Sends as the employee via their Gmail App Password, else falls back to sendEmail. For mail that
+ * should come from a person (approvals, recruiter messages), not system mail.
  */
 export async function sendEmailAs(
   employeeId: string,
@@ -228,7 +176,6 @@ export async function sendEmailAs(
     select: { email: true, firstName: true, lastName: true, gmailAppPassword: true },
   })
 
-  // No employee or no App Password on file → fall back to the shared system mailer.
   if (!emp?.gmailAppPassword) {
     return sendEmail(options)
   }
@@ -243,8 +190,6 @@ export async function sendEmailAs(
     return sendEmail(options)
   }
 
-  // Pooled per-employee transporter (cached by their SMTP creds), so a manager who
-  // approves several requests reuses one authenticated connection.
   const perUser = getTransporter({
     host: (await getConfig("SMTP_HOST")) || "smtp.gmail.com",
     port: toPort(await getConfig("SMTP_PORT")),
@@ -273,7 +218,6 @@ export async function sendEmailAs(
   return info.messageId ?? null
 }
 
-/** Explicit SMTP credentials, for callers that don't use a named profile. */
 export interface ExplicitSmtp {
   host: string
   port: number
@@ -284,17 +228,7 @@ export interface ExplicitSmtp {
   replyTo?: string
 }
 
-/**
- * Send through an ARBITRARY SMTP account rather than one of our profiles.
- *
- * The project mailer needs this: each project sends from the client's own
- * domain, so the credentials come from a database row, not from SMTP_* config.
- * It still goes through the shared pool (keyed by the exact config), so a
- * campaign of 500 emails reuses one authenticated connection instead of
- * performing 500 TLS handshakes.
- *
- * Throws on failure - the campaign runner records the error per recipient.
- */
+/** Sends through an arbitrary SMTP account (e.g. a project's client domain), still pooled. Throws on failure. */
 export async function sendEmailWithSmtp(
   smtp: ExplicitSmtp,
   options: Omit<SendEmailOptions, "profile" | "from">,
@@ -321,7 +255,7 @@ export async function sendEmailWithSmtp(
   return info.messageId ?? null
 }
 
-/** Verify credentials without sending: opens the connection and authenticates. */
+/** Opens the connection and authenticates, without sending. */
 export async function verifySmtp(smtp: Omit<ExplicitSmtp, "from" | "replyTo">): Promise<void> {
   const transporter = getTransporter({
     host: smtp.host,
@@ -332,7 +266,6 @@ export async function verifySmtp(smtp: Omit<ExplicitSmtp, "from" | "replyTo">): 
   await transporter.verify()
 }
 
-/** Minimal HTML entity escape for values substituted into template HTML. */
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -351,9 +284,7 @@ export function renderTemplate(
   for (const [key, value] of Object.entries(data)) {
     const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g")
     subject = subject.replace(regex, value)
-    // Values are DATA, not markup: a user-supplied field substituted into the
-    // template body must never inject HTML into the recipient's mail client.
-    // (The template itself is the trusted HTML; the values are not.)
+    // Values are data, not markup: escape them so they can't inject HTML.
     html = html.replace(regex, escapeHtml(value))
   }
 

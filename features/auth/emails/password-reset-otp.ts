@@ -1,11 +1,5 @@
-// =============================================================================
-// Password-reset OTP email - company-branded, email-client-safe HTML.
-// =============================================================================
-// Uses table-based layout + inline styles (the only thing Outlook/Gmail render
-// reliably). The shared `wrapEmail` provides the dark logo header + footer; point
-// EMAIL_LOGO_URL at a hosted PNG for the widest client support - many clients
-// (notably Outlook) do NOT render .webp.
-// =============================================================================
+// Table layout + inline styles: the only thing Outlook/Gmail render reliably.
+// EMAIL_LOGO_URL should be a PNG - Outlook does not render .webp.
 
 import { BRAND_NAME, wrapEmail } from "@/lib/email-layout"
 

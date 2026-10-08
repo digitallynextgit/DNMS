@@ -5,10 +5,7 @@ import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
 export const PATCH = withAuth(
-  // holiday:write, not attendance:write - the calendar was deliberately split
-  // out of the attendance scope, and POST /api/attendance/holidays already
-  // requires holiday:write. Edit/delete must share it so a custom role granted
-  // only attendance:write cannot alter the company holiday calendar.
+  // holiday:write, not attendance:write - the holiday calendar has its own scope (same as create).
   PERMISSIONS.HOLIDAY_WRITE,
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
@@ -56,7 +53,6 @@ export const PATCH = withAuth(
 )
 
 export const DELETE = withAuth(
-  // holiday:write, matching PATCH and the create POST - see the note above.
   PERMISSIONS.HOLIDAY_WRITE,
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {

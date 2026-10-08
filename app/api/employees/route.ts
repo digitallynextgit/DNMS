@@ -12,7 +12,6 @@ type EmployeeFilters = {
   limit?: number
 }
 
-// GET /api/employees - paginated, filterable employee list.
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const sp = req.nextUrl.searchParams
   const filters: EmployeeFilters = {}
@@ -33,7 +32,6 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   return respond(await getEmployees(filters))
 })
 
-// POST /api/employees - create an employee.
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const body = await req.json()
   return respond(await createEmployee(body))

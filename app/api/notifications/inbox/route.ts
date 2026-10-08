@@ -4,7 +4,6 @@ import { db } from "@/server/db"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import type { Session } from "next-auth"
 
-// GET - paginated notifications for the current user
 export const GET = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -51,7 +50,6 @@ export const GET = withSession(
   },
 )
 
-// PATCH - mark notifications as read
 export const PATCH = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -67,7 +65,6 @@ export const PATCH = withSession(
       }
 
       if (Array.isArray(body.ids) && body.ids.length > 0) {
-        // Validate ownership before updating
         const owned = await db.notification.findMany({
           where: { id: { in: body.ids }, employeeId },
           select: { id: true },
@@ -92,11 +89,6 @@ export const PATCH = withSession(
   },
 )
 
-// DELETE - permanently remove notifications. Always scoped to the caller's OWN
-// rows: `employeeId` is taken from the session and used in the where clause, so
-// passing someone else's id simply deletes nothing rather than their inbox.
-//   ?id=<id>   remove one
-//   ?all=true  clear the whole inbox
 export const DELETE = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -110,8 +102,7 @@ export const DELETE = withSession(
       }
 
       if (id) {
-        // deleteMany (not delete) so a wrong/foreign id is a no-op instead of a
-        // 500 - and it can never touch another user's row.
+        // deleteMany so a wrong or foreign id is a no-op, never a 500 or another user's row.
         const { count } = await db.notification.deleteMany({ where: { id, employeeId } })
         if (count === 0) {
           return NextResponse.json({ error: "Notification not found" }, { status: 404 })

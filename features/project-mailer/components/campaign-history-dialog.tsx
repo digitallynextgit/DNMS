@@ -1,17 +1,8 @@
 "use client"
 
 /**
- * Per-recipient outcome for one campaign.
- *
- * The honest framing matters here and is stated in the UI, not just in this
- * comment: a row marked Sent means the RECEIVING MAIL SERVER ACCEPTED the
- * message, which is the last thing SMTP tells us. A dead mailbox is very often
- * accepted and then bounced minutes later, and that bounce goes to the sending
- * inbox - never back to DNMS. So this screen can prove what was rejected on the
- * spot; it cannot prove what landed.
- *
- * Calling that out is the difference between a useful list-cleaning tool and one
- * that quietly certifies 314 dead addresses as reachable.
+ * Per-recipient outcome for one campaign. "Sent" only means the receiving server accepted it -
+ * later bounces go to the sending inbox, never back to DNMS.
  */
 
 import * as React from "react"
@@ -63,12 +54,14 @@ export function CampaignHistoryDialog({
   const [search, setSearch] = React.useState("")
   const [filter, setFilter] = React.useState<Filter>("all")
 
-  React.useEffect(() => {
+  const [shownFor, setShownFor] = React.useState<typeof campaign>(null)
+  if (campaign !== shownFor) {
+    setShownFor(campaign)
     if (campaign) {
       setSearch("")
       setFilter("all")
     }
-  }, [campaign])
+  }
 
   const { data, isPending } = useQuery({
     queryKey: ["campaign-sends", campaign?.id],
@@ -102,11 +95,7 @@ export function CampaignHistoryDialog({
     })
   }, [sends, search, filter])
 
-  /**
-   * Export what is CURRENTLY filtered, not the whole campaign: the reason to
-   * open this screen is usually "give me the ones that failed" so I can take
-   * them off the list.
-   */
+  /** Exports what's currently filtered - usually "the ones that failed". */
   function exportCsv() {
     const header = "email,name,status,error,sent_at\n"
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`
@@ -138,7 +127,6 @@ export function CampaignHistoryDialog({
           <DialogDescription className="text-xs">{campaign?.subject}</DialogDescription>
         </DialogHeader>
 
-        {/* The distinction the whole screen turns on. */}
         <div className="text-muted-foreground bg-muted/40 flex items-start gap-2 rounded-sm border p-2.5 text-[11px]">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <p>
@@ -240,8 +228,6 @@ export function CampaignHistoryDialog({
                         ) : null}
                         {STATUS_LABEL[s.status]}
                       </span>
-                      {/* The provider's own words - "mailbox unavailable" is the
-                          line that tells you to drop the address. */}
                       {s.error && (
                         <p className="text-destructive mt-0.5 text-[10px] break-words">{s.error}</p>
                       )}

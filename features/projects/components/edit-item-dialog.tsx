@@ -17,18 +17,7 @@ import { useDeliverableMutations, type DeliverableRow } from "../hooks/use-deliv
 import { MAX_QUANTITY, MAX_TYPE_LENGTH } from "../lib/deliverable-types"
 import { formatPeriod } from "../lib/delivery-period"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Editing one item of a deliverable.
-//
-// THE SAME THREE FIELDS THE ITEM WAS PLANNED WITH, in the same row: an item is
-// created as "type · what is it · how many", and the ordinary edit is fixing
-// one of those three. The old route here was the full log form - team, person,
-// dates, repeat, task, goal, links, notes, files - which asks thirteen
-// questions to change a word.
-//
-// Assigning is its own action in the table, and the link or file a delivered
-// item carries goes on at the moment it is logged, in the log form.
-// ─────────────────────────────────────────────────────────────────────────────
+// Edits only the three fields an item is planned with (type, what, how many).
 
 const day = (ymd: string) => new Date(`${ymd}T00:00:00.000Z`)
 
@@ -37,10 +26,9 @@ export function EditItemDialog({
   row,
   onClose,
 }: {
-  /** The ref the board is keyed by - a slug or an id. NOT row.projectId, which
-   *  is always the id and would invalidate a cache entry nobody is reading. */
+  /** The board's cache key (slug or id) - not row.projectId, which is always the id. */
   projectId: string
-  /** The item being edited. Null closes the dialog. */
+  /** null = closed. */
   row: DeliverableRow | null
   onClose: () => void
 }) {
@@ -66,8 +54,7 @@ function Body({
   const m = useDeliverableMutations(projectId)
   const [type, setType] = React.useState(row.type)
   const [title, setTitle] = React.useState(row.title)
-  // A string, not a number: an emptied box while somebody retypes is a normal
-  // state, and coercing it to 0 mid-keystroke fights the person typing.
+  // A string, so an emptied box mid-retype isn't coerced to 0.
   const [quantity, setQuantity] = React.useState(String(row.quantity))
 
   const qty = Math.max(1, Math.min(Number(quantity) || 1, MAX_QUANTITY))
@@ -104,8 +91,6 @@ function Body({
             <h4 className="text-sm font-semibold">{context}</h4>
           </div>
         )}
-        {/* The same grid the plan wizard lays a new item out in, so editing one
-            and creating one look like the same act. */}
         <div className="grid gap-2 sm:grid-cols-[1fr_1.4fr_72px]">
           <Input
             value={type}

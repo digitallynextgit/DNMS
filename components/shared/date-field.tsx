@@ -8,8 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button"
 import { cn, formatDate } from "@/lib/utils"
 
-// Convert between the app's "yyyy-MM-dd" string and a Date for the calendar,
-// staying in local time so the day never shifts across timezones.
+// "yyyy-MM-dd" <-> Date in local time, so the day never shifts across timezones.
 export function parseDateString(s?: string): Date | undefined {
   if (!s) return undefined
   const [y, m, d] = s.split("-").map(Number)
@@ -24,31 +23,13 @@ export function toDateString(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
-// =============================================================================
-// Year-dropdown range
-// =============================================================================
-// react-day-picker's own default for a dropdown caption is:
-//
-//     endMonth = endOfYear(today)        // getNavMonth.js
-//
-// i.e. the year list STOPS AT THE CURRENT YEAR unless a caller passes endMonth.
-// That silently made every future date unreachable in any field that did not
-// think to pass one - a renewal expiring in 2028, leave booked for January,
-// next year's holiday calendar. The field looked fine; the year simply was not
-// in the list.
-//
-// So the range is OURS, not the library's. Callers that genuinely want a
-// narrower window (attendance cannot be marked in the future, a date of birth
-// cannot be next week) still pass their own and win.
+// react-day-picker's year dropdown stops at the current year by default, hiding every future date.
+// So the range is ours; callers needing a narrower one still pass their own.
 const DEFAULT_START_YEAR = 1950
 /** Domains and SSL certs are commonly bought 10 years out; 15 leaves headroom. */
 const FUTURE_YEARS = 15
 
-/**
- * Reusable shadcn date picker (calendar in a popover). Shared by the employee
- * create/edit form and the per-section edit modals so every date field across
- * the UI looks and behaves identically. Value is a "yyyy-MM-dd" string.
- */
+/** Shared date picker. Value is a "yyyy-MM-dd" string. */
 export function DateField({
   value,
   onChange,
@@ -67,12 +48,10 @@ export function DateField({
   disabled?: (date: Date) => boolean
   /** Set when rendered inside a Dialog so the popover layers above it. */
   modal?: boolean
-  /** Size/spacing override for the trigger, e.g. a compact filter-bar field. */
   className?: string
 }) {
   const [open, setOpen] = useState(false)
-  // Computed once per mount rather than per render, so the dropdown options are
-  // referentially stable while the popover is open.
+  // Once per mount, so the dropdown options stay stable while open.
   const bounds = useMemo(() => {
     const year = new Date().getFullYear()
     return {
@@ -88,8 +67,7 @@ export function DateField({
           type="button"
           variant="outline"
           className={cn(
-            // The default Button size is 36px tall, matching Input/Select exactly,
-            // so a date field lines up with the fields beside it.
+            // Default Button height (36px) matches Input/Select, so the fields line up.
             "border-input w-full justify-start rounded-sm px-3 text-left font-normal",
             !value && "text-muted-foreground",
             className,

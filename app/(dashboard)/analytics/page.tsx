@@ -64,9 +64,7 @@ export default function AnalyticsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["analytics"],
     queryFn: fetchAnalytics,
-    // Executive rollup (~16 queries). A minute-old figure is fine, and the route
-    // now serves a 60s private cache, so poll every 5 min and treat the data as
-    // fresh for a minute rather than re-running everything every 60s.
+    // Executive rollup (~16 queries) with a 60s private cache: poll every 5 min, fresh for a minute.
     refetchInterval: 5 * 60_000,
     staleTime: 60_000,
   })
@@ -76,8 +74,7 @@ export default function AnalyticsPage() {
     return (
       <div className="space-y-6">
         <PageHeader title="Analytics" description="Executive dashboard and reporting" />
-        {/* KPI cards are a 4-up stat grid, not the 3-up entity grid CardGridSkeleton
-            draws - so the placeholder must match sm:grid-cols-2 lg:grid-cols-4. */}
+        {/* A 4-up stat grid, not CardGridSkeleton's 3-up entity grid. */}
         <StatCardsSkeleton count={8} />
         <div className="grid gap-4 lg:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -95,7 +92,6 @@ export default function AnalyticsPage() {
     <div className="space-y-6">
       <PageHeader title="Analytics" description="Executive dashboard and reporting" />
 
-      {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Employees"
@@ -150,7 +146,6 @@ export default function AnalyticsPage() {
         />
       </div>
 
-      {/* Charts (lazy-loaded) */}
       <AnalyticsCharts d={d} />
     </div>
   )

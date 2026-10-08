@@ -7,8 +7,7 @@ import {
   createAnnouncement,
 } from "@/features/noticeboard/server/noticeboard.service"
 
-// GET - the board. Open to every signed-in employee; a notice nobody can read
-// is not a notice. Managers additionally see drafts and expired items.
+// Open to every employee; managers also see drafts and expired items.
 export const GET = withSession(async (req: NextRequest, _ctx, session) => {
   const sp = req.nextUrl.searchParams
   const month = Number(sp.get("month"))

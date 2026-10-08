@@ -1,10 +1,4 @@
-// =============================================================================
-// Storage accounts
-// =============================================================================
-// Several object-storage buckets instead of one block of settings. The app key
-// is encrypted at rest and NEVER selected into a response - screens show whether
-// it verifies, not what it is. Same rule as the project mailer's SMTP password.
-// =============================================================================
+// The app key is encrypted at rest and NEVER selected into a response.
 
 import "server-only"
 
@@ -107,9 +101,7 @@ export async function updateStorageAccount(
         region: input.region,
         bucket: input.bucket,
         keyId: input.keyId,
-        // Blank means "keep the stored key" - it is never sent to the browser,
-        // so blank cannot mean "clear it" without wiping working credentials
-        // every time somebody renames an account.
+        // Blank = keep the stored key (it is never sent to the browser, so blank can't mean "clear").
         ...(input.appKey ? { appKey: encrypt(input.appKey) } : {}),
         isActive: input.isActive,
       },
@@ -135,13 +127,7 @@ export async function updateStorageAccount(
   })
 }
 
-/**
- * Make one account the target for new uploads.
- *
- * Existing objects are NOT moved: an object key means nothing without the bucket
- * it lives in, so a "switch" that silently repointed old files would break every
- * document already stored. Only new writes follow the default.
- */
+/** Target for NEW uploads only; existing objects stay in the bucket they were written to. */
 export async function setDefaultStorageAccount(
   id: string,
   session: Session,
@@ -173,13 +159,7 @@ export async function setDefaultStorageAccount(
   })
 }
 
-/**
- * Delete an account.
- *
- * Refuses for the default, and refuses the last one: either would leave the app
- * with nowhere to write, and the failure would only surface on somebody's next
- * upload. The FILES are left alone - deleting a row must not delete a bucket.
- */
+/** Refuses the default, so the app always has somewhere to write. Never touches the bucket's files. */
 export async function deleteStorageAccount(
   id: string,
   session: Session,

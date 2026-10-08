@@ -10,10 +10,7 @@ export const metadata: Metadata = {
   description: "Set the password for your client portal account.",
 }
 
-/**
- * Where proxy.ts parks a client whose `mustChangePassword` flag is set - i.e.
- * everyone signing in for the first time with the temporary password we emailed.
- */
+/** Where proxy.ts parks a client with mustChangePassword set (first sign-in). */
 export default async function ClientSetPasswordPage() {
   const session = await auth()
   if (!session || session.user.kind !== "client") redirect("/login")

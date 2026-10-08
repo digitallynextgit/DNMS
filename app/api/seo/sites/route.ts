@@ -3,8 +3,7 @@ import { withAuth } from "@/server/api-handler"
 import { gscServiceAccountEmail, isGscConfigured, listGscSites } from "@/lib/gsc"
 import { PERMISSIONS } from "@/lib/constants"
 
-// GET - every Search Console property the service account can read. Used by the
-// SEO tab so people pick the exact property id instead of typing it wrong.
+// Search Console properties the service account can read, so people pick the exact id.
 export const GET = withAuth(
   PERMISSIONS.PROJECT_WRITE,
   async (_req: NextRequest, _ctx: { params: Record<string, string> }) => {

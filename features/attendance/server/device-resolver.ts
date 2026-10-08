@@ -1,19 +1,7 @@
 import "server-only"
 
-// =============================================================================
-// Where is the punch terminal right now?
-// =============================================================================
-// The stored `ipAddress` is only where the device was last seen. These terminals
-// ship on DHCP, so the address moves whenever the lease does - and the app then
-// calls whatever else now holds it. That is where the mystery 404s came from:
-// some other box on the LAN answers HTTP perfectly well, it just has no
-// /ISAPI/... path. A dead address gives a timeout instead, and another Hikvision
-// gives a 401. Same cause, three different errors.
-//
-// So nothing here trusts the address. It is a HINT; the device's serial and MAC
-// are the identity. Every connection verifies it reached the right box, and when
-// it has not, it goes looking and writes down the new address.
-// =============================================================================
+// The stored ipAddress is only a hint - these terminals use DHCP, so another host may now answer
+// there. Serial + MAC are the identity: each connection checks it and re-finds the device if moved.
 
 import os from "os"
 import { db } from "@/server/db"
@@ -57,8 +45,7 @@ function localSubnetPrefixes(): string[] {
 }
 
 function matches(identity: DeviceIdentity, row: DeviceRow): boolean {
-  // Nothing recorded yet: the first successful connection is what teaches us
-  // who this is, so accept it and adopt the identity below.
+  // Nothing recorded yet: accept the first connection and adopt its identity.
   if (!row.hardwareSerial && !row.macAddress) return true
   if (row.hardwareSerial && identity.serialNumber === row.hardwareSerial) return true
   if (row.macAddress && identity.macAddress.toLowerCase() === row.macAddress.toLowerCase()) {
@@ -67,12 +54,8 @@ function matches(identity: DeviceIdentity, row: DeviceRow): boolean {
   return false
 }
 
-/**
- * Get a config that actually points at the device.
- *
- * Tries the stored address first - the common case, one request. Only when that
- * fails, or answers as somebody else, does it sweep the subnet.
- */
+/** A config that points at the device: the stored address first, a subnet sweep only if that
+ *  fails or answers as another device. */
 export async function resolveDevice(row: DeviceRow): Promise<ResolvedDevice> {
   const base = {
     port: row.port,
@@ -83,8 +66,7 @@ export async function resolveDevice(row: DeviceRow): Promise<ResolvedDevice> {
 
   const identity = await getDeviceIdentity(stored)
   if (identity && matches(identity, row)) {
-    // Learn the identity on the first good connection, so the next time it moves
-    // there is something to recognise it by.
+    // Learn the identity on the first good connection.
     if (!row.hardwareSerial || !row.macAddress) {
       await db.hikvisionDevice
         .update({

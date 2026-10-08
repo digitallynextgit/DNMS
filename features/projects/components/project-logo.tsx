@@ -14,14 +14,7 @@ function initials(name: string): string {
   return (words[0]![0]! + words[1]![0]!).toUpperCase()
 }
 
-/**
- * A project's logo, with an initials tile as the fallback.
- *
- * The fallback is not decoration - most projects have no logo yet, and an empty
- * box on every card would read as broken. `onError` also falls back, so a logo
- * whose signed URL has expired or whose object went missing degrades to initials
- * rather than a broken-image icon.
- */
+/** Falls back to initials when there's no logo or it fails to load (e.g. an expired signed URL). */
 export function ProjectLogo({
   src,
   name,
@@ -34,7 +27,11 @@ export function ProjectLogo({
   const [failed, setFailed] = React.useState(false)
 
   // A new src (?v= changes on every upload) deserves a fresh attempt.
-  React.useEffect(() => setFailed(false), [src])
+  const [prevSrc, setPrevSrc] = React.useState(src)
+  if (src !== prevSrc) {
+    setPrevSrc(src)
+    setFailed(false)
+  }
 
   const hasLogo = !!src && !failed
 
@@ -42,16 +39,13 @@ export function ProjectLogo({
     <div
       className={cn(
         "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden",
-        // Chrome belongs to the FALLBACK only. A real logo carries its own shape
-        // and edges, so a tile behind it just boxes it in; the tile exists to
-        // give the initials something to sit on.
+        // Only the initials fallback gets a tile; a real logo has its own shape.
         !hasLogo && "bg-muted rounded-sm border",
         className,
       )}
     >
       {hasLogo ? (
-        // The src is our own route, which 302s to a short-lived signed B2 URL -
-        // not a static asset, so a plain <img> rather than next/image.
+        // Our own route 302s to a short-lived signed B2 URL, so a plain <img>.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={src}

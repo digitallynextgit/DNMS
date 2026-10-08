@@ -12,28 +12,12 @@ import { wrapEmail, detailRow } from "@/lib/email-layout"
 import { toDateOnly } from "@/lib/dates"
 import { canComplete, type ChecklistItemState } from "../lib/checklist-rules"
 
-// =============================================================================
-// Finishing an exit.
-// =============================================================================
-// Separate from checklists.service.ts because completing an EXIT is not the same
-// kind of act as completing an onboarding: it issues the relieving letter and
-// CLOSES THE ACCOUNT. It is the one place where the document's rule - "until all
-// department clearances are signed, relieving will not be issued" - stops being
-// a sentence in a Word file and becomes a refusal.
-// =============================================================================
+// Completing an EXIT issues relieving and closes the account, hence its own file.
 
 /**
- * HR's final sign-off.
- *
- * Refuses while any REQUIRED clearance is unsigned, naming the ones outstanding
- * so the message says what to go and get rather than only that it is not
- * allowed.
- *
- * On success, in one transaction: close the checklist, mark the employee
- * RESIGNED and inactive, and clear their project-team seats. That last part
- * matters and was missing from the old approve-and-deactivate path - somebody
- * who has left must stop appearing in rosters, pickers and Drive sharing. Their
- * tasks and deliverables keep pointing at them, because that is the history.
+ * HR's final sign-off. Refuses while a required clearance is unsigned, naming them. On success,
+ * in one transaction: close the checklist, mark the employee RESIGNED and inactive, and clear
+ * their project-team seats (tasks and deliverables keep pointing at them).
  */
 export async function completeExitChecklist(instanceId: string): Promise<ActionResult<unknown>> {
   return runAction(async () => {
@@ -73,7 +57,6 @@ export async function completeExitChecklist(instanceId: string): Promise<ActionR
       return fail("You cannot sign off your own exit", undefined, 403)
     }
 
-    // ── THE GATE ────────────────────────────────────────────────────────────
     const gate = canComplete(instance.items as ChecklistItemState[])
     if (!gate.ok) {
       const names = gate.blocking.map((b) => b.text).join(", ")
@@ -102,8 +85,7 @@ export async function completeExitChecklist(instanceId: string): Promise<ActionR
       db.projectTeam.updateMany({ where: { managerId: employee.id }, data: { managerId: null } }),
     ])
 
-    // Keeps the membership flag honest for anything reading it on its own.
-    // Outside the transaction because it lives in the platform identity tables.
+    // Outside the transaction: membership lives in the platform identity tables.
     try {
       await setMembershipActive({ employeeId: employee.id }, false)
     } catch (e) {
@@ -176,16 +158,7 @@ export async function completeExitChecklist(instanceId: string): Promise<ActionR
   })
 }
 
-/**
- * Everyone currently serving notice.
- *
- * "Serving notice" is DERIVED, never stored: an accepted resignation, an account
- * still active. EmployeeStatus gains no SERVING_NOTICE value, so no existing
- * status filter anywhere in the app quietly changes meaning.
- *
- * Each row carries its exit checklist's progress and - the number HR actually
- * needs - which clearances are still blocking relieving.
- */
+/** Everyone serving notice (derived - see isServingNotice), with what still blocks relieving. */
 export async function listServingNotice(): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     await requirePermission(PERMISSIONS.EXIT_READ)

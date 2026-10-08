@@ -72,17 +72,20 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
   const [draft, setDraft] = useState<Draft[]>([])
 
   // Seed the editor whenever a different employee's profile loads.
-  useEffect(() => {
-    if (!data) return
-    setDraft(
-      data.data.items.map((i) => ({
-        evaluator: i.evaluator,
-        section: i.section,
-        label: i.label,
-        description: i.description ?? "",
-      })),
-    )
-  }, [data])
+  const [seededFrom, setSeededFrom] = useState<typeof data>(undefined)
+  if (data !== seededFrom) {
+    setSeededFrom(data)
+    if (data) {
+      setDraft(
+        data.data.items.map((i) => ({
+          evaluator: i.evaluator,
+          section: i.section,
+          label: i.label,
+          description: i.description ?? "",
+        })),
+      )
+    }
+  }
 
   const rowsFor = (evaluator: EvalEvaluator, section: EvalSection) =>
     draft
@@ -122,9 +125,7 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
 
   const isEmpty = useMemo(() => draft.every((d) => !d.label.trim()), [draft])
 
-  // The editor's own frame (side titles, section cards, their headers) is built
-  // from the static SIDES/SECTIONS constants, so it can paint before the profile
-  // arrives - only the KPI rows are placeheld, in their real input shape.
+  // The editor's frame comes from static constants, so only the KPI rows are placeheld.
   if (isLoading) {
     return (
       <div className="space-y-5">
@@ -350,9 +351,6 @@ function EmployeeList({ onSelect }: { onSelect: (row: PerfKpiProfileRow) => void
         />
       </div>
 
-      {/* The table renders from the first paint: while `isLoading` it draws
-          skeleton rows inside its own real <thead>, so the header, column count
-          and S.No column never move when the employees land. */}
       {isLoading || filtered.length > 0 ? (
         <DataTable
           columns={columns}
@@ -396,10 +394,12 @@ export default function KpiProfilesPage() {
   }, [sessionStatus, canReview, router])
 
   // Deep-link support: /performance/kpi-profiles?employee=<id>
-  useEffect(() => {
+  const [prevParams, setPrevParams] = useState<typeof searchParams | null>(null)
+  if (searchParams !== prevParams) {
+    setPrevParams(searchParams)
     const q = searchParams.get("employee")
     if (q) setSelected((s) => s ?? { id: q, name: "" })
-  }, [searchParams])
+  }
 
   if (sessionStatus === "authenticated" && !canReview) return null
 
@@ -412,8 +412,6 @@ export default function KpiProfilesPage() {
 
       {selected ? (
         <div className="space-y-4">
-          {/* Same back control as every other page - `onBack` renders the identical
-              button as `backHref`, it just calls back instead of navigating. */}
           <div className="flex items-center gap-3">
             <Button variant="outline" className="group" onClick={() => setSelected(null)}>
               <ArrowLeft className="transition-transform group-hover:-translate-x-0.5" />

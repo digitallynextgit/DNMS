@@ -18,14 +18,7 @@ import { useWorkReportScope } from "../hooks/use-work-report-scope"
 import { parseReportMonth, shiftMonth } from "../lib/report-format"
 import type { WorkReportFormat } from "../types"
 
-// =============================================================================
-// Work report
-//
-// Picks the month and the people; the server decides who the caller may pick.
-// A manager can take themselves, their whole reporting line or any mix of it;
-// HR and admins can pick anyone; everyone else gets their own report and no
-// picker at all.
-// =============================================================================
+// Work report: picks the month and people; the server decides who the caller may pick.
 
 type Who = "me" | "team" | "pick"
 

@@ -5,12 +5,8 @@ import { auditPage, checkRobots, checkSitemap, type PageAudit, type PageIssue } 
 import { submitToIndexNow, isIndexNowConfigured } from "@/lib/indexnow"
 import { resolveMoneyPages } from "./seo.vitals.service"
 
-// =============================================================================
-// Runs a technical audit for one site (plan step 6): crawl the money pages, then
-// check sitemap.xml and robots.txt. Stores one SeoTechnicalAudit row whose
-// criticalCount feeds the scorecard. On completion it pings IndexNow so the
-// checked URLs get recrawled.
-// =============================================================================
+// Technical audit for one site: crawl the money pages, check sitemap.xml and robots.txt, store
+// the result (criticalCount feeds the scorecard), then ping IndexNow.
 
 function hostOf(domain: string): string {
   return domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "")
@@ -48,8 +44,7 @@ export async function runTechnicalAudit(propertyId: string): Promise<TechnicalAu
   const origin = originOf(property.domain)
   const urls = await resolveMoneyPages(propertyId)
 
-  // Crawl pages sequentially - we're hitting a client's live server; parallel
-  // requests could look like an attack and get us rate-limited or blocked.
+  // Sequential - parallel requests to a client's live server could look like an attack.
   const pages: PageAudit[] = []
   for (const url of urls) {
     pages.push(await auditPage(url, host))

@@ -1,5 +1,4 @@
-// Pure helpers for the work report: the period it covers, and the text that
-// goes on the page. Shared by the data loader and every renderer.
+// Pure helpers for the work report period and text, shared by the loader and every renderer.
 
 const MONTH_NAMES = [
   "January",
@@ -83,11 +82,8 @@ export function dayLabel(day: string): { dm: string; dow: string } {
   }
 }
 
-/**
- * A task title as it should read in a report: no "1. 1." list numbering left
- * over from a pasted checklist, no stray whitespace or trailing punctuation,
- * and a capital first letter. The words themselves are the author's.
- */
+/** A task title for the report: no leftover "1. 1." numbering, stray whitespace or trailing
+ *  punctuation, and a capital first letter. */
 export function cleanTitle(title: string): string {
   const t = title
     .replace(/^\s*(\d+\s*[.)]\s*)+/, "")
@@ -98,12 +94,8 @@ export function cleanTitle(title: string): string {
   return t ? t[0]!.toUpperCase() + t.slice(1) : title.trim()
 }
 
-/**
- * The project an ad-hoc task is really for, when its title names one ("Skelmet -
- * Shiprocket setup" -> SKELMET). Matches a whole project name or code (3+
- * characters, case-insensitive); the longest match wins so "DNMS Mobile" beats
- * "DNMS". Null when the title names no project.
- */
+/** The project an ad-hoc task's title names ("Skelmet - Shiprocket setup" -> SKELMET): whole
+ *  name or code, 3+ chars, case-insensitive, longest match wins. Null if none. */
 export function projectNamedIn(
   title: string,
   projects: { name: string; code: string | null }[],

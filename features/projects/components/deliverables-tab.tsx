@@ -96,54 +96,17 @@ import {
 } from "./deliverable-history-dialog"
 import { formatHours } from "../lib/format-hours"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The deliverables board: what the client is owed, period by period.
-//
-// The account manager plans a DELIVERABLE - always a working week - and says
-// what each team owes inside it ("4 blogs from WEB, 2 reels from VIDEO"). That
-// period is one row on the board; the per-team items are what it is made of.
-// The team's manager puts a name on each item, the person named logs the link
-// or file when it lands, and the account manager accepts it or sends it back.
-// Counts are sums of quantities, not rows: "10 product pages" logged once
-// counts as ten everywhere.
-//
-// ── OWED IS NOT A FILTER OF THE SAME LIST ────────────────────────────────────
-// Planned rows have no completion date, so they fall out of every date range
-// the board is normally read through. Reading "what do we still owe them"
-// through "what did we make in March" would answer nothing, so the owed count
-// and the owed list come from their own query with no dates on it at all.
-//
-// ── THE BUTTONS ON A ROW COME FROM THE SAME TABLE THE SERVER USES ────────────
-// `nextActions(status, actor)` decides what is drawn, so a button can never
-// offer a move the API then refuses. The actor is worked out here from the same
-// three facts the server checks: are they the account manager, do they manage
-// the row's team, is it their own work.
-// ─────────────────────────────────────────────────────────────────────────────
+// Row buttons come from nextActions(status, actor) - the table the server uses - so none offers a refused move.
 
-/** Deliverables per page. The items INSIDE one are never paged: opening a
- *  deliverable shows all of it. */
+/** Deliverables per page; the items inside one are never paged. */
 const PERIODS_PER_PAGE = 20
 
-/** Owed work, for the tile and the list that hangs off it. Mirrors OPEN_STATUSES
- *  - STUCK is owed too, and a blocked row missing from the "owed" tile is the
- *  one most worth seeing there. */
+/** Mirrors OPEN_STATUSES - STUCK is owed too. */
 const OPEN_FILTER: DeliverableStatus[] = ["PLANNED", "IN_PROGRESS", "STUCK"]
 
-/** Today as yyyy-MM-dd, for "is this overdue" comparisons on plain strings. */
 const todayKey = (): string => toDateString(new Date())
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Row actions
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * What a move is CALLED on a button.
- *
- * The destination status is not the label: "Delivered" is where the row ends
- * up, "Log delivery" is what the person is doing, and the same destination
- * reached from REJECTED is a redelivery, which is a different act with a
- * different feeling about it.
- */
+/** The button label, not the destination: "Log delivery", or "Redeliver" from REJECTED. */
 function actionLabel(from: DeliverableStatus, to: DeliverableStatus): string {
   if (to === "IN_PROGRESS") return "Start"
   if (to === "ACCEPTED") return "Accept"
@@ -163,12 +126,7 @@ interface PendingMove {
   needsDate: boolean
 }
 
-/**
- * Collects what a move still needs before it is sent.
- *
- * Which fields appear is read off the lifecycle table's `needs`, not guessed
- * per action, so a rule that changes server-side changes this dialog with it.
- */
+/** Fields come from the lifecycle table's `needs`, so a server-side rule change follows automatically. */
 function StatusMoveDialog({
   move,
   pending,
@@ -180,9 +138,7 @@ function StatusMoveDialog({
   onCancel: () => void
   onConfirm: (payload: { reason?: string; completedOn?: string }) => void
 }) {
-  // Mounted fresh per move by the caller (key={row.id:to}), so the fields seed
-  // straight from props - no effect, and no reason left over from the last row
-  // somebody sent back.
+  // Mounted fresh per move by the caller, so the fields seed from props.
   const [reason, setReason] = React.useState("")
   const [date, setDate] = React.useState(move.row.completedOn ?? todayKey())
 
@@ -250,11 +206,6 @@ function StatusMoveDialog({
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Export
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Ninety days back from today, as the default when no range is on. */
 function defaultExportRange(): { from: string; to: string } {
   const to = new Date()
   const from = new Date(to)
@@ -262,19 +213,8 @@ function defaultExportRange(): { from: string; to: string } {
   return { from: toDateString(from), to: toDateString(to) }
 }
 
-/**
- * "Export CSV", in two flavours.
- *
- * INTERNAL carries hours, notes and who wrote the entry; CLIENT-SAFE drops all
- * four, because a sheet that leaves the building should say what they got, not
- * how long it took us or what we said about it internally. Two menu items
- * rather than a checkbox on a dialog: the choice is the whole decision, and
- * burying it is how the wrong file gets attached to an email.
- *
- * The route requires a real date range (a bare export means "every deliverable
- * ever" - one GET able to stall the pool), so when the view is on "all time"
- * the range is asked for first rather than the download silently failing.
- */
+// INTERNAL includes hours, notes and author; CLIENT-SAFE drops them. The route needs a date range,
+// so on "all time" one is asked for first (an unbounded export could stall the pool).
 export function DeliverablesExportMenu({
   filters,
   className,
@@ -374,18 +314,7 @@ export function DeliverablesExportMenu({
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// One row
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** One entry. Links and files are the point, so they are never hidden. */
-/**
- * The per-row tools: view, history, edit, remove.
- *
- * Its own component because the list row and the TABLE row both draw exactly
- * these four, and a second copy is a second thing to keep in step with the
- * permission rules that decide which of them exist.
- */
+/** Shared by the list row and the table row so both follow the same permission rules. */
 function RowIconActions({
   r,
   onVerify,
@@ -399,9 +328,7 @@ function RowIconActions({
   onEdit?: () => void
   onDelete?: () => void
 }) {
-  // The thing itself: the first link, or the first file. This is the one action
-  // that needs no permission - anyone who can see the row can look at what it
-  // produced - and it is the only way in for somebody who cannot edit.
+  // Viewing what it produced needs no permission - the only way in for someone who can't edit.
   const target = r.links[0] ?? r.files[0]?.url ?? null
   if (!target && !onEdit && !onDelete && !onHistory && !onVerify) return null
   return (
@@ -420,8 +347,7 @@ function RowIconActions({
           </a>
         </Button>
       )}
-      {/* First, and only on a delivered item: it is the one thing a manager
-          opens this row to do, and it blocks the account manager behind it. */}
+      {/* First, and only on a delivered item: it's what the account manager is waiting on. */}
       {onVerify && (
         <Button
           variant="ghost"
@@ -496,7 +422,6 @@ export function DeliverableRowView({
 }: {
   r: DeliverableRow
   showProject?: boolean
-  /** The viewer's standing on THIS row - decides which moves are drawn. */
   actor?: DeliverableActor
   onEdit?: () => void
   onDelete?: () => void
@@ -506,7 +431,6 @@ export function DeliverableRowView({
   onAssign?: (r: DeliverableRow) => void
   /** They are on the team that owes it, so the button reads "Take this". */
   claimable?: boolean
-  /** Record progress - the same act as the table row s Log work. */
   onLogWork?: () => void
 }) {
   const blocked = shortfall(r, actor)
@@ -577,10 +501,7 @@ export function DeliverableRowView({
               )}
             >
               <CalendarDays className="h-3 w-3" />
-              {/* The WINDOW when there is one - "3 reels a week" was agreed
-                  across a week, and "due 4 Oct" only ever said when that week
-                  ran out. Falls back to the deadline for rows planned before
-                  periods existed. */}
+              {/* The window when there is one; the deadline for rows planned before periods existed. */}
               {r.periodStart && r.periodEnd
                 ? formatPeriod(
                     new Date(`${r.periodStart}T00:00:00.000Z`),
@@ -654,9 +575,6 @@ export function DeliverableRowView({
         )}
         {r.notes && <p className="text-muted-foreground mt-1 text-[11px] italic">{r.notes}</p>}
 
-        {/* The moves, under the entry rather than in the icon strip: they are
-            sentences, not tools, and the one somebody wants is usually the one
-            the row's state makes obvious. */}
         {moves.length > 0 && (
           <p className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {onLogWork && (
@@ -706,29 +624,9 @@ export function DeliverableRowView({
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * The same rows as a table.
- *
- * Not a different list - the SAME rows, the same permissions, the same
- * `rowProps`. The card view is for reading one entry (its links, its files, its
- * notes); the table is for scanning fifty and comparing a column. Owed and
- * delivered sit in one table here because the Status column already tells them
- * apart, which is the job the two bands do in the card view.
- */
-// ─────────────────────────────────────────────────────────────────────────────
-// The board: deliverables (periods), and the items inside them
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** What an item's row is handed - the same handlers the card row takes, by name. */
 interface RowHandlers {
   actor: DeliverableActor
-  /**
-   * Stage one: the maker's manager says the work is real, before the account
-   * manager accepts it. Absent when this viewer is not the one to do that -
-   * including when they made it, because nobody checks their own work.
-   */
+  /** Stage one: the maker's manager verifies before the account manager accepts; nobody checks their own work. */
   onVerify?: () => void
   onStatus: (to: DeliverableStatus) => void
   onHistory: () => void
@@ -736,29 +634,15 @@ interface RowHandlers {
   onDelete?: () => void
   onAssign?: (r: DeliverableRow) => void
   claimable: boolean
-  /** Open the log-work dialog, when this person may add to it. */
   onLogWork?: () => void
 }
 
 type Period = DeliverablePeriod<DeliverableRow>
 
-/**
- * Put a name on an owed item.
- *
- * A dialog rather than a select in the cell: the choice is one of the owed
- * team's members only, and the sentence saying the team stays put needs room a
- * table cell does not have.
- */
 /** Radix needs a non-empty value, and "nobody" is a real choice here. */
 const NOBODY = "__nobody__"
 
-/**
- * The maker, and the way to change them.
- *
- * One control rather than a separate edit affordance: the name IS the thing
- * being changed, and a pencil beside it would be more furniture than a single
- * field earns. Read-only when this person may not move the work.
- */
+/** The maker, editable in place; read-only when this person may not move the work. */
 function OwnerCell({
   r,
   onAssign,
@@ -800,14 +684,7 @@ function OwnerCell({
   )
 }
 
-/**
- * Put a name on an item, or move it to a different one.
- *
- * The same dialog for both: they differ only in whether a name is already
- * there, and a wrong name needs fixing far more often than it needs a screen
- * of its own. Handing it back to the team is on the list too, because that is
- * how people undo a mis-assignment.
- */
+/** Assign or reassign an item; handing it back to the team undoes a mis-assignment. */
 function AssignDialog({
   row,
   people,
@@ -851,8 +728,6 @@ function AssignDialog({
               <SelectValue placeholder="Pick a member" />
             </SelectTrigger>
             <SelectContent>
-              {/* Clearing it is how a mis-assignment gets undone, so it is on
-                  the list rather than behind a second control. */}
               {canUnassign && (
                 <SelectItem value={NOBODY}>
                   <span className="text-muted-foreground">Nobody - back to {team}</span>
@@ -885,12 +760,9 @@ function AssignDialog({
   )
 }
 
-/** A period's name line, said the same way in both views. */
 function PeriodHeadline({ p }: { p: Period }) {
   return (
-    // No wrapping. Beyond looking broken, a wrappable cell tells the table its
-    // minimum width is one icon - so auto-layout squeezed this column and gave
-    // the room to Teams, which is how a short date ended up on two lines.
+    // No wrapping, or auto-layout squeezes this column down to one icon's width.
     <span className="flex items-center gap-2 whitespace-nowrap">
       <CalendarDays className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
       <span className="font-semibold">{p.label}</span>
@@ -899,7 +771,6 @@ function PeriodHeadline({ p }: { p: Period }) {
   )
 }
 
-/** Made over planned, as a bar the eye reads before the number. */
 function PeriodProgress({ p }: { p: Period }) {
   const pct = p.planned > 0 ? Math.round((p.made / p.planned) * 100) : 0
   return (
@@ -918,34 +789,9 @@ function PeriodProgress({ p }: { p: Period }) {
   )
 }
 
-/**
- * The status cell, as a menu of where this item can go next.
- *
- * All five states are listed, not just the reachable ones: seeing that
- * Accepted is greyed out until something has been delivered is how the flow
- * explains itself. A greyed row carries the reason as its tooltip - the same
- * sentence the server would answer with, which is what allowedTransition
- * writes it for.
- *
- * A trailing ellipsis marks the moves that open a dialog first, because they
- * need something the row cannot supply on its own: the link or file and the
- * day for a delivery, a reason for sending work back.
- */
-/**
- * Why Delivered is not on the table yet.
- *
- * The promise is four blogs; one is written. `allowedTransition` cannot see
- * that - it knows statuses and standing, not quantities - so the shortfall is
- * checked here and again on the server, which is the copy that counts.
- *
- * A project manager is exempt: closing a period out on three of four is a
- * real decision somebody has to be able to make.
- */
+/** Why Delivered isn't allowed yet (re-checked server-side). Project managers may close out short. */
 function shortfall(r: DeliverableRow, actor: DeliverableActor): string | null {
-  // Proof first, and for EVERYONE including the account manager: closing a
-  // period out early is a judgement they are entitled to make, but declaring
-  // something delivered with no record of it is a hole in the trail the
-  // client is eventually shown. The server refuses this too.
+  // Proof first, for everyone including the account manager (the server refuses this too).
   if (!hasProof(r)) {
     return "The log is missing - add a link, a file or a note first."
   }
@@ -954,14 +800,7 @@ function shortfall(r: DeliverableRow, actor: DeliverableActor): string | null {
   return `Only ${r.deliveredQuantity} of ${r.quantity} are logged - log the rest first.`
 }
 
-/**
- * The two sign-offs, in the one place the status is already read.
- *
- * Stage one is the maker's own manager, stage two the account manager, and
- * a bounce is neither - so these cannot collapse into one "approved by".
- * An item can be accepted with no stage one at all (the account manager may
- * go straight to it), which is exactly why the line has to say WHICH.
- */
+/** Stage one (the maker's manager) and stage two (the account manager) are separate sign-offs. */
 function SignOff({ r }: { r: DeliverableRow }) {
   const bits: { text: string; title?: string; tone: string }[] = []
 
@@ -972,8 +811,7 @@ function SignOff({ r }: { r: DeliverableRow }) {
       tone: "text-amber-500",
     })
   } else if (r.status === "ACCEPTED") {
-    // A client acceptance is the client's own word, not staff recording it,
-    // and it is the account manager who can re-open it - so say which happened.
+    // A client acceptance is the client's own word - say which happened.
     bits.push({
       text: r.acceptedByClient
         ? `finalised by ${r.acceptedByName ?? "the client"}`
@@ -997,8 +835,7 @@ function SignOff({ r }: { r: DeliverableRow }) {
     )
   }
 
-  // A past bounce stays visible after the item moves on: somebody reading an
-  // accepted item is entitled to know it took two goes.
+  // A past bounce stays visible after the item moves on.
   if (r.sentBack && r.status !== "REJECTED" && r.revisionCount > 0) {
     bits.push({
       text: `rev ${r.revisionCount}`,
@@ -1030,8 +867,7 @@ function StatusMenu({
   actor: DeliverableActor
   onStatus: (to: DeliverableStatus) => void
 }) {
-  // Nothing this person may do with it - a plain pill, not a menu that only
-  // ever refuses.
+  // Nothing this person may do: a plain pill, not a menu that only refuses.
   if (nextActions(r.status, actor).length === 0) {
     return <DeliverableStatusPill status={r.status} />
   }
@@ -1060,10 +896,7 @@ function StatusMenu({
           return (
             <DropdownMenuItem
               key={to}
-              // A blocked move stays CLICKABLE on purpose. Greying it out says
-              // "not now" but never why, and the why is the whole point: the
-              // person is one log entry away from being allowed. So pressing it
-              // answers, rather than doing nothing.
+              // A blocked move stays clickable on purpose, so pressing it explains why.
               disabled={current}
               title={current ? undefined : (short ?? (!check.ok ? check.why : undefined))}
               onSelect={(e) => {
@@ -1087,11 +920,6 @@ function StatusMenu({
   )
 }
 
-/**
- * The items inside one deliverable - a table with its OWN header, because an
- * item answers different questions from the period it sits in: which team,
- * what exactly, who is making it, is the proof on yet.
- */
 function PeriodItemsTable({
   rows,
   rowProps,
@@ -1099,7 +927,6 @@ function PeriodItemsTable({
 }: {
   rows: DeliverableRow[]
   rowProps: (r: DeliverableRow) => RowHandlers
-  /** Inside a per-team tab the team is the heading; a column saying it again is noise. */
   hideTeam?: boolean
 }) {
   return (
@@ -1145,8 +972,6 @@ function PeriodItemsTable({
                   )}
                 </span>
               </td>
-              {/* Progress, not just the promise: four blogs with one written
-                  reads 1/4 here and nowhere else on the row. */}
               <td className="px-4 py-2.5 text-right tabular-nums">
                 <span
                   className={cn(
@@ -1204,9 +1029,6 @@ function PeriodItemsTable({
                   <span className="text-muted-foreground/50">-</span>
                 )}
               </td>
-              {/* Its own column: it is the one thing the person doing the work
-                  comes here to press, and sharing a cell with five icons made it
-                  jump left and right depending on how many of them applied. */}
               <td className="px-4 py-2.5 whitespace-nowrap">
                 {h.onLogWork ? (
                   <Button
@@ -1238,13 +1060,7 @@ function PeriodItemsTable({
   )
 }
 
-/**
- * The board as a table: one row per deliverable, its items folded underneath.
- *
- * One <table>, not one per period - separate tables size their columns on
- * their own and would not line up. The open state is a second row spanning
- * the width, holding the items' table with its own header.
- */
+/** One <table>, not one per period, so the columns line up. */
 function PeriodTable({
   periods,
   serialOffset,
@@ -1253,7 +1069,6 @@ function PeriodTable({
 }: {
   periods: Period[]
   serialOffset: number
-  /** Where a period opens - its own page, not a row under this one. */
   hrefFor: (p: Period) => string
   onDeletePeriod?: (p: Period) => void
 }) {
@@ -1290,8 +1105,7 @@ function PeriodTable({
                 <td className="px-4 py-3 align-middle whitespace-nowrap">
                   <PeriodHeadline p={p} />
                 </td>
-                {/* The one column whose width is really variable, so it takes
-                    the slack and truncates rather than pushing the numbers out. */}
+                {/* The one variable-width column: takes the slack and truncates. */}
                 <td className="text-muted-foreground max-w-0 min-w-40 truncate px-4 py-3 align-middle">
                   {p.teams.join(", ") || "-"}
                 </td>
@@ -1339,11 +1153,6 @@ function PeriodTable({
   )
 }
 
-/**
- * The board as cards: the same periods, each opening into the full row view -
- * links, files and notes inline - for reading one item's proof rather than
- * scanning fifty.
- */
 function PeriodCards({
   periods,
   hrefFor,
@@ -1409,44 +1218,26 @@ export function DeliverablesTab({
   projectId: string
   canManage: boolean
   currentUserId: string
-  /**
-   * Narrow the board to ONE deliverable - its own page. Everything else (the
-   * summary, the filters, the list of periods) stays out of the way, and the
-   * items are shown in full rather than folded under a row.
-   */
   periodKey?: string
-  /**
-   * On a deliverable page, the page draws the header and the board supplies
-   * what goes in its actions slot - Add items, Delete - because those need
-   * the board state (the dialogs) that the page does not have. Called with
-   * null while nothing is loaded yet, so the title never blinks out.
-   */
+  /** On a deliverable page the board supplies the header actions; called with null while loading. */
   renderHeader?: (actions: React.ReactNode) => React.ReactNode
 }) {
-  // All time by default: a board that opens empty because nothing was made
-  // THIS week teaches people the tab is empty.
+  // All time by default, so the board doesn't open empty.
   const [range, setRange] = React.useState<DateRangeValue>({ preset: "all", from: null, to: null })
   const [pageState, setPageState] = React.useState<{ key: string; page: number }>({
     key: "",
     page: 1,
   })
-  // Table for scanning the periods; cards for reading one item's proof.
   const [view, setView] = useViewMode("project-deliverables-view", "table")
-  /** The item whose type/title/quantity is being corrected. */
   const [editingItem, setEditingItem] = React.useState<DeliverableRow | null>(null)
-  /** The item whose progress is being logged. */
   const [logging, setLogging] = React.useState<DeliverableRow | null>(null)
-  /** The item getting a name put on it. */
   const [assigning, setAssigning] = React.useState<DeliverableRow | null>(null)
-  /** The whole deliverable being removed - every item under it. */
   const [deletingPeriod, setDeletingPeriod] = React.useState<Period | null>(null)
 
-  /** The only thing that narrows the board now: the range in the header. */
   const filters: DeliverableFilters = { from: range.from, to: range.to }
 
   const { data, isLoading } = useProjectDeliverables(projectId, filters)
-  // Owed work, with NO date range: a planned row has no completion date and
-  // would fall out of every range the board is normally read through.
+  // Owed work with NO date range: planned rows have no completion date.
   const owed = useProjectDeliverables(projectId, { status: OPEN_FILTER })
 
   const teams = useProjectTeams(projectId)
@@ -1459,8 +1250,7 @@ export function DeliverablesTab({
 
   const rows = React.useMemo(() => data?.rows ?? [], [data])
   const owedRows = React.useMemo(() => owed.data?.rows ?? [], [owed.data])
-  // Who this person is, on a given row. The same three facts the server checks,
-  // in the same order - higher standing wins.
+  // The viewer's standing on a row: the same three facts the server checks, highest wins.
   const myTeamIds = React.useMemo(
     () =>
       new Set(
@@ -1468,8 +1258,7 @@ export function DeliverablesTab({
       ),
     [teams.data, currentUserId],
   )
-  // Teams the viewer is ON (not just manages) - unowned work is claimable by
-  // the team it was asked of, which is how a member picks up their own share.
+  // Teams the viewer is ON: unowned work is claimable by the team it was asked of.
   const myMemberTeamIds = React.useMemo(
     () =>
       new Set(
@@ -1490,27 +1279,18 @@ export function DeliverablesTab({
     [canManage, myTeamIds, myMemberTeamIds, currentUserId],
   )
 
-  /**
-   * May they change the row itself (as opposed to moving it along)?
-   *
-   * Standing, and then the lock: after the period closes the numbers are being
-   * reported on, and a quiet edit changes a figure somebody already sent a
-   * client. A project manager may still do it, and the history says so.
-   */
+  /** After the period closes only a project manager may edit (the history records it). */
   const mayEdit = (r: DeliverableRow) => {
     const actor = actorFor(r)
     if (actor === "none") return false
     return !r.locked || actor === "project_manager"
   }
-  /** Runs the item: the account manager, or the manager of the team it was asked of. */
   const managesRow = (r: DeliverableRow) => canManage || (r.team ? myTeamIds.has(r.team.id) : false)
 
   const startMove = (r: DeliverableRow, to: DeliverableStatus) => {
     const check = allowedTransition(r.status, to, actorFor(r))
     if (!check.ok) return
-    // Delivered is a declaration, not a place to attach things: the proof
-    // went on as the work was logged, and the only thing still missing is
-    // the day it landed, which StatusMoveDialog asks for.
+    // Delivered only needs the day it landed, which StatusMoveDialog asks for.
     const needsReason = check.needs.includes("reason")
     const needsDate = check.needs.includes("completedOn")
     if (!needsReason && !needsDate) {
@@ -1520,55 +1300,36 @@ export function DeliverablesTab({
     setMove({ row: r, to, needsReason, needsDate })
   }
 
-  /**
-   * Everything on the board, once.
-   *
-   * Owed items come from their own range-free query (with no completion date
-   * they fall inside no range); made items from the ranged one. While no
-   * status chip is on, the ranged query is trimmed of open rows so an item
-   * cannot appear twice.
-   */
+  /** Owed rows from the range-free query, made rows from the ranged one (minus open rows, to avoid duplicates). */
   const allRows = React.useMemo(
     () =>
       owedRows.length > 0 ? [...owedRows, ...rows.filter((r) => !isOpenStatus(r.status))] : rows,
     [rows, owedRows],
   )
 
-  /** Is there anything on this project at all - made, or still owed? */
   const anything = (data?.entries ?? 0) > 0 || (owed.data?.planned.entries ?? 0) > 0
 
-  // The LIVE row behind the log dialog: uploading a file refetches the list,
-  // and a snapshot taken at click time would keep showing the old file set.
+  // The live row, so an upload's refetch shows the new file set.
   const loggingRow = logging ? (allRows.find((r) => r.id === logging.id) ?? logging) : null
 
   const today = todayKey()
-  /** The board: one deliverable per window, newest first, searched. */
   const periods = React.useMemo(() => groupIntoPeriods(allRows, today), [allRows, today])
 
-  /** The one deliverable this page is about, when it is a page. */
   const focused = periodKey ? (periods.find((x) => x.key === periodKey) ?? null) : null
-  /** The focused period, per team - the tracker above the tabs reads the same
-   *  split, so a tab count and the bar beside it cannot disagree. */
+  /** The tracker reads the same split, so a tab count and its bar can't disagree. */
   const itemsByTeam = React.useMemo(() => splitByTeam(focused?.rows ?? []), [focused])
-  /**
-   * Which team tab is open.
-   *
-   * Derived, not synced: a team remembered from another deliverable simply is
-   * not in this one, and falls back to its first team with no effect to run.
-   */
+  /** Derived: a team remembered from another deliverable falls back to this one's first team. */
   const [teamTab, setTeamTab] = React.useState<string>()
   const activeTeam =
     teamTab && itemsByTeam.some((t) => t.key === teamTab) ? teamTab : itemsByTeam[0]?.key
 
-  /** Where a period opens. The project ref in the URL is whatever the board got. */
   const hrefFor = React.useCallback(
     (x: Period) => `/projects/${projectId}/deliverables/${periodSlug(x.key)}`,
     [projectId],
   )
 
   const totalPages = Math.max(1, Math.ceil(periods.length / PERIODS_PER_PAGE))
-  // Derived, not synced: a page number only means anything for the list it
-  // was chosen over, so it is stored WITH the filters and falls back to 1.
+  // Stored with the filters, so the page falls back to 1 when they change.
   const pageKey = range.from ?? ""
   const page = pageState.key === pageKey ? Math.min(pageState.page, totalPages) : 1
   const setPage = (p: number) => setPageState({ key: pageKey, page: p })
@@ -1577,10 +1338,8 @@ export function DeliverablesTab({
     [periods, page],
   )
 
-  /** The range in the header is the only thing left that can narrow the board. */
   const filtersOn = Boolean(range.from)
 
-  /** Members of the team an item was asked of - who it can be handed to. */
   const membersOf = React.useCallback(
     (id: string | null | undefined) =>
       (teams.data?.data ?? [])
@@ -1606,9 +1365,7 @@ export function DeliverablesTab({
             ? "Plan the first one: pick a week, the teams on it, and what each owes."
             : "The account manager plans them - a week at a time, and what each team owes for it."
       }
-      // The way out of an empty board, for the person allowed to plan, and only
-      // when it is EMPTY: "no matches" is a filter problem, and offering to
-      // create something is the wrong answer to it.
+      // Only on an EMPTY board, for planners - "no matches" is a filter problem.
       action={
         canManage && !anything
           ? { label: "Plan deliverable", onClick: () => setPlanOpen(true) }
@@ -1619,26 +1376,17 @@ export function DeliverablesTab({
 
   const rowProps = (r: DeliverableRow): RowHandlers => ({
     actor: actorFor(r),
-    // Stage one of two. Offered only on a DELIVERED item (there is nothing to
-    // check before and nothing to add after), only to whoever runs the item,
-    // and never to the person who made it - the server enforces all three, and
-    // the line-manager fallback it also allows simply is not drawn here.
+    // Stage one: delivered items only, for whoever runs the item, never its maker (enforced server-side).
     onVerify:
       r.status === "DELIVERED" && managesRow(r) && r.employee?.id !== currentUserId
         ? () => m.verify.mutate({ id: r.id, verified: !r.verified })
         : undefined,
     onStatus: (to: DeliverableStatus) => startMove(r, to),
     onHistory: () => setHistoryFor(r),
-    // The ordinary edit is fixing what the item SAYS, so it opens the same
-    // three fields it was planned with. The full form is one click further on.
+    // Edits the three planned fields; the full form is one click further.
     onEdit: mayEdit(r) ? () => setEditingItem(r) : undefined,
     onDelete: mayEdit(r) ? () => setDeleting(r) : undefined,
-    // Naming somebody and CHANGING that name are the same right: whoever runs
-    // the item. Without the second one a mis-assignment could only be undone
-    // by deleting the item and planning it again.
-    //
-    // The one shortcut is a member of the owed team taking unclaimed work,
-    // which needs no dialog - there is only one name it could be.
+    // Whoever runs the item may assign or reassign; a team member can take unclaimed work directly.
     onAssign: r.employee
       ? managesRow(r)
         ? () => setAssigning(r)
@@ -1650,9 +1398,7 @@ export function DeliverablesTab({
           }
         : undefined,
     claimable: !r.employee && !managesRow(r),
-    // Logging work is the maker's act, and only while there is work left to
-    // log: an accepted row is closed, and a delivered one is waiting on the
-    // client rather than on anybody here.
+    // The maker's act, only while work is left (not on accepted or delivered rows).
     onLogWork:
       actorFor(r) !== "none" && r.status !== "ACCEPTED" && r.status !== "DELIVERED"
         ? () => setLogging(r)
@@ -1672,43 +1418,26 @@ export function DeliverablesTab({
     <div className="space-y-4">
       {!periodKey && (
         <>
-          {/* ── Header ───────────────────────────────────────────────────────
-              One line: what you can DO on the left, how you want to LOOK at it
-              on the right. The tab bar above already says Deliverables, so a
-              heading repeating the tab you just clicked earns no space. */}
           <div className="flex flex-wrap items-center gap-2">
             <DateRangeField value={range} onChange={setRange} />
             <DeliverablesExportMenu filters={{ ...filters, projectId }} />
-            {/* Planning is the ACCOUNT MANAGER's act - it is a promise made to
-              a client on the whole project's behalf, not a team's own
-              scheduling. The server enforces the same rule; this only
-              decides whether the button is drawn.
-              Logging output has no button here on purpose: output is
-              recorded against the row that was owed, or off the task that
-              produced it, so that the evidence lands on the commitment
-              instead of beside it. */}
+            {/* Planning is the account manager's act (server-enforced); output is logged against owed rows. */}
             {canManage && (
               <Button className="gap-1.5" onClick={() => setPlanOpen(true)}>
                 <Plus className="h-3.5 w-3.5" /> Plan deliverable
               </Button>
             )}
-            {/* Card or table. The filters that sat beside it are gone: the board
-                is one row per period, and a handful of periods is a list you
-                read rather than one you search. */}
             <ViewToggle value={view} onChange={setView} className="ml-auto" />
           </div>
         </>
       )}
 
-      {/* ── One deliverable, on its page ───────────────────────────────── */}
       {periodKey &&
         (focused ? (
           <>
             {renderHeader?.(
               canManage && focused.key !== UNPLANNED_KEY ? (
                 <>
-                  {/* More items for THIS window - the plan dialog with step one
-                      already answered. What it creates joins what is here. */}
                   <Button
                     variant="outline"
                     className="gap-1.5"
@@ -1728,14 +1457,6 @@ export function DeliverablesTab({
                 </>
               ) : null,
             )}
-            {/* One tab per team. The account manager reads a period as "what
-                does WEB owe, what does VIDEO owe", and a team manager only ever
-                wants their own. Keyed by the period so a different deliverable
-                opens on its own first team, not on whichever tab was last. */}
-            {/* What is going on in this deliverable, before the detail of it:
-                how much landed, how the rest is spread, which team is behind.
-                Its team rows are the tab switcher, so a row worth reading is
-                one click from the items behind it. */}
             <DeliverableTracker
               period={focused}
               activeTeam={activeTeam}
@@ -1783,11 +1504,6 @@ export function DeliverablesTab({
           </>
         ))}
 
-      {/* ── The board ───────────────────────────────────────────────────
-          One row per deliverable - the working week the account manager
-          planned. Owed and made share a period: the client was promised the
-          week. The eye opens the period on its own page, where the items are
-          shown in full. */}
       {!periodKey && (
         <Card>
           <CardContent className="p-0">
@@ -1835,10 +1551,8 @@ export function DeliverablesTab({
         projectId={projectId}
         open={planOpen}
         onOpenChange={setPlanOpen}
-        // What is already planned, so a week says so before it is picked again.
         existing={periods}
-        // On a deliverable page the window is already chosen: the dialog adds
-        // items to it instead of asking which week.
+        // On a deliverable page the window is already fixed.
         period={
           periodKey && focused?.start && focused?.end
             ? { start: focused.start, end: focused.end }
@@ -1846,9 +1560,6 @@ export function DeliverablesTab({
         }
       />
 
-      {/* Delivering is the moment the proof goes on. The form in log mode asks
-          for the link or file and the day, and lands the item as DELIVERED in
-          one save - not a status flip and then an edit. */}
       <LogWorkDialog projectId={projectId} row={loggingRow} onClose={() => setLogging(null)} />
 
       {assigning && (
@@ -1856,9 +1567,7 @@ export function DeliverablesTab({
           row={assigning}
           people={membersOf(assigning.team?.id)}
           pending={m.update.isPending}
-          // The server refuses to take the maker off something already made,
-          // and it needs a team to hand the work back to. Offering the option
-          // and then failing would be the worse of the two.
+          // The server won't unassign made work, and needs a team to hand it back to.
           canUnassign={isOpenStatus(assigning.status) && Boolean(assigning.team)}
           onAssign={(employeeId) =>
             m.update.mutate(
@@ -1885,7 +1594,6 @@ export function DeliverablesTab({
           const target = deletingPeriod
           setDeletingPeriod(null)
           if (!target) return
-          // One request per item; the board refetches once they have all gone.
           void Promise.all(target.rows.map((r) => m.remove.mutateAsync(r.id)))
         }}
       />

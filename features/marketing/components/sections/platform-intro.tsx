@@ -14,8 +14,7 @@ import { BRAND_RED } from "@/features/marketing/marketing.constants"
 interface NodeSpec {
   icon: LucideIcon
   label: string
-  /** Position as a % of the diagram box - shared by the pill AND its line end,
-   *  so the line always reaches the pill (they use the same coordinate space). */
+  /** % of the diagram box - shared by the pill and its line end, so they always meet. */
   x: number
   y: number
 }
@@ -28,20 +27,14 @@ const NODES: NodeSpec[] = [
   { icon: FolderKanban, label: "Projects", x: 78, y: 92 },
 ]
 
-/** Central hub + connecting lines + module chips, all built in divs/SVG. */
 function ConnectedNodes() {
   return (
     <div className="relative mx-auto mt-14 h-[18rem] w-full max-w-[1400px] sm:mt-20 sm:h-[28rem]">
-      {/* Below sm the whole diagram scales down uniformly so the pills never
-          overflow, while the connector lines + pills stay perfectly aligned. */}
+      {/* Below sm the whole diagram scales uniformly, so pills never overflow. */}
       <div className="absolute inset-0 origin-center scale-[0.68] sm:scale-100">
-        {/* Subtle tech texture */}
         <DotBackdrop className="opacity-60" />
 
-        {/* Dotted connector lines that flow continuously (seamless loop). NO
-          viewBox → percentage coords resolve to real pixels, so the dotted
-          pattern stays uniform and the offset loop never jumps. x/y percentages
-          match each pill's left%/top%. */}
+        {/* No viewBox: percentage coords resolve to real pixels, keeping the dash pattern even. */}
         <svg aria-hidden className="text-muted-foreground/60 absolute inset-0 h-full w-full">
           {NODES.map((n) => (
             <line
@@ -59,7 +52,6 @@ function ConnectedNodes() {
           ))}
         </svg>
 
-        {/* Central DNMS hub - logo mark + moving gradient beam + a soft radar pulse. */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
           <span
             aria-hidden
@@ -67,8 +59,7 @@ function ConnectedNodes() {
           />
           <div className="border-border bg-card relative flex h-28 w-28 flex-col items-center justify-center gap-1.5 overflow-hidden rounded-sm border shadow-2xl">
             <BorderBeam />
-            {/* 72px source for a 36px slot (2x retina) - the full-size
-                brand-mark.png is 2505x2200 / 729 KB on a public landing page. */}
+            {/* 72px source for a 36px slot - the full brand-mark.png is 729 KB. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/brand-mark-72.png"
@@ -83,8 +74,6 @@ function ConnectedNodes() {
           </div>
         </div>
 
-        {/* Module chips - centered on their line's end point (static, so they stay
-          connected to the line). */}
         {NODES.map((n) => (
           <div
             key={n.label}
@@ -102,15 +91,10 @@ function ConnectedNodes() {
   )
 }
 
-/**
- * The manifesto section: one database under people, work, money and clients,
- * not ten disconnected tabs.
- */
 export function PlatformIntro() {
   return (
     <section id="platform" className="relative scroll-mt-20 pt-14 pb-20 sm:pt-16 sm:pb-24">
       <div className="relative mx-auto max-w-[1600px] px-4 sm:px-6">
-        {/* Hero-style pill */}
         <Reveal>
           <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
@@ -124,7 +108,6 @@ export function PlatformIntro() {
           </span>
         </Reveal>
 
-        {/* Two columns, top-aligned: title (left) + supporting copy (right) */}
         <div className="mt-6 grid items-start gap-8 lg:grid-cols-2 lg:gap-16">
           <Reveal>
             <h2 className="text-4xl font-bold tracking-tight text-balance sm:text-5xl">

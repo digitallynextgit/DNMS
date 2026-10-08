@@ -56,9 +56,7 @@ export interface FolderListing {
   drive: { configured: boolean; folderLink: string | null; memberCount: number }
 }
 
-// Every write below invalidates the whole ["project-files", projectId] family:
-// a move touches two folders, a rename touches breadcrumbs, and the listing is
-// one cheap round trip - precise invalidation would buy nothing here.
+// Writes invalidate the whole family: moves/renames touch several folders; the listing is cheap.
 const filesKey = (projectId: string) => ["project-files", projectId] as const
 const foldersKey = (projectId: string) => ["project-folders", projectId] as const
 const INVALIDATE = (projectId: string) => [
@@ -67,8 +65,7 @@ const INVALIDATE = (projectId: string) => [
   ["project-resources", projectId],
 ]
 
-/** One folder of the Files tree (null = top level). Keeps the previous folder's
- *  rows on screen while the next one loads, so navigating doesn't flash empty. */
+/** One folder (null = top level). Keeps the previous rows on screen while the next one loads. */
 export function useProjectFiles(projectId: string, folderId: string | null) {
   return useQuery({
     queryKey: [...filesKey(projectId), folderId ?? "root"],
@@ -112,7 +109,6 @@ export function useCreateFolder(projectId: string) {
   )
 }
 
-/** Rename and/or move a folder (parentId null = top level). */
 export function useUpdateFolder(projectId: string) {
   const qc = useQueryClient()
   return useMutation(

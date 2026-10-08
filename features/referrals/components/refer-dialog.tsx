@@ -29,13 +29,7 @@ const EMPTY = {
   note: "",
 }
 
-/**
- * Refer somebody for an open role.
- *
- * Asks for less than the public application form on purpose: this is a
- * colleague passing on a friend's CV, and a form that demands a portfolio and a
- * cover letter is a form nobody fills in. Name, contact, CV, role.
- */
+/** Refer somebody for an open role - deliberately lighter than the public application form. */
 export function ReferDialog({
   open,
   onOpenChange,
@@ -135,8 +129,6 @@ export function ReferDialog({
             <RoleCombobox
               value={form.careerRoleId}
               onChange={(id) => set("careerRoleId", id)}
-              // Only fetch while the dialog is open - a role list nobody is
-              // looking at is a request nobody needs.
               enabled={open}
               hasError={!!errors.careerRoleId}
             />
@@ -175,8 +167,6 @@ export function ReferDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submit.isPending}>
             Cancel
           </Button>
-          {/* Not gated on the role list any more - the combobox owns that, and
-              validation already refuses a submit with no role picked. */}
           <Button onClick={handleSubmit} disabled={submit.isPending}>
             {submit.isPending ? "Submitting..." : "Submit referral"}
           </Button>

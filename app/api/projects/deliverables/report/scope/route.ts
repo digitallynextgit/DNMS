@@ -7,12 +7,7 @@ import {
   resolveReportScope,
 } from "@/features/projects/server/deliverables-report"
 
-// GET /api/projects/deliverables/report/scope
-//
-// The pickers for the slide-deck dialog: the caller's role and every project,
-// team and person they are allowed to put in a report. Computed from the same
-// scope resolver the download uses, so the dialog can never offer something
-// the route would then refuse.
+// Uses the same scope resolver as the download, so the dialog never offers what the route would refuse.
 export const dynamic = "force-dynamic"
 
 export const GET = withSession(

@@ -1,8 +1,7 @@
 import { withCron } from "@/server/cron-auth"
 import { runMonthlyAccrual } from "@/features/leave/server/leave-accrual.service"
 
-// DEPRECATED alias of /api/cron/leave-accrual, kept for schedules that still
-// point at the old path. Runs once per tenant (M4).
+// Deprecated alias of /api/cron/leave-accrual, kept for schedules still on the old path.
 export const dynamic = "force-dynamic"
 
 export const GET = withCron("el-accrual", async () => {

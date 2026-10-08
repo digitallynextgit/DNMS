@@ -27,9 +27,7 @@ import { useMyClearanceCount } from "@/features/hr-checklists"
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications"
 import { useUnreadChatCount } from "@/hooks/use-unread-chat"
 
-// Live count badge shown on the Resignations nav item. Also watches for new
-// arrivals (count increases): toasts a notification and refreshes any open
-// resignations list so the panel updates without a reload.
+// Also toasts on new requests and refreshes any open resignations list.
 function ResignationCountBadge({ collapsed }: { collapsed: boolean }) {
   const router = useRouter()
   const tp = useTenantPath()
@@ -37,7 +35,6 @@ function ResignationCountBadge({ collapsed }: { collapsed: boolean }) {
   const { data } = usePendingResignationCount()
   const prev = useRef<number | null>(null)
 
-  // Ask once (best-effort) for desktop-notification permission for reviewers.
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission().catch(() => {})
@@ -45,13 +42,10 @@ function ResignationCountBadge({ collapsed }: { collapsed: boolean }) {
   }, [])
 
   useEffect(() => {
-    // Wait for the first real value; the loading state must not seed the
-    // baseline, otherwise every reload looks like a 0 -> N "new request".
+    // Wait for a real value, or every reload looks like a 0 -> N "new request".
     if (data === undefined) return
 
     if (prev.current !== null && prev.current !== data) {
-      // Any change - new request, withdrawal, or a decision - refreshes the
-      // open resignations panel so it never shows stale rows.
       qc.invalidateQueries({ queryKey: ["resignations-review"] })
 
       // Only a genuine increase (a new request) notifies.
@@ -79,20 +73,16 @@ function ResignationCountBadge({ collapsed }: { collapsed: boolean }) {
   return <CountBadge collapsed={collapsed} count={data ?? 0} />
 }
 
-// Live unread-notification count for the sidebar Notifications item (badge only,
-// no toast/desktop notification).
 function NotificationCountBadge({ collapsed }: { collapsed: boolean }) {
   const { data: count = 0 } = useUnreadNotificationCount()
   return <CountBadge collapsed={collapsed} count={count} />
 }
 
-// Unread chat messages on the Chat nav item.
 function ChatCountBadge({ collapsed }: { collapsed: boolean }) {
   const { data: count = 0 } = useUnreadChatCount()
   return <CountBadge collapsed={collapsed} count={count} />
 }
 
-// Shared presentational red count pill.
 function CountBadge({ collapsed, count }: { collapsed: boolean; count: number }) {
   if (count <= 0) return null
   const label = count > 99 ? "99+" : String(count)
@@ -117,7 +107,6 @@ function ClearanceCountBadge({ collapsed }: { collapsed: boolean }) {
   return <CountBadge collapsed={collapsed} count={count} />
 }
 
-// Dispatch a nav item's badge key to its live-count component.
 function NavBadge({
   badge,
   collapsed,
@@ -139,8 +128,6 @@ interface SidebarNavItemProps {
 }
 
 function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavItemProps) {
-  // NOT usePathname(): that returns the tenant-prefixed URL on the client and
-  // the rewritten one on the server, so nav highlighting broke on hydration.
   const pathname = useAppPathname()
   const [open, setOpen] = useState(
     () => item.children?.some((c) => pathname.startsWith(c.href)) ?? false,
@@ -149,8 +136,6 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
   if (!canAccess(item, permissions, roles)) return null
 
   if (item.children) {
-    // Hide individual sub-items the user lacks permission for; hide the whole
-    // group if nothing is left visible.
     const visibleChildren = item.children.filter((c) => canAccess(c, permissions, roles))
     if (visibleChildren.length === 0) return null
     const isActive = visibleChildren.some((c) => pathname.startsWith(c.href))
@@ -280,9 +265,7 @@ interface SidebarSectionProps {
   first?: boolean
 }
 
-// Renders a labelled group of nav items. Hidden entirely if the user can't see
-// any item in it. When collapsed, the label is replaced by a thin divider
-// (except for the first section, which sits flush under the logo).
+// When collapsed, the label becomes a thin divider (except for the first section).
 function SidebarSection({
   label,
   items,
@@ -320,8 +303,7 @@ export function Sidebar({ session }: { session: Session }) {
   const { isCollapsed, toggle } = useSidebarStore()
   const permissions = session.user.permissions
   const roles = session.user.roles
-  // Admin_ is a silent watch account, not an employee - it gets no personal
-  // self-service ("My …") section.
+  // admin_ is not an employee, so it gets no "My ..." section.
   const isAdmin_ = roles.includes("admin_")
 
   // Ctrl+B (Windows/Linux) and Cmd+B (macOS) toggle the sidebar.
@@ -344,16 +326,12 @@ export function Sidebar({ session }: { session: Session }) {
   return (
     <aside
       className={cn(
-        // transition-[width], not transition-all: the collapse still reflows the
-        // shell (width is a layout property), but scoping it stops every other
-        // inherited property from transitioning along for the ride.
+        // transition-[width], not -all, so other inherited properties don't animate too.
         "bg-background border-border flex h-full min-h-0 shrink-0 flex-col border-r transition-[width] duration-200 motion-reduce:transition-none",
         isCollapsed ? "w-14" : "w-56",
       )}
     >
-      {/* Logo - theme-aware wordmark. Light mode shows the black-text logo,
-          dark / custom themes show the white-text one. On the collapsed rail the
-          row is clipped so only the left X mark shows. */}
+      {/* Theme-aware wordmark; the collapsed rail clips it to the X mark. */}
       <div
         className={cn(
           "border-border flex h-14.25 shrink-0 items-center overflow-hidden border-b",
@@ -361,10 +339,7 @@ export function Sidebar({ session }: { session: Session }) {
         )}
       >
         <div className={cn("flex items-center overflow-hidden", isCollapsed ? "w-9" : "w-auto")}>
-          {/* No `priority` on either twin: the theme is decided by CSS, so one
-              of the two is ALWAYS hidden - a priority preload on both meant
-              one guaranteed-wasted preload on every dashboard page. */}
-          {/* Light mode → black-text logo */}
+          {/* No `priority`: CSS always hides one of the two, so a preload would be wasted. */}
           <Image
             src="/logo_white_bg-96.png"
             alt="Digitally Next"
@@ -372,7 +347,6 @@ export function Sidebar({ session }: { session: Session }) {
             height={96}
             className="h-10 w-auto max-w-none dark:hidden"
           />
-          {/* Dark / custom themes → white-text logo */}
           <Image
             src="/logo_dark_bg-96.webp"
             alt="Digitally Next"
@@ -383,7 +357,6 @@ export function Sidebar({ session }: { session: Session }) {
         </div>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
         {!isAdmin_ && (
           <SidebarSection

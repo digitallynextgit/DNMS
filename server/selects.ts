@@ -1,22 +1,12 @@
 import { Prisma } from "@prisma/client"
 import { HIDDEN_ROLES } from "@/lib/constants"
 
-/**
- * Prisma `where` fragment that excludes hidden accounts (the `admin_` silent
- * watch account) from ANY employee query - counts, listings, charts, groupBy.
- * Spread into a where: `where: { isActive: true, ...VISIBLE_EMPLOYEE_FILTER }`.
- */
+/** Hides the silent `admin_` watch account from employee queries; spread into a `where`. */
 export const VISIBLE_EMPLOYEE_FILTER = {
   employeeRoles: { none: { role: { name: { in: [...HIDDEN_ROLES] } } } },
 } satisfies Prisma.EmployeeWhereInput
 
-/**
- * Minimal employee fields for nested "who" references across the app
- * (avatars, names, employee numbers in tables/cards). Use as a Prisma
- * `select` so every relation that embeds an employee returns the same shape.
- *
- * For supersets, spread it: `{ ...EMPLOYEE_SUMMARY_SELECT, department: {...} }`.
- */
+/** The standard shape for a nested "who" reference to an employee. */
 export const EMPLOYEE_SUMMARY_SELECT = {
   id: true,
   firstName: true,
@@ -26,13 +16,8 @@ export const EMPLOYEE_SUMMARY_SELECT = {
 } satisfies Prisma.EmployeeSelect
 
 /**
- * Exactly the fields the employee DIRECTORY renders - mirrors the
- * `EmployeeListItem` contract in features/employees/hooks/use-employees.ts.
- *
- * Use this instead of a bare `include:`, which makes Prisma return EVERY scalar
- * on Employee - that is how the address / emergencyContact JSON blobs (and, before
- * the global omit in server/db.ts, passwordHash + gmailAppPassword) ended up in
- * the list payload. The address blobs live on EmployeeDetail, not the list.
+ * Exactly what the directory renders (`EmployeeListItem`). Never use a bare `include` there - it
+ * returns every scalar, address JSON blobs included.
  */
 export const EMPLOYEE_LIST_SELECT = {
   id: true,

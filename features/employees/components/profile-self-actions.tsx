@@ -24,13 +24,7 @@ import {
   useCancelResignation,
 } from "@/features/resignations"
 
-/**
- * Self-service actions shown on the employee's own /profile page:
- *   • Edit Profile Photo (upload / remove)
- *   • Apply Resignation  (submit → manager accepts → notice period → exit
- *                        clearance → HR sign-off closes the account)
- * Replaces the old "Edit Profile" button.
- */
+/** Self-service actions on the employee's own /profile: profile photo and resignation. */
 export function ProfileSelfActions({
   employeeId,
   hasPhoto = false,
@@ -113,7 +107,6 @@ export function ProfileSelfActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Edit Profile Photo */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" disabled={photoBusy}>
@@ -164,7 +157,6 @@ export function ProfileSelfActions({
         onOpenChange={setAvatarOpen}
       />
 
-      {/* Resignation */}
       {alreadyResigned ? (
         <Badge variant="outline" className="border-destructive/40 text-destructive">
           Resigned
@@ -228,8 +220,8 @@ export function ProfileSelfActions({
         </div>
         <p className="text-muted-foreground text-xs">
           This sends a resignation request to your manager for approval. Once approved, your account
-          is deactivated and you'll be signed out. You can withdraw it from your profile while it's
-          still pending.
+          is deactivated and you&apos;ll be signed out. You can withdraw it from your profile while
+          it&apos;s still pending.
         </p>
       </FormDialog>
     </div>

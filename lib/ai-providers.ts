@@ -1,14 +1,4 @@
-/**
- * Which model, from which provider, on which key - and in what order to try them.
- *
- * Pure and env-driven so the whole fallback order can be tested without a
- * network call, and changed without a deploy. `lib/ai.ts` does the calling.
- *
- * WHY THIS EXISTS: a free tier can refuse a single model while listing it (a
- * per-model quota of zero answers every request with 429), a key can be rate
- * limited while a second key on the same account is fine, and a whole provider
- * can go down. One key and one model made every one of those a dead feature.
- */
+// Which provider, model and key to try, in what order. Pure and env-driven; lib/ai.ts makes the calls.
 
 /** What a caller asks for: a capability, not a model name. */
 export type Tier = "fast" | "smart"
@@ -17,25 +7,14 @@ export interface Provider {
   id: string
   /** OpenAI-compatible chat-completions endpoint. All of these speak it. */
   url: string
-  /**
-   * Env names read for keys, in order. Both the singular and plural spellings
-   * are accepted so a second key never means renaming the first.
-   */
+  /** Env names read for keys, in order (singular and plural both work). */
   keyEnv: readonly string[]
   /** Best first. Overridable per deployment - see `modelsFor`. */
   models: Record<Tier, readonly string[]>
-  /** Anything the provider wants beyond auth. */
   headers?: Record<string, string>
 }
 
-/**
- * Declaration order is the DEFAULT try order - roughly best-quality-first among
- * what these providers give away. Override with AI_PROVIDER_ORDER.
- *
- * The model ids are the part most likely to age: providers rename and retire
- * them without notice. That is why `modelsFor` lets env replace any list, so a
- * 404 is a one-line env fix rather than a deploy.
- */
+/** Declaration order is the default try order (override with AI_PROVIDER_ORDER). */
 export const PROVIDERS: readonly Provider[] = [
   {
     id: "mistral",
@@ -59,17 +38,8 @@ export const PROVIDERS: readonly Provider[] = [
     id: "openrouter",
     url: "https://openrouter.ai/api/v1/chat/completions",
     keyEnv: ["OPENROUTER_API_KEY", "OPENROUTER_API_KEYS"],
-    // Measured against the live catalogue on 10 Sep 2026.
-    //
-    // The 550B is last, not first, despite being by far the biggest model on
-    // offer. Asked to rank three CVs it reached the SAME answer as the 8B in
-    // front of it, took 17-25s against 1.7s, and was refused by the upstream
-    // ("service temporarily overloaded") on two of two attempts. Biggest is not
-    // best when it is ten times slower and often unavailable - but it is worth
-    // having as a last resort, because a slow answer beats an error.
-    //
-    // Excluded entirely: thinkingmachines/inkling* (403, agentic harness only)
-    // and nemotron-3.5-lightning (leaks its chain-of-thought into the reply).
+    // The 550B is last: no better than the 8B in tests, ~10x slower and often overloaded.
+    // Excluded: thinkingmachines/inkling* (403, agentic only), nemotron-3.5-lightning (leaks its reasoning).
     models: {
       smart: [
         "nex-agi/nex-n2.5-pro:free",
@@ -103,13 +73,7 @@ export const PROVIDERS: readonly Provider[] = [
 
 export type Env = Record<string, string | undefined>
 
-/**
- * Every key configured for a provider, in order.
- *
- * Split on commas AND whitespace, because a list of keys gets pasted into an
- * env file in whatever shape the clipboard had it. Deduplicated, since the same
- * key in both MISTRAL_API_KEY and MISTRAL_API_KEYS should not be tried twice.
- */
+/** Split on commas and whitespace (keys get pasted in any shape), deduplicated. */
 export function readKeys(provider: Provider, env: Env): string[] {
   const raw = provider.keyEnv.map((name) => env[name] ?? "").join(",")
   const seen = new Set<string>()
@@ -120,11 +84,7 @@ export function readKeys(provider: Provider, env: Env): string[] {
   return [...seen]
 }
 
-/**
- * The model list for a tier: `AI_MODELS_<PROVIDER>_<TIER>` when set, else the
- * built-in one. Env wins so a renamed or retired model is fixed without a
- * deploy - which is the failure these lists are most prone to.
- */
+/** `AI_MODELS_<PROVIDER>_<TIER>` overrides the built-in list, so a retired model is fixed without a deploy. */
 export function modelsFor(provider: Provider, tier: Tier, env: Env): string[] {
   const override = env[`AI_MODELS_${provider.id.toUpperCase()}_${tier.toUpperCase()}`]
   if (override?.trim()) {
@@ -137,11 +97,7 @@ export function modelsFor(provider: Provider, tier: Tier, env: Env): string[] {
   return [...provider.models[tier]]
 }
 
-/**
- * Providers to try, in order: AI_PROVIDER_ORDER when set, else declaration
- * order. Unknown names are ignored rather than throwing - a typo in env should
- * not take AI down, and anything left out still follows in its default place.
- */
+/** AI_PROVIDER_ORDER when set, else declaration order. Unknown names are ignored, not thrown. */
 export function providerOrder(env: Env): Provider[] {
   const raw = env.AI_PROVIDER_ORDER?.trim()
   if (!raw) return [...PROVIDERS]
@@ -156,27 +112,17 @@ export function providerOrder(env: Env): Provider[] {
   return [...named, ...rest]
 }
 
-/** One thing to try: a provider, a model, and one of that provider's keys. */
 export interface Candidate {
   provider: string
   url: string
   model: string
   key: string
   headers?: Record<string, string>
-  /**
-   * Safe to log and to use as a bench key. Names the key by POSITION only -
-   * "groq#2" - so no key material can reach a log line.
-   */
+  /** Names the key by position ("groq#2") so key material never reaches a log. */
   id: string
 }
 
-/**
- * Everything worth trying for a tier, best first.
- *
- * Ordered provider, then model, then key: a provider's own chain is exhausted
- * before moving on, and every key gets a turn at a model before that model is
- * given up on - because a 429 is per key, not per model.
- */
+/** Provider, then model, then key: every key gets a turn at a model, because a 429 is per key. */
 export function buildCandidates(tier: Tier, env: Env): Candidate[] {
   const out: Candidate[] = []
   for (const provider of providerOrder(env)) {
@@ -198,7 +144,6 @@ export function buildCandidates(tier: Tier, env: Env): Candidate[] {
   return out
 }
 
-/** Which providers have at least one key - for diagnostics, never with values. */
 export function configuredProviders(env: Env): { id: string; keys: number }[] {
   return providerOrder(env)
     .map((p) => ({ id: p.id, keys: readKeys(p, env).length }))

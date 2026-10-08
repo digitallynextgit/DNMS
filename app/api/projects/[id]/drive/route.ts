@@ -6,13 +6,9 @@ import {
 } from "@/features/projects/server/project-drive.service"
 import type { Session } from "next-auth"
 
-// Matches the Backblaze path (resources/route.ts) so both halves of the Files
-// tab share one limit. NOTE: nginx's `client_max_body_size` must be >= this or
-// the request is rejected with a 413 before it ever reaches Next.
-const MAX_BYTES = 250 * 1024 * 1024 // 250 MB per upload
+// Same limit as the Backblaze path (resources/route.ts). nginx's client_max_body_size must be >= this.
+const MAX_BYTES = 250 * 1024 * 1024
 
-// GET /api/projects/[id]/drive - the project's Drive folder + its files.
-// Any project member (owner / team member / project:read) may view.
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
@@ -24,7 +20,6 @@ export const GET = withProjectAccess(
   },
 )
 
-// POST /api/projects/[id]/drive - upload a file into the project folder (members).
 export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
@@ -36,8 +31,7 @@ export const POST = withProjectAccess(
       if (file.size > MAX_BYTES) {
         return NextResponse.json({ error: "File must be 250 MB or smaller" }, { status: 413 })
       }
-      // Files-tab folder to land in (its Drive mirror is created on demand);
-      // absent = the project's root folder.
+      // Absent = the project's root folder; a folder's Drive mirror is created on demand.
       const folderIdRaw = form.get("folderId")
       const folderId = typeof folderIdRaw === "string" && folderIdRaw ? folderIdRaw : null
       const buffer = Buffer.from(await file.arrayBuffer())
@@ -51,9 +45,7 @@ export const POST = withProjectAccess(
       return NextResponse.json({ data: uploaded })
     } catch (error) {
       console.error("[PROJECT_DRIVE_POST]", error)
-      // Surface the real reason (Drive quota, permissions, size, network). This
-      // is an internal HRMS - a generic "Upload failed" just hid the cause and
-      // made every failure unactionable.
+      // Surface the real reason (quota, permissions, size, network) - it's an internal tool.
       const msg = error instanceof Error ? error.message : "Upload failed"
       return NextResponse.json({ error: msg }, { status: 500 })
     }

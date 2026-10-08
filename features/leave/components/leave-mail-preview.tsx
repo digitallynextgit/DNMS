@@ -19,12 +19,8 @@ interface PreviewData {
   signature: Signature | null
 }
 
-/**
- * A live, EDITABLE preview of the leave letter. The envelope (To/Cc/Subject) and
- * signature are structural and read-only; the letter body is a textarea the
- * employee can rewrite, and whatever it holds is exactly what gets emailed
- * (reported up via `onBodyChange`, sent verbatim by the server).
- */
+/** Live, editable preview of the leave letter: envelope and signature are read-only; the body
+ *  text is exactly what gets emailed. */
 export function LeaveMailPreview({
   leaveTypeName,
   startDate,
@@ -41,9 +37,7 @@ export function LeaveMailPreview({
   totalDays: number
   reason: string
   applicantName: string
-  /** Called with the current letter body (composed default, or the edited text). */
   onBodyChange?: (body: string) => void
-  /** Called with the current subject line. */
   onSubjectChange?: (subject: string) => void
 }) {
   const { data, isLoading } = useQuery({
@@ -85,17 +79,23 @@ export function LeaveMailPreview({
   const [subject, setSubject] = useState(composedSubject)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
 
-  // The form (reason, dates, type) always regenerates the letter, so a reason
-  // edited AFTER touching the letter still flows in - manual letter tweaks simply
-  // persist until the next form change. This is what fixes "typing in the reason
-  // box stopped updating the letter".
-  useEffect(() => {
+  // Form changes always regenerate the letter; manual edits persist until the next form change.
+  const [prevComposed, setPrevComposed] = useState(composed)
+  if (composed !== prevComposed) {
+    setPrevComposed(composed)
     setBody(composed)
+  }
+  const [prevSubject, setPrevSubject] = useState(composedSubject)
+  if (composedSubject !== prevSubject) {
+    setPrevSubject(composedSubject)
+    setSubject(composedSubject)
+  }
+
+  useEffect(() => {
     onBodyChange?.(composed)
   }, [composed, onBodyChange])
 
   useEffect(() => {
-    setSubject(composedSubject)
     onSubjectChange?.(composedSubject)
   }, [composedSubject, onSubjectChange])
 
@@ -131,8 +131,7 @@ export function LeaveMailPreview({
           </div>
         ) : (
           <>
-            {/* Envelope. To/Cc are read-only; Subject is editable. A shared grid
-                keeps all three VALUES aligned on the same left edge. */}
+            {/* Envelope: To/Cc read-only, Subject editable; one grid keeps the values aligned. */}
             <div className="space-y-1 border-b pb-2 text-[11px]">
               <div className="grid grid-cols-[3.25rem_1fr] items-center gap-1">
                 <span className="text-muted-foreground">To:</span>
@@ -148,8 +147,6 @@ export function LeaveMailPreview({
               )}
               <div className="grid grid-cols-[3.25rem_1fr] items-center gap-1">
                 <span className="text-muted-foreground">Subject:</span>
-                {/* Dashed underline + pencil = clearly editable, but its text still
-                    lines up with To/Cc (no box padding pushing it right). */}
                 <div className="relative">
                   <input
                     value={subject}
@@ -158,8 +155,7 @@ export function LeaveMailPreview({
                       onSubjectChange?.(e.target.value)
                     }}
                     aria-label="Email subject"
-                    // Inline outline:none beats the global :focus-visible outline
-                    // rule (unlayered CSS wins over Tailwind utilities).
+                    // Inline style beats the unlayered global :focus-visible outline.
                     style={{ outline: "none", boxShadow: "none" }}
                     className="border-muted-foreground/40 w-full appearance-none border-0 border-b border-dashed bg-transparent py-0.5 pr-5 text-[11px] font-medium focus:border-dashed"
                   />
@@ -168,15 +164,11 @@ export function LeaveMailPreview({
               </div>
             </div>
 
-            {/* The letter - a distinct edit box so it's obviously editable. This
-                exact text is what gets emailed. Border stays static (no focus
-                highlight - the box already reads as an input). */}
             <div className="bg-background relative rounded-sm border p-3">
               <span className="text-muted-foreground/60 pointer-events-none absolute top-1.5 right-2 z-10 inline-flex items-center gap-0.5 text-[9px] font-medium tracking-wide uppercase">
                 <Pencil className="h-2.5 w-2.5" /> Editable
               </span>
-              {/* Plain textarea (NOT the shadcn one) so no default focus ring /
-                  offset can draw a box. Full control over focus styling here. */}
+              {/* Plain textarea (not shadcn) so no default focus ring can draw. */}
               <textarea
                 ref={bodyRef}
                 value={body}
@@ -186,14 +178,12 @@ export function LeaveMailPreview({
                 }}
                 rows={1}
                 aria-label="Email message"
-                // Inline outline:none beats the global :focus-visible outline
-                // rule (unlayered CSS wins over Tailwind utilities).
+                // Inline style beats the unlayered global :focus-visible outline.
                 style={{ outline: "none", boxShadow: "none" }}
                 className="text-foreground placeholder:text-muted-foreground w-full resize-none appearance-none overflow-hidden border-0 bg-transparent p-0 text-xs leading-relaxed"
               />
             </div>
 
-            {/* Signature block (auto-appended, read-only). */}
             {data.signature && <MailSignature sig={data.signature} />}
           </>
         )}

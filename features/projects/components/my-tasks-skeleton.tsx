@@ -11,7 +11,6 @@ export function MyTasksSheetSkeleton() {
 
   return (
     <div className="space-y-3">
-      {/* Week stepper */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Skeleton className="h-4 w-4 rounded-sm" />
@@ -24,7 +23,6 @@ export function MyTasksSheetSkeleton() {
         </div>
       </div>
 
-      {/* Sheet Table Grid */}
       <div className="bg-card overflow-x-auto rounded-sm border">
         <table className="w-full border-separate border-spacing-0 text-sm">
           <thead>

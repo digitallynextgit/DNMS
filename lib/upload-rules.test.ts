@@ -2,19 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { isVideoUpload, isAllowedDocument } from "./upload-rules"
 
-/**
- * These two predicates decide WHERE an upload is stored and whether it is taken
- * at all, so a wrong answer is not cosmetic:
- *
- *   - a video read as a document goes to Backblaze and is rejected by its 20 MB
- *     cap, which is the bug this whole change exists to fix;
- *   - a document read as a video is published to anyone with the link.
- *
- * The empty-MIME cases are the ones worth pinning. `file.type` comes from the
- * BROWSER and is blank often enough that the original check -
- * `if (file.type && !ALLOWED.includes(file.type)) reject` - skipped the
- * allowlist entirely for a type-less file.
- */
+/** These decide where an upload is stored and whether it's taken at all. Blank MIME types matter most. */
 
 const f = (name: string, type = "") => ({ name, type })
 
@@ -51,8 +39,7 @@ describe("isAllowedDocument", () => {
   })
 
   it("rejects an executable even when the browser sends NO MIME type", () => {
-    // The regression this function exists for: a blank type must fall back to
-    // the extension, not waive the rule.
+    // A blank type must fall back to the extension, not waive the rule.
     expect(isAllowedDocument(f("payload.exe"))).toBe(false)
     expect(isAllowedDocument(f("script.sh"))).toBe(false)
     expect(isAllowedDocument(f("noextension"))).toBe(false)

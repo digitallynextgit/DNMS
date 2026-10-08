@@ -18,10 +18,6 @@ import { cn } from "@/lib/utils"
 import { useThemeStore } from "@/stores/theme-store"
 import { themes, type Theme } from "@/lib/themes"
 
-// Seven curated palettes - small enough that the picker needs no search, no
-// category tabs and no deferred mounting. DialogContent pins the header/footer
-// itself, so this stays a plain header + body + footer.
-
 function ThemeCard({
   theme,
   selected,
@@ -47,8 +43,7 @@ function ThemeCard({
         className="relative flex h-16 items-center justify-center overflow-hidden rounded-sm border"
         style={{ backgroundColor: theme.swatchBg, borderColor: theme.swatchAccent }}
       >
-        {/* A gradient theme can't be previewed by three flat dots - wash the
-            swatch in its two hues so the card looks like what it applies. */}
+        {/* Gradient themes get a two-hue wash instead of flat dots. */}
         {theme.gradient && (
           <span
             className="absolute inset-0"

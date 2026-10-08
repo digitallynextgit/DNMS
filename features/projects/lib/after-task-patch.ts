@@ -1,16 +1,6 @@
 import { toast } from "sonner"
 
-// =============================================================================
-// What happens AFTER a task PATCH lands, in one place.
-//
-// A task is moved from four different screens (My Tasks, the sheet, the kanban,
-// the detail panel) and every one of them has to say the same thing about the
-// server's reply. Three copies of that meant the sheet view quietly dropped
-// one - the bug this module exists to make impossible.
-//
-// Client-safe on purpose: no `server-only`, no Prisma. Its whole job is reading
-// a response body a caller already has.
-// =============================================================================
+// Turns a task PATCH reply into UI, shared by every screen that moves a task. Client-safe.
 
 /** The shape of `PATCH /api/tasks/[id]`'s reply, as much of it as callers read. */
 export interface TaskPatchResponse {
@@ -29,9 +19,7 @@ export function afterTaskPatch(
   result: unknown,
   opts: { silent?: boolean; successMessage?: string } = {},
 ): void {
-  // Kept as the single place a task PATCH reply is turned into UI, even though
-  // the reply currently raises nothing beyond "it saved": concurrent clocks no
-  // longer split time, so there is no longer a split to announce.
+  // Nothing in the reply needs announcing yet beyond "it saved".
   void result
 
   if (!opts.silent) toast.success(opts.successMessage ?? "Updated")

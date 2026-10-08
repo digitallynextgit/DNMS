@@ -16,11 +16,8 @@ function fallbackLabel(action: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
-/**
- * What this client's people have done in the portal, across all of their
- * projects. Reads client_activity_logs, which is separate from the staff audit
- * log by design: nothing here can surface an employee's actions.
- */
+/** The client's portal activity across all projects (client_activity_logs, separate from the
+ *  staff audit log). */
 export function ClientActivityTab({ clientRef }: { clientRef: string }) {
   const [page, setPage] = useState(1)
   const { data, isLoading } = useClientActivity(clientRef, page)

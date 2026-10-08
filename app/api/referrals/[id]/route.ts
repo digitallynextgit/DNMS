@@ -8,11 +8,7 @@ import {
   markReferralRewardPaid,
 } from "@/features/referrals/server/referrals.service"
 
-// PATCH /api/referrals/[id]  { action: "link-hire" | "mark-paid", ... }
-//
-// Both actions are HR's: linking a hire starts the one-year reward clock, and
-// marking paid records money leaving the business. Neither belongs to the
-// referrer, who is the beneficiary.
+// HR actions: linking a hire starts the one-year reward clock; mark-paid records money going out.
 export const PATCH = withAuth(
   PERMISSIONS.RECRUITMENT_WRITE,
   async (req: NextRequest, ctx: { params: Record<string, string> }) => {

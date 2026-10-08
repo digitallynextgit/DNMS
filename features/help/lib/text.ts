@@ -1,6 +1,5 @@
 import type { HelpGuide, HelpLang, L10n } from "../types"
 
-/** The text in the reader's language. */
 export function tr(text: L10n, lang: HelpLang): string {
   return text[lang]
 }

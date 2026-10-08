@@ -16,11 +16,7 @@ import {
 
 export type { TaskStatusPayload }
 
-/**
- * A task-status dropdown that enforces the phase rules: picking "On Hold" asks
- * for a reason + the date it's expected to complete by; picking "Discarded" asks
- * for a reason. Everything else commits immediately.
- */
+/** "On Hold" and "Discarded" ask for a reason first; other statuses commit immediately. */
 export function TaskStatusSelect({
   value,
   onCommit,
@@ -34,8 +30,7 @@ export function TaskStatusSelect({
 }) {
   const [pending, setPending] = React.useState<null | "ON_HOLD" | "DISCARDED">(null)
 
-  // The workflow set, plus the current value up front if it's a legacy status
-  // (IN_REVIEW / CANCELLED) so it still renders as selected.
+  // Keep a legacy current status (IN_REVIEW / CANCELLED) so it still renders as selected.
   const options = React.useMemo(() => {
     const set = [...TASK_WORKFLOW_STATUSES] as string[]
     if (!set.includes(value)) set.unshift(value)

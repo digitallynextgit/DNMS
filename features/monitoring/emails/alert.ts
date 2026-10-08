@@ -1,12 +1,6 @@
 import { wrapEmail } from "@/lib/email-layout"
 
-/**
- * A monitoring alert as an email.
- *
- * In-app notifications only land if someone has DNMS open. The 14 Aug outage
- * started at midnight - nobody was in the app, and nobody would have been. Email
- * is what reaches a phone at 00:05, so every alert goes out on both channels.
- */
+/** A monitoring alert as an email (every alert goes out in-app and by email). */
 export function renderAlertEmail(input: {
   title: string
   message: string

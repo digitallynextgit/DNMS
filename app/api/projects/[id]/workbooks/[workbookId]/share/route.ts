@@ -6,15 +6,7 @@ import {
   workbookBelongsToProject,
 } from "@/features/projects/server/sheets.service"
 
-/**
- * PATCH - publish this calendar to the client portal, or withdraw it.
- *
- * MANAGER ONLY, unlike renaming a workbook beside it, which anyone on the
- * project may do. The difference is who is affected: renaming is internal
- * housekeeping, and this decides whether an OUTSIDE party can read and write a
- * sheet. That is the same line the resource-sharing and module-granting
- * decisions sit on.
- */
+// Manager only: this decides whether an outside party can read and write the sheet.
 export const PATCH = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }) => {
     const { id: projectId, workbookId } = ctx.params

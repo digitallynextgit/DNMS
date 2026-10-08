@@ -65,12 +65,9 @@ export function ApplyLeaveForm() {
   const [endDate, setEndDate] = useState("")
   const [reason, setReason] = useState("")
   const [isHalfDay, setIsHalfDay] = useState(false)
-  // AI reason polishing.
   const [polishing, setPolishing] = useState(false)
   const [variants, setVariants] = useState<{ label: string; text: string }[]>([])
-  // The exact letter body composed/edited in the preview - sent verbatim as the
-  // approval email. A ref (not state) so the preview's live edits don't re-render
-  // the whole form on every keystroke.
+  // The letter as edited in the preview, sent verbatim (a ref, so edits don't re-render the form).
   const emailBodyRef = useRef("")
   const emailSubjectRef = useRef("")
   const handleBodyChange = useCallback((v: string) => {
@@ -79,8 +76,7 @@ export function ApplyLeaveForm() {
   const handleSubjectChange = useCallback((v: string) => {
     emailSubjectRef.current = v
   }, [])
-  // Linear undo/redo history of the reason text. Every AI apply is a checkpoint,
-  // so the employee can always step back to their own words (and forward again).
+  // Undo/redo history of the reason; every AI apply is a checkpoint.
   const [history, setHistory] = useState<string[]>([])
   const [hIndex, setHIndex] = useState(-1)
   const canUndo = hIndex > 0
@@ -137,7 +133,6 @@ export function ApplyLeaveForm() {
         endDate: isShortLeave ? startDate : endDate,
         reason: reason.trim(),
         isHalfDay: isHalfDay || isShortLeave,
-        // The subject + letter exactly as shown/edited in the preview.
         emailBody: emailBodyRef.current.trim() || undefined,
         emailSubject: emailSubjectRef.current.trim() || undefined,
       })
@@ -148,11 +143,9 @@ export function ApplyLeaveForm() {
     }
   }
 
-  // Record the current reason as a history checkpoint and set a new value.
   function commitReason(next: string) {
     setHistory((prev) => {
       const base = hIndex >= 0 ? prev.slice(0, hIndex + 1) : []
-      // Make sure the words currently on screen are captured before we move on.
       const withCurrent = base.length && base[base.length - 1] === reason ? base : [...base, reason]
       const stack = [...withCurrent, next]
       setHIndex(stack.length - 1)
@@ -204,11 +197,9 @@ export function ApplyLeaveForm() {
   }
 
   return (
-    // Two panes: the form on the left, a live preview of the approval mail on
-    // the right so the employee can see exactly who it reaches before sending.
+    // Form on the left, a live preview of the approval mail on the right.
     <form onSubmit={handleSubmit} className="grid w-full gap-6 lg:grid-cols-2">
       <div className="space-y-6">
-        {/* Leave Type */}
         <div className="space-y-2">
           <Label required htmlFor="leave-type">
             Leave Type
@@ -234,7 +225,6 @@ export function ApplyLeaveForm() {
             </SelectContent>
           </Select>
 
-          {/* Available balance - only shown when a balance exists for this type. */}
           {leaveTypeId && selectedBalance && (
             <div
               className={cn(
@@ -255,7 +245,6 @@ export function ApplyLeaveForm() {
           )}
         </div>
 
-        {/* Dates */}
         {!isShortLeave ? (
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -289,7 +278,6 @@ export function ApplyLeaveForm() {
           </div>
         )}
 
-        {/* Half-day option (CL / SL / PL only) */}
         {leaveTypeId && !isShortLeave && ["CL", "SL", "PL"].includes(selectedType?.code ?? "") && (
           <div className="flex items-center gap-2">
             <Checkbox
@@ -303,7 +291,6 @@ export function ApplyLeaveForm() {
           </div>
         )}
 
-        {/* Day summary */}
         {(totalDays > 0 || isShortLeave) && (
           <Card className="border-dashed">
             <CardContent className="space-y-1.5 px-4 py-3">
@@ -319,7 +306,6 @@ export function ApplyLeaveForm() {
                 </span>
               </div>
 
-              {/* Sandwich rule info */}
               {sandwichExtra > 0 && (
                 <p className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
                   <AlertTriangle className="h-3 w-3" />
@@ -338,7 +324,6 @@ export function ApplyLeaveForm() {
           </Card>
         )}
 
-        {/* Reason (required) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <Label required htmlFor="reason">
@@ -407,7 +392,6 @@ export function ApplyLeaveForm() {
             required
           />
 
-          {/* AI suggestions - the employee picks one, or ignores them. */}
           {variants.length > 0 && (
             <div className="space-y-1.5 rounded-sm border p-2">
               <div className="flex items-center justify-between">
@@ -447,7 +431,6 @@ export function ApplyLeaveForm() {
           </p>
         </div>
 
-        {/* Actions */}
         <div className="flex items-center justify-end gap-3">
           <Button
             type="button"

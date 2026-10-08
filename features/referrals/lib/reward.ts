@@ -1,18 +1,11 @@
 import type { RewardState } from "../types"
 
-// =============================================================================
-// The reward rule, in one place.
-//
-// A referrer is paid a percentage of the referred person's MONTHLY GROSS once
-// that person completes one year. Deliberately pure so both the employee's own
-// page and the eligibility job compute the same number from the same inputs -
-// two implementations of a money rule is two answers to "what am I owed".
-// =============================================================================
+// Referral reward: a percentage of the referred person's monthly gross after one year of
+// service. Pure, so the employee page and the eligibility job always compute the same number.
 
 const YEAR_MS = 365 * 86_400_000
 
-/** Monthly gross = every earning component. Deductions are the employee's, not
- *  a reduction in what the company pays for them. */
+/** Monthly gross = every earning component (deductions don't reduce it). */
 export function monthlyGross(s: {
   basicSalary: number
   hra: number
@@ -37,13 +30,7 @@ export function eligibleOn(dateOfJoining: Date | null): Date | null {
   return new Date(dateOfJoining.getTime() + YEAR_MS)
 }
 
-/**
- * Where the reward stands.
- *
- * `paid` wins over everything - a recorded payout is a fact, and re-deriving it
- * as "due" because a joining date was later corrected would put the same reward
- * back in the queue.
- */
+/** Where the reward stands. `paid` wins, so a corrected joining date can't re-queue a payout. */
 export function rewardState(args: {
   isHired: boolean
   hireDateOfJoining: Date | null
@@ -65,13 +52,8 @@ export function daysToGo(dateOfJoining: Date | null, now = new Date()): number |
   return days > 0 ? days : null
 }
 
-/**
- * What the referrer gets, in rupees, rounded to the rupee.
- *
- * Null when the scheme is switched off (0 or unset percent) or the hire has no
- * salary structure yet - which is honestly "not known", not "nothing", and the
- * UI says so rather than printing a confident 0.
- */
+/** The referrer's reward in rupees; null when the scheme is off or the hire has no salary
+ *  structure yet ("not known", not 0). */
 export function rewardAmount(monthly: number | null, percent: number | null): number | null {
   if (monthly == null || percent == null || percent <= 0) return null
   return Math.round((monthly * percent) / 100)

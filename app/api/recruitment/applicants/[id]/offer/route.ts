@@ -5,10 +5,7 @@ import { PERMISSIONS } from "@/lib/constants"
 import { sendEmailAs } from "@/lib/mailer"
 import type { Session } from "next-auth"
 
-// POST /api/recruitment/applicants/[id]/offer
-// Body: { designation, ctc, joiningDate, location? } - emails a formatted offer
-// letter to the applicant (sent FROM the acting HR user via sendEmailAs) and
-// moves them to the OFFER stage.
+// Emails the offer letter from the acting HR user (sendEmailAs) and moves the applicant to OFFER.
 export const POST = withAuth(
   PERMISSIONS.RECRUITMENT_WRITE,
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {

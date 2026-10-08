@@ -1,14 +1,11 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeaderSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
 
-// Role Management: header (with a Create action) + the roles DataTable.
 export default function Loading() {
   return (
     <div className="space-y-6">
       <PageHeaderSkeleton withActions />
 
-      {/* DataTable: bordered card + header row + rows + pagination footer.
-          Columns: S.No, Name, Description, Permissions, Employees, Type, actions. */}
       <div className="border-border bg-card rounded-sm border">
         <TableSkeleton rows={10} cols={7} />
         <div className="border-border flex items-center justify-between border-t px-4 py-3">

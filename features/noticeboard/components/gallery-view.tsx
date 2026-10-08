@@ -1,16 +1,7 @@
 "use client"
 
-/**
- * Photo gallery: album grid, and one album's photos and videos.
- *
- * Files are served through /api/gallery/photos/:id/file, which redirects to a
- * signed B2 URL - the bucket stays private, so a photo of the team is not a
- * public URL away from anyone who guesses a filename. `?download=1` signs the
- * same object with Content-Disposition: attachment so it saves rather than opens.
- *
- * Uploading and downloading are open to EVERY employee; only deletion is
- * restricted (your own uploads always, anyone else's with gallery:write).
- */
+/** Photo gallery. Files go through /api/gallery/photos/:id/file, which redirects to a signed B2
+ *  URL (private bucket). Anyone can upload; deleting someone else's needs gallery:write. */
 
 import * as React from "react"
 import { Link } from "@/components/tenant-link"
@@ -108,27 +99,21 @@ interface PhotoRow {
 }
 
 const photoUrl = (id: string) => `/api/gallery/photos/${id}/file`
-/** Small WebP variant for grid cells and covers - a fraction of the master's
- *  bytes. Falls back to the master server-side when a row has no thumb yet. The
- *  lightbox keeps photoUrl() so it opens the full-resolution image. */
+/** Small WebP thumb for grids (server falls back to the master); the lightbox uses photoUrl(). */
 const thumbUrl = (id: string) => `/api/gallery/photos/${id}/file?variant=thumb`
-/** Same object, signed with Content-Disposition: attachment - see the file route. */
+/** Same object, signed with Content-Disposition: attachment. */
 const downloadUrl = (id: string) => `/api/gallery/photos/${id}/file?download=1`
 const isVideo = (contentType: string) => contentType.startsWith("video/")
 
 const ACCEPT_TYPES =
   "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
 
-// ─── Album grid ─────────────────────────────────────────────────────────────
-
 export function GalleryView() {
   const { can } = usePermissions()
   const canManage = can(PERMISSIONS.GALLERY_WRITE)
 
   const [search, setSearch] = React.useState("")
-  // "" = every album; "video" = only those with a video; "photo" = only those
-  // with a photo. Applied client-side: the list is capped at 200 albums, so
-  // filtering and sorting here is instant and costs no round trip.
+  // "" = all, "video" / "photo" = albums containing one. Client-side: the list is capped at 200.
   const [media, setMedia] = React.useState("")
   const [sort, setSort] = React.useState<SortKey>("recent")
   const [creating, setCreating] = React.useState(false)
@@ -170,8 +155,7 @@ export function GalleryView() {
       if (media === "photo") return a.photoCount > 0
       return true
     })
-    // Sorted copy - filter() already returned a new array, but sort() mutating
-    // the query cache's array would be a real bug if that ever changed.
+    // Copy before sorting so the query cache's array is never mutated.
     return [...list].sort((a, b) => {
       switch (sort) {
         case "oldest":
@@ -194,8 +178,7 @@ export function GalleryView() {
         title="Photo Gallery"
         description="Team events, celebrations and moments"
         actions={
-          // Anyone can start an album - uploads are open to everyone, and an
-          // upload needs somewhere to go.
+          // Anyone can create an album, since uploads are open to everyone.
           <Button className="gap-1.5" onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" />
             New album
@@ -223,9 +206,7 @@ export function GalleryView() {
       >
         <SearchInput value={search} onChange={setSearch} placeholder="Search albums" />
 
-        {/* Filters sit at the far right of the search row; `ml-auto` on the
-            first of them pushes the pair over without a wrapper that would
-            break FilterToolbar's flex-wrap on narrow screens. */}
+        {/* `ml-auto` pushes both filters right without a wrapper that breaks flex-wrap. */}
         <FilterSelect
           value={media}
           onChange={setMedia}
@@ -282,8 +263,7 @@ export function GalleryView() {
                     <Images className="h-8 w-8" />
                   </div>
                 ) : a.coverIsVideo ? (
-                  // preload="metadata" is enough for the browser to paint the
-                  // first frame as a poster - no separate thumbnail to generate.
+                  // preload="metadata" paints the first frame as a poster.
                   <video
                     src={photoUrl(a.coverPhotoId)}
                     muted
@@ -433,15 +413,12 @@ function AlbumDialog({ onClose, onDone }: { onClose: () => void; onDone: () => v
   )
 }
 
-// ─── One album ──────────────────────────────────────────────────────────────
-
 export function AlbumView({ albumRef }: { albumRef: string }) {
   const { can } = usePermissions()
   const canManage = can(PERMISSIONS.GALLERY_WRITE)
   const { data: session } = useSession()
   const myId = session?.user?.id
-  // Mirrors deletePhoto() on the server: your own upload always, anyone else's
-  // only with gallery:write.
+  // Mirrors deletePhoto() on the server.
   const canDelete = (p: PhotoRow) => canManage || (!!myId && p.uploadedBy?.id === myId)
   const fileRef = React.useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = React.useState(false)
@@ -476,7 +453,7 @@ export function AlbumView({ albumRef }: { albumRef: string }) {
     onError: (e: Error) => toast.error(e.message),
   })
 
-  /** All files go up in ONE request - see the route: 30 photos, 30 chances to fail. */
+  /** All files go up in one request (see the route). */
   async function upload(files: FileList) {
     setUploading(true)
     try {
@@ -515,8 +492,6 @@ export function AlbumView({ albumRef }: { albumRef: string }) {
         title={data?.title ?? "Album"}
         description={data?.description ?? `${photos.length} file${photos.length === 1 ? "" : "s"}`}
         actions={
-          // Open to every employee: the people at the event are the ones holding
-          // the photos.
           <Button className="gap-1.5" disabled={uploading} onClick={() => fileRef.current?.click()}>
             {uploading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -610,8 +585,7 @@ export function AlbumView({ albumRef }: { albumRef: string }) {
         ))}
       </div>
 
-      {/* Lightbox. Plain fixed overlay rather than a Dialog so the image can use
-          the full viewport without fighting the dialog's max-width. */}
+      {/* Plain fixed overlay, not a Dialog, so the image can use the full viewport. */}
       {lightbox && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
@@ -639,8 +613,6 @@ export function AlbumView({ albumRef }: { albumRef: string }) {
             </Button>
           </div>
           {isVideo(lightbox.contentType) ? (
-            // autoPlay is deliberate: you clicked a video thumbnail. Controls
-            // stay on so it can be paused, scrubbed or made full-screen.
             <video
               src={photoUrl(lightbox.id)}
               controls

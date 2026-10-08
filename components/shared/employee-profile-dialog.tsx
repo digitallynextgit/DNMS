@@ -1,13 +1,6 @@
 "use client"
 
-/**
- * The colleague card: who this person is at work, and how to reach them.
- *
- * Fed by /api/employees/:id/card, which is an allow-list - personal contact
- * details, addresses, salary, documents and anything about employment status
- * never leave the server, so there is nothing sensitive here to hide in the UI.
- * The full HR record lives behind the employee directory and its permission.
- */
+// Colleague card. /api/employees/:id/card is an allow-list, so nothing sensitive reaches here.
 
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
@@ -130,7 +123,6 @@ export function EmployeeProfileDialog({
             </div>
 
             <div className="space-y-1">
-              {/* Contact details are links, not text to copy by hand. */}
               {data.email && (
                 <Row icon={Mail} label="Email">
                   <a

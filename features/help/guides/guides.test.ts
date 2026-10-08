@@ -3,8 +3,7 @@ import { ADMIN_ITEMS, COMPANY_ITEMS, EMPLOYEE_ITEMS, HRMS_ITEMS, projectItems } 
 import { HELP_GROUPS, HELP_GUIDES } from "."
 import type { HelpGuide, L10n } from "../types"
 
-// Guards for the guide content itself - cheap mistakes that would otherwise only
-// show up as a broken page, a missing translation or a marker pointing nowhere.
+// Cheap content mistakes that would otherwise only show up as a broken page or missing translation.
 
 const DEVANAGARI = /[ऀ-ॿ]/
 

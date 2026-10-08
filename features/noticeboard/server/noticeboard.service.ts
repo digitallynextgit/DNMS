@@ -1,13 +1,5 @@
-// =============================================================================
-// Company noticeboard
-// =============================================================================
-// Announcements, the photo gallery, and upcoming birthdays - the three things
-// that make an internal tool feel like a company rather than a database.
-//
-// READS ARE OPEN to every signed-in employee by design. Writes need
-// announcement:write / gallery:write. There is no read scope: a noticeboard
-// nobody can see is not a noticeboard.
-// =============================================================================
+// Noticeboard: announcements, gallery and birthdays. Reads are open to every signed-in
+// employee; writes need announcement:write / gallery:write.
 
 import "server-only"
 
@@ -41,13 +33,7 @@ const ANNOUNCEMENT_SELECT = {
   createdBy: AUTHOR,
 } as const
 
-/**
- * What a reader is allowed to see: published, and not past its expiry.
- *
- * Expiry is enforced HERE rather than by a nightly job that flips a flag -
- * "stale notice still on the board" is the failure mode, and a query that can
- * never be out of date beats a job that can fail to run.
- */
+/** Published and not expired - expiry is enforced in the query, not by a job that could fail. */
 function visibleWhere(canManage: boolean) {
   if (canManage) return {}
   return {
@@ -70,10 +56,6 @@ export async function listAnnouncements(
       where.publishedAt = { gte: from, lt: to }
     }
 
-    // The list is capped at 200, but the stats used to come from a SECOND,
-    // completely unbounded findMany over the same table - every announcement
-    // ever posted, streamed into Node purely to compute four numbers and a
-    // distinct category list. They are aggregates, so the database does them.
     const visible = visibleWhere(canManage)
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000)
 
@@ -81,8 +63,7 @@ export async function listAnnouncements(
       db.announcement.findMany({
         where,
         select: ANNOUNCEMENT_SELECT,
-        // Priority first so an urgent notice cannot be pushed under the fold by
-        // three routine ones posted after it.
+        // Priority first so an urgent notice isn't pushed down by newer routine ones.
         orderBy: [{ priority: "desc" }, { publishedAt: "desc" }],
         take: Math.min(opts.limit ?? 100, 200),
       }),
@@ -190,8 +171,6 @@ export async function deleteAnnouncement(
   })
 }
 
-// ─── Gallery ────────────────────────────────────────────────────────────────
-
 export async function listAlbums(search?: string): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const albums = await db.photoAlbum.findMany({
@@ -205,9 +184,7 @@ export async function listAlbums(search?: string): Promise<ActionResult<unknown>
         createdAt: true,
         createdBy: AUTHOR,
         _count: { select: { photos: true } },
-        // One photo for the cover tile. Cheaper than loading the album to
-        // discover it has 200 images. contentType comes along so the grid knows
-        // whether to render an <img> or a <video> poster frame.
+        // One photo for the cover tile (contentType decides <img> vs <video> poster).
         photos: {
           select: { id: true, contentType: true },
           orderBy: { createdAt: "asc" },
@@ -218,9 +195,7 @@ export async function listAlbums(search?: string): Promise<ActionResult<unknown>
       take: 200,
     })
 
-    // Photos and videos share one table, so the split is a content-type filter.
-    // The per-album video tally is ONE groupBy rather than a filtered `_count`
-    // per row - images are then whatever is left over, no second scan.
+    // Photos and videos share one table; videos are counted with one groupBy, images are the rest.
     const [videoGroups, totalFiles, totalVideos, recentUploads] = await Promise.all([
       db.photo.groupBy({
         by: ["albumId"],
@@ -278,8 +253,6 @@ export async function getAlbum(ref: string): Promise<ActionResult<unknown>> {
             id: true,
             caption: true,
             fileName: true,
-            // Images and videos share this table; the client switches on the
-            // content type to pick <img> vs <video>.
             contentType: true,
             width: true,
             height: true,
@@ -334,9 +307,8 @@ export async function deleteAlbum(ref: string, session: Session): Promise<Action
     })
     if (!album) return fail("Album not found", undefined, 404)
 
-    // Reclaim the files first; the rows cascade with the album. A failure here
-    // leaves orphaned objects (visible on the Storage screen) rather than rows
-    // pointing at bytes that are already gone.
+    // Delete the files first (rows cascade with the album); a failure leaves orphaned objects,
+    // not rows pointing at missing files.
     const { deleteFile } = await import("@/lib/storage")
     for (const p of album.photos) {
       await deleteFile(p.objectKey).catch((e) =>
@@ -364,8 +336,7 @@ export async function deletePhoto(id: string, session: Session): Promise<ActionR
     })
     if (!photo) return fail("Photo not found", undefined, 404)
 
-    // Uploading is open to everyone, so deleting is too - but only your own.
-    // Clearing out somebody else's photo is still a gallery:write act.
+    // Anyone can delete their own upload; someone else's needs gallery:write.
     if (
       !hasPermission(session, PERMISSIONS.GALLERY_WRITE) &&
       photo.uploadedById !== session.user.id
@@ -389,8 +360,6 @@ export async function deletePhoto(id: string, session: Session): Promise<ActionR
   })
 }
 
-// ─── Birthdays ──────────────────────────────────────────────────────────────
-
 export interface BirthdayPerson {
   id: string
   firstName: string
@@ -403,20 +372,11 @@ export interface BirthdayPerson {
   inDays: number
 }
 
-/**
- * Today's and the next `days` days of birthdays.
- *
- * Computed on MONTH AND DAY only, and the birth year is never returned. Age is
- * not ours to broadcast to the whole company just because the date of birth
- * happens to be on file for payroll.
- *
- * 29 February folds onto 1 March in non-leap years rather than disappearing for
- * three years out of four.
- */
+/** Today's and the next `days` days of birthdays. Month and day only - the birth year is never
+ *  returned. 29 Feb falls on 1 Mar in non-leap years. */
 export async function listUpcomingBirthdays(days = 30): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const people = await db.employee.findMany({
-      // No admin_: the silent watch account does not get a birthday on the board.
       where: { isActive: true, dateOfBirth: { not: null }, ...VISIBLE_EMPLOYEE_FILTER },
       select: {
         id: true,
@@ -435,13 +395,11 @@ export async function listUpcomingBirthdays(days = 30): Promise<ActionResult<unk
     const upcoming: BirthdayPerson[] = []
     for (const p of people) {
       if (!p.dateOfBirth) continue
-      // The column is a DATE; read its parts in UTC so a timezone offset cannot
-      // shift somebody's birthday to the previous day.
+      // A DATE column: read it in UTC so no timezone shifts the day.
       const bornMonth = p.dateOfBirth.getUTCMonth()
       const bornDay = p.dateOfBirth.getUTCDate()
 
-      // This year first, then next: somebody whose birthday has already passed
-      // this year is "in 300 days", not missing from the list.
+      // This year first, then next, so a birthday already passed is "in N days", not missing.
       for (const year of [today.getFullYear(), today.getFullYear() + 1]) {
         let month = bornMonth
         let day = bornDay
@@ -470,12 +428,7 @@ export async function listUpcomingBirthdays(days = 30): Promise<ActionResult<unk
   })
 }
 
-/**
- * Every birthday that falls in `year`, as calendar days - the Birthday
- * Calendar's month grid. Same rules as the list above: month and day only, the
- * birth year is never returned, and 29 February lands on 1 March in a
- * non-leap year.
- */
+/** Every birthday in `year`, for the Birthday Calendar (same rules as above). */
 export async function listBirthdaysForYear(year: number): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     if (!Number.isInteger(year) || year < 1900 || year > 2200) return fail("Invalid year")
@@ -495,7 +448,6 @@ export async function listBirthdaysForYear(year: number): Promise<ActionResult<u
 
     const days = people.flatMap((p) => {
       if (!p.dateOfBirth) return []
-      // A DATE column: read it in UTC so no timezone shifts the day.
       let month = p.dateOfBirth.getUTCMonth()
       let day = p.dateOfBirth.getUTCDate()
       if (month === 1 && day === 29 && !isLeap(year)) {

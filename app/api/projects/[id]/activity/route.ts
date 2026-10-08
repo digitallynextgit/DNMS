@@ -3,18 +3,7 @@ import { db } from "@/server/db"
 import { withProjectAccess } from "@/features/projects/server/project-access"
 import type { Session } from "next-auth"
 
-/**
- * What survives the "Key events" filter.
- *
- * The feed is dominated by routine task churn - on this project, 209 status
- * changes and 153 task creations against 16 requirement events - so scanning it
- * for the thing that actually mattered means scrolling past everything that did
- * not. These are the entries that change scope, ownership or outcome.
- *
- * Task status changes are the interesting case: moving something to IN_PROGRESS
- * is routine, finishing or abandoning it is not. So the type is included only
- * for terminal transitions, handled separately below.
- */
+/** Entries that change scope, ownership or outcome. Task status changes count only when terminal (below). */
 const KEY_TYPES = [
   "TASK_APPROVED",
   "TASK_REJECTED",
@@ -30,7 +19,6 @@ const KEY_TYPES = [
 /** Task states worth surfacing on their own: finished, parked, or dropped. */
 const KEY_STATUSES = ["DONE", "ON_HOLD", "DISCARDED"]
 
-// GET /api/projects/[id]/activity?key=1
 export const GET = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
@@ -42,9 +30,7 @@ export const GET = withProjectAccess(
       const activities = await db.projectActivity.findMany({
         where: {
           projectId,
-          // Filtered in SQL, not after fetching: trimming a page client-side
-          // would leave "key events" showing whatever few survived the most
-          // recent 50 rows, which is a different thing entirely.
+          // Filtered in SQL, so key events aren't just whatever survived the latest 50 rows.
           ...(keyOnly
             ? {
                 OR: [

@@ -7,15 +7,8 @@ import { logActivity } from "@/features/projects/server/activity"
 import { createNotification } from "@/lib/notifications"
 import { db } from "@/server/db"
 
-/**
- * POST - hand a workbook ("sheet" in the UI) to someone, or to nobody.
- *   body { employeeId: string | null }
- *
- * Its own route rather than another field on PATCH /workbooks/[workbookId]:
- * that one is withProjectAccess because renaming a sheet is open to everyone
- * working on the project, and deciding who OWNS it is not. Staffing rules
- * apply instead - the Account Manager, a project admin, or a team manager.
- */
+// Separate from PATCH /workbooks/[workbookId] (open to all members): who owns a sheet follows the
+// staffing rules.
 export const POST = withTeamStaffing(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, workbookId } = ctx.params
@@ -32,8 +25,7 @@ export const POST = withTeamStaffing(
       return NextResponse.json({ error: "employeeId must be an id or null" }, { status: 422 })
     }
 
-    // The picker is filtered client-side; this is what actually enforces it. A
-    // stale tab must not be able to hand a sheet to someone who has left.
+    // The picker filters client-side; this enforces it (a stale tab mustn't pick someone who has left).
     let assignee: { firstName: string; lastName: string } | null = null
     if (employeeId) {
       assignee = await db.employee.findFirst({
@@ -60,8 +52,7 @@ export const POST = withTeamStaffing(
       meta: { sheetName: workbook.name, assigneeName },
     })
 
-    // Only the person picked up needs telling, and only when they did not do
-    // it themselves. Un-assigning notifies nobody: there is no new owner.
+    // Tell only the new owner, unless they assigned themselves. Un-assigning notifies nobody.
     if (employeeId && employeeId !== session.user.id) {
       const project = await db.project.findUnique({
         where: { id: projectId },

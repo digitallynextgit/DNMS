@@ -4,18 +4,9 @@ import { db } from "@/server/db"
 import { auditPage } from "@/lib/crawl"
 import { classifyIntent, type KeywordIntent } from "./seo.keywords.service"
 
-// =============================================================================
-// The content loop (plan step 7). A brief moves a target query through
-//   BRIEF -> WRITING -> REVIEW -> PUBLISHED -> MEASURED
-// The brief gives the writer a SERP-informed H2 outline (built from our own
-// related Search Console queries, so it reflects real demand, not guesses). When
-// the page is live, the QA gate re-crawls it against the on-page checklist, and
-// exactly 30 days later the target query's Search Console position is compared
-// against its position at publish - so "did it work?" is answered by data.
-//
-// Auto-publishing is deliberately unsupported: the plan calls it out as a spam
-// risk. A human always writes and ships; this module briefs, checks and measures.
-// =============================================================================
+// Content loop: BRIEF -> WRITING -> REVIEW -> PUBLISHED -> MEASURED. QA re-crawls the live page,
+// and 30 days later the target query's position is compared with its position at publish.
+// No auto-publishing (spam risk) - a human always writes and ships.
 
 const REVIEW_DELAY_DAYS = 30
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -24,8 +15,7 @@ function hostOf(domain: string): string {
   return domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "")
 }
 
-/** Standard section scaffold by intent - the backbone every good page shares,
- *  which we then flesh out with the site's real related queries. */
+/** Standard sections by intent, fleshed out later with the site's real related queries. */
 function scaffold(query: string, intent: KeywordIntent): string[] {
   const q = query.trim()
   if (intent === "commercial")
@@ -49,8 +39,7 @@ function scaffold(query: string, intent: KeywordIntent): string[] {
   return [`Overview: ${q}`, `Key details`, `How it works in practice`, `What to do next`, `FAQ`]
 }
 
-/** Related queries we already get impressions for that contain the target term -
- *  each is a real sub-topic worth a section. Pulled from the latest snapshot. */
+/** Queries we already get impressions for that contain the target term - each is a sub-topic. */
 async function relatedQueries(propertyId: string, query: string): Promise<string[]> {
   const latest = await db.seoSnapshot.findFirst({
     where: { propertyId },
@@ -185,9 +174,10 @@ interface QaCheck {
   must: boolean
 }
 
-/** Re-crawl a published URL and grade it against the on-page checklist (plan
- *  step 7, point 4). Running QA marks the brief PUBLISHED, records the target
- *  query's baseline position, and schedules the 30-day check. */
+/**
+ * Re-crawl a published URL and grade it. The first QA marks it PUBLISHED, records the baseline and
+ * schedules the 30-day check.
+ */
 export async function runBriefQa(propertyId: string, briefId: string, url: string) {
   const brief = await db.seoContentBrief.findFirst({
     where: { id: briefId, propertyId },
@@ -295,8 +285,7 @@ export async function runBriefQa(propertyId: string, briefId: string, url: strin
     checks: checks.map(({ must: _must, ...c }) => c),
   }
 
-  // First successful QA against a live URL = "published": capture the baseline
-  // and schedule the 30-day check. Re-running QA later just refreshes the grade.
+  // First QA on a live URL = published. Re-running QA later only refreshes the grade.
   const firstPublish = !brief.publishedAt
   const baseline =
     brief.baselinePosition ?? (await latestQueryPosition(propertyId, brief.targetQuery))
@@ -325,10 +314,7 @@ export interface ReviewResult {
   flat: number
 }
 
-/** Run every due 30-day check (plan step 7, point 6). Compares the target
- *  query's current Search Console position against its position at publish and
- *  files the outcome. Winners can be expanded; losers go on the rewrite queue.
- *  Called from the weekly cron; `propertyId` scopes it to one site on demand. */
+/** Run due 30-day checks (current vs at-publish position) - weekly, or for one site. */
 export async function runContentReviews(propertyId?: string): Promise<ReviewResult> {
   const now = new Date()
   const due = await db.seoContentBrief.findMany({

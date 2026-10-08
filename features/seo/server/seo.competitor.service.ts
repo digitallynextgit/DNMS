@@ -4,18 +4,8 @@ import { db } from "@/server/db"
 import { fetchOutline, type PageOutline } from "@/lib/crawl"
 import { resolveMoneyPages } from "./seo.vitals.service"
 
-// =============================================================================
-// Competitor gap analysis (plan step 5). A competitor's page titles and H1/H2
-// headings ARE their keyword map, so we crawl a sample of each competitor's
-// pages, turn those headings into topics, and diff them against everything WE
-// already cover (our own crawled pages + our Search Console queries + money
-// keywords). What is left - topics they publish for and we don't - is the raw
-// content backlog. This hand-rolls the paid "domain vs domain" report for Rs 0.
-//
-// It is intentionally heuristic: a human then incognito-checks each gap and
-// only keeps the winnable ones (plan step 5, points 4-5). The value is surfacing
-// the candidate list automatically, not deciding it.
-// =============================================================================
+// Competitor gap analysis: crawl a sample of each competitor's pages, treat titles and headings
+// as topics, and keep the ones we don't cover. Heuristic - a human vets each gap.
 
 const MAX_COMPETITORS = 4
 const MAX_PAGES_PER_COMPETITOR = 12
@@ -29,8 +19,7 @@ function hostOf(domain: string): string {
     .replace(/^www\./, "")
 }
 
-// Words that carry no topic signal - dropped before matching so "the best crm
-// software" and "crm software" are recognised as the same topic.
+// No topic signal - dropped so "the best crm software" matches "crm software".
 const STOP = new Set([
   "the",
   "a",
@@ -86,12 +75,10 @@ function tokenize(phrase: string): string[] {
     .filter((w) => w.length >= 3 && !STOP.has(w))
 }
 
-/** A display-friendly topic: trimmed, and stripped of a trailing " | Brand" or
- *  " - Brand" site-name suffix that titles usually carry. */
 function cleanTopic(phrase: string): string {
   return (
     phrase
-      // Titles usually end with a separator then the brand: "Topic | Brand".
+      // Drop the " | Brand" / " - Brand" suffix titles usually carry.
       .split(/\s+[|–\-]\s+/)[0]!
       .trim()
       .replace(/\s+/g, " ")
@@ -121,9 +108,7 @@ export interface CompetitorGapResult {
   error?: string
 }
 
-/** Crawl a sample of one site's pages, starting from the homepage and following
- *  its internal links breadth-first up to `maxPages`. Sequential on purpose -
- *  hammering a live server in parallel looks like an attack. */
+/** Crawl a sample of a site breadth-first. Sequential - parallel requests look like an attack. */
 async function crawlSite(host: string, maxPages: number): Promise<PageOutline[]> {
   const origin = `https://${host}`
   const queue = [origin, `${origin}/`]
@@ -140,7 +125,6 @@ async function crawlSite(host: string, maxPages: number): Promise<PageOutline[]>
     if (!page.ok) continue
     out.push(page)
 
-    // Enqueue newly discovered internal links (shallowest-first via the queue).
     for (const link of page.links) {
       const ln = link.replace(/\/$/, "")
       if (!seen.has(ln) && queue.length < maxPages * 4) queue.push(link)
@@ -149,8 +133,9 @@ async function crawlSite(host: string, maxPages: number): Promise<PageOutline[]>
   return out
 }
 
-/** The set of significant tokens WE already cover: money keywords + our Search
- *  Console queries + the titles/headings of our own money pages. */
+/**
+ * Tokens WE already cover: money keywords, our Search Console queries, our money pages' headings.
+ */
 async function buildOurCoverage(
   propertyId: string,
   host: string,
@@ -163,8 +148,7 @@ async function buildOurCoverage(
   })
   for (const kw of property?.moneyKeywords ?? []) tokenize(kw).forEach((t) => tokens.add(t))
 
-  // Our real Search Console queries - the strongest signal of what we already
-  // rank for. Pulled from the latest snapshot.
+  // Our Search Console queries - the strongest signal of what we already rank for.
   const latest = await db.seoSnapshot.findFirst({
     where: { propertyId },
     orderBy: { periodEnd: "desc" },
@@ -180,7 +164,6 @@ async function buildOurCoverage(
     for (const q of queries) tokenize(q.query).forEach((t) => tokens.add(t))
   }
 
-  // Our own on-page topics.
   const ourUrls = (await resolveMoneyPages(propertyId)).slice(0, MAX_OUR_PAGES)
   let ourPagesChecked = 0
   for (const url of ourUrls) {
@@ -194,9 +177,7 @@ async function buildOurCoverage(
   return { tokens, ourPagesChecked }
 }
 
-/** True when we cover less than a third of a topic's significant words - i.e.
- *  it's genuinely something they write about and we don't. Single-token topics
- *  are ignored (too generic to be a real content gap). */
+/** We cover under a third of the topic's words. Single-word topics are too generic to count. */
 function isGap(topicTokens: string[], coverage: Set<string>): boolean {
   if (topicTokens.length < 2) return false
   const covered = topicTokens.filter((t) => coverage.has(t)).length
@@ -238,7 +219,6 @@ export async function runCompetitorGap(propertyId: string): Promise<CompetitorGa
     const topics: CompetitorReport["topics"] = []
 
     for (const page of pages) {
-      // A page's title + its headings are its topic surface.
       const phrases = [page.title, ...page.headings].filter((p): p is string => !!p)
       for (const phrase of phrases) {
         const topic = cleanTopic(phrase)
@@ -304,7 +284,6 @@ export interface CompetitorAuditView {
   createdAt: string
 }
 
-/** The latest competitor audit for a site, or null. */
 export async function getCompetitorAudit(propertyId: string): Promise<CompetitorAuditView | null> {
   const row = await db.seoCompetitorAudit.findFirst({
     where: { propertyId },

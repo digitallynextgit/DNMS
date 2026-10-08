@@ -89,10 +89,7 @@ export async function updateDesignation(
   })
 }
 
-/**
- * Soft-deactivate (isActive=false) by default, or hard-delete with permanent=true
- * (only when no employee references the designation).
- */
+/** Soft-deactivate by default; permanent=true hard-deletes only when no employee uses it. */
 export async function deleteDesignation(
   id: string,
   permanent = false,

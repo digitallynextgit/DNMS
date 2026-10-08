@@ -5,11 +5,7 @@ import { PERMISSIONS } from "@/lib/constants"
 import { listClients } from "@/features/clients/server/clients.queries"
 import { createClient } from "@/features/clients/server/clients.service"
 
-// GET  /api/clients - the directory (search, status, ownerId, page, limit)
-// POST /api/clients - add a client
-//
-// Gated on the client scopes, not project:*: running projects and keeping the
-// company book are different jobs, and a role can hold one without the other.
+// Client scopes, not project:* - running projects and keeping the company book are separate jobs.
 export const GET = withAuth(PERMISSIONS.CLIENT_READ, async (req: NextRequest) =>
   respond(await listClients(Object.fromEntries(req.nextUrl.searchParams))),
 )

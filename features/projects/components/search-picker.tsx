@@ -7,22 +7,8 @@ import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// A searchable single-select for "which task / which goal" fields.
-//
-// A plain <Select> cannot be typed into, and a project with forty tasks or a
-// dozen goals makes scrolling for one a chore. This is a popover with a filter
-// box over a grouped list - the groups are headings, not rows, so they cannot
-// be picked and do not read as part of the list. No cmdk: the lists are small
-// enough that a substring match over labels is the whole search.
-//
-// Focus: this picker lives inside modal Dialogs. The Dialog's focus trap pulls
-// focus back to itself the instant something outside it is focused, and the
-// popover's own focus scope only takes over once it has mounted. So the input
-// must be focused from `onOpenAutoFocus` (which fires after the popover scope
-// is registered), never via `autoFocus` (which fires before). Doing it the
-// wrong way round leaves the search box unfocused and typing does nothing.
-// ─────────────────────────────────────────────────────────────────────────────
+// Focus: inside a modal Dialog, focus the input from onOpenAutoFocus (after the popover's focus scope
+// registers), never via autoFocus - the Dialog's focus trap would pull focus back.
 
 /** The value for "none picked". Shared so callers can compare against it. */
 export const NONE_OPTION = "__none__"
@@ -49,7 +35,6 @@ export function SearchPicker({
   disabled = false,
   className,
 }: {
-  /** An option id, or NONE_OPTION. */
   value: string
   onChange: (id: string) => void
   groups: PickerGroup[]
@@ -79,8 +64,7 @@ export function SearchPicker({
         .filter((g) => g.options.length > 0),
     [groups, q],
   )
-  // One flat list for the keyboard: the "none" row first, then every visible
-  // option in reading order.
+  // One flat list for the keyboard: "none" first, then the visible options in reading order.
   const flat = React.useMemo<PickerOption[]>(
     () => [
       ...(q && !noneLabel.toLowerCase().includes(q) ? [] : [{ id: NONE_OPTION, label: noneLabel }]),
@@ -110,8 +94,7 @@ export function SearchPicker({
     }
   }
 
-  // Index into `flat` for the row being rendered, so the highlighted row and
-  // the Enter target are the same thing.
+  // Index into `flat`, so the highlighted row and the Enter target match.
   let cursor = 0
   const row = (o: PickerOption, muted = false) => {
     const idx = cursor++
@@ -156,8 +139,7 @@ export function SearchPicker({
           aria-controls={listId}
           disabled={disabled}
           onKeyDown={(e) => {
-            // Typing on the closed trigger opens it with that first character
-            // already in the box - the way a native select jumps on keypress.
+            // Typing on the closed trigger opens it with that character, like a native select.
             if (!open && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
               e.preventDefault()
               setOpen(true)

@@ -32,16 +32,12 @@ import {
   Presentation,
   Bot,
   LifeBuoy,
+  Wrench,
 } from "lucide-react"
 
 import { PERMISSIONS } from "@/lib/constants"
 
-/**
- * The single source of truth for app navigation, shared by the desktop sidebar
- * (components/layout/sidebar.tsx) and the mobile shell (bottom tab bar + the
- * "More" menu). Keeping one list means a new module or a permission change is
- * made once and both shells follow.
- */
+// The one nav list, shared by the desktop sidebar and the mobile tab bar / More menu.
 
 export interface NavChild {
   label: string
@@ -55,12 +51,10 @@ export interface NavItem {
   icon: React.ElementType
   permission?: string
   children?: NavChild[]
-  /** Live count badge to render next to the item. */
   badge?: "pending-resignations" | "unread-notifications" | "unread-chat" | "pending-clearances"
 }
 
-// ── Employee: personal self-service. No permission gate - every signed-in
-//    user sees the same set, each a flat link to their own view. ────────────
+// Self-service links with no permission gate: every user sees their own view.
 export const EMPLOYEE_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "My Attendance", href: "/attendance/me", icon: Clock },
@@ -68,14 +62,9 @@ export const EMPLOYEE_ITEMS: NavItem[] = [
   { label: "My Payslips", href: "/payroll/me", icon: DollarSign },
   { label: "My Performance", href: "/performance/me", icon: Star },
   { label: "Work From Home", href: "/wfh", icon: Laptop },
-  // Holidays, birthdays and any later calendar - picked inside the page
-  // (features/calendar/calendars.ts). Open to everyone.
   { label: "Calendar", href: "/calendar", icon: CalendarRange },
-  // No permission gate: referring somebody is open to every employee, and the
-  // page only ever shows the caller's own referrals.
   { label: "My Referrals", href: "/referrals", icon: UserPlus },
-  // No permission gate, deliberately: a Finance or IT head holds no HR scope
-  // and is exactly who this exists for. It hides itself when empty.
+  // Ungated on purpose: Finance/IT heads hold no HR scope. Hides itself when empty.
   {
     label: "Waiting on you",
     href: "/clearances",
@@ -83,29 +72,24 @@ export const EMPLOYEE_ITEMS: NavItem[] = [
     badge: "pending-clearances",
   },
   { label: "Notifications", href: "/notifications", icon: Bell, badge: "unread-notifications" },
-  // No permission gate: anyone can connect Claude/ChatGPT to DNMS; the AI only
-  // ever gets the connecting person's own permissions (features/mcp).
+  // The AI only ever gets the connecting person's own permissions.
   { label: "AI Connections", href: "/ai-connections", icon: Bot },
 ]
 
-// ── Company: shared, company-wide. Visible to everyone. ─────────────────────
 export const COMPANY_ITEMS: NavItem[] = [
   { label: "Chat", href: "/chat", icon: MessageSquare, badge: "unread-chat" },
   { label: "Announcements", href: "/announcements", icon: Megaphone },
   { label: "Photo Gallery", href: "/gallery", icon: Images },
   { label: "Documents", href: "/documents", icon: FileText },
   { label: "Organisation Chart", href: "/employees/org-chart", icon: Network },
-  // Step-by-step guides for every module (features/help). Open to everyone; each
-  // reader only sees guides for the pages their own sidebar shows.
+  // A single tool can still be limited by permission.
+  { label: "Tools", href: "/tools", icon: Wrench },
+  // Each reader only sees guides for pages in their own sidebar.
   { label: "Help & Guides", href: "/help", icon: LifeBuoy },
 ]
 
-// ── Project: personal project workspace. Shown to anyone with project access. ─
 const PROJECT_ITEMS: NavItem[] = [
-  // No permission gate: everyone gets a personal project workspace. The pages are
-  // scoped to the user's own (owned + member) projects, so a non-participant just
-  // sees an empty list - and an account manager who is a plain employee can reach
-  // the projects they own.
+  // No gate: the pages are scoped to the user's own (owned + member) projects.
   {
     label: "My Projects",
     href: "/projects/my-projects",
@@ -118,14 +102,7 @@ const PROJECT_ITEMS: NavItem[] = [
   },
 ]
 
-/**
- * Project links, with the progress entry named for who is reading it.
- *
- * The page behind it is already scoped server-side: `project:write` holders see
- * every project, everyone else sees the teams they manage, the projects they
- * own, and their own tasks. The label should say which of those you are getting
- * rather than promising a company-wide view to someone who cannot have one.
- */
+/** The progress label says what the reader actually gets (the page is scoped server-side). */
 export function projectItems(canManageProjects: boolean): NavItem[] {
   return [
     ...PROJECT_ITEMS,
@@ -134,12 +111,8 @@ export function projectItems(canManageProjects: boolean): NavItem[] {
       href: "/projects/progress",
       icon: TrendingUp,
     },
-    // No permission gate: everyone can report on themselves, and the route
-    // widens that to a manager's reporting line or (admin/HR) anyone.
+    // No gate: the route scopes it to self, a manager's reports, or (admin/HR) anyone.
     { label: "Work Report", href: "/work-reports", icon: Presentation },
-    // The company book: who the projects are for, with their contacts and
-    // portal access. Gated on its own scope rather than project:write, because
-    // running projects and administering client logins are different jobs.
     {
       label: "Clients",
       href: "/projects/clients",
@@ -149,9 +122,7 @@ export function projectItems(canManageProjects: boolean): NavItem[] {
   ]
 }
 
-// ── HRMS: only privileged roles. Gated by manage-level permissions
-//    (WRITE/APPROVE/REVIEW) so regular employees never see these groups; they
-//    use the flat Employee links above instead. ──────────────────────────────
+// Manage-level permissions only; regular employees use the Employee links above.
 export const HRMS_ITEMS: NavItem[] = [
   {
     label: "Employees",
@@ -192,7 +163,6 @@ export const HRMS_ITEMS: NavItem[] = [
       { label: "Devices", href: "/attendance/devices" },
     ],
   },
-  // HR's side of the Calendar: the same calendars, holidays manageable here.
   {
     label: "Calendar",
     href: "/holidays",
@@ -299,8 +269,7 @@ export function canAccess(
   return permissions.includes(item.permission)
 }
 
-// A nav item is visible if the user can access it AND (for groups) at least one
-// child is accessible - otherwise the row would render nothing.
+// Groups also need at least one visible child, or the row would be empty.
 export function isItemVisible(item: NavItem, permissions: string[], roles: string[]): boolean {
   if (!canAccess(item, permissions, roles)) return false
   if (item.children) return item.children.some((c) => canAccess(c, permissions, roles))

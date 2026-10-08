@@ -15,17 +15,8 @@ function first(value: string | string[] | undefined): string | undefined {
 const PAGE_SIZE = 10
 
 /**
- * Server shell for the leave directory: prefetch the leave-request list so
- * LeaveDirectoryClient's `useLeaveRequests(...)` finds a warm cache and paints
- * immediately, with no client fetch on first load.
- *
- * The query key MUST stay byte-identical to the `filters` object the client
- * builds (see leave-directory-client.tsx). Only `tab` is URL-backed
- * (`useUrlState("tab", "requests")`); every other filter starts at its default on
- * mount (status "all" → undefined, page 1), so the first key is fully derivable:
- *   - the "on-leave" tab forces status "APPROVED"
- *   - "requests" and "balances" both leave status undefined
- * `useLeaveRequests` runs on all three tabs, so the same key is correct for each.
+ * Prefetches the list so the client paints from a warm cache. The key MUST match the client's
+ * filters: only `tab` is in the URL, and "on-leave" forces status APPROVED.
  */
 export default async function LeaveDirectoryPage({
   searchParams,
@@ -50,10 +41,8 @@ export default async function LeaveDirectoryPage({
   try {
     await queryClient.prefetchQuery({
       queryKey: ["leave-requests", filters],
-      // Same service the API route calls (app/api/leave/requests/route.ts) - it
-      // scopes rows by the session's leave:approve permission internally and
-      // already `serialize()`s its payload, so the cached value matches the wire
-      // shape exactly. The client's queryFn unwraps `{ data }`, so cache `.data`.
+      // Same service as the API route (it scopes rows by leave:approve and serialize()s), so the
+      // cache matches the wire shape. The client's queryFn unwraps { data }.
       queryFn: async () => {
         const result = await getLeaveRequests(filters)
         if (!result.ok) throw new Error(result.error)

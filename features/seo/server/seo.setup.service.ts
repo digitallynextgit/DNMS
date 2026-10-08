@@ -2,32 +2,21 @@ import "server-only"
 
 import { db } from "@/server/db"
 
-// =============================================================================
-// "What do I do next?" for one tracked site.
-//
-// The SEO module has a lot of surface (10 plan steps), and an operator landing on
-// it cold cannot tell what is configured, what is missing, or which gap is
-// costing them the most. This turns that into an ordered checklist: each step
-// knows whether it's done, what it unlocks, and which action fixes it - so the
-// UI can render a guided flow instead of a wall of empty tabs.
-//
-// Order matters: earlier steps unblock later ones (no Search Console => no
-// keywords => no backlog), so the first incomplete step is genuinely "next".
-// =============================================================================
+// "What do I do next?" for one tracked site: an ordered checklist where earlier steps unblock
+// later ones, so the first incomplete step really is next.
 
 /** Which UI affordance resolves this step. */
 export type SetupAction =
-  | "EDIT_SITE" // open the site settings dialog
-  | "SYNC" // pull Search Console
-  | "KEYWORDS" // generate the backlog
-  | "COMPETITORS" // run the competitor gap
-  | "TECHNICAL" // run a technical audit
-  | "VITALS" // measure Core Web Vitals
-  | "BACKLINKS" // import a backlink export
-  | "SCORECARD" // build the scorecard
+  | "EDIT_SITE"
+  | "SYNC"
+  | "KEYWORDS"
+  | "COMPETITORS"
+  | "TECHNICAL"
+  | "VITALS"
+  | "BACKLINKS"
+  | "SCORECARD"
 
-/** Which single setting an EDIT_SITE step should open, so the guide never sends
- *  someone to a form holding eight fields they did not ask for. */
+/** The single setting an EDIT_SITE step opens. */
 export type SetupField = "identity" | "gsc" | "keywords" | "pages" | "competitors" | "ga4"
 
 export interface SetupStep {
@@ -41,7 +30,6 @@ export interface SetupStep {
   /** What completing it unlocks, the reason to bother. */
   impact: string
   action: SetupAction
-  /** The one setting to open when action is EDIT_SITE. */
   field?: SetupField
   /** AI can propose values for this step. */
   aiAssist?: "keywords" | "competitors"

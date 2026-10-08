@@ -5,7 +5,6 @@ import { PERMISSIONS } from "@/lib/constants"
 import { withClient } from "@/features/clients/server/client-access"
 import { resetClientContactPassword } from "@/features/client-portal/server/client-contacts.service"
 
-// POST /api/clients/[id]/contacts/[contactId]/password - issue and email a new one
 export const POST = withClient(
   PERMISSIONS.CLIENT_WRITE,
   async (req: NextRequest, { params }, session: Session) =>

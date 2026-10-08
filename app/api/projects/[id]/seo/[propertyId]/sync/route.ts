@@ -8,9 +8,7 @@ export const runtime = "nodejs"
 // A backfill is ~8 sequential Google round-trips; the default budget isn't enough.
 export const maxDuration = 120
 
-// POST - pull fresh Search Console data for ONE site.
-//   { backfill: true } → also fetch the previous weeks so the trend line has
-//                        history immediately (used right after setup).
+// { backfill: true } also fetches previous weeks, so the trend has history right after setup.
 export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     const { id: projectId, propertyId } = ctx.params

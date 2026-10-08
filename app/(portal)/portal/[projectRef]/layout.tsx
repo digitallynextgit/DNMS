@@ -9,16 +9,7 @@ export const metadata: Metadata = {
   description: "Your project's client portal.",
 }
 
-/**
- * The portal shell - deliberately the SAME structure as the staff dashboard
- * layout (app/(dashboard)/layout.tsx): a fixed full-viewport grid with the rail
- * in the first column and a topbar/main stack in the second, so only <main>
- * scrolls. A client gets the app they were shown in a demo, not a different
- * product.
- *
- * It lives at [projectRef] rather than at the (portal) root because the nav is
- * per-project: only a layout under this segment can read which project is open.
- */
+/** Same shell as the staff dashboard. Under [projectRef] because the nav is per-project. */
 export default async function PortalProjectLayout({
   children,
   params,
@@ -38,8 +29,7 @@ export default async function PortalProjectLayout({
 
   return (
     <div className="dashboard-shell bg-background fixed inset-0 grid grid-cols-1 overflow-hidden md:grid-cols-[auto_1fr]">
-      {/* Same trade as the staff shell: on a phone the rail is replaced by a
-          bottom tab bar built from this client's granted modules. */}
+      {/* On a phone the rail becomes a bottom tab bar of this client's granted modules. */}
       <div className="hidden md:contents">
         <PortalSidebar projects={grants} current={current} />
       </div>

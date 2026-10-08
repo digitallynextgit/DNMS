@@ -119,26 +119,13 @@ import { LinkDialog, type LinkFormValues } from "./files/link-dialog"
 import { FolderPickerDialog } from "./files/folder-picker-dialog"
 import { FilePreviewSheet, type PreviewItem } from "./files/file-preview-sheet"
 
-// Must match the server caps (drive/route.ts + resources/route.ts) AND stay <=
-// nginx client_max_body_size, or the upload dies at the proxy with a 413.
-
-/**
- * Rows per page. One folder is fetched whole (both sources return everything
- * they have), so this paginates in the browser: search, filters and sort all
- * need the full set anyway. The card grid fits a different shape, so it gets
- * its own size - 24 divides evenly by 2, 3, 4 and 6 columns.
- */
+/** A folder is fetched whole, so paging is client-side. The card grid uses 24 (divides by 2, 3, 4 and 6). */
 const TABLE_PAGE_SIZE = 25
 const GRID_PAGE_SIZE = 24
 
 /** How many deletes / moves / thumbnails run at once. */
 const BULK_CONCURRENCY = 4
 
-/**
- * A row card on a phone. Leads with the two things that identify it - name and
- * tag - and demotes the rest to one line of metadata. The actions come from
- * the table own row rendering.
- */
 function FileCard({ file, actions }: { file: UnifiedFile; actions: React.ReactNode }) {
   const m = TYPE_META[file.type]
   const Icon = m.icon
@@ -163,14 +150,7 @@ function FileCard({ file, actions }: { file: UnifiedFile; actions: React.ReactNo
   )
 }
 
-/**
- * Preview images for the card grid, keyed by row id.
- *
- * Drive hands us a thumbnail URL with the listing; stored images do not have
- * one, so a signed URL is fetched per image - only for the rows on screen,
- * only while the card view is showing, and only once per file (a signed URL
- * outlives a page turn, and an expired one falls back to the type icon).
- */
+/** Signed URLs for stored images (Drive listings include thumbnails) - only for rows on screen, once each. */
 function useThumbnails(projectId: string, rows: UnifiedFile[], enabled: boolean) {
   const [signed, setSigned] = useState<Map<string, string>>(new Map())
   const asked = useRef(new Set<string>())
@@ -214,8 +194,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const { data: session } = useSession()
   const me = session?.user?.id ?? null
 
-  // The folder being viewed lives in the URL (`?folder=`), so a link to a
-  // folder can be shared and the browser's back button walks back up.
+  // The folder lives in the URL (?folder=), so links are shareable and Back walks up.
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -258,7 +237,6 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const inputRef = useRef<HTMLInputElement>(null)
   const targetRef = useRef<"b2" | "drive">("b2")
 
-  // Dialogs
   const [newFolderOpen, setNewFolderOpen] = useState(false)
   const [renameTarget, setRenameTarget] = useState<UnifiedFile | null>(null)
   const [linkDialog, setLinkDialog] = useState<{
@@ -274,24 +252,19 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   // The picker needs the whole tree; only fetch it once someone asks to move.
   const allFolders = useProjectFolders(projectId, { enabled: moveTargets !== null })
 
-  // Progress of batch actions; null when idle.
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null)
   const [dlProgress, setDlProgress] = useState<{ done: number; total: number } | null>(null)
   const [moveProgress, setMoveProgress] = useState<{ done: number; total: number } | null>(null)
 
-  // Filters + sort
   const [search, setSearch] = useState("")
   const [sourceFilter, setSourceFilter] = useState<"all" | "b2" | "drive" | "link">("all")
   const [typeFilter, setTypeFilter] = useState<"all" | FileType>("all")
   const [tagFilter, setTagFilter] = useState<"all" | DocTag>("all")
-  // Card ("Drive") or table. Remembered per browser, so a person who prefers
-  // one gets it on every project.
   const [view, setView] = useViewMode("project-repository-view", "card")
   const [sortKey, setSortKey] = useState<SortKey>("modified")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
-  // Page is keyed to the filter set (see below), so changing a filter or
-  // folder lands on page 1 without an effect.
+  // Keyed to the filter set (see below), so a filter or folder change lands on page 1.
   const [pageState, setPageState] = useState<{ key: string; page: number }>({ key: "", page: 1 })
 
   const driveConfigured = data?.drive.configured ?? false
@@ -322,9 +295,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       mimeType: r.mimeType,
       modified: r.createdAt,
       type: classify(r.mimeType, "b2"),
-      // Rows uploaded before tagging existed have no stored tag. Rather than
-      // showing them as untagged - which would make the filter lie about what
-      // it excludes - fall back to the same guess a fresh upload would get.
+      // Rows from before tagging have no stored tag; guess it as a fresh upload would.
       tag: r.tag ?? classifyDoc({ name: r.fileName, mimeType: r.mimeType }),
       tagIsStored: r.tag !== null,
       // Null for a portal upload: the uploader is a client, not an employee.
@@ -341,8 +312,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       modified: f.modifiedTime,
       webViewLink: f.webViewLink,
       type: classify(f.mimeType, "drive"),
-      // Drive files have no row of ours to store a tag on, so theirs is always
-      // computed. Same function as the stored one, so the column is consistent.
+      // Drive files have no row of ours to store a tag on, so theirs is always computed.
       tag: classifyDoc({ name: f.name, mimeType: f.mimeType }),
       tagIsStored: false,
       thumbnailLink: f.thumbnailLink,
@@ -373,8 +343,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const rows = useMemo(() => {
     const filtered = allRows.filter((f) => {
       if (f.source === "folder") {
-        // Folders carry no tag/type/storage, so any of those filters hides
-        // them rather than showing rows the filter cannot say anything about.
+        // Folders have no tag/type/storage, so any of those filters hides them.
         if (sourceFilter !== "all" || typeFilter !== "all" || tagFilter !== "all") return false
         return !q || f.name.toLowerCase().includes(q)
       }
@@ -393,8 +362,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       return true
     })
     const dir = sortDir === "asc" ? 1 : -1
-    // Folders always lead, like every file manager; they only follow the
-    // chosen direction when the sort IS by name.
+    // Folders always lead; they follow the sort direction only when sorting by name.
     const folders = filtered
       .filter((f) => f.source === "folder")
       .sort((a, b) => byName(a, b) * (sortKey === "name" ? dir : 1))
@@ -406,9 +374,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
 
   const pageSize = view === "card" ? GRID_PAGE_SIZE : TABLE_PAGE_SIZE
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
-  // Derived, not synced: a page number only means anything for the filter set
-  // it was chosen under, so it is stored WITH that set and falls back to 1 the
-  // moment the set changes. Clamping covers a filter that narrows the list.
+  // The page is stored with its filter set and falls back to 1 when the set changes; clamped too.
   const filterKey = `${folderId ?? ""}|${q}|${sourceFilter}|${typeFilter}|${tagFilter}`
   const page = pageState.key === filterKey ? Math.min(pageState.page, totalPages) : 1
   const setPage = (p: number) => setPageState({ key: filterKey, page: p })
@@ -426,8 +392,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   )
   const thumbs = useThumbnails(projectId, paged, view === "card")
 
-  /** Navigate into a folder. Clears the selection on the way: rows picked in
-   *  one folder must not silently ride along into the next. */
+  /** Clears the selection so picked rows don't ride along into the next folder. */
   const goToFolder = (id: string | null) => {
     selection.clear()
     setFolderParam(id)
@@ -441,22 +406,20 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     }
   }
 
-  // ── Permissions (the API enforces; these only decide what to show) ──────────
+  // Permissions: the API enforces; these only decide what to show.
   const canEdit = (f: UnifiedFile) =>
     canManage || f.source === "drive" || (f.ownerId !== null && f.ownerId === me)
   const canDelete = (f: UnifiedFile) => (f.source === "drive" ? canManage : canEdit(f))
   const canDownload = (f: UnifiedFile) =>
     (f.source === "b2" || f.source === "drive") && f.type !== "doc" && f.type !== "sheet"
 
-  // ── Uploads ────────────────────────────────────────────────────────────────
   function pickFor(source: "b2" | "drive") {
     targetRef.current = source
     inputRef.current?.click()
   }
 
   async function onFilesPicked(files: File[]) {
-    // Reject oversize files up front - otherwise the browser uploads the whole
-    // thing before the server can say no.
+    // Reject oversize files before the browser uploads them.
     const tooBig = files.filter((f) => f.size > MAX_UPLOAD_BYTES)
     const queue = files.filter((f) => f.size <= MAX_UPLOAD_BYTES)
     if (tooBig.length === 1) {
@@ -472,8 +435,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     const failed: string[] = []
     setProgress({ done: 0, total: queue.length })
 
-    // Sequential ON PURPOSE: the server buffers each file fully in memory, so
-    // uploading several 100 MB files at once could exhaust the box's RAM.
+    // Sequential on purpose: the server buffers each file whole in memory.
     for (let i = 0; i < queue.length; i++) {
       const file = queue[i]!
       try {
@@ -498,7 +460,6 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     }
   }
 
-  // ── Drag-and-drop + paste ──────────────────────────────────────────────────
   const dragDepth = useRef(0)
   const [dragging, setDragging] = useState(false)
   const dragHasPayload = (dt: DataTransfer | null) =>
@@ -535,9 +496,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     return () => document.removeEventListener("paste", onPaste)
   }, [])
 
-  // ── Row actions ────────────────────────────────────────────────────────────
-  /** Open it: folders navigate, links and Drive files open in a tab, stored
-   *  PDFs/images preview in place, anything else opens in a tab. */
+  /** Folders navigate, stored PDFs/images preview in place, everything else opens in a tab. */
   async function openItem(f: UnifiedFile) {
     if (f.source === "folder") return goToFolder(f.id)
     if (f.source === "link") return void window.open(f.url, "_blank", "noopener")
@@ -568,8 +527,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     else toast.error("Could not open that file.")
   }
 
-  /** Save to disk. Stored files get a signed attachment URL; Drive files use
-   *  Drive's export link. Google-native Docs/Sheets have no single file to save. */
+  /** Stored files get a signed attachment URL, Drive files their export link; native Docs/Sheets can't be saved. */
   async function downloadFile(f: UnifiedFile) {
     if (f.source === "drive") {
       window.open(`https://drive.google.com/uc?export=download&id=${f.id}`, "_blank")
@@ -615,8 +573,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     else updateResource.mutate({ fileId: f.id, fileName: name }, done)
   }
 
-  /** Move one or many rows into a folder (null = top level). Runs the per-item
-   *  endpoints with bounded concurrency; failures were already toasted by the hook. */
+  /** null = top level. Bounded concurrency; the hook already toasted failures. */
   async function moveItems(targets: UnifiedFile[], toFolder: string | null) {
     setMoveProgress({ done: 0, total: targets.length })
     let done = 0
@@ -664,18 +621,11 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     else delB2.mutate(f.id, done)
   }
 
-  // What the Download button will ACTUALLY fetch. Counting it up front keeps the
-  // label honest: a button reading "Download 25" that then saves 3 of them and
-  // explains itself in a toast is a button nobody trusts twice.
+  // Counted up front so the label matches what Download will actually fetch.
   const downloadable = selectedRows.filter((f) => f.source === "b2" && canDownload(f)).length
 
-  /**
-   * Download everything selected, as separate files - NOT a zip (that would
-   * stream every object back through the server). Signed URLs carry an
-   * attachment disposition; they are triggered one at a time with a gap
-   * because browsers drop a burst. STORED FILES ONLY: Drive answers a bulk
-   * fetch with an interstitial page, so those are counted out in the toast.
-   */
+  // Separate files, not a zip (that would stream through the server), spaced because browsers drop bursts.
+  // Stored files only: Drive answers a bulk fetch with an interstitial page.
   async function runBulkDownload() {
     const targets = selectedRows.filter((f) => f.source === "b2" && canDownload(f))
     const skipped = selectedRows.length - targets.length
@@ -714,8 +664,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     else toast.error("Nothing could be downloaded.")
   }
 
-  /** Delete everything selected through the per-item endpoints, so permission
-   *  checks, storage cleanup and the audit trail stay in one place. */
+  /** Via the per-item endpoints, so permission checks, storage cleanup and the audit trail stay in one place. */
   async function runBulkDelete() {
     const targets = selectedRows
     if (targets.length === 0) return
@@ -758,9 +707,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     updateDriveFile.isPending ||
     updateResource.isPending
 
-  // ── Columns ────────────────────────────────────────────────────────────────
-  // A plain element factory, not a component: defining a component inside
-  // render would remount the header (and drop its focus) on every state change.
+  // A plain element factory, not a component: a component defined in render would remount and lose focus.
   const sortHeader = (label: string, k: SortKey) => {
     const active = sortKey === k
     const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown
@@ -783,9 +730,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const columns: DataTableColumn<UnifiedFile>[] = [
     {
       header: sortHeader("Name", "name"),
-      // The ONE column that flexes. `w-full max-w-0` is the CSS table recipe
-      // for it: the cell claims whatever width the fixed columns leave, and
-      // max-width:0 is what lets the child actually truncate.
+      // The one flexing column: `w-full max-w-0` takes the leftover width and still lets the child truncate.
       className: "w-full max-w-0",
       headClassName: "w-full",
       cell: (f) => {
@@ -820,9 +765,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       className: "whitespace-nowrap",
       cell: (f) => {
         if (f.source === "folder") return <span className="text-muted-foreground">-</span>
-        // Only stored tags are editable (B2 files and links), and only by
-        // someone allowed to edit the row. A Drive file has no row of ours to
-        // write the change to, so offering the menu there would silently do nothing.
+        // Only stored tags (B2 files and links) are editable; a Drive file has no row of ours.
         const editable = (f.source === "b2" || f.source === "link") && canEdit(f)
         const chip = f.tag ? (
           <TagChip tag={f.tag} muted={!f.tagIsStored} />
@@ -890,11 +833,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     { header: "", align: "right", className: "whitespace-nowrap", cell: (f) => rowActions(f) },
   ]
 
-  /**
-   * Every action a row has, in one menu. The table puts View and Download
-   * beside it as their own buttons; a card has no room for those, so this menu
-   * IS its action set - which is why Download lives in here as well.
-   */
+  /** A card's whole action set, so Download lives here too (the table also shows it as a button). */
   function moreMenu(f: UnifiedFile) {
     const editable = canEdit(f)
     return (
@@ -960,7 +899,6 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     )
   }
 
-  /** The table's per-row buttons: open, download, then the shared menu. */
   function rowActions(f: UnifiedFile) {
     return (
       <div className="flex items-center justify-end gap-0.5">
@@ -995,15 +933,13 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     )
   }
 
-  /** A card opens on click, so it only needs the menu - smaller, in-corner. */
   function cardActions(f: UnifiedFile) {
     return <div className="[&>button]:h-7 [&>button]:w-7">{moreMenu(f)}</div>
   }
 
   if (listing.isLoading && !data) return <ListSkeleton rows={4} height="h-14" className="mt-4" />
 
-  // How many of each tag are in the CURRENT folder, so the filter can say
-  // what picking it will get you instead of leading to an empty table.
+  // Per-tag counts in the current folder, so the filter shows what it will match.
   const tagCounts = new Map<DocTag, number>()
   for (const f of allRows) if (f.tag) tagCounts.set(f.tag, (tagCounts.get(f.tag) ?? 0) + 1)
 
@@ -1085,7 +1021,6 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         </div>
       )}
 
-      {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -1180,7 +1115,6 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         </div>
       </div>
 
-      {/* Breadcrumb */}
       <nav aria-label="Folder" className="flex min-w-0 flex-wrap items-center gap-1 text-sm">
         <button
           type="button"
@@ -1216,7 +1150,6 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         )}
       </nav>
 
-      {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput
           value={search}
@@ -1285,8 +1218,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
           </Button>
         )}
         <div className="ml-auto flex items-center gap-2">
-          {/* The table has a master checkbox in its header row; the grid has
-              no header, so select-all lives here in both-views' toolbar. */}
+          {/* The grid has no header row, so select-all lives here. */}
           {view === "card" && rows.length > 0 && (
             <label className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 text-xs">
               <Checkbox
@@ -1306,8 +1238,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         </div>
       </div>
 
-      {/* Bulk actions. Delete needs manage rights (matching the per-row rule
-          for Drive files); move and download are open to everyone. */}
+      {/* Delete needs manage rights (as per-row for Drive files); move and download are open to all. */}
       <BulkActionBar count={selection.count} onClear={selection.clear} label="selected">
         <Button
           variant="outline"
@@ -1339,7 +1270,6 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         )}
       </BulkActionBar>
 
-      {/* Table */}
       {allRows.length === 0 ? (
         <EmptyState
           compact
@@ -1391,7 +1321,6 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         </div>
       )}
 
-      {/* ── Dialogs ─────────────────────────────────────────────────────── */}
       <NameDialog
         open={newFolderOpen}
         onOpenChange={setNewFolderOpen}
@@ -1578,9 +1507,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         onConfirm={() => deleteTarget && deleteItem(deleteTarget)}
       />
 
-      {/* The bulk confirm spells out the split, because the halves of a mixed
-          selection do genuinely different things: Drive files go to a trash
-          you can empty later, stored files and links are gone. */}
+      {/* Spells out the split: Drive files go to trash, stored files and links are gone for good. */}
       <ConfirmDialog
         open={bulkOpen}
         onOpenChange={(o) => !o && setBulkOpen(false)}

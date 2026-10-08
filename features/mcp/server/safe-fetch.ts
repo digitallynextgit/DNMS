@@ -3,15 +3,8 @@ import "server-only"
 import { lookup } from "node:dns/promises"
 import { isIP } from "node:net"
 
-// =============================================================================
-// SSRF guard + capped fetch, shared by everything in the AI connector that
-// fetches a URL on a caller's say-so (an app's client-metadata document, a
-// storage link a DNMS route handed back).
-//
-// A URL we did not write ourselves must never be allowed to point the server
-// at itself or at the private network (cloud metadata, localhost services, the
-// database host...).
-// =============================================================================
+// SSRF guard + capped fetch for any URL a caller supplied: it must never reach this server or
+// the private network (cloud metadata, localhost services, the DB host).
 
 export class UnsafeUrlError extends Error {}
 
@@ -53,10 +46,7 @@ export function isPrivateAddress(ip: string): boolean {
   return true
 }
 
-/**
- * Fetch a public https URL, refusing redirects and anything bigger than
- * `maxBytes`. Returns the bytes and the response headers.
- */
+/** Fetch a public https URL, refusing redirects and bodies over `maxBytes`. */
 export async function fetchPublicCapped(
   url: string,
   maxBytes: number,

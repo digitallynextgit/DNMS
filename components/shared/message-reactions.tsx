@@ -1,13 +1,6 @@
 "use client"
 
-/**
- * Emoji reactions on a message: the chips under a bubble, and the quick bar for
- * adding one. Shared by personal Chat and a project's Messages tab.
- *
- * Reactions arrive already grouped by emoji from the server (see
- * `groupReactions`), because a bubble re-grouping the same rows on every render
- * is work repeated once per message per keystroke elsewhere on the page.
- */
+// Emoji reactions: the chips under a bubble and the quick-react button. The server sends them grouped.
 
 import * as React from "react"
 import { SmilePlus } from "lucide-react"
@@ -17,20 +10,17 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { EmojiPicker } from "@/components/shared/emoji-picker"
 
-/** One emoji and who put it there. */
 export interface ReactionGroup {
   emoji: string
   count: number
-  /** Whether the CURRENT user is one of them - drives the highlight and toggle. */
+  /** The current user reacted - drives the highlight and the toggle. */
   mine: boolean
-  /** Names, for the tooltip. Capped server-side; `count` is the real total. */
+  /** For the tooltip. Capped server-side; `count` is the real total. */
   names: string[]
 }
 
-/** The six WhatsApp offers before you reach for the full picker. */
 export const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as const
 
-/** The chips under a bubble. Renders nothing when there are none. */
 export function MessageReactions({
   reactions,
   onToggle,
@@ -62,15 +52,7 @@ export function MessageReactions({
   )
 }
 
-/**
- * The react affordance: a smiley that sits in the message's control column and
- * opens six one-tap emoji plus the full picker.
- *
- * It used to be a bar that floated over the bubble on hover. That put a control
- * on top of the words you were reading, moved as the bubble resized, and gave no
- * hint it existed until your pointer was already there. Living beside the ⋮ - the
- * other thing you do TO a message - it has a fixed home you can aim at.
- */
+/** Smiley in the message's control column: six one-tap emoji plus the full picker. */
 export function ReactionButton({
   onPick,
   className,
@@ -114,7 +96,6 @@ export function ReactionButton({
               {e}
             </button>
           ))}
-          {/* Anything outside the six. */}
           <EmojiPicker
             onPick={pick}
             closeOnPick

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Check, Shuffle } from "lucide-react"
@@ -25,14 +25,8 @@ import {
   roleOfAvatar,
 } from "@/lib/avatars"
 
-/**
- * Preset avatar picker, for people who would rather not upload a photo of
- * themselves. Choosing one replaces any uploaded photo (and frees its bucket
- * object), so the two are alternatives rather than layers.
- *
- * Grouped by job role: 42 faces in one grid is a search task, 6 under a heading
- * you identify with is a choice.
- */
+/** Preset avatar picker, grouped by job role. Choosing one replaces any uploaded photo (and
+ *  frees its bucket object). */
 export function AvatarPickerDialog({
   employeeId,
   currentPhoto,
@@ -46,13 +40,18 @@ export function AvatarPickerDialog({
   onOpenChange: (v: boolean) => void
 }) {
   const qc = useQueryClient()
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(() =>
+    open ? avatarIdFromPath(currentPhoto) : null,
+  )
 
-  // Reopening should always start from what is actually saved, not from a
-  // selection the user abandoned last time.
-  useEffect(() => {
+  // Reopening starts from what is saved, not an abandoned selection.
+  const [prevOpen, setPrevOpen] = useState(open)
+  const [prevPhoto, setPrevPhoto] = useState(currentPhoto)
+  if (open !== prevOpen || currentPhoto !== prevPhoto) {
+    setPrevOpen(open)
+    setPrevPhoto(currentPhoto)
     if (open) setSelected(avatarIdFromPath(currentPhoto))
-  }, [open, currentPhoto])
+  }
 
   const save = useMutation({
     mutationFn: async (avatarId: string) => {
@@ -113,16 +112,13 @@ export function AvatarPickerDialog({
                       className={cn(
                         "group relative aspect-square w-full overflow-hidden rounded-sm border-2 transition-all duration-150",
                         "focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
-                        // Handling the things, not reading a list.
                         "hover:-translate-y-0.5 hover:shadow-md",
                         isSelected
                           ? "border-primary ring-primary/30 shadow-md ring-2"
                           : "hover:border-border border-transparent",
                       )}
                     >
-                      {/* A plain img, not next/image: these are local static
-                          assets, so the optimiser has nothing to do, and its
-                          intrinsic 100x100 overflowed the grid cell. */}
+                      {/* Plain img: next/image's intrinsic size overflowed the cell. */}
                       <img
                         src={avatarPath(id)}
                         alt=""

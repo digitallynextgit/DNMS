@@ -53,7 +53,6 @@ import type {
 
 type CareerRowStatus = "DRAFT" | "PUBLISHED"
 
-// Calm status dot (a badge at every level was too noisy).
 function StatusDot({ status }: { status: CareerRowStatus }) {
   const live = status === "PUBLISHED"
   return (
@@ -64,9 +63,6 @@ function StatusDot({ status }: { status: CareerRowStatus }) {
   )
 }
 
-// A large navigational tile (matches the public careers cards' layout) styled
-// with the APP THEME (card surface, primary accent), plus admin controls
-// (publish toggle + ⋮ menu). Click the tile to drill in.
 function CareerTile({
   code,
   title,
@@ -132,7 +128,6 @@ function CareerTile({
   )
 }
 
-// Inline publish/unpublish switch with a clear Live/Draft label.
 function PublishToggle({
   status,
   onChange,
@@ -166,9 +161,7 @@ function PublishToggle({
   )
 }
 
-// Edit / Delete tucked into a compact overflow menu to keep rows tidy.
-// Dialog opening is deferred to the next tick so the menu's focus/pointer
-// cleanup finishes first (avoids the Radix "pointer-events stuck" race).
+// Dialogs open on the next tick so the menu's focus cleanup finishes first (Radix "pointer-events stuck").
 function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
   const defer = (fn: () => void) => () => setTimeout(fn, 0)
   return (
@@ -242,7 +235,6 @@ function ToneStatusFields({
   )
 }
 
-// ─── Group dialog ──────────────────────────────────────────────────────────────
 function GroupDialog({
   open,
   onOpenChange,
@@ -333,7 +325,6 @@ function GroupDialog({
   )
 }
 
-// ─── Sub-department dialog ───────────────────────────────────────────────────
 function SubDeptDialog({
   open,
   onOpenChange,
@@ -409,7 +400,6 @@ function SubDeptDialog({
   )
 }
 
-// ─── Role dialog (content + openings) ────────────────────────────────────────
 function RoleDialog({
   open,
   onOpenChange,
@@ -571,7 +561,6 @@ function RoleDialog({
   )
 }
 
-// ─── Role card ───────────────────────────────────────────────────────────────
 function RoleItem({ role, subId }: { role: AdminCareerRole; subId: string }) {
   const [edit, setEdit] = useState(false)
   const [confirm, setConfirm] = useState(false)
@@ -634,7 +623,6 @@ function RoleItem({ role, subId }: { role: AdminCareerRole; subId: string }) {
   )
 }
 
-// ─── Group tile (drills into its sub-departments) ────────────────────────────
 function GroupTile({ group, onOpen }: { group: AdminCareerGroup; onOpen: () => void }) {
   const [edit, setEdit] = useState(false)
   const [confirm, setConfirm] = useState(false)
@@ -667,7 +655,6 @@ function GroupTile({ group, onOpen }: { group: AdminCareerGroup; onOpen: () => v
   )
 }
 
-// ─── Sub-department tile (drills into its roles) ─────────────────────────────
 function SubDeptTile({ sub, onOpen }: { sub: AdminCareerSubDepartment; onOpen: () => void }) {
   const [edit, setEdit] = useState(false)
   const [confirm, setConfirm] = useState(false)
@@ -699,7 +686,6 @@ function SubDeptTile({ sub, onOpen }: { sub: AdminCareerSubDepartment; onOpen: (
   )
 }
 
-// ─── Mode panel (drill-down: groups → sub-departments → roles) ───────────────
 function ModePanel({ groups, mode }: { groups: AdminCareerGroup[]; mode: CareerDbMode }) {
   const [groupId, setGroupId] = useState<string | null>(null)
   const [subId, setSubId] = useState<string | null>(null)
@@ -741,7 +727,6 @@ function ModePanel({ groups, mode }: { groups: AdminCareerGroup[]; mode: CareerD
     </nav>
   )
 
-  // ── Roles view ──
   if (group && sub) {
     return (
       <div className="space-y-4">
@@ -770,7 +755,6 @@ function ModePanel({ groups, mode }: { groups: AdminCareerGroup[]; mode: CareerD
     )
   }
 
-  // ── Sub-departments view ──
   if (group) {
     return (
       <div className="space-y-4">
@@ -797,7 +781,6 @@ function ModePanel({ groups, mode }: { groups: AdminCareerGroup[]; mode: CareerD
     )
   }
 
-  // ── Groups view ──
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">

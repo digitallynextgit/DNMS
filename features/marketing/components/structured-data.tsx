@@ -1,7 +1,6 @@
 import { siteConfig } from "@/lib/site"
 
-/** JSON-LD for rich search results: the org + the product. Rendered once in the
- *  page head area. Kept data-only (no offers/pricing while pricing is hidden). */
+/** JSON-LD for rich results (org + product). No offers/pricing while pricing is hidden. */
 export function StructuredData() {
   const data = {
     "@context": "https://schema.org",

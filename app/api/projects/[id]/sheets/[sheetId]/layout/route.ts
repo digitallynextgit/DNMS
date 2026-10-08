@@ -2,14 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { withProjectAccess } from "@/features/projects/server/project-access"
 import { resize, sheetBelongsToProject } from "@/features/projects/server/sheets.service"
 
-/**
- * PATCH - a column width or a row height.
- *
- * Separate from the content endpoints because resizing is not an edit: it
- * writes no history, and it is the one write that fires repeatedly while a
- * pointer is moving. Keeping it apart is what stops a drag from burying the
- * history under fifty entries.
- */
+// Separate from content edits: resizing writes no history and fires repeatedly during a drag.
 export const PATCH = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }) => {
     const { id: projectId, sheetId } = ctx.params

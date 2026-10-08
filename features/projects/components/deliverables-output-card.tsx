@@ -26,20 +26,7 @@ import {
 import { formatHours } from "../lib/format-hours"
 import { Tip } from "./portfolio-charts"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Output on the Progress page: what was MADE, in the range.
-//
-// The tiles above count tasks, the goals strip says whether the plan is met;
-// this is the third question - what actually came out. Follows the date range
-// (deliverables are dated outputs; "this week" is exactly the question) and the
-// project picker.
-//
-// Types are open-ended, so they get a categorical palette assigned by RANK -
-// the biggest type is always the first colour - and every legend entry carries
-// its count, so hue is never the only signal. The hues are deliberately not the
-// task-state ones: on this page blue means "in progress" and emerald "done",
-// and a type wearing either would read as a state.
-// ─────────────────────────────────────────────────────────────────────────────
+// Type colours go by rank and deliberately avoid the task-state hues (blue = in progress, emerald = done).
 
 const PALETTE = [
   "#8b5cf6",
@@ -61,29 +48,17 @@ export interface OutputFilter {
   employeeId?: string
   teamId?: string
   type?: string
-  /**
-   * What the popup should call itself. Built HERE, where the names already
-   * are - the same call-site pattern the task charts use for their team and
-   * person drill-downs, rather than making the popup re-look-up an id.
-   */
+  /** The popup's title, built here where the names are known. */
   title?: string
   subtitle?: string
 }
 
-/**
- * Mirrors the sentinel in deliverables.queries.ts: a byTeam row whose id starts
- * with this is output logged WITHOUT a team, so there is no team to filter by
- * and clicking it opens the project instead.
- */
+/** Mirrors the sentinel in deliverables.queries.ts: output logged without a team (opens the project instead). */
 const NO_TEAM = "__no_team__"
 
 const teamless = (id: string) => id.startsWith(`${NO_TEAM}:`)
 
-/**
- * Across clients a bare "WEB" is ambiguous - half the accounts have one - so
- * the bar carries its project. The axis is 116px, so the full name only gets
- * used when it fits; past that the code says the same thing in four characters.
- */
+/** Bars carry their project ("WEB" is ambiguous across clients); the code is used when the name won't fit. */
 function teamBars(byTeam: DeliverablesOverview["byTeam"], single: boolean) {
   return byTeam.map((t) => ({
     id: t.id,
@@ -94,7 +69,6 @@ function teamBars(byTeam: DeliverablesOverview["byTeam"], single: boolean) {
   }))
 }
 
-/** One labelled chart slot. Keeps the four panels' headings identical. */
 function Panel({
   label,
   hint,
@@ -115,7 +89,6 @@ function Panel({
   )
 }
 
-/** Donut of the type mix, count in the hole. Click a slice or a legend entry. */
 export function TypeDonut({
   byType,
   total,
@@ -209,7 +182,6 @@ export function TypeDonut({
   )
 }
 
-/** One bar per row, single series. Click a bar to open it. */
 export function CountBars({
   rows,
   onPick,
@@ -349,10 +321,6 @@ export function DeliverablesOutputCard({
           </p>
         ) : (
           <>
-            {/* Made is what came out; Owed is what has not, and the two belong
-                side by side - a strong week that leaves a bigger backlog is
-                not a strong week. The type count that used to sit here is
-                repeated in the donut's legend directly below, so it goes. */}
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
               <button type="button" onClick={() => onOpen({ projectId })} className="text-left">
                 <Tile
@@ -385,10 +353,7 @@ export function DeliverablesOutputCard({
               />
             </div>
 
-            {/* Three questions a manager actually asks of output - which
-                client, which team, which person - and the type mix behind all
-                of them. Portfolio-wide all four are shown at once; inside one
-                project the client split is the heading, so it goes. */}
+            {/* Inside one project the client split is the heading, so that panel is dropped. */}
             <div
               className={cn(
                 "mt-4 grid gap-4",
@@ -421,9 +386,7 @@ export function DeliverablesOutputCard({
                   onPick={(id) => {
                     const t = data.byTeam.find((row) => row.id === id)
                     if (!t) return
-                    // The team's OWN project, not the current scope: portfolio-wide
-                    // every bar belongs to a different client. Teamless output has
-                    // no team to filter by, so it opens that project instead.
+                    // The team's own project, not the current scope; teamless output opens that project.
                     onOpen(
                       teamless(id)
                         ? { projectId: t.projectId, title: `${t.projectName} · no team` }

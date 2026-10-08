@@ -14,7 +14,6 @@ async function owned(projectId: string, propertyId: string) {
   return db.seoProperty.findFirst({ where: { id: propertyId, projectId }, select: { id: true } })
 }
 
-// GET - the latest Core Web Vitals reading per URL.
 export const GET = withAuth(
   PERMISSIONS.PROJECT_READ,
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
@@ -34,7 +33,7 @@ export const GET = withAuth(
   },
 )
 
-// POST - measure now. { traffic: true } also pulls GA4 for the same window.
+// { traffic: true } also pulls GA4 for the same window.
 export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _s: Session) => {
     const { id, propertyId } = ctx.params

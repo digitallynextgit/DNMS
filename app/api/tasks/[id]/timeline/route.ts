@@ -5,9 +5,7 @@ import { canAccessProject } from "@/features/projects/server/project-access"
 import { getTaskTimeline } from "@/features/projects/server/task-status-periods"
 import type { Session } from "next-auth"
 
-// GET /api/tasks/[id]/timeline
-// Full status history for one task: when it was created, when it started, and
-// how long it spent in each status. Readable by anyone who can see the project.
+// Readable by anyone who can see the project.
 export const GET = withSession(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -22,9 +20,7 @@ export const GET = withSession(
       })
       if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 })
 
-      // Adhoc work has no project to check access against, so it falls back to
-      // the people it actually concerns: whoever it is on, whoever raised it,
-      // and that person's line manager.
+      // Adhoc work: whoever it's on, whoever raised it, and that person's line manager.
       const allowed = task.projectId
         ? await canAccessProject(session, task.projectId)
         : task.assigneeId === session.user.id ||

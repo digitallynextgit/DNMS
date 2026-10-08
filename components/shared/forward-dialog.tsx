@@ -1,20 +1,7 @@
 "use client"
 
-/**
- * Forward a message to a colleague's personal chat.
- *
- * One destination on purpose: "send this to someone" is what forwarding is for,
- * and a personal chat is the one place every employee can be reached from both
- * message surfaces. Forwarding into another project thread would need the
- * project picked first, and forwarding to a project you are not on is not a
- * thing the API would allow anyway.
- *
- * No new endpoint: it opens (or reuses) the conversation and posts the text,
- * exactly as the New chat picker and the composer already do. Attachments are
- * NOT carried - the file lives behind a membership-checked route, so passing it
- * on means re-uploading it into the other conversation, which is a different
- * feature and is called out in the UI rather than silently half-done.
- */
+// Forward a message to a colleague's personal chat. Text only: attachments live behind a
+// membership-checked route and would need re-uploading.
 
 import * as React from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
@@ -43,7 +30,7 @@ interface Colleague {
 export function ForwardDialog({
   open,
   onOpenChange,
-  /** The text being forwarded. Empty/attachment-only messages are refused. */
+  /** Empty or attachment-only messages are refused. */
   body,
 }: {
   open: boolean
@@ -65,8 +52,7 @@ export function ForwardDialog({
 
   const forward = useMutation({
     mutationFn: async (person: Colleague) => {
-      // Open-or-reuse first: the endpoint is idempotent by pair, so forwarding to
-      // someone you already talk to lands in the existing thread.
+      // Idempotent per pair, so it lands in the existing thread if there is one.
       const convo = await apiFetch<{ data: { data: { id: string } } }>("/api/chat/conversations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

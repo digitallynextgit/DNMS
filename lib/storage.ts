@@ -8,18 +8,8 @@ import {
 import { getSignedUrl as presignUrl } from "@aws-sdk/s3-request-presigner"
 import { getConfig } from "@/server/app-config"
 
-// Backblaze B2 is S3-compatible, so we use the AWS S3 SDK against the B2
-// endpoint.
-//
-// CONFIG NOW COMES FROM storage_accounts, not from a single block in
-// app_settings: the company can run several buckets and new uploads go to
-// whichever row is marked default. Every function below takes an OPTIONAL
-// accountId as its LAST argument, so all 18 existing call sites keep working
-// unchanged and reach the default account.
-//
-// The app_settings B2_EMPLOYEE_DOCS_* keys remain a fallback. They are what a
-// fresh install has before anybody opens Integrations, and dropping them would
-// mean a deploy where file access breaks until somebody re-enters credentials.
+// Backblaze B2 via the S3 SDK. Config comes from storage_accounts (uploads go to the default row);
+// every function takes an optional accountId last. app_settings B2_EMPLOYEE_DOCS_* is the fallback.
 
 interface ResolvedAccount {
   s3: S3Client
@@ -27,11 +17,10 @@ interface ResolvedAccount {
   accountId: string | null
 }
 
-// One client per account, built once. Constructing an S3Client per request is
-// pure overhead - it holds a connection pool.
+// One client per account - an S3Client holds a connection pool.
 const clientCache = new Map<string, ResolvedAccount>()
 
-/** Clear a cached client after its credentials change. */
+/** Call after an account's credentials change. */
 export function invalidateStorageClient(accountId?: string): void {
   if (accountId) clientCache.delete(accountId)
   else clientCache.clear()
@@ -99,15 +88,11 @@ async function getClient(accountId?: string): Promise<ResolvedAccount> {
   return resolved
 }
 
-// B2 buckets are created in the B2 console, so there's nothing to do at runtime.
-// Kept for API compatibility with existing callers.
+// Buckets are created in the B2 console; kept for existing callers.
 export async function ensureBucket(): Promise<void> {}
 
-/** Whether the B2 storage settings are fully configured (DB → env). */
 export async function isB2Configured(): Promise<boolean> {
-  // Wrapped: this is a CONFIG CHECK, and a database hiccup here should fall
-  // through to the legacy settings rather than answering "not configured" and
-  // blanking the whole storage screen behind it.
+  // A DB hiccup here should fall through to the legacy settings, not blank the storage screen.
   try {
     const { db } = await import("@/server/db")
     if (await db.storageAccount.count({ where: { isActive: true } })) return true
@@ -140,13 +125,11 @@ export async function uploadFile(
       ContentType: contentType,
     }),
   )
-  // AFTER the write, not before: clearing first leaves a window where a read
-  // could re-cache the pre-upload listing for the next minute.
+  // After the write: clearing first could let a read re-cache the old listing.
   invalidateObjectList(accountId)
 }
 
-/** Download an object's raw bytes (server-side use only, e.g. text extraction
- *  for the AI assistant). */
+/** Server-side only (e.g. text extraction for the AI assistant). */
 export async function downloadFile(objectKey: string, accountId?: string): Promise<Buffer> {
   const { s3, bucket } = await getClient(accountId)
   const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: objectKey }))
@@ -154,32 +137,12 @@ export async function downloadFile(objectKey: string, accountId?: string): Promi
   if (body?.transformToByteArray) {
     return Buffer.from(await body.transformToByteArray())
   }
-  // Fallback: stream to buffer.
   const chunks: Buffer[] = []
   for await (const chunk of res.Body as unknown as AsyncIterable<Buffer>) chunks.push(chunk)
   return Buffer.concat(chunks)
 }
 
-/**
- * `attachment; filename="…"; filename*=UTF-8''…`
- *
- * `filename` is a latin-1 header, so anything outside it - an accent, a
- * Devanagari character, an em dash - cannot travel in it and would arrive
- * mangled or truncate the header. Both forms are sent: the ASCII one is the
- * fallback, and every current browser prefers `filename*`.
- *
- * Quotes and CR/LF are stripped either way: a filename is user input, and a raw
- * newline here splits the header.
- */
-/**
- * RFC 5987 ext-value encoding for the `filename*` parameter.
- *
- * `encodeURIComponent` leaves `( ) ' * ! . - _ ~` unescaped, but the RFC 5987
- * `attr-char` set does NOT include `( ) ' *`, and Backblaze B2 validates the
- * `b2-content-disposition` strictly - an unescaped `(` in a filename (e.g.
- * "photo (1).png") is exactly the "expected a token character … but got '('"
- * rejection on download. Percent-encode those four so the value is valid.
- */
+/** encodeURIComponent plus `( ) ' *`, which B2 rejects unescaped in content-disposition. */
 function rfc5987(str: string): string {
   return encodeURIComponent(str).replace(
     /['()*]/g,
@@ -187,11 +150,10 @@ function rfc5987(str: string): string {
   )
 }
 
+/** ASCII `filename` fallback plus the exact name in `filename*` (latin-1 headers mangle the rest). */
 function contentDisposition(name: string): string {
   const clean = name.replace(/["\r\n]/g, "").trim() || "download"
-  // The ASCII fallback is a quoted-string, but strip the few characters that are
-  // unsafe even quoted; parens/spaces/commas are fine inside quotes. The
-  // RFC 5987 `filename*` (which modern clients prefer) carries the exact name.
+  // Parens, spaces and commas are fine inside the quoted fallback.
   const ascii = clean.replace(/[^\x20-\x7E]/g, "_").replace(/[\\"]/g, "_")
   return `attachment; filename="${ascii}"; filename*=UTF-8''${rfc5987(clean)}`
 }
@@ -202,8 +164,7 @@ export async function getSignedUrl(
   opts?: { downloadFileName?: string },
 ): Promise<string> {
   const { s3, bucket } = await getClient()
-  // ResponseContentDisposition=attachment forces a download (and names the
-  // file); omitting it lets images/PDFs open inline in the browser ("View").
+  // `attachment` forces a download; without it images/PDFs open inline.
   const command = new GetObjectCommand({
     Bucket: bucket,
     Key: objectKey,
@@ -211,28 +172,14 @@ export async function getSignedUrl(
       ? contentDisposition(opts.downloadFileName)
       : undefined,
   })
-  // SigV4 presigned URLs cannot be valid for more than 7 days; clamp so callers
-  // asking for longer don't trigger a hard rejection from the signer.
+  // SigV4 presigned URLs can't be valid for more than 7 days.
   const SEVEN_DAYS = 7 * 24 * 60 * 60
   return presignUrl(s3, command, { expiresIn: Math.min(expirySeconds, SEVEN_DAYS) })
 }
 
-// ── Shared signed-URL cache (perf) ───────────────────────────────────────────
-// Every inline <img> in the gallery/chat hits a Next route that re-signs the
-// object on each request. Signing is CPU-only, but doing it per image per user
-// per page still adds up; memoising the plain (no-disposition) URL lets repeat
-// and cross-user views skip the re-sign. NOT used for downloads - those carry a
-// per-filename Content-Disposition and must not share a cache slot.
-//
-// The reuse window is the SIGNATURE life MINUS the browser cache window, not the
-// full signature life: these routes 302 to the signed URL with a long
-// Cache-Control max-age, so the browser remembers the redirect target. If we
-// hand out a URL whose remaining life is shorter than that max-age, the viewer
-// keeps redirecting to a dead URL and every hit 403s until their cache expires -
-// for days. So a cached URL is only reused while it still outlives a full fresh
-// browser cache window; callers pass that window (+ a buffer) as
-// minRemainingSeconds. SigV4 caps signatures at 7 days, so the signature TTL
-// cannot simply be raised to sidestep this - the two windows have to be paired.
+// Memoised plain (no-disposition) signed URLs, so repeat image views skip re-signing. Not for
+// downloads. Callers 302 with a long browser cache, so a cached URL is only reused while it
+// outlives that window (minRemainingSeconds) - otherwise viewers hit a dead URL for days.
 const signedUrlCache = new Map<string, { url: string; expiresAt: number }>()
 
 export async function getCachedSignedUrl(
@@ -244,7 +191,7 @@ export async function getCachedSignedUrl(
   if (hit && hit.expiresAt > Date.now() + minRemainingSeconds * 1000) return hit.url
   const url = await getSignedUrl(objectKey, expirySeconds)
   signedUrlCache.set(objectKey, { url, expiresAt: Date.now() + expirySeconds * 1000 })
-  // Bound the map: signed URLs are cheap to regenerate, so evict oldest when large.
+  // Signed URLs are cheap to regenerate, so just evict the oldest.
   if (signedUrlCache.size > 5_000) {
     const now = Date.now()
     for (const [k, v] of signedUrlCache) if (v.expiresAt <= now) signedUrlCache.delete(k)
@@ -264,23 +211,16 @@ export interface StorageObject {
   lastModified: string | null
 }
 
-// A bucket listing costs a round trip to B2 - measured at ~550ms warm and ~3.5s
-// on a cold connection from here. The Storage screen calls it on every load, and
-// a bucket does not change between two clicks, so the result is held briefly.
-//
-// Deliberately SHORT: this is a cache for one person clicking around, not a
-// source of truth. A file uploaded elsewhere shows up within the minute, and any
-// write path clears it outright (see invalidateObjectList).
+// Listing a bucket takes 0.5-3.5s, so hold it briefly. Writes clear it (invalidateObjectList).
 const OBJECT_LIST_TTL_MS = 60_000
 const objectListCache = new Map<string, { at: number; objects: StorageObject[] }>()
 
-/** Drop the cached listing after an upload or delete, so the screen is honest. */
 export function invalidateObjectList(accountId?: string): void {
   if (accountId) objectListCache.delete(accountId)
   else objectListCache.clear()
 }
 
-/** Every object in the bucket, paginated (B2 returns up to 1000 per page). */
+/** Paginated: B2 returns up to 1000 per page. */
 export async function listAllObjects(accountId?: string): Promise<StorageObject[]> {
   const cacheKey = accountId ?? "__default__"
   const hit = objectListCache.get(cacheKey)

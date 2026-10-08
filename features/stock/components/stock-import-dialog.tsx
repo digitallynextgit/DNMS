@@ -16,16 +16,7 @@ import {
 import { parseStockWorkbook, type ParsedImport } from "../lib/parse"
 import { useImportStock } from "../hooks/use-stock"
 
-/**
- * HR uploads the stock workbook here. The file is parsed IN THE BROWSER (same
- * pattern as the project sheet importer) and plain JSON goes to the API, which
- * matches holders to employees - including deactivated ones - and leaves
- * anyone it cannot match as a free-text holder HR can link later.
- *
- * Two sheet shapes are understood (both appear in stock.xlsx):
- *   "Given to | On date | <item> | <item> ..."  → issuance rows
- *   "Item | Price per piece | Quantity | ..."   → catalogue / restock rows
- */
+/** Parsed IN THE BROWSER; the API gets plain JSON and links holders to employees (deactivated too). */
 export function StockImportDialog({
   open,
   onOpenChange,

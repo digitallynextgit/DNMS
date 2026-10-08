@@ -5,13 +5,8 @@ import { MONTHS } from "@/lib/constants"
 import { totalMonthlyEarnings } from "@/features/payroll/payroll"
 import type { PayrollRecord } from "@/features/payroll/hooks/use-payroll"
 
-// =============================================================================
-// Printable salary slip - reproduces docs/salary slip format.pdf (BFG Market
-// Consult Pvt Limited). Wrapped in #print-area so the global @media print rule
-// (app/globals.css) drops all app chrome and prints just this on white A4.
-// =============================================================================
+// Printable salary slip. #print-area makes the global @media print rule print only this, on white A4.
 
-// Company letterhead (from the PDF).
 const COMPANY = {
   name: "BFG Market Consult Pvt Limited",
   addressLines: ["18, Block SU, First Floor", "Pitam Pura", "New Delhi- 110034"],
@@ -73,7 +68,6 @@ function numberToWords(value: number): string {
   if (thousand) parts.push(twoDigits(thousand) + " Thousand")
   if (num) parts.push(threeDigits(num))
   const words = parts.join(" ").trim()
-  // Sentence case to match the PDF ("Eighty thousand one hundred and sixty seven only").
   return words.charAt(0) + words.slice(1).toLowerCase()
 }
 
@@ -104,17 +98,11 @@ function fmtDate(iso: string | null): string {
   return `${dd}-${mon}-${yy}`
 }
 
-/**
- * Placeholder shaped like the real salary slip above - same bordered A4 sheet,
- * letterhead + title, the employee detail grid, the earnings table and the
- * net-pay strip. Lets the payslip pages paint their shell (back link, title,
- * actions) immediately instead of blanking the whole screen while loading.
- */
+/** Loading placeholder shaped like the slip, so the page shell paints immediately. */
 export function PayslipSkeleton() {
   return (
     <div className="mx-auto max-w-3xl">
       <div className="space-y-4 rounded-sm border border-neutral-300 px-6 py-5 dark:border-neutral-700">
-        {/* Letterhead */}
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1.5">
             <Skeleton className="h-4 w-56" />
@@ -124,12 +112,10 @@ export function PayslipSkeleton() {
           <Skeleton className="h-16 w-16" />
         </div>
 
-        {/* "Salary Slip - Month Year" */}
         <div className="flex justify-center border-t pt-3">
           <Skeleton className="h-4 w-48" />
         </div>
 
-        {/* Employee detail grid */}
         <div className="grid grid-cols-2 gap-x-4 gap-y-2">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="flex items-center gap-2">
@@ -139,7 +125,6 @@ export function PayslipSkeleton() {
           ))}
         </div>
 
-        {/* Earnings / deductions table */}
         <div className="space-y-1.5">
           <Skeleton className="h-6 w-full" />
           {Array.from({ length: 7 }).map((_, i) => (
@@ -151,7 +136,6 @@ export function PayslipSkeleton() {
           ))}
         </div>
 
-        {/* Net pay + amount in words */}
         <div className="space-y-2 border-t pt-3">
           <Skeleton className="h-6 w-40" />
           <Skeleton className="h-3.5 w-72" />
@@ -165,8 +149,7 @@ export function PayslipDocument({ record }: { record: PayrollRecord }) {
   const monthName = MONTHS[record.month - 1]
   const yy = String(record.year).slice(-2)
 
-  // Annual = full (un-prorated) monthly gross × 12, from the salary structure;
-  // falls back to this month's gross when the structure is missing.
+  // Annual = un-prorated monthly gross × 12 (this month's gross if there's no structure).
   const fullMonthly = record.salaryStructure
     ? totalMonthlyEarnings(record.salaryStructure)
     : record.grossSalary
@@ -187,7 +170,6 @@ export function PayslipDocument({ record }: { record: PayrollRecord }) {
   const total = record.netSalary
   const employeeCode = `BFG/Digitally Next/${record.year}/${record.employee.employeeNo}`
 
-  // Shared cell styles - thin grey borders like the spreadsheet export.
   const b = "border border-neutral-500"
   const cell = `${b} px-2 py-1 align-middle`
   const labelCell = `${cell} font-semibold`
@@ -199,7 +181,6 @@ export function PayslipDocument({ record }: { record: PayrollRecord }) {
       style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
     >
       <div className={`${b} px-6 py-5`}>
-        {/* Letterhead: company (left) + logo (right, if public/bfg-logo.png exists). */}
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-[15px] font-bold">{COMPANY.name}</h1>
@@ -224,7 +205,6 @@ export function PayslipDocument({ record }: { record: PayrollRecord }) {
           Salary Slip - {monthName} {record.year}
         </div>
 
-        {/* Info grid (label / value / label / value). */}
         <table className="mt-3 w-full border-collapse">
           <tbody>
             <tr>
@@ -256,7 +236,6 @@ export function PayslipDocument({ record }: { record: PayrollRecord }) {
           </tbody>
         </table>
 
-        {/* Breakup + attendance + total. */}
         <table className="mt-3 w-full border-collapse">
           <thead>
             <tr>
@@ -301,7 +280,6 @@ export function PayslipDocument({ record }: { record: PayrollRecord }) {
           </tbody>
         </table>
 
-        {/* Amount in words. */}
         <table className="w-full border-collapse">
           <tbody>
             <tr>
@@ -313,7 +291,6 @@ export function PayslipDocument({ record }: { record: PayrollRecord }) {
           </tbody>
         </table>
 
-        {/* Date + computer-generated footer. */}
         <p className="mt-4">Date : {fmtDate(record.processedAt ?? record.createdAt)}</p>
         <p className="mt-3 text-center text-[12px] font-semibold italic">
           This is a computer generated document and does not require signatures

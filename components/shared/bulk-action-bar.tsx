@@ -7,20 +7,16 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 interface BulkActionBarProps {
-  /** Number of selected rows. The bar hides itself when 0. */
+  /** The bar hides itself at 0. */
   count: number
   onClear: () => void
-  /** Feature-specific action buttons (Export, Delete, status dropdown…). */
   children?: React.ReactNode
-  /** Word for the count label (default "selected"). */
+  /** Default "selected". */
   label?: string
   className?: string
 }
 
-/**
- * The "{n} selected · Clear" bar shown above a table when rows are selected.
- * Feature-specific actions are passed as children. Pair with `useRowSelection`.
- */
+/** The "{n} selected · Clear" bar above a table. Pair with `useRowSelection`. */
 export function BulkActionBar({
   count,
   onClear,

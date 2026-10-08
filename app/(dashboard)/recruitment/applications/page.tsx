@@ -5,8 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { apiFetch } from "@/lib/api-fetch"
 import { useUrlPage, useUrlState } from "@/hooks/use-url-state"
-// lucide dropped brand glyphs (no Linkedin export), so LinkedIn/portfolio use
-// generic icons.
+// lucide has no brand glyphs (no Linkedin), so LinkedIn/portfolio use generic icons.
 import {
   Mail,
   Phone,
@@ -77,9 +76,7 @@ export default function CareerApplicationsPage() {
   const [selected, setSelected] = useState<CareerApplication | null>(null)
   const [toDelete, setToDelete] = useState<CareerApplication | null>(null)
 
-  // Deleting a real applicant's submission is admin / HR-manager only - narrower
-  // than `recruitment:write` (hr_employee triages, but must not purge). The API
-  // enforces the same rule; this only hides the affordance.
+  // Deleting is admin / HR-manager only (narrower than recruitment:write). The API enforces it too.
   const { data: session } = useSession()
   const roles = session?.user?.roles ?? []
   const canDelete =
@@ -92,9 +89,7 @@ export default function CareerApplicationsPage() {
   const rows = data?.data ?? []
   const meta = data?.meta
 
-  // Deep link from the "new application" notification (?id=...): open that
-  // application's detail sheet directly. The link used to land on the bare
-  // list, leaving HR to find the applicant it had just named.
+  // Deep link from the "new application" notification (?id=...) opens that application.
   const deepLinkId = useSearchParams().get("id")
   useEffect(() => {
     if (!deepLinkId) return
@@ -219,7 +214,6 @@ export default function CareerApplicationsPage() {
         }
       />
 
-      {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-56 flex-1">
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
@@ -330,7 +324,6 @@ export default function CareerApplicationsPage() {
   )
 }
 
-// ─── Detail sheet ───────────────────────────────────────────────────────────
 function ApplicationSheet({
   application,
   onClose,
@@ -359,7 +352,6 @@ function ApplicationSheet({
         </SheetHeader>
 
         <div className="space-y-5 px-4 pb-8">
-          {/* Role */}
           <div>
             <p className="text-sm font-medium">{a.roleTitle}</p>
             <p className="text-muted-foreground text-xs">
@@ -377,7 +369,6 @@ function ApplicationSheet({
             )}
           </div>
 
-          {/* Status */}
           <div className="space-y-1.5">
             <p className="text-muted-foreground text-xs font-medium">Status</p>
             <Select
@@ -399,7 +390,6 @@ function ApplicationSheet({
             </Select>
           </div>
 
-          {/* Contact */}
           <div className="space-y-2">
             <p className="text-muted-foreground text-xs font-medium">Contact</p>
             <ContactRow icon={Mail} label={a.email} href={`mailto:${a.email}`} />
@@ -418,7 +408,6 @@ function ApplicationSheet({
             </div>
           )}
 
-          {/* HR notes */}
           <div className="space-y-1.5">
             <p className="text-muted-foreground text-xs font-medium">Internal notes</p>
             <Textarea

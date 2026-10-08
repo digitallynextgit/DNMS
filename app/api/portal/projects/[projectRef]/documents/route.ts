@@ -5,13 +5,8 @@ import {
   uploadClientDocument,
 } from "@/features/client-portal/server/client-documents.service"
 
-// GET  /api/portal/projects/:projectRef/documents - the shared library
-// POST /api/portal/projects/:projectRef/documents - the client uploads a file
-//
-// Both services re-prove the grant AND the "documents" module, and every query
-// filters on isClientVisible - the projectRef is a lookup key, never an
-// authorisation. A Route Handler rather than a server action because uploads
-// exceed the 1 MB action body limit.
+// Services re-prove the grant and the "documents" module; projectRef is a lookup key, never authorisation.
+// A route handler because uploads exceed the 1 MB action body limit.
 export const GET = withClientSession(async (_req, { params }: { params: { projectRef: string } }) =>
   respond(await listClientDocuments(params.projectRef)),
 )

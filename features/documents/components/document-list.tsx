@@ -22,7 +22,6 @@ interface DocumentListProps {
   onUploadClick?: () => void
   /** Current page for the company-document list (server-side pagination). */
   page?: number
-  /** Called when the user navigates the company-document pager. */
   onPageChange?: (page: number) => void
 }
 

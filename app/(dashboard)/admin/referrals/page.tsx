@@ -11,11 +11,7 @@ export const metadata = {
   description: "Manage the employee referral program and its rewards.",
 }
 
-/**
- * HR's referral queue. Gated on the server as well as by the API: this page
- * shows candidate contact details and reward amounts derived from a new
- * joiner's salary, so it must not render at all for the wrong person.
- */
+/** Gated on the server too: it shows candidate contacts and salary-derived reward amounts. */
 export default async function AdminReferralsPage() {
   const session = await auth()
   if (!session) redirect("/login")

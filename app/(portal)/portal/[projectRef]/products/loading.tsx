@@ -1,8 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Mirrors the products page: custom heading, a search-bar row, then the
-// responsive product-card grid (2/3/4 cols) of aspect-square-ish h-64 cards -
-// the same grid the client shows while its own query loads.
 export default function PortalProductsLoading() {
   return (
     <div className="space-y-5">

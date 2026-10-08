@@ -65,15 +65,8 @@ interface Props {
   onSuccess?: (client: SavedClient) => void
 }
 
-/**
- * Create or edit a client - the company. Its people and their portal access
- * live on the client's page, not here: this form is about who the company is.
- *
- * Remounted on every open (the key), so the fields seed from `initial` fresh
- * each time without an effect. `initial` is an inline literal on the parent's
- * every render; seeding on it any other way would wipe in-progress edits
- * whenever the parent refetched.
- */
+/** Create or edit a client company. Remounted on every open (the key), so fields seed from
+ *  `initial` without an effect that would wipe edits when the parent refetches. */
 export function ClientFormDialog(props: Props) {
   return <ClientForm key={props.open ? "open" : "closed"} {...props} />
 }
@@ -103,7 +96,7 @@ function ClientForm({ open, onClose, mode, clientId, initial, ownerLabel, onSucc
     },
     onSuccess: (client) => {
       qc.invalidateQueries({ queryKey: clientKeys.all })
-      // Prefix match: takes the detail and its activity pages with it.
+      // Prefix match: also covers the detail and activity queries.
       qc.invalidateQueries({ queryKey: ["client"] })
       toast.success(mode === "create" ? "Client created" : "Client updated")
       onSuccess?.(client)

@@ -4,21 +4,10 @@ import { ok, fail } from "@/lib/api-response"
 import { getAwayDays, getAwayDaysForMany } from "@/features/leave/server/day-status.queries"
 import type { Session } from "next-auth"
 
-// GET /api/leave/day-status?employeeId=&from=&to=     -> AwayDay[]
-// GET /api/leave/day-status?employeeIds=a,b,c&from=&to= -> { [id]: AwayDay[] }
-//
-// Which days someone is away, for the weekly task sheet. The plural form is for
-// the project sheet, which plans a row per person and would otherwise open one
-// request per row every time the week is stepped.
-//
-// Any signed-in employee may ask about any colleague, and that is deliberate:
-// "who is off on Thursday" is ordinary team information, already visible on the
-// holiday calendar and in the team views. What is NOT returned is the leave
-// TYPE - the reason someone is off is theirs, and a task board has no need of it.
+// Any employee may ask about any colleague (who's off is team info), but the leave TYPE is never returned.
 export const GET = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     const q = req.nextUrl.searchParams
-    // Defaults to the caller, so the common case needs no id at all.
     const employeeId = q.get("employeeId") || session.user.id
     const employeeIds = q.get("employeeIds")
     const from = q.get("from")
@@ -30,9 +19,7 @@ export const GET = withSession(
         .split(",")
         .map((v) => v.trim())
         .filter(Boolean)
-      // A cap, not a page: this answers a sheet that is already rows-on-a-screen
-      // wide. Anything larger is a mistake, and silently truncating it would
-      // leave rows unexplained rather than saying so.
+      // A cap, not a page: a larger request is a bug, and silent truncation would hide it.
       if (ids.length > 100) return fail("BAD_REQUEST", "Too many employees (max 100).", 400)
       return ok(await getAwayDaysForMany(ids, from, to))
     }

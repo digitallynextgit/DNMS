@@ -11,18 +11,9 @@ import { previousMonth } from "../lib/report-format"
 import { reportingLine } from "../lib/reporting-line"
 import type { WorkReportRole, WorkReportScopeData, WorkReportScopePerson } from "../types"
 
-// =============================================================================
-// Who a work report may cover.
-//
-//   admin   - project:write holders and HR (hr_manager / admin): anyone.
-//   manager - has people reporting to them: themselves plus their whole
-//             reporting line, indirect reports included, and anyone who has
-//             them as a dotted-line manager.
-//   member  - only themselves, whatever the request asks for.
-//
-// The picker and the download both come from here, so the page can never offer
-// a person the route would then refuse.
-// =============================================================================
+// Who a work report may cover: admins (project:write, HR) anyone; managers themselves plus their
+// whole reporting line (incl. indirect and dotted-line); members only themselves. The picker and
+// the download both use this.
 
 const HR_ROLE_NAMES: string[] = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.ADMIN_]
 
@@ -56,11 +47,8 @@ export async function resolveWorkReportScope(session: Session): Promise<WorkRepo
   return { role: "member", employeeId: me, allowedIds: [me], teamIds: [] }
 }
 
-/**
- * The people a request may actually cover, or null when it asks for someone
- * outside the caller's scope (a 403, not a silently shorter report). A member
- * always gets themselves.
- */
+/** The people a request may cover, or null when it asks for someone out of scope (403, not a
+ *  shorter report). A member always gets themselves. */
 export function narrowPeople(scope: WorkReportScope, requested: string[]): string[] | null {
   if (scope.role === "member") return [scope.employeeId]
   const ids = Array.from(new Set(requested))

@@ -29,8 +29,7 @@ describe("startOfWeek", () => {
   })
 
   it("treats Sunday as belonging to the week that is finishing", () => {
-    // Monday-start, so a Sunday belongs to the week just ending rather than
-    // the one about to begin.
+    // Weeks start Monday, so a Sunday belongs to the week just ending.
     expect(ymd(startOfWeek(day("2026-09-13")))).toBe("2026-09-07")
   })
 
@@ -46,8 +45,7 @@ describe("weekOf / monthOf", () => {
   })
 
   it("reads a weekend date back as the week that just finished", () => {
-    // Sat 12th and Sun 13th both belong to the Mon 7th - Fri 11th week; no
-    // period covers them, which is what "we do not plan the weekend" means.
+    // A weekend day maps to its Mon-Fri week; no period covers the weekend itself.
     expect(span(weekOf(day("2026-09-12")))).toBe("2026-09-07..2026-09-11")
     expect(span(weekOf(day("2026-09-13")))).toBe("2026-09-07..2026-09-11")
   })
@@ -140,8 +138,6 @@ describe("parseDay", () => {
 })
 
 describe("periodProblem", () => {
-  // A plan is no longer confined to one working week. What replaced the old
-  // refusal is this: any range, as long as it is a range at all.
   it("accepts a working week", () => {
     expect(periodProblem(day("2026-09-14"), day("2026-09-18"))).toBeNull()
   })
@@ -150,10 +146,10 @@ describe("periodProblem", () => {
     const cases: [string, string][] = [
       ["2026-09-14", "2026-09-20"], // Mon-Sun
       ["2026-09-15", "2026-09-19"], // Tue-Sat
-      ["2026-09-01", "2026-09-30"], // a month
-      ["2026-09-14", "2026-09-14"], // a single day
-      ["2026-09-08", "2026-09-23"], // the campaign window that motivated this
-      ["2026-09-14", "2026-09-25"], // two weeks
+      ["2026-09-01", "2026-09-30"],
+      ["2026-09-14", "2026-09-14"],
+      ["2026-09-08", "2026-09-23"],
+      ["2026-09-14", "2026-09-25"],
     ]
     for (const [a, b] of cases) {
       expect(periodProblem(day(a), day(b)), `${a}..${b}`).toBeNull()

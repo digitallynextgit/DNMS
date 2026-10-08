@@ -34,7 +34,6 @@ export interface FolderListing {
   driveFiles: DriveFile[]
   drive: {
     configured: boolean
-    /** Open-in-Drive target for the folder being viewed. */
     folderLink: string | null
     memberCount: number
   }
@@ -46,11 +45,8 @@ function isNotFound(error: unknown): boolean {
 }
 
 /**
- * Everything the Files tab needs for ONE folder, in one round trip: the
- * sub-folders (with how much is in each), the Backblaze files, the links and
- * the mirrored Drive folder's files. Drive sub-folders found while listing are
- * adopted into the tree on the way through, so a folder someone made in Drive
- * shows up here like any other.
+ * Everything the Files tab needs for one folder, in one round trip. Drive sub-folders found
+ * while listing are adopted into the tree, so a folder made in Drive shows up here too.
  */
 export async function getFolderListing(
   projectId: string,
@@ -113,7 +109,6 @@ export async function getFolderListing(
     }),
   ])
 
-  // "12 items" on a folder row: its files + links + sub-folders + Drive files.
   const ids = folders.map((f) => f.id)
   const counts = new Map<string, number>()
   const add = (id: string | null, n: number) => {
@@ -141,9 +136,7 @@ export async function getFolderListing(
     for (const r of byLink) add(r.folderId, r._count._all)
     for (const r of byChild) add(r.parentId, r._count._all)
     if (drive.configured) {
-      // One Drive call per mirrored sub-folder, in parallel. Capped so a
-      // project with hundreds of folders cannot fan out into a Drive quota hit;
-      // the rest simply show their app-side count.
+      // One Drive call per mirrored sub-folder, capped so a big project can't hit the Drive quota.
       const mirrored = folders.filter((f) => f.driveFolderId).slice(0, 30)
       await Promise.all(
         mirrored.map((f) =>

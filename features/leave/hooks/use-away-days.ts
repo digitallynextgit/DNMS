@@ -6,13 +6,7 @@ import type { AwayDay } from "../server/day-status.queries"
 
 export type { AwayDay }
 
-/**
- * Days the given employee is away across a range - approved leave, half days and
- * holidays. Used by the weekly task sheet to say WHY a column is empty.
- *
- * Never includes WFH: that is a normal working day from a different desk, and
- * showing it as an absence would be wrong.
- */
+/** Days the employee is away (leave, half days, holidays - never WFH), for the task sheet. */
 export function useAwayDays(employeeId: string | undefined, from?: string, to?: string) {
   return useQuery({
     queryKey: ["away-days", employeeId, from, to],
@@ -28,14 +22,8 @@ export function useAwayDays(employeeId: string | undefined, from?: string, to?: 
   })
 }
 
-/**
- * The same question for a whole team, in one request.
- *
- * The project sheet is a row per person, so asking per row would open a request
- * for every name on the board each time the week is stepped. The ids are sorted
- * into the query key as well as the URL, so the same team in a different order
- * is the same cache entry rather than a second fetch of identical data.
- */
+/** The same for a whole team in one request; ids are sorted so the same team in any order
+ *  shares a cache entry. */
 export function useTeamAwayDays(employeeIds: string[], from?: string, to?: string) {
   const ids = [...new Set(employeeIds.filter(Boolean))].sort().join(",")
   return useQuery({

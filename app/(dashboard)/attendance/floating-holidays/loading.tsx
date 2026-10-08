@@ -1,9 +1,6 @@
 import { PageHeaderSkeleton, CardGridSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Floating Holidays: header (no actions), a year stepper + usage badge row, then
-// a grid of selectable optional-holiday cards. Mirrors the page's own isLoading
-// branch (CardGridSkeleton) so nothing reflows between the two skeleton phases.
 export default function FloatingHolidaysLoading() {
   return (
     <div className="space-y-6">

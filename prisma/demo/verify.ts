@@ -1,15 +1,10 @@
 /**
- * READ-ONLY checks for the demo workspace.
- *
+ * READ-ONLY checks for the demo workspace:
  *   pnpm exec tsx --conditions=react-server prisma/demo/verify.ts [before.json]
- *
- *   1. every persona (and the portal contact) can sign in: bcrypt against the
- *      stored users.password_hash and an active membership in the demo
- *      company - the same two steps server/auth.ts takes
- *   2. no row in the real company points at a demo person (a leak check)
- *   3. the states the Help guides rely on are present
- *   4. with before.json (from counts.ts --json): the real company's per-table
- *      counts now vs then
+ * 1. every persona and the portal contact can sign in (same checks as server/auth.ts)
+ * 2. no row in the real company points at a demo person
+ * 3. the states the Help guides rely on are present
+ * 4. with before.json (from counts.ts --json): the real company's counts then vs now
  */
 import "dotenv/config"
 import { readFileSync } from "node:fs"
@@ -43,7 +38,6 @@ async function main() {
     `Demo tenant ${tenant.slug} ${tenant.id} status=${tenant.status} plan=${tenant.plan} trialEndsAt=${tenant.trialEndsAt}`,
   )
 
-  // ── 1. logins ──────────────────────────────────────────────────────────────
   console.log("\nLogins")
   const logins = [
     ...Object.entries(DEMO_PERSONAS).map(([persona, key]) => ({
@@ -79,7 +73,6 @@ async function main() {
     const prevStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1))
     const prevEnd = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 0))
 
-    // ── 3. guide states ──────────────────────────────────────────────────────
     console.log("\nGuide states")
     const rohanReports = await db.employee.findMany({
       where: { managerId: rohan },
@@ -271,7 +264,6 @@ async function main() {
       ),
       "Sunmeadow this week: every task has a checklist, 2 comments and status history",
     )
-    // Review fixes.
     const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))
     const newThisMonth = await db.employee.count({ where: { createdAt: { gte: monthStart } } })
     check(
@@ -394,7 +386,6 @@ async function main() {
     )
   })
 
-  // ── 2. leak check: nothing in the real company points at a demo person ─────
   console.log("\nCross-tenant leak check (real company)")
   const demoIds = await runUnscoped("verify: demo ids", async () =>
     (await db.employee.findMany({ where: { tenantId: tenant.id }, select: { id: true } })).map(
@@ -425,7 +416,6 @@ async function main() {
     for (const [k, n] of Object.entries(leaks)) check(n === 0, `${k}: ${n}`)
   })
 
-  // ── 4. real company before/after ───────────────────────────────────────────
   const beforePath = process.argv.slice(2).find((a) => a.endsWith(".json"))
   if (beforePath) {
     console.log(`\nReal company (${FOUNDING_TENANT_SLUG}) row counts: before -> now`)

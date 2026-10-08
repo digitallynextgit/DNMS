@@ -22,11 +22,7 @@ import { useCompetitorAudit, useRunCompetitorGap, useSeoSites } from "../hooks/u
 import { exportCompetitors } from "../lib/seo-export"
 import { AiSuggestDialog } from "./ai-suggest-dialog"
 
-// =============================================================================
-// Competitor gap analysis (plan step 5). Crawls each configured competitor's
-// pages and lists the topics they publish for and we don't - the raw content
-// backlog. A human then incognito-checks each gap and keeps the winnable ones.
-// =============================================================================
+// Competitor gap analysis: topics competitors publish for and we don't. A human vets each gap.
 
 export function CompetitorPanel({
   projectId,
@@ -90,8 +86,6 @@ export function CompetitorPanel({
         </div>
       </div>
 
-      {/* Who we're comparing against - and how to change it, without hunting
-          through the site-settings dialog. */}
       {canManage && (
         <Card>
           <CardContent className="flex flex-wrap items-center gap-2 p-3">
@@ -192,8 +186,8 @@ function GapReport({ audit }: { audit: CompetitorAuditView }) {
             <div className="border-border border-b px-4 py-3">
               <p className="text-sm font-medium">Content gaps</p>
               <p className="text-muted-foreground text-xs">
-                Topics competitors publish for that you don't. Incognito-search each - keep the ones
-                where forums, Quora or small sites rank (winnable); park the ones owned by big
+                Topics competitors publish for that you don&apos;t. Incognito-search each - keep the
+                ones where forums, Quora or small sites rank (winnable); park the ones owned by big
                 brands.
               </p>
             </div>

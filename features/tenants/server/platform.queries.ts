@@ -4,15 +4,8 @@ import { db } from "@/server/db"
 import { runUnscoped, runWithTenant } from "@/server/tenant-context"
 import { daysRemaining, planOf } from "../plans"
 
-// =============================================================================
-// What the platform console shows (M5).
-//
-// Every read here is deliberately CROSS-TENANT - that is the console's entire
-// purpose - so each one is wrapped in runUnscoped with a reason. Callers must
-// already have passed isPlatformAdmin(); this module does not check, because a
-// query module that sometimes authorises is a query module nobody can reason
-// about.
-// =============================================================================
+// Platform console reads - deliberately cross-tenant (runUnscoped). Callers must already have
+// passed isPlatformAdmin(); this module does not check.
 
 export interface TenantRow {
   id: string
@@ -44,10 +37,7 @@ export async function listTenants(): Promise<TenantRow[]> {
       orderBy: { createdAt: "asc" },
     })
 
-    // Counted per tenant rather than with one grouped query: inside
-    // runWithTenant the guard does the filtering, so these are the same counts
-    // the company itself would see. A hand-written GROUP BY here would be a
-    // second definition of "how many employees does this company have".
+    // Counted per tenant inside runWithTenant, so these match what each company itself sees.
     const rows: TenantRow[] = []
     for (const t of tenants) {
       const counts = await runWithTenant({ tenantId: t.id, slug: t.slug }, async () => ({

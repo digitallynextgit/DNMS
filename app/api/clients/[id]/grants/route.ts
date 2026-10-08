@@ -5,7 +5,6 @@ import { PERMISSIONS } from "@/lib/constants"
 import { withClient } from "@/features/clients/server/client-access"
 import { grantClientProject } from "@/features/client-portal/server/client-contacts.service"
 
-// POST /api/clients/[id]/grants - give one of the client's people one of its projects
 export const POST = withClient(
   PERMISSIONS.CLIENT_WRITE,
   async (req: NextRequest, { params }, session: Session) =>

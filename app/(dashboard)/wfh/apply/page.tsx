@@ -29,16 +29,13 @@ export default function ApplyWfhPage() {
   const applicantName =
     `${session?.user?.firstName ?? ""} ${session?.user?.lastName ?? ""}`.trim() || "You"
 
-  // A request covers `date`..`endDate` inclusive. endDate is optional and falls
-  // back to date, so the common single-day case is still one click.
+  // endDate is optional and falls back to date, so a single day is still one click.
   const [date, setDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [reason, setReason] = useState("")
   const [isEmergency, setIsEmergency] = useState(false)
 
-  // The exact subject + letter composed/edited in the preview, sent verbatim as
-  // the approval mail. Refs (not state) so the preview's live edits don't
-  // re-render the whole form on every keystroke.
+  // Refs, not state, so the preview's live edits don't re-render the whole form per keystroke.
   const emailBodyRef = useRef("")
   const emailSubjectRef = useRef("")
   const handleBodyChange = useCallback((v: string) => {
@@ -48,9 +45,7 @@ export default function ApplyWfhPage() {
     emailSubjectRef.current = v
   }, [])
 
-  // The calendar greys out exactly what applyWfh() refuses: past days, weekends,
-  // and non-optional company holidays. Optional (floating) holidays stay pickable
-  // because the server allows them.
+  // Greys out exactly what applyWfh() refuses; optional (floating) holidays stay pickable.
   const { data: holidayData } = useHolidays()
   const blockedHolidays = useMemo(() => {
     const set = new Set<string>()
@@ -72,9 +67,8 @@ export default function ApplyWfhPage() {
   // An empty To means "same day as From", exactly as the server reads it.
   const effectiveEnd = endDate || date
 
-  // Mirror of the server's workingDaysBetween(): weekends and company holidays
-  // INSIDE the range are skipped, so Fri-Mon costs 2 days, not 4. Kept in step
-  // with applyWfh() so the count shown here is the count that gets charged.
+  // Mirrors the server's workingDaysBetween(): weekends and holidays inside the range are skipped
+  // (Fri-Mon costs 2 days), so the count shown is the count charged.
   const { workingDays, spanDays } = useMemo(() => {
     const from = parseDateString(date)
     const to = parseDateString(effectiveEnd)
@@ -91,18 +85,16 @@ export default function ApplyWfhPage() {
     return { workingDays: days, spanDays: span }
   }, [date, effectiveEnd, blockedHolidays])
 
-  // For tier 1 or 2 the request is implicitly an emergency (there is no checkbox -
-  // the submit handler forces isEmergency: true), so it only needs a detailed
-  // reason. Don't gate canSubmit on the isEmergency state or it can never enable.
+  // Tier 1/2 requests are always emergencies (submit forces isEmergency: true), so canSubmit must
+  // not depend on the isEmergency state or it could never enable.
   const mustBeEmergency = eligibility?.canApplyEmergencyOnly ?? false
   const treatAsEmergency = mustBeEmergency || isEmergency
 
   const maxRangeDays = eligibility?.maxRangeDays ?? MAX_RANGE_DAYS_FALLBACK
   const tooLong = spanDays > maxRangeDays
 
-  // Tier 3 gets one ORDINARY day a month; an emergency may exceed it (Manager +
-  // HR both sign off). This has to match applyWfh() exactly - the banner must
-  // never promise days the server will refuse, or the other way round.
+  // Tier 3 gets one ORDINARY day a month; an emergency may exceed it (Manager + HR sign off).
+  // Must match applyWfh() exactly.
   const remainingQuota = Math.max(
     0,
     (eligibility?.monthlyQuota ?? 0) - (eligibility?.usedThisMonth ?? 0),
@@ -122,11 +114,9 @@ export default function ApplyWfhPage() {
     try {
       await apply.mutateAsync({
         date,
-        // Only send a range when it actually is one.
         endDate: effectiveEnd !== date ? effectiveEnd : undefined,
         reason: reason.trim() || undefined,
         isEmergency: treatAsEmergency,
-        // The subject + letter exactly as shown/edited in the preview.
         emailBody: emailBodyRef.current.trim() || undefined,
         emailSubject: emailSubjectRef.current.trim() || undefined,
       })
@@ -145,9 +135,6 @@ export default function ApplyWfhPage() {
         backLabel="Back to WFH"
       />
 
-      {/* Two panes, like Apply for Leave: the form on the left, a live preview of
-          the request mail on the right so the employee can see exactly who it
-          reaches - and edit it - before sending. */}
       <form onSubmit={handleSubmit} className="grid w-full gap-6 lg:grid-cols-2">
         <div className="space-y-6">
           {isLoading ? (
@@ -193,8 +180,6 @@ export default function ApplyWfhPage() {
             </Card>
           ) : null}
 
-          {/* From / To, laid out like Apply for Leave. To is optional - leave it
-              empty for a single day. */}
           <div className="space-y-2">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -203,8 +188,7 @@ export default function ApplyWfhPage() {
                   value={date}
                   onChange={(v) => {
                     setDate(v)
-                    // Moving the start past the end would leave an invalid range
-                    // on screen; drop the end instead of silently keeping it.
+                    // Moving the start past the end drops the end rather than leaving an invalid range.
                     if (endDate && v && v > endDate) setEndDate("")
                   }}
                   placeholder="Pick a date"
@@ -231,8 +215,6 @@ export default function ApplyWfhPage() {
             </p>
           </div>
 
-          {/* What the range actually costs, and the two ways it can be refused -
-              shown here rather than only on submit. */}
           {workingDays > 0 && (
             <div
               className={cn(
@@ -330,8 +312,6 @@ export default function ApplyWfhPage() {
             </p>
           </div>
 
-          {/* Right-aligned, Cancel then Submit - same as Apply for Leave, so the
-              primary action always sits at the far right of the form. */}
           <div className="flex items-center justify-end gap-3">
             <Button
               type="button"

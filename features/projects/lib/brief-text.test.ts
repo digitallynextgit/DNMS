@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { tidyBrief } from "./brief-text"
 
-// The brief is shown in a <pre> and pasted into a plain textarea, so anything
-// markdown-shaped arrives as literal punctuation. A prompt can ask for plain
-// text; these are the cases that prove it, whatever the model does.
+// The brief is shown in a <pre> / plain textarea, so markdown would arrive as literal punctuation.
 
 describe("tidyBrief", () => {
   it("drops heading hashes but keeps the heading", () => {

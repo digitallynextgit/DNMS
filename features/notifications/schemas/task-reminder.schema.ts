@@ -3,11 +3,7 @@ import { REMINDER_LIMITS } from "../constants"
 
 const { leadMinutes, reminderCount, repeatEveryMinutes } = REMINDER_LIMITS
 
-/**
- * The whole preference. Every field is required: the form always submits all
- * four, and a partial update would make "how often" ambiguous against the value
- * already stored.
- */
+/** The whole preference - every field required, since a partial update would be ambiguous. */
 export const taskReminderPreferenceSchema = z.object({
   enabled: z.boolean(),
   leadMinutes: z

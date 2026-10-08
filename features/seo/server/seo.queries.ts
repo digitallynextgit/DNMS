@@ -13,10 +13,7 @@ import type {
 } from "../types"
 import { resolveSiteUrl } from "./seo.service"
 
-// =============================================================================
-// Reads for the SEO tab. Everything here is computed from stored snapshots -
-// no Search Console calls - so the page loads instantly and stays inside quota.
-// =============================================================================
+// Reads for the SEO tab, all from stored snapshots - no Search Console calls.
 
 // Work that still needs doing. DONE/DISCARDED are finished either way.
 const OPEN_TASK_STATUSES = ["TODO", "IN_PROGRESS", "ON_HOLD"] as const
@@ -100,11 +97,8 @@ export async function getSeoConfig(propertyId: string): Promise<SeoConfig | null
 }
 
 /**
- * `lowerIsBetter` flips the sign so a *falling* average position (rank 12 -> 8)
- * reads as positive growth in the UI.
- *
- * `comparable` must be false when no previous snapshot exists, so callers can
- * hide the change instead of reporting a swing against an implied zero.
+ * `lowerIsBetter` flips the sign so a falling position reads as growth. `comparable` is false
+ * with no previous snapshot, so callers hide the change.
  */
 function delta(
   current: number,
@@ -142,12 +136,7 @@ type SnapshotRow = {
 }
 
 /**
- * Combine several weekly snapshots into one set of totals.
- *
- * CTR is recomputed as clicks over impressions rather than averaged, and position
- * is weighted by impressions. Averaging either across weeks is a classic
- * reporting bug: a week with 3 impressions would swing the number as hard as a
- * week with 3,000.
+ * Combine weekly snapshots: CTR from the totals, position weighted by impressions (never averaged).
  */
 function combineSnapshots(rows: SnapshotRow[]) {
   const clicks = rows.reduce((a, r) => a + r.clicks, 0)
@@ -245,8 +234,7 @@ export async function getSeoOverview(
 
   const weeks = Math.max(1, Math.min(52, Math.trunc(opts.weeks ?? 1)))
 
-  // Every stored week, newest first. The picker needs the full list, and the
-  // comparison window may sit outside the trend chart's range.
+  // Every stored week, newest first - the picker needs them all.
   const [snapshots, snapshotCount] = await Promise.all([
     db.seoSnapshot.findMany({
       where: { propertyId: property.id },
@@ -294,9 +282,7 @@ export async function getSeoOverview(
     return empty
   }
 
-  // Anchor the window. With no endDate this is the newest stored week; with one
-  // it is the newest week ending on or before that date, so a date picked
-  // mid-week still resolves to real stored data instead of nothing.
+  // Anchor on the newest week ending on or before endDate, so a mid-week date still finds data.
   const anchorIndex = opts.endDate
     ? snapshots.findIndex((s) => dateKey(s.periodEnd) <= opts.endDate!)
     : 0
@@ -306,7 +292,6 @@ export async function getSeoOverview(
     return empty
   }
 
-  // The chosen window, then the equally sized window immediately before it.
   const current = snapshots.slice(anchorIndex, anchorIndex + weeks)
   const previous = snapshots.slice(anchorIndex + weeks, anchorIndex + weeks * 2)
   const latest = current[0]!
@@ -314,8 +299,7 @@ export async function getSeoOverview(
 
   const cur = combineSnapshots(current)
   const pre = combineSnapshots(previous)
-  // Only claim a comparison when the previous window holds the same number of
-  // weeks. Comparing four weeks against one would invent growth.
+  // Only compare when the previous window has as many weeks - four vs one would invent growth.
   const comparable = previous.length === weeks
 
   const currentIds = current.map((s) => s.id)
@@ -344,7 +328,6 @@ export async function getSeoOverview(
       : Promise.resolve([]),
   ])
 
-  // Roll each key up across the weeks in the window.
   const latestQueries = combineRows(rawQueries.map((r) => ({ ...r, key: r.query }))).sort(
     (a, b) => b.clicks - a.clicks || b.impressions - a.impressions,
   )
@@ -376,8 +359,7 @@ export async function getSeoOverview(
   const topQueries = allQueryRows.slice(0, TOP_ROWS)
   const topPages = latestPages.map((r) => toRow(r.key, r, prevPageMap.get(r.key)))
 
-  // Money keywords: exact match first, then a contains-match, so "seo agency
-  // delhi" still resolves when GSC reports "best seo agency delhi".
+  // Exact match first, then contains, so "seo agency delhi" matches "best seo agency delhi".
   const byExact = new Map(allQueryRows.map((r) => [r.key.toLowerCase(), r]))
   const moneyKeywords = property.moneyKeywords.map((kw) => {
     const needle = kw.trim().toLowerCase()
@@ -396,8 +378,7 @@ export async function getSeoOverview(
     }
   })
 
-  // Positions 8-30 with real impressions: already relevant to Google, close
-  // enough that on-page work can move them onto page one.
+  // Positions 8-30 with real impressions: close enough for on-page work to reach page one.
   const strikingDistance = allQueryRows
     .filter((r) => r.position >= 8 && r.position <= 30 && r.impressions >= 10)
     .sort((a, b) => b.impressions - a.impressions)
@@ -443,13 +424,8 @@ export async function getSeoOverview(
 }
 
 /**
- * Every site on a project plus the combined numbers - the view that makes an
- * account like KYG (13 subdomains) readable at a glance.
- *
- * Deliberately totals-only: it reads the latest two snapshots per site and never
- * touches the per-query tables, so 13 sites cost 13 small reads instead of
- * thousands of keyword rows. Keyword-level alerts live in each site's own
- * overview (and still fire from the weekly cron).
+ * Every site on a project plus combined totals. Totals only (latest two snapshots per site), so
+ * many sites stay cheap; keyword-level alerts live in each site's overview.
  */
 export async function getSeoRollup(projectId: string): Promise<SeoRollup> {
   const properties = await db.seoProperty.findMany({
@@ -484,9 +460,7 @@ export async function getSeoRollup(projectId: string): Promise<SeoRollup> {
   const summaries: SeoPropertySummary[] = []
   const alerts: SeoRollup["alerts"] = []
 
-  // Fetch snapshots for ALL properties in ONE query and keep the latest two per
-  // property in JS (PERF-09) - previously this was a snapshot query per property.
-  // The @@index([propertyId, periodEnd]) backs this ordering.
+  // All properties' snapshots in one query; keep the latest two per property in JS.
   const allSnaps = await db.seoSnapshot.findMany({
     where: { propertyId: { in: properties.map((p) => p.id) } },
     orderBy: { periodEnd: "desc" },
@@ -536,8 +510,7 @@ export async function getSeoRollup(projectId: string): Promise<SeoRollup> {
       overdueTasks: overdueCount.get(p.id) ?? 0,
     }
 
-    // Reuse the same rule engine the per-site view uses. Money keywords are left
-    // empty on purpose here - those alerts need query rows we didn't fetch.
+    // Same alert rules as the per-site view; money keywords left empty (no query rows fetched).
     summary.alerts = buildAlerts({
       config,
       period: summary.period,
@@ -556,7 +529,6 @@ export async function getSeoRollup(projectId: string): Promise<SeoRollup> {
       alerts: [],
       snapshotCount: snaps.length,
       tasks: [],
-      // The roll-up only needs the alert rules, not a period picker.
       availablePeriods: [],
       weeks: 1,
     })
@@ -572,8 +544,7 @@ export async function getSeoRollup(projectId: string): Promise<SeoRollup> {
   const sum = (pick: (s: SeoPropertySummary) => number) =>
     summaries.reduce((acc, s) => acc + pick(s), 0)
 
-  // Impression-weighted so a low-traffic subdomain can't drag the account's
-  // average position around.
+  // Impression-weighted, so a low-traffic subdomain can't skew the average position.
   const weighted = (cur: boolean) => {
     const totalImpr = sum((s) => (cur ? s.impressions.current : s.impressions.previous))
     if (totalImpr === 0) return 0
@@ -626,11 +597,7 @@ export async function getSeoRollup(projectId: string): Promise<SeoRollup> {
   }
 }
 
-/**
- * The monitoring rules from the SEO plan, evaluated against stored snapshots.
- * Only rules we can honestly evaluate from Search Console data live here -
- * Core Web Vitals and noindex checks need PSI/crawl data and are not faked.
- */
+/** SEO monitoring alerts from stored snapshots - only rules Search Console data can answer. */
 export function buildAlerts(
   o: SeoOverview,
   counts?: { latestPageCount: number; prevPageCount: number },
@@ -722,15 +689,8 @@ export function buildAlerts(
 }
 
 /**
- * Is this site already tracked on the project?
- *
- * Compares the SEARCH CONSOLE PROPERTY, not the typed domain. "knowyourgenes.in"
- * and "www.knowyourgenes.in" are different strings but resolve to the same
- * `sc-domain:knowyourgenes.in`, so a domain-only check let the same site be
- * added twice - which then double-counts in the rollup and spends the GSC quota
- * syncing one property twice.
- *
- * `excludeId` lets an edit save itself without colliding with its own row.
+ * Is this site already tracked on the project? Compares the Search Console property, not the
+ * typed domain ("x.in" and "www.x.in" are one property). `excludeId` lets an edit skip its own row.
  */
 export async function findConflictingProperty(
   projectId: string,

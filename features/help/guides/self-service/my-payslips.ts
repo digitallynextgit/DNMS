@@ -1,11 +1,7 @@
 import { DollarSign } from "lucide-react"
 import type { HelpAction, HelpGuide } from "../../types"
 
-/**
- * Opens last month's payslip from the list (the detail page's id is not known
- * up front). The second row, not the first: the newest one is usually the
- * current month's Draft, and the picture should show a finished payslip.
- */
+/** The second row, not the first: the newest is usually the current month's Draft. */
 const openLastMonthPayslip: HelpAction[] = [
   { click: { role: "link", name: "View", nth: 1 } },
   { waitFor: { role: "button", name: "Download PDF" } },
@@ -117,8 +113,7 @@ export const myPayslipsGuide: HelpGuide = {
               { text: "Annual", exact: true },
               { text: "Break up", exact: true },
               { text: "No of days attended" },
-              // The amount next to "Total", not the label: the label sits right under
-              // box 3, so the two boxes overlapped.
+              // The amount next to "Total", not the label - the label sits under box 3 and would overlap.
               { css: "td:text-is('Total') + td" },
               { text: "Amount in words (Rs.)" },
             ],

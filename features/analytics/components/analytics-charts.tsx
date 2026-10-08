@@ -1,8 +1,6 @@
 "use client"
 
-// Recharts is heavy; this whole charts grid is lazy-loaded by the Analytics page
-// (next/dynamic) so the KPI cards paint immediately and recharts only downloads
-// once the analytics data is ready.
+// Lazy-loaded by the Analytics page (next/dynamic) so heavy recharts doesn't delay the KPI cards.
 import {
   BarChart,
   Bar,
@@ -52,7 +50,6 @@ export interface AnalyticsChartsData {
 export function AnalyticsCharts({ d }: { d: AnalyticsChartsData }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      {/* Hire trend */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Monthly Hires (6 months)</CardTitle>
@@ -74,7 +71,6 @@ export function AnalyticsCharts({ d }: { d: AnalyticsChartsData }) {
         </CardContent>
       </Card>
 
-      {/* Department headcount */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Headcount by Department</CardTitle>
@@ -104,7 +100,6 @@ export function AnalyticsCharts({ d }: { d: AnalyticsChartsData }) {
         </CardContent>
       </Card>
 
-      {/* Employee status donut */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Employee Status Distribution</CardTitle>
@@ -151,7 +146,6 @@ export function AnalyticsCharts({ d }: { d: AnalyticsChartsData }) {
         </CardContent>
       </Card>
 
-      {/* Applicants by stage */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Recruitment Pipeline</CardTitle>

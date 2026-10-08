@@ -16,9 +16,7 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
             refetchOnWindowFocus: false,
           },
           mutations: {
-            // Safety net: a mutation that fails without its own `onError` still
-            // tells the user why. A hook-level `onError` replaces this default,
-            // so mutations that already toast are unaffected (no double toast).
+            // Fallback toast for mutations without their own onError (a hook-level onError replaces it).
             onError: (error) => toastError(error),
           },
         },

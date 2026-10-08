@@ -18,11 +18,8 @@ import {
 // PDF reader, so nothing is embedded; it only covers Latin-1, hence `safe()`.
 const PT = 72
 const LINE_GAP = 1.5
-/**
- * pdfkit sets text from the top of the line box, so a line "centred" by its box
- * height sits high: Helvetica's capitals fill only the top ~0.72 of it. This
- * nudges vertically centred text down onto the optical centre.
- */
+/** pdfkit sets text from the top of the line box, so nudge vertically centred text onto the
+ *  optical centre (Helvetica capitals fill only the top ~0.72). */
 const opticalCentre = (size: number) => size * 0.2 + LINE_GAP / 2
 
 const fontFor = (bold?: boolean, italic?: boolean) =>
@@ -35,7 +32,7 @@ const fontFor = (bold?: boolean, italic?: boolean) =>
       : "Helvetica"
 const hex = (c: string | undefined, fallback = "1F2433") => `#${c ?? fallback}`
 
-/** Text Helvetica can draw: typographic punctuation mapped, anything else outside Latin-1 dropped to '?'. */
+/** Text Helvetica can draw: typographic punctuation mapped, other non-Latin-1 chars become '?'. */
 export function safe(text: string): string {
   return text
     .replace(/[‘’‚′]/g, "'")

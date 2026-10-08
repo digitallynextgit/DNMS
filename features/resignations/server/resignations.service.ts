@@ -16,27 +16,12 @@ import { startOfDayUTC, toDateOnly } from "@/lib/dates"
 import { renderResignationDecisionEmail, renderResignationRequestEmail } from "@/lib/email-layout"
 import { getConfig, warmConfig } from "@/server/app-config"
 
-// Roles whose holders act as HR for approvals/notifications.
 const HR_ROLE_NAMES = ["hr_manager", "admin"]
 
-// An employee may only have one resignation in flight at a time.
-/**
- * Statuses that stop somebody resigning again.
- *
- * Includes APPROVED, which it did not need to before: approval used to close
- * the account in the same transaction, so an accepted leaver could not reach
- * the form at all. Now approval starts a NOTICE PERIOD and they stay signed in
- * until their exit is signed off - so without this they could resign twice.
- *
- * Deliberately NOT reused for the review queue, which filters on PENDING
- * directly: an accepted resignation must not reappear in a reviewer's inbox.
- */
+// APPROVED blocks too: an accepted leaver stays signed in during the notice period.
 const BLOCKING_STATUSES = ["PENDING", "APPROVED"] as const
 
-// ---------------------------------------------------------------------------
-// getMyResignation - the current user's latest resignation (any status), used
-// to drive the profile button state (Apply / Pending / Resigned).
-// ---------------------------------------------------------------------------
+// Latest resignation (any status); drives the profile button (Apply / Pending / Resigned).
 export async function getMyResignation(): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
@@ -51,10 +36,6 @@ export async function getMyResignation(): Promise<ActionResult<unknown>> {
   })
 }
 
-// ---------------------------------------------------------------------------
-// applyResignation - employee submits a resignation. Stays PENDING until the
-// manager (or HR) acts. Notifies the manager + HR approvers.
-// ---------------------------------------------------------------------------
 export async function applyResignation(input: {
   reason?: string
   requestedLastWorkingDate?: string
@@ -71,8 +52,7 @@ export async function applyResignation(input: {
         employeeNo: true,
         status: true,
         isActive: true,
-        // Present only when the employee has configured a Gmail App Password -
-        // i.e. their personal Google SMTP. We gate the HR email on this.
+        // Set only when the employee has a Gmail App Password; gates the HR email below.
         gmailAppPassword: true,
         department: { select: { name: true } },
         designation: { select: { title: true } },
@@ -112,7 +92,6 @@ export async function applyResignation(input: {
       },
     })
 
-    // Notify the direct manager + HR approvers that there's a resignation to review.
     await notifyApprovers({
       requesterId: me.id,
       title: "Resignation submitted",
@@ -120,15 +99,12 @@ export async function applyResignation(input: {
       link: "/resignations",
     })
 
-    // Email HR (with the reporting manager in CC) FROM the employee's own Gmail,
-    // carrying the reason - but only when the employee has configured a Google
-    // App Password (their personal SMTP). Best-effort; never blocks the apply.
+    // Best-effort email to HR (manager on CC) from the employee's own Gmail.
     try {
       if (me.gmailAppPassword) {
         const managerEmail = me.manager?.email || undefined
 
-        // Send to the shared HR inbox (HR_EMAIL). Only if it isn't configured do
-        // we fall back to the work emails of HR-role employees, then the manager.
+        // Shared HR inbox first; else HR-role employees, then the manager.
         let to: string[] = []
         const hrMailbox = (await getConfig("HR_EMAIL"))?.trim()
         if (hrMailbox) {
@@ -146,7 +122,6 @@ export async function applyResignation(input: {
         }
         if (to.length === 0 && managerEmail) to = [managerEmail]
 
-        // CC the reporting manager (unless they're already the sole recipient).
         const cc = managerEmail && !to.includes(managerEmail) ? managerEmail : undefined
 
         if (to.length > 0) {
@@ -168,8 +143,7 @@ export async function applyResignation(input: {
             html: mail.html,
             text: mail.text,
           })
-          // Store the sent email's Message-ID so the approve/decline email can
-          // reply on the same thread.
+          // Saved so the decision email replies on the same thread.
           if (messageId) {
             await db.resignation.update({
               where: { id: resignation.id },
@@ -199,9 +173,6 @@ export async function applyResignation(input: {
   })
 }
 
-// ---------------------------------------------------------------------------
-// cancelResignation - employee withdraws their own pending resignation.
-// ---------------------------------------------------------------------------
 export async function cancelResignation(id: string): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
@@ -222,12 +193,7 @@ export async function cancelResignation(id: string): Promise<ActionResult<unknow
   })
 }
 
-// ---------------------------------------------------------------------------
-// getResignationsToReview - resignations the current user may act on:
-//   • HR / admin (employee:write) see every pending resignation
-//   • a manager sees pending resignations from their direct reports
-// Paginated (skip/take/count); defaults to page 1, limit 10.
-// ---------------------------------------------------------------------------
+// HR/admin see every pending resignation; a manager sees their direct reports'.
 export async function getResignationsToReview(
   filters: { page?: number; limit?: number } = {},
 ): Promise<ActionResult<unknown>> {
@@ -235,9 +201,6 @@ export async function getResignationsToReview(
     const session = await requireSession()
     const canReviewAll = hasPermission(session, PERMISSIONS.RESIGNATION_APPROVE)
 
-    // Only HR/admin (canReviewAll) or a manager with at least one direct report
-    // may access this page. Regular employees are not authorized; the client
-    // redirects them away.
     const authorized =
       canReviewAll || (await db.employee.count({ where: { managerId: session.user.id } })) > 0
 
@@ -290,11 +253,7 @@ export async function getResignationsToReview(
   })
 }
 
-// ---------------------------------------------------------------------------
-// getPendingResignationCount - number of PENDING resignations the current user
-// may review (HR/admin: all; a manager: their direct reports; others: 0). Used
-// for the live sidebar badge.
-// ---------------------------------------------------------------------------
+// For the live sidebar badge.
 export async function getPendingResignationCount(): Promise<ActionResult<{ count: number }>> {
   return runAction(async () => {
     const session = await requireSession()
@@ -307,11 +266,6 @@ export async function getPendingResignationCount(): Promise<ActionResult<{ count
   })
 }
 
-// ---------------------------------------------------------------------------
-// reviewResignation - the direct manager (or HR) approves or rejects.
-// On APPROVE the employee is marked RESIGNED and deactivated immediately, which
-// blocks any further login (authorize() rejects inactive accounts).
-// ---------------------------------------------------------------------------
 export async function reviewResignation(
   id: string,
   action: "APPROVE" | "REJECT",
@@ -370,7 +324,6 @@ export async function reviewResignation(
         link: "/profile",
       })
 
-      // Best-effort decline letter to the employee (manager CC'd), from HR.
       try {
         if (resignation.employee.email) {
           const email = renderResignationDecisionEmail({
@@ -407,23 +360,8 @@ export async function reviewResignation(
       return ok(serialize({ data: updated }))
     }
 
-    // ── APPROVE = "accepted, now serving notice" ────────────────────────────
-    //
-    // This used to set isActive:false in the same breath, which locked the
-    // employee out the instant their manager clicked Approve. That made the
-    // whole exit process impossible: the handover document, the transfer of
-    // client communications and of Drive ownership are all THEIR work, done
-    // during the notice period, and none of it can happen from a dead account.
-    //
-    // The dates are recorded and the account stays ACTIVE. Deactivation moves to
-    // HR's final sign-off on the exit checklist (completeExitChecklist), which
-    // refuses until every required department clearance is signed - and, as a
-    // backstop for a checklist nobody finishes, to the exit-deactivation cron on
-    // the day after the last working day.
-    //
-    // EmployeeStatus deliberately gains no SERVING_NOTICE value: "serving
-    // notice" is derived from an accepted resignation plus an active account, so
-    // no existing status filter in the app changes meaning.
+    // APPROVE starts the notice period and the account stays active. It is deactivated at HR's
+    // exit sign-off (completeExitChecklist) or by the exit-deactivation cron as a backstop.
     const lastWorkingDate = resignation.requestedLastWorkingDate ?? new Date()
     const [updated] = await db.$transaction([
       db.resignation.update({
@@ -441,9 +379,7 @@ export async function reviewResignation(
       }),
     ])
 
-    // Start the exit clearance from the tenant's template, dated back from the
-    // last working day. Best-effort: a tenant with no template yet must not lose
-    // the resignation decision itself, and HR can start one by hand.
+    // Best-effort: a tenant with no exit template must not lose the decision; HR can start one by hand.
     try {
       await instantiateAndNotify({
         employeeId: resignation.employeeId,
@@ -465,7 +401,6 @@ export async function reviewResignation(
       link: "/profile",
     })
 
-    // Best-effort acceptance letter to the employee (manager CC'd), from HR.
     try {
       if (resignation.employee.email) {
         const email = renderResignationDecisionEmail({
@@ -497,8 +432,6 @@ export async function reviewResignation(
       entityId: id,
       changes: {
         employeeId: resignation.employeeId,
-        // NOT deactivated any more - the notice period starts here and the
-        // account closes at the exit sign-off.
         deactivated: false,
         lastWorkingDate: toDateOnly(lastWorkingDate),
       },

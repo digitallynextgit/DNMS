@@ -6,17 +6,8 @@ import { careersApplicationSchema } from "@/features/careers/schemas/application
 import { createCareerApplication } from "@/features/careers/server/careers-applications.service"
 import { rateLimited, clientIp } from "@/lib/rate-limit"
 
-// POST /api/public/careers/applications
-//
-// Server-to-server ONLY: the marketing site's route handler calls this with the
-// WRITE key. Deliberately different from the read API in two ways:
-//
-//  1. It uses CAREERS_WRITE_API_KEY, never the read key. The read key is handed
-//     out for a public, cacheable job board; a key that writes applicant PII has
-//     to be independently rotatable.
-//  2. It sends NO CORS headers. The read route is `*` because it serves public
-//     ads; a wildcard here would let any browser (with a key it could see) write
-//     to the applicant table. No browser use case exists, so no browser access.
+// Server-to-server only (the marketing site). Uses its own CAREERS_WRITE_API_KEY so it rotates
+// independently of the read key, and sends no CORS headers - no browser should write applicant PII.
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
@@ -30,12 +21,7 @@ function keyMatches(provided: string, expected: string): boolean {
   return timingSafeEqual(a, b)
 }
 
-// ─── Rate limiting ──────────────────────────────────────────────────────────
-// Shared in-memory sliding window (lib/rate-limit.ts - this file used to carry
-// its own copy, and its own clientIp that trusted the client-controlled first
-// X-Forwarded-For hop). The site says it limits 10/min/IP, but we don't trust
-// an upstream we don't control. Per-IP stops floods; per-email stops one
-// person hammering submit.
+// Per-IP stops floods; per-email stops one person hammering submit.
 const IP_LIMIT = 20
 const EMAIL_LIMIT = 5
 const WINDOW_MS = 60_000

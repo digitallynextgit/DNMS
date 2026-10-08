@@ -5,8 +5,6 @@ import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export interface EmployeeSnippet {
   id: string
   firstName: string
@@ -111,8 +109,6 @@ export interface Pagination {
   limit: number
   totalPages: number
 }
-
-// ─── Fetch helpers ─────────────────────────────────────────────────────────────
 
 async function fetchSalaryStructures(): Promise<{ data: SalaryStructure[] }> {
   return apiFetch<{ data: SalaryStructure[] }>("/api/payroll/salary-structures")
@@ -224,8 +220,6 @@ async function fetchPayrollSummary(
 
   return apiFetch<{ data: PayrollSummary }>(`/api/payroll/summary?${params.toString()}`)
 }
-
-// ─── Hooks ─────────────────────────────────────────────────────────────────────
 
 export function useSalaryStructures() {
   return useQuery({

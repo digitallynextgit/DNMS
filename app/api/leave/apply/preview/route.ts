@@ -9,12 +9,7 @@ import {
 } from "@/features/leave/server/leave.service"
 import type { Session } from "next-auth"
 
-// GET /api/leave/apply/preview
-// The envelope for the leave letter the CURRENT user is about to send: who it's
-// addressed to, and whether HR is CC'd. Read-only - nothing is created.
-//
-// It calls resolveLeaveMailEnvelope(), the SAME function the send path uses, so
-// the preview can't show a different recipient than the one we actually mail.
+// Uses resolveLeaveMailEnvelope(), like the send path, so the preview can't show a different recipient.
 export const GET = withSession(
   async (_req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -26,8 +21,6 @@ export const GET = withSession(
       )
       const envelope = await resolveLeaveMailEnvelope(me, route)
 
-      // Signature data comes from the server (same source the email template
-      // uses), so the preview shows the real block rather than a lookalike.
       const applicant = await db.employee.findUnique({
         where: { id: me },
         select: {
@@ -39,8 +32,7 @@ export const GET = withSession(
           designation: { select: { title: true } },
         },
       })
-      // Populate the config cache so the sync getConfigSync() reads below see the
-      // DB-stored company/social values, not just process.env.
+      // Load DB config into the cache so getConfigSync() below sees it, not just process.env.
       await warmConfig()
 
       return NextResponse.json({
@@ -51,7 +43,6 @@ export const GET = withSession(
           signature: applicant
             ? {
                 name: `${applicant.firstName} ${applicant.lastName}`.trim(),
-                // Job role first; fall back to the L-grade designation.
                 designation: applicant.jobRole?.name ?? applicant.designation?.title ?? null,
                 email: applicant.email,
                 phone: applicant.phone,

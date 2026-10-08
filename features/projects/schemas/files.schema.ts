@@ -53,34 +53,11 @@ export const resourcePatchSchema = z
     tag: tag.optional(),
     fileName: z.string().trim().min(1, "Name is required").max(255).optional(),
     folderId: folderId.optional(),
-    /**
-     * Publish this file to the client portal, or pull it back.
-     *
-     * The one field on this form that changes who OUTSIDE the company can see
-     * the file, which is why it is an explicit boolean rather than something
-     * inferred from a category or a folder. Sharing also opens the review loop;
-     * unsharing closes it and clears the decision, because an approval of a file
-     * nobody can see any more is not a fact worth keeping.
-     */
+    /** Share with / unshare from the client portal. Unsharing also clears the review decision. */
     isClientVisible: z.boolean().optional(),
-    /**
-     * Attach this file to a team's row on a monthly calendar, or detach it
-     * (null).
-     *
-     * Detaching is the point. Removing a file from a plan must not delete it:
-     * it drops back to being an ordinary project file on the Files tab, the
-     * same way `folderId: null` moves one to the top level. Deleting somebody's
-     * handed-in work from a planning panel, with no undo, is not something a
-     * planning panel should be able to do.
-     */
+    /** Attach to a team's calendar row, or detach (null) - detaching keeps the file. */
     workbookTeamId: z.string().trim().min(1).nullable().optional(),
-    /**
-     * A staff decision on a file the CLIENT uploaded.
-     *
-     * The client cannot approve their own upload - that is what makes the
-     * review meaningful - so somebody on this side has to. Only valid on a
-     * shared file, which the table's CHECK constraint also enforces.
-     */
+    /** Staff decision on a client upload (clients can't approve their own). Shared files only. */
     reviewStatus: z.enum(["IN_REVIEW", "APPROVED", "CHANGES_REQUESTED"]).optional(),
     reviewNote: z.string().trim().max(1000).optional().or(z.literal("")),
   })

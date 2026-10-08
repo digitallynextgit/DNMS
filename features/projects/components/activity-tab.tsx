@@ -111,9 +111,7 @@ function humanStatus(s: string): string {
 }
 
 export function ActivityTab({ projectId }: Props) {
-  // Key events by DEFAULT. The full feed is mostly routine task churn, so opening
-  // this tab should answer "what happened here" rather than "what happened in the
-  // last fifty clicks". Everything is one toggle away, never hidden.
+  // Key events by default: the full feed is mostly routine task churn.
   const [keyOnly, setKeyOnly] = useState(true)
   const { data, isLoading } = useProjectActivity(projectId, keyOnly)
   const activities = data?.data ?? []
@@ -174,13 +172,11 @@ export function ActivityTab({ projectId }: Props) {
   return (
     <div className="relative">
       {toggle}
-      {/* Timeline line */}
       <div className="bg-border absolute top-4 bottom-4 left-[18px] w-px" />
 
       <div className="space-y-1">
         {activities.map((activity) => (
           <div key={activity.id} className="flex items-start gap-3 py-2 pl-1">
-            {/* Icon bubble */}
             <div className="bg-background border-border relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border">
               {getActivityIcon(activity.type)}
             </div>

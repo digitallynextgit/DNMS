@@ -1,20 +1,7 @@
 import "server-only"
 
-// =============================================================================
-// The two scheduled SEO jobs, as plain functions.
-// =============================================================================
-// Lifted out of the cron ROUTES so the in-process scheduler and the HTTP route
-// run the same code rather than two copies that drift. The routes stay as the
-// manual trigger and the external-cron entry point; server/scheduler.ts calls
-// these directly.
-//
-// Both are safe to run more often than their names suggest, which is what makes
-// scheduling them in-process viable:
-//   - the weekly sync upserts one snapshot per (property, window), so a repeat
-//     run rewrites the same row rather than inflating history,
-//   - the daily monitor stores each run and only notifies on a CHANGE of state,
-//     so an extra run is silent.
-// =============================================================================
+// The scheduled SEO jobs, shared by the in-process scheduler and the cron routes. Both are safe
+// to run extra times: snapshots upsert per window and the monitor only alerts on a change.
 
 import { db } from "@/server/db"
 import { createNotification } from "@/lib/notifications"
@@ -45,7 +32,7 @@ export interface SeoWeeklyResult {
   skipped?: string
 }
 
-/** SEO plan step 9 - the daily accident check across every active property. */
+/** The daily accident check across every active property. */
 export async function runSeoDailyJob(): Promise<SeoDailyResult> {
   const properties = await db.seoProperty.findMany({
     where: { isActive: true },
@@ -54,7 +41,7 @@ export async function runSeoDailyJob(): Promise<SeoDailyResult> {
       domain: true,
       label: true,
       projectId: true,
-      // slug so every alert below links at a readable /projects/<slug>?tab=seo.
+      // slug, so alerts link to /projects/<slug>?tab=seo.
       project: { select: { name: true, ownerId: true, slug: true } },
     },
     orderBy: [{ projectId: "asc" }, { isPrimary: "desc" }],
@@ -116,7 +103,6 @@ export async function runSeoWeeklyJob(): Promise<SeoWeeklyResult> {
       domain: true,
       label: true,
       projectId: true,
-      // slug so every alert below links at a readable /projects/<slug>?tab=seo.
       project: { select: { name: true, ownerId: true, slug: true } },
     },
     orderBy: [{ projectId: "asc" }, { isPrimary: "desc" }],
@@ -127,24 +113,18 @@ export async function runSeoWeeklyJob(): Promise<SeoWeeklyResult> {
   let notified = 0
   const results: { domain: string; ok: boolean; error?: string; alerts?: number }[] = []
 
-  // PSI quota is per Cloud project, not per site, so once it is gone it is gone
-  // for every remaining property in this sweep. Latch it and stop asking - a
-  // 13-subdomain project would otherwise fire 130 doomed calls and fill the log
-  // with identical 429s.
+  // PSI quota is per Cloud project, so once it's gone, stop asking for the rest of the sweep.
   let psiQuotaError: string | null = null
 
-  // Sequential on purpose: Google rate-limits per project, and a weekly job has
-  // no reason to be fast.
+  // Sequential: Google rate-limits per project.
   for (const p of properties) {
-    // A project can track many sites (KYG has 13 subdomains), so every
-    // notification names the site as well as the project.
+    // A project can track many sites, so notifications name the site too.
     const site = `${p.project.name} · ${p.label}`
     const res = await syncSeoProperty(p.id)
     if (!res.ok) {
       failed++
       results.push({ domain: p.domain, ok: false, error: res.error })
-      // A broken property is worth telling someone about - it means the report
-      // is silently going stale.
+      // Tell the owner, or the report silently goes stale.
       if (p.project.ownerId) {
         await createNotification({
           employeeId: p.project.ownerId,
@@ -159,10 +139,7 @@ export async function runSeoWeeklyJob(): Promise<SeoWeeklyResult> {
     }
     synced++
 
-    // Core Web Vitals + GA4 + scorecard for the same site, in that order -
-    // the scorecard reads whatever the two collectors just stored. Each is
-    // independently failure-tolerant: a site with no GA4 id still scores on
-    // Search Console alone, with `coverage` reporting the shortfall.
+    // Vitals, then GA4, then the scorecard (which reads both). Each step tolerates failure.
     if (!psiQuotaError) {
       try {
         const v = await runVitalsCheck(p.id, "MOBILE", { trigger: "scheduled" })
@@ -181,15 +158,13 @@ export async function runSeoWeeklyJob(): Promise<SeoWeeklyResult> {
     } catch (e) {
       console.error("[SEO_WEEKLY] technical", p.domain, e)
     }
-    // Scorecard LAST - it reads whatever vitals, GA4 and the audit just stored.
     try {
       await buildScorecard(p.id)
     } catch (e) {
       console.error("[SEO_WEEKLY] scorecard", p.domain, e)
     }
 
-    // 30-day content checks (plan step 7, point 6): now that this week's
-    // Search Console data is stored, settle any briefs whose review is due.
+    // 30-day content checks, now that this week's Search Console data is stored.
     try {
       const review = await runContentReviews(p.id)
       if (review.reviewed > 0 && p.project.ownerId) {
@@ -226,9 +201,7 @@ export async function runSeoWeeklyJob(): Promise<SeoWeeklyResult> {
     }
   }
 
-  // Tell someone once, not once per site. Skipping vitals silently would let the
-  // scorecard drift on stale Core Web Vitals with nothing in the UI to explain
-  // why - the same reason a failed Search Console sync raises an alert above.
+  // Alert once, not per site, so a scorecard on stale vitals is explained.
   if (psiQuotaError) {
     console.error("[SEO_WEEKLY] vitals skipped:", psiQuotaError)
     const owner = properties.find((p) => p.project.ownerId)?.project.ownerId

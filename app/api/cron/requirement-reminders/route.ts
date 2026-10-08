@@ -5,19 +5,11 @@ import { addEmailJob } from "@/lib/queue"
 import { renderRequirementEmail } from "@/lib/email-layout"
 import { REQUIREMENT_TYPE_LABELS } from "@/lib/constants"
 
-// Nudges people about requirements a team is still waiting on:
-//   - needed TODAY and not provided  -> "due today"
-//   - past the needed-by date        -> "overdue"
-//
-// This reminder IS the feature. A blocker nobody chases is exactly the problem
-// requirements exist to solve, so the record on its own is not enough - somebody
-// has to be told again tomorrow.
-//
-// Run daily (morning). Auth: Authorization: Bearer <CRON_SECRET>
+// Daily (morning): nudges about requirements due today or overdue.
 
 export const runtime = "nodejs"
 
-/** Today at UTC midnight - `needed_by` is a @db.Date, so it stores that way too. */
+/** Today at UTC midnight - `needed_by` is a @db.Date. */
 function todayUtc(): Date {
   const now = new Date()
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
@@ -59,8 +51,7 @@ export const GET = withCron("requirement-reminders", async () => {
         r._count.blockedTasks > 0 ? ` ${r._count.blockedTasks} task(s) are blocked.` : ""
       const teamLabel = r.team ? `${r.team.name} team` : "A team"
 
-      // The person who must provide it, and the blocked team's manager. Not the
-      // raiser - they already know they are stuck.
+      // The provider and the blocked team's manager - not the raiser, who already knows.
       const audience = new Set<string>([r.requestedFromId])
       if (r.team?.managerId) audience.add(r.team.managerId)
       audience.delete(r.raisedById)
@@ -76,8 +67,7 @@ export const GET = withCron("requirement-reminders", async () => {
         notified++
       }
 
-      // Email only the person who can actually resolve it, and only once it is
-      // genuinely late - a "due today" in-app nudge does not warrant an inbox.
+      // Email only the provider, and only once it is overdue.
       if (overdue && r.requestedFrom?.email) {
         const mail = renderRequirementEmail({
           recipientFirstName: r.requestedFrom.firstName,
@@ -109,7 +99,6 @@ export const GET = withCron("requirement-reminders", async () => {
     return { requirements: due.length, notified }
   } catch (error) {
     console.error("[CRON_REQUIREMENT_REMINDERS]", error)
-    // Rethrown so forEachTenant records it against this tenant and continues.
     throw error
   }
 })

@@ -1,102 +1,40 @@
 import "server-only"
 import { forEachTenant } from "@/server/tenant-jobs"
 
-// =============================================================================
-// In-process scheduler.
-//
-// Task reminders need minute-level precision ("warn me 15 minutes before"), and
-// an external crontab is a fragile place to put that: it lives outside the repo,
-// nobody reviews it, a rebuilt server loses it, and when it silently breaks the
-// only symptom is a notification that never arrives. This runs the same job
-// inside the Next server instead, so deploying the code IS installing the job.
-//
-// It does not replace app/api/cron/task-reminders - that route stays for manual
-// triggering and as a fallback. Running BOTH is safe: the engine claims each
-// reminder with a conditional update before sending, so whichever fires first
-// wins and the other sends nothing.
-//
-// The daily jobs (leave accrual, rollover, evaluations) are month- and
-// year-boundary work where a double run or a missed run has real consequences,
-// and a process that restarts on every deploy is the wrong owner for them. Those
-// stay on cron - see docs/cron-jobs.md.
-//
-// UPTIME is here for the opposite reason. A missed uptime tick costs nothing -
-// the next one is five minutes later - and the job is worthless unless it
-// actually runs. On 14 Aug 2026 a site was down eleven hours before anyone
-// noticed; `seo_monitor_runs` was empty at the time because nothing was calling
-// the cron routes. Putting this on the same crontab would have reproduced that
-// exact failure, so deploying the code installs the job.
-//
-// SEO is here for the same reason, and the note above is literally about it:
-// `seo_monitor_runs` was empty because nothing called the cron routes. On
-// 20 Aug 2026 an audit found the newest Search Console snapshot was 15 days old
-// and four of the SEO tables had never been written to at all - the module was
-// complete and simply never ran. Both jobs are safe to repeat (the weekly sync
-// upserts one row per window, the daily monitor only notifies on a state
-// CHANGE), so the cost of an extra run is nothing and the cost of a missed one
-// is a client's rankings sliding unwatched.
-//
-// KNOWN LIMIT: an in-process monitor cannot detect that DNMS ITSELF is down, and
-// cannot alert while it is. It watches client sites, not its own host. Pair it
-// with one external ping on DNMS if you want that covered too.
-// =============================================================================
+// In-process scheduler: deploying the code installs the jobs, with no crontab to lose.
+// Every job here is safe to run twice (claimed in the DB or idempotent), so the matching
+// /api/cron routes stay as manual triggers. Month/year-boundary jobs stay on external cron.
 
 const INTERVAL_MS = 60_000
 
-/** Uptime sweep cadence. Five minutes is the outage-detection floor. */
 const UPTIME_INTERVAL_MS = 5 * 60_000
 const UPTIME_FIRST_RUN_DELAY_MS = 30_000
 
-/**
- * Renewal sweep. Conceptually a DAILY job, but ticked hourly on purpose: a
- * server that restarts at 09:05 would miss a once-a-day timer entirely, and
- * missing the day a domain expires is the whole thing we are trying to prevent.
- * Running it hourly is safe because the sweep dedupes per asset per day in the
- * database (see renewals.service), not with an in-memory flag.
- */
+// Daily jobs below tick hourly: a once-a-day timer is lost on every restart. Whether they
+// already ran is decided in the database.
 const RENEWAL_INTERVAL_MS = 60 * 60_000
 const RENEWAL_FIRST_RUN_DELAY_MS = 45_000
 /** Don't send renewal mail in the middle of the night. */
 const RENEWAL_EARLIEST_HOUR = 9
 
-/**
- * Campaign queue. Tight cadence because a queued blast should start going out
- * promptly, and each tick only processes a small batch - so a big campaign
- * drains over several ticks instead of hogging the process.
- */
+/** Each tick sends a small batch, so a big campaign drains over several ticks. */
 const CAMPAIGN_INTERVAL_MS = 30_000
 const CAMPAIGN_FIRST_RUN_DELAY_MS = 20_000
 
-/**
- * SEO. Ticked hourly; what actually runs is decided from the DATABASE, not from
- * a timer - same reasoning as renewals. A process that restarts at 07:05 would
- * miss a once-a-day timer entirely, whereas "has today's monitor run yet?" is
- * still true after a restart and still false after a double deploy.
- */
 const SEO_INTERVAL_MS = 60 * 60_000
 const SEO_FIRST_RUN_DELAY_MS = 90_000
-/** Don't crawl client sites in the small hours; 7am IST matches the old cron. */
+/** Don't crawl client sites before 7am IST. */
 const SEO_EARLIEST_HOUR = 7
 
-/**
- * Weekly work digest. Ticked hourly for the same reason as renewals and SEO: a
- * once-a-week timer is lost by any deploy, and "the digest stopped arriving" is
- * a failure nobody reports for a month. The tick only acts on Monday morning,
- * and the `digest_runs` unique key decides whether it actually sends - so a
- * restart, a second instance and the cron route all converge on one digest.
- */
 const WORK_DIGEST_INTERVAL_MS = 60 * 60_000
 const WORK_DIGEST_FIRST_RUN_DELAY_MS = 120_000
-/** Monday, in the server's own week (getDay(): 0 = Sunday). */
+/** Monday (getDay(): 0 = Sunday). */
 const WORK_DIGEST_WEEKDAY = 1
-/** Nobody wants last week's chores at 02:00. */
 const WORK_DIGEST_EARLIEST_HOUR = 8
 
-/** Wait before the first pass so boot is not competing with a DB round trip. */
 const FIRST_RUN_DELAY_MS = 15_000
 
-// Survives dev hot-reload: the module is re-evaluated on every edit, and a plain
-// module-level flag would start a second, third, fourth interval each time.
+// On globalThis so dev hot-reload doesn't start duplicate intervals.
 const globalForScheduler = globalThis as unknown as {
   taskReminderTimer?: NodeJS.Timeout
   taskReminderRunning?: boolean
@@ -113,15 +51,14 @@ const globalForScheduler = globalThis as unknown as {
 }
 
 export function startTaskReminderScheduler(): void {
-  if (globalForScheduler.taskReminderTimer) return // already started
+  if (globalForScheduler.taskReminderTimer) return
   if (process.env.DISABLE_INLINE_SCHEDULER === "1") {
     console.log("[scheduler] task reminders disabled (DISABLE_INLINE_SCHEDULER=1)")
     return
   }
 
   const timer = setInterval(tick, INTERVAL_MS)
-  // Do not hold the event loop open: the HTTP server keeps the process alive, and
-  // an un-unref'd timer would delay a clean shutdown by up to a minute.
+  // Don't hold the event loop open and delay a clean shutdown.
   timer.unref?.()
   globalForScheduler.taskReminderTimer = timer
 
@@ -131,10 +68,7 @@ export function startTaskReminderScheduler(): void {
   console.log("[scheduler] task reminders started (every 60s)")
 }
 
-/**
- * Uptime sweep, on the same in-process timer for the same reason: a monitor that
- * depends on an uninstalled crontab is a monitor that does not exist.
- */
+/** Watches client sites only - it cannot alert while DNMS itself is down. */
 export function startUptimeScheduler(): void {
   if (globalForScheduler.uptimeTimer) return
   if (process.env.DISABLE_INLINE_SCHEDULER === "1") {
@@ -159,8 +93,6 @@ async function uptimeTick(): Promise<void> {
     await forEachTenant("uptime", async () => {
       const { runUptimeSweep } = await import("@/features/monitoring/server/uptime.service")
       const r = await runUptimeSweep()
-      // Quiet unless something actually happened - a line every 5 minutes saying
-      // "all up" is how people learn to stop reading the logs.
       if (r.opened || r.recovered || r.escalated) {
         console.log(
           `[scheduler] uptime: ${r.checked} checked, ${r.down} down, ` +
@@ -175,11 +107,6 @@ async function uptimeTick(): Promise<void> {
   }
 }
 
-/**
- * Renewal reminders, in-process for the same reason as uptime: the cron routes
- * on this deployment have never been called, so anything that depended on them
- * would silently never run.
- */
 export function startRenewalScheduler(): void {
   if (globalForScheduler.renewalTimer) return
   if (process.env.DISABLE_INLINE_SCHEDULER === "1") {
@@ -199,9 +126,6 @@ export function startRenewalScheduler(): void {
 
 async function renewalTick(): Promise<void> {
   if (globalForScheduler.renewalRunning) return
-  // Overnight ticks do nothing: an expiry warning at 03:00 wakes people for
-  // something that can be handled at 09:00. Outages are the opposite - those
-  // alert whatever the hour.
   if (new Date().getHours() < RENEWAL_EARLIEST_HOUR) return
 
   globalForScheduler.renewalRunning = true
@@ -223,13 +147,7 @@ async function renewalTick(): Promise<void> {
   }
 }
 
-/**
- * Bulk email queue for the per-project mailers.
- *
- * Sending cannot happen in the HTTP request that starts a campaign: a
- * 2,000-recipient blast would time out halfway with no record of which half
- * went. The request writes one row per recipient and returns; this drains them.
- */
+/** Drains the project-mailer queue (a big blast would time out inside the HTTP request). */
 export function startCampaignScheduler(): void {
   if (globalForScheduler.campaignTimer) return
   if (process.env.DISABLE_INLINE_SCHEDULER === "1") {
@@ -254,8 +172,7 @@ async function campaignTick(): Promise<void> {
     await forEachTenant("campaigns", async () => {
       const { runCampaignQueue, requeueStuckSends } =
         await import("@/features/project-mailer/server/campaign-runner")
-      // Rows stuck in SENDING belong to a tick killed mid-flight (deploy, crash);
-      // put them back before draining, or they are stranded forever.
+      // Rows stuck in SENDING are from a tick killed mid-flight; requeue them first.
       const requeued = await requeueStuckSends()
       if (requeued > 0) console.log(`[scheduler] campaigns: re-queued ${requeued} stuck send(s)`)
 
@@ -274,19 +191,15 @@ async function campaignTick(): Promise<void> {
 }
 
 async function tick(): Promise<void> {
-  // A pass that outlives its interval (slow DB, big backlog) must not stack up
-  // behind itself - skip this beat rather than run two at once.
+  // Skip this beat if the previous pass is still running.
   if (globalForScheduler.taskReminderRunning) return
   globalForScheduler.taskReminderRunning = true
   try {
     await forEachTenant("task-reminders", async () => {
-      // Imported lazily so a failure in the reminder module can never stop the
-      // server from booting - the scheduler is an enhancement, not a dependency.
+      // Lazy import: a broken job module must never stop the server booting.
       const { runTaskReminders } =
         await import("@/features/notifications/server/task-reminder.service")
       const result = await runTaskReminders()
-      // Only log when something happened; a line a minute saying "0" is noise that
-      // buries the lines that matter.
       if (result.sent > 0) {
         console.log(`[scheduler] sent ${result.sent} task reminder(s) of ${result.scanned} running`)
       }
@@ -298,16 +211,9 @@ async function tick(): Promise<void> {
   }
 }
 
-// ─── SEO ─────────────────────────────────────────────────────────────────────
-
 /**
- * The daily accident check and the weekly Search Console pull.
- *
- * Neither is driven by the clock alone. The tick asks the database what is
- * already done: the monitor runs once per calendar day, and the weekly sync runs
- * only when the newest stored snapshot is older than the newest window Search
- * Console can actually serve. That makes a restart harmless in both directions -
- * nothing is skipped, nothing is repeated.
+ * Daily monitor (once per calendar day) and weekly Search Console sync (when the stored
+ * snapshot is behind the newest available window).
  */
 export function startSeoScheduler(): void {
   if (globalForScheduler.seoTimer) return
@@ -333,17 +239,14 @@ async function seoTick(): Promise<void> {
     await forEachTenant("seo", async () => {
       const { db } = await import("@/server/db")
 
-      // Nothing to do at all if no site is tracked - skip before importing the
-      // job module, which pulls in the crawler and the Google clients.
+      // Checked before importing the heavy job module (crawler, Google clients).
       const tracked = await db.seoProperty.count({ where: { isActive: true } })
       if (tracked === 0) return
 
-      // Local hour, because "don't crawl before 7am" is about the client's morning.
       if (new Date().getHours() < SEO_EARLIEST_HOUR) return
 
       const { runSeoDailyJob, runSeoWeeklyJob } = await import("@/features/seo/server/seo.jobs")
 
-      // ── daily monitor: once per calendar day ────────────────────────────────
       const startOfDay = new Date()
       startOfDay.setHours(0, 0, 0, 0)
       const ranToday = await db.seoMonitorRun.count({ where: { createdAt: { gte: startOfDay } } })
@@ -354,16 +257,12 @@ async function seoTick(): Promise<void> {
         )
       }
 
-      // ── weekly sync: when the stored history is behind Search Console ───────
       const { lastCompleteWindow } = await import("@/lib/gsc")
       const window = lastCompleteWindow()
       const have = await db.seoSnapshot.count({
         where: { periodEnd: new Date(`${window.end}T00:00:00.000Z`) },
       })
-      // Compared against the number of tracked sites, not against zero: one site
-      // synced by hand would otherwise mark the whole sweep as done and leave
-      // every other property stale. The job itself re-syncs everything, and an
-      // already-current property just upserts the same row.
+      // Against the tracked count, not zero: one site synced by hand must not mark the sweep done.
       if (have < tracked) {
         const r = await runSeoWeeklyJob()
         if (r.skipped === "gsc") {
@@ -382,18 +281,7 @@ async function seoTick(): Promise<void> {
   }
 }
 
-// ─── Weekly work digest ──────────────────────────────────────────────────────
-
-/**
- * "Here is what last week left behind" - tasks finished with nothing to show
- * for them, work serving no goal, goals past their date, output owed.
- *
- * In-process for the same reason as the rest: the digest is worthless unless it
- * actually arrives, and a weekly crontab line is the easiest thing in the world
- * to lose. app/api/cron/work-digest stays as the manual trigger; running both is
- * safe because the period is claimed with a unique insert before anything is
- * sent, so exactly one of them wins.
- */
+/** Monday-morning digest; the `digest_runs` unique key makes sure only one send wins. */
 export function startWorkDigestScheduler(): void {
   if (globalForScheduler.workDigestTimer) return
   if (process.env.DISABLE_INLINE_SCHEDULER === "1") {
@@ -414,10 +302,6 @@ export function startWorkDigestScheduler(): void {
 async function workDigestTick(): Promise<void> {
   if (globalForScheduler.workDigestRunning) return
 
-  // Local weekday/hour, because "Monday morning" is about the recipient's week.
-  // Every other tick of the week returns here without touching the database;
-  // from Monday 08:00 the digest_runs row does the rest of the deciding, so the
-  // remaining Monday ticks each cost one failed insert and nothing else.
   const now = new Date()
   if (now.getDay() !== WORK_DIGEST_WEEKDAY || now.getHours() < WORK_DIGEST_EARLIEST_HOUR) return
 
@@ -426,8 +310,6 @@ async function workDigestTick(): Promise<void> {
     await forEachTenant("work-digest", async () => {
       const { runWeeklyWorkDigest } = await import("@/features/projects/server/work-digest.service")
       const r = await runWeeklyWorkDigest()
-      // Quiet on the skip: on a normal Monday all but the first tick skip, and
-      // a line an hour saying "already sent" buries the one that matters.
       if (!r.skipped) console.log(`[scheduler] work digest: ${r.sent} recipient(s)`)
     })
   } catch (err) {

@@ -51,7 +51,6 @@ export default function LeaveDashboardPage() {
     </Button>
   )
 
-  // The "My Leaves" view: balances + the employee's own recent requests.
   const myLeaves = (
     <>
       <section className="space-y-4">
@@ -100,7 +99,6 @@ export default function LeaveDashboardPage() {
     </>
   )
 
-  // Non-managers see the plain My Leave view (no tabs).
   if (!isManager) {
     return (
       <div className="space-y-8">
@@ -114,7 +112,6 @@ export default function LeaveDashboardPage() {
     )
   }
 
-  // Managers get a "My Leaves" / "Leave Requests" (their team) tab set.
   return (
     <div className="space-y-6">
       <Tabs value={tab} onValueChange={setTab} className="space-y-6">

@@ -5,12 +5,6 @@ import {
   createClientPlanLines,
 } from "@/features/client-portal/server/client-plan.service"
 
-// GET  /api/portal/projects/:projectRef/plan - what is planned and what is made
-// POST /api/portal/projects/:projectRef/plan - the client plans a period
-//
-// Both services re-prove the grant AND the "plan" module, and every query is
-// filtered on the resolved project id - the projectRef is a lookup key, never
-// an authorisation.
 export const GET = withClientSession(async (_req, { params }: { params: { projectRef: string } }) =>
   respond(await listClientPlan(params.projectRef)),
 )

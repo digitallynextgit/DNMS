@@ -16,14 +16,7 @@ const DeliverablePeriodPage = dynamic(
   { loading: () => <Skeleton className="h-64 rounded-sm" /> },
 )
 
-/**
- * One deliverable - a planned week or month - on its own page.
- *
- * /projects/[id]/deliverables/[period], where [period] is the window as
- * "2026-09-07_2026-09-11" (or "unplanned"). Permissions are worked out the
- * same way the project page works them out, so the two never disagree about
- * who may plan, assign or accept.
- */
+/** [period] is "2026-09-07_2026-09-11" (or "unplanned"). Permissions match the project page's. */
 export default function Page() {
   const params = useParams()
   const projectRef = params.id as string

@@ -219,7 +219,6 @@ export default function EvaluationsPage() {
   // Select-all works on the rows on screen; page/filter changes clear it.
   const selection = useRowSelection(evaluations.map((ev) => ev.id))
 
-  // Reset to the first page (and a clean selection) whenever a filter changes.
   function onFilter<T>(setter: (v: T) => void) {
     return (v: T) => {
       setter(v)
@@ -372,9 +371,6 @@ export default function EvaluationsPage() {
         </BulkActionBar>
       )}
 
-      {/* The table renders from the first paint: while `isLoading` it draws
-          skeleton rows inside its own real <thead>, derived from `columns`, so
-          the placeholder always has the right column count and alignment. */}
       {isLoading || evaluations.length > 0 ? (
         <DataTable
           columns={columns}

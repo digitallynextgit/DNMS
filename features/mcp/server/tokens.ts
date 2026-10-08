@@ -2,12 +2,8 @@ import "server-only"
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto"
 
-// =============================================================================
-// Token primitives. Tokens are opaque: 32 random bytes behind a recognisable
-// prefix (so a leaked one is easy to spot in logs or a paste), and only their
-// SHA-256 is ever stored. Opaque rather than JWT on purpose - revocation is
-// instant and there are no signing keys to manage or rotate.
-// =============================================================================
+// Opaque tokens: 32 random bytes behind a recognisable prefix (easy to spot if leaked); only the
+// SHA-256 is stored. Not JWT - revocation is instant and there are no keys to rotate.
 
 export function generateToken(prefix: string): string {
   return `${prefix}${randomBytes(32).toString("base64url")}`

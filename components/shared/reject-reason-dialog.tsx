@@ -25,7 +25,7 @@ interface RejectReasonDialogProps {
   description?: string
   reasonLabel?: string
   reasonPlaceholder?: string
-  /** Require a non-empty reason before the confirm button enables. Default true. */
+  /** Default true. */
   required?: boolean
   confirmLabel?: string
   cancelLabel?: string
@@ -34,11 +34,7 @@ interface RejectReasonDialogProps {
   onConfirm: (reason: string) => void
 }
 
-/**
- * Confirmation dialog with a reason/note textarea (reject leave, decline
- * resignation, etc.). When `required`, the confirm button stays disabled until
- * a non-empty reason is entered. Resets the reason whenever it (re)opens.
- */
+/** Resets the reason whenever it opens. */
 export function RejectReasonDialog({
   open,
   onOpenChange,
@@ -55,9 +51,11 @@ export function RejectReasonDialog({
 }: RejectReasonDialogProps) {
   const [reason, setReason] = React.useState("")
 
-  React.useEffect(() => {
+  const [prevOpen, setPrevOpen] = React.useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
     if (open) setReason("")
-  }, [open])
+  }
 
   const disabled = isLoading || (required && reason.trim().length === 0)
 

@@ -2,11 +2,7 @@ import "server-only"
 import { db } from "@/server/db"
 import { tryDecrypt } from "@/lib/crypto"
 
-// Admin-editable runtime config resolver. Reads the `app_settings` table
-// (secret values decrypted), cached in memory, and falls back to process.env
-// for any key not overridden in the DB. Call sites read config through here
-// instead of touching process.env directly, so the Integrations admin page can
-// change values at runtime.
+// Admin-editable config: `app_settings` rows (secrets decrypted, cached), else process.env.
 
 let cache: Record<string, string> | null = null
 
@@ -22,33 +18,26 @@ async function load(): Promise<Record<string, string>> {
     cache = map
     return cache
   } catch {
-    // Table missing / DB hiccup → behave as if no overrides (pure env) for this
-    // call, but DON'T cache the empty result so the next call retries the DB.
+    // DB hiccup: env only for this call, and not cached, so the next call retries.
     return {}
   }
 }
 
-/** Resolve a config value: DB setting (decrypted) first, then process.env. */
 export async function getConfig(key: string): Promise<string | undefined> {
   const m = await load()
   return m[key] || process.env[key]
 }
 
-/**
- * Synchronous resolver for callers that can't await (e.g. email HTML builders).
- * Uses whatever is already cached, else env. Warm the cache first via
- * `warmConfig()` / any `getConfig()` call to ensure DB overrides are seen.
- */
+/** For callers that can't await: cached values only (see warmConfig), else env. */
 export function getConfigSync(key: string): string | undefined {
   return cache?.[key] || process.env[key]
 }
 
-/** Ensure the cache is populated (await before sync reads that must see DB values). */
 export async function warmConfig(): Promise<void> {
   await load()
 }
 
-/** Drop + reload the cache (called after the admin saves settings). */
+/** Called after the admin saves settings. */
 export async function reloadConfig(): Promise<void> {
   cache = null
   await load()

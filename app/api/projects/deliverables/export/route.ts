@@ -17,17 +17,8 @@ import {
 } from "@/features/projects/lib/deliverable-lifecycle"
 import { toCsv } from "@/lib/export-csv"
 
-// GET /api/projects/deliverables/export?projectId&from&to&status&client=1
-//
-// The ledger as a file. Two variants of the same rows: the INTERNAL one carries
-// hours, notes and who wrote the entry; `client=1` drops all four, because a
-// sheet that goes to a client should say what they got, not how long it took us
-// or what we said about it internally.
-//
-// `from` and `to` are REQUIRED, the same rule as the attendance export: every
-// filter here is optional, so a bare call would mean "every deliverable ever
-// recorded" - one GET able to stall the connection pool. The cap is a year,
-// which is what an annual report needs and no more.
+// `client=1` drops hours, notes and authors. from/to are required (max a year): a bare call would
+// export every deliverable ever and stall the connection pool.
 export const dynamic = "force-dynamic"
 
 const MAX_RANGE_DAYS = 366
@@ -98,8 +89,7 @@ export const GET = withSession(
       )
     }
 
-    // The URL may carry a slug (that is what the project pages use) but the
-    // filter wants an id, and the filename wants the code.
+    // The URL may carry a slug; the filter needs the id and the filename the code.
     let projectId: string | undefined
     let label = "all"
     const projectParam = q.get("projectId")
@@ -128,8 +118,7 @@ export const GET = withSession(
       ],
     }
 
-    // No MAX_ROWS here: a truncated export is a wrong export. The mandatory
-    // range is what keeps it bounded.
+    // No row cap: a truncated export is a wrong export. The required range keeps it bounded.
     const rows = await db.projectDeliverable.findMany({
       where,
       orderBy: [{ completedOn: "asc" }, { createdAt: "asc" }],
@@ -196,8 +185,7 @@ export const GET = withSession(
       ]
     })
 
-    // The BOM is for Excel: without it a UTF-8 CSV opens as mojibake on
-    // Windows, which is where these files are read.
+    // BOM so Excel on Windows opens the UTF-8 CSV correctly.
     const csv = `\ufeff${toCsv(body, header)}`
     const filename = `deliverables_${label}_${from}_to_${to}.csv`
 

@@ -5,9 +5,7 @@ import { createAuditLog } from "@/lib/audit"
 import { TEAMS_ARE_FIXED } from "@/features/projects/lib/project-teams"
 import type { Session } from "next-auth"
 
-// PATCH /api/projects/[id]/teams/[teamId] - change the manager (Admin only).
-// That is the only edit a team takes: its name and description are fixed
-// (features/projects/lib/project-teams.ts), so a body carrying either is refused.
+// Only the manager can change: team names/descriptions are fixed (features/projects/lib/project-teams.ts).
 export const PATCH = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -39,7 +37,6 @@ export const PATCH = withProjectManager(
 
       const data: { managerId?: string | null } = {}
 
-      // Manager change - must be an existing member
       if (managerId !== team.managerId) {
         if (managerId === null) {
           // Removing manager - only allowed if team is empty or only manager left
@@ -92,8 +89,7 @@ export const PATCH = withProjectManager(
   },
 )
 
-// DELETE /api/projects/[id]/teams/[teamId] - refused. Teams are fixed; remove
-// people from a team instead.
+// Refused: teams are fixed - remove people from a team instead.
 export function DELETE() {
   return NextResponse.json({ error: TEAMS_ARE_FIXED }, { status: 405, headers: { Allow: "PATCH" } })
 }

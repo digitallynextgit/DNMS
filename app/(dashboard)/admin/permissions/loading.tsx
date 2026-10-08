@@ -1,8 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeaderSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
 
-// Permission Matrix: header (no actions) + a single card holding the wide
-// role x permission table.
 export default function Loading() {
   return (
     <div className="space-y-6">

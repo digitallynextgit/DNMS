@@ -1,21 +1,14 @@
 import { z } from "zod"
 
-// The exact contract the marketing site posts. Kept deliberately strict: every
-// string is bounded, every URL must be http(s), and `mode` mirrors the read API's
-// ?mode= values. Anything outside this shape is a 422 with field details.
+// The marketing site's POST contract. Deliberately strict; anything outside it is a 422.
 
 const MESSAGE_MAX = 2000
 
-// Control chars (incl. NUL and ANSI escape sequences). Built via RegExp so the
-// source file itself never carries raw control bytes.
+// Control chars (incl. NUL and ANSI escapes), built via RegExp so the source has no raw control bytes.
 const CONTROL_CHARS = new RegExp("[\\u0000-\\u001F\\u007F]", "g")
 
-/** Normalise a public-supplied string: drop control chars, drop angle brackets,
- *  collapse whitespace, trim.
- *
- *  `message` is free text typed by strangers, so every string is treated as
- *  hostile. React escapes on render, but stripping here keeps stored-XSS
- *  payloads and terminal escape sequences out of the DB, CSV exports and logs. */
+/** Strips control chars and angle brackets and collapses whitespace: strangers' text is hostile,
+ *  so stored-XSS and terminal escapes stay out of the DB, exports and logs. */
 const clean = (max: number) =>
   z
     .string()
@@ -69,8 +62,7 @@ export const careersApplicationSchema = z.object({
     linkedIn: httpUrl(500),
     portfolio: httpUrl(500),
     resumeUrl: httpUrl(1000),
-    // Over-long notes are TRUNCATED, never rejected - losing a real applicant
-    // over a long cover letter would be the wrong trade.
+    // Over-long notes are TRUNCATED, never rejected - don't lose an applicant over a cover letter.
     message: clean(100_000)
       .transform((s) => (s.length > MESSAGE_MAX ? s.slice(0, MESSAGE_MAX) : s))
       .nullable()
@@ -78,14 +70,7 @@ export const careersApplicationSchema = z.object({
       .default(null),
   }),
 
-  /**
-   * The employee id the candidate typed into "Referred by", or null.
-   *
-   * Deliberately NOT validated against the employee list here: the site cannot
-   * see that list, and a typo must never turn a real application into a 422.
-   * It is stored verbatim and resolved after the fact - an unresolved value
-   * still tells HR who the candidate believed referred them.
-   */
+  /** Not validated against employees: a typo must never 422 a real application. Resolved later. */
   referrerEmployeeNo: clean(50).nullable().optional().default(null),
 
   meta: z.object({

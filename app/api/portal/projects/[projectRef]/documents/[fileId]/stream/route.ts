@@ -4,13 +4,8 @@ import { requireClientModule } from "@/server/client-guard"
 import { db } from "@/server/db"
 import { driveFileResponse } from "@/server/drive-stream"
 
-// GET - stream a Drive-hosted file to a SIGNED-IN portal user, guarded by the
-// DOCUMENTS module.
-//
-// Deliberately separate from the plan module's stream route rather than shared:
-// the two modules are granted independently, and a client who was given only one
-// of them must not reach the other's files through a route that happens to check
-// the wrong guard. The body of the response is identical - see server/drive-stream.
+// Separate from the plan module's stream route: the modules are granted independently, so each
+// route checks its own guard.
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 

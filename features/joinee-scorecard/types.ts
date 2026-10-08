@@ -12,7 +12,6 @@ export interface ScorecardDay extends DayScores {
   date: string
 }
 
-/** A scorecard as the API returns it. */
 export interface Scorecard {
   id: string
   employeeId: string

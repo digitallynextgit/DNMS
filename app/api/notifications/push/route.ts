@@ -4,13 +4,8 @@ import { withSession } from "@/server/api-handler"
 import { runUnscoped } from "@/server/tenant-context"
 import type { Session } from "next-auth"
 
-/**
- * Hosts the server will POST push messages to. The endpoint is an arbitrary
- * URL from the request body, and lib/web-push.ts later delivers to it from the
- * server - without this allow-list any signed-in employee could register an
- * internal URL and turn the notification sender into an SSRF proxy. These are
- * the push services of every browser engine that supports Web Push.
- */
+// SSRF guard: the endpoint comes from the request body and the server POSTs to it, so only the
+// browsers' push services are allowed.
 const PUSH_HOSTS = [
   "fcm.googleapis.com", // Chrome / Chromium / Edge (FCM)
   ".push.apple.com", // Safari (e.g. web.push.apple.com)
@@ -32,10 +27,7 @@ function isKnownPushEndpoint(endpoint: string): boolean {
   }
 }
 
-// POST /api/notifications/push   { endpoint, keys: { p256dh, auth } }
-// Register this browser for Web Push. Idempotent - re-subscribing the same
-// endpoint just re-points it at the current user (e.g. after a device is shared
-// or a different person logs in on it).
+// Idempotent: re-subscribing an endpoint re-points it at the current user.
 export const POST = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -56,11 +48,7 @@ export const POST = withSession(
 
       const userAgent = req.headers.get("user-agent")?.slice(0, 300) ?? null
 
-      // Which SITE is registering. Taken from the Origin header, never from the
-      // body: the browser sets it and a caller cannot forge it, and the whole
-      // point is to tell a real registration from a dev server pointed at this
-      // same database. Falls back to the Referer's origin for the rare client
-      // that omits Origin on a same-origin POST.
+      // From the Origin header (not the body), so a dev server on the same DB can be told apart.
       const origin = (() => {
         const header = req.headers.get("origin")
         if (header) return header
@@ -73,13 +61,8 @@ export const POST = withSession(
         }
       })()
 
-      // The endpoint identifies a BROWSER and is globally unique - but its row
-      // may belong to an employee of ANOTHER tenant (same person, two
-      // workspaces, one browser). The tenant guard scopes the upsert's lookup,
-      // so it would miss that row and the create would then hit the unique
-      // index (P2002). Delete the endpoint unscoped, then create the row for
-      // the current user - which also stops the previous owner's notifications
-      // from reaching this browser.
+      // The endpoint may belong to another tenant's employee (same browser), which the scoped upsert
+      // would miss and then hit P2002 - so delete it unscoped first, then create.
       await runUnscoped(
         "push endpoint is device-global: re-pointing it to the signing-in user must cross tenants",
         () => db.pushSubscription.deleteMany({ where: { endpoint } }),
@@ -96,7 +79,6 @@ export const POST = withSession(
   },
 )
 
-// DELETE /api/notifications/push?endpoint=...  - unsubscribe this browser.
 export const DELETE = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {

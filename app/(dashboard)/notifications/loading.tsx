@@ -1,8 +1,6 @@
 import { PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Mirrors NotificationsPage: header + action buttons, then the notification feed
-// (bordered card rows: icon tile, title + timestamp, message line).
 export default function NotificationsLoading() {
   return (
     <div className="flex flex-col gap-6">

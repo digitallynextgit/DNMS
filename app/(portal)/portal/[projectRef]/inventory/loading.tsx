@@ -1,8 +1,6 @@
 import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Mirrors the inventory page: custom heading, a 3-up stat strip (label + big
-// number), then the "Needs attention" table (4 columns) in a bordered card.
 export default function PortalInventoryLoading() {
   return (
     <div className="space-y-5">

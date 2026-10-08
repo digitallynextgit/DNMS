@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-// The module reaches for the real Prisma client only as a default; the tests
-// hand in a fake, so keep the real one from being constructed.
+// The tests hand in a fake client; keep the real Prisma client from being constructed.
 vi.mock("@/server/db", () => ({ db: {} }))
 
 import { ensureProjectTeams } from "./project-teams"
@@ -17,7 +16,6 @@ type Member = { id: string; projectId: string; employeeId: string }
 
 type Client = NonNullable<Parameters<typeof ensureProjectTeams>[1]>["client"]
 
-/** Just enough of Prisma for ensureProjectTeams: the four calls it makes. */
 function fakeClient(state: { teams: Team[]; members: Member[]; active: Record<string, boolean> }) {
   const { teams, members, active } = state
   let n = 0
@@ -138,7 +136,6 @@ describe("ensureProjectTeams", () => {
       "AMG/SMO": "teesha",
       ADMIN: "manpreet",
     })
-    // each manager is seated as the team's first member
     expect(
       members
         .filter((m) => m.projectId === "p3")

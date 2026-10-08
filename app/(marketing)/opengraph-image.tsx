@@ -1,9 +1,7 @@
 import { ImageResponse } from "next/og"
 import { siteConfig } from "@/lib/site"
 
-// Branded social-share card (LinkedIn / Slack / X / WhatsApp previews). Rendered
-// once at build/first-request; self-contained with inline styles and the default
-// font so it needs no external assets.
+// Self-contained (inline styles, default font), so it needs no external assets.
 export const alt = siteConfig.defaultTitle
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"

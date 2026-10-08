@@ -2,17 +2,8 @@ import "server-only"
 
 import { db } from "@/server/db"
 
-// =============================================================================
-// Off-page / backlinks (plan step 8). Neither Ahrefs Webmaster Tools nor Search
-// Console expose a free backlinks API, but both let you EXPORT the list. A human
-// pastes that export here; we store one row per linking page and diff it against
-// what we had, so:
-//   - links that disappeared from the export are marked LOST,
-//   - genuinely new referring domains are counted,
-//   - the referring-domain total feeds the scorecard.
-// An import is treated as the current full snapshot when `fullSnapshot` is set -
-// that is what makes the monthly "net new / lost" diff meaningful.
-// =============================================================================
+// Backlinks: no free API, so a human pastes an Ahrefs/Search Console export. With `fullSnapshot`,
+// links missing from the import are marked LOST, giving the monthly new/lost diff.
 
 export interface ParsedBacklink {
   sourceUrl: string
@@ -31,9 +22,8 @@ function domainOf(url: string): string | null {
 }
 
 /**
- * Parse a pasted export. Accepts either one URL per line, or comma/tab-separated
- * rows `sourceUrl, anchor, targetUrl, domainRating` (extra columns ignored). The
- * first token on a line that looks like an http(s) URL is the source.
+ * Parse a pasted export: one URL per line, or comma/tab rows `sourceUrl, anchor, targetUrl,
+ * domainRating`. The first http(s) token on a line is the source.
  */
 export function parseBacklinks(text: string): ParsedBacklink[] {
   const out: ParsedBacklink[] = []
@@ -71,8 +61,9 @@ export interface ImportResult {
   referringDomains: number
 }
 
-/** Store an import and diff it. With `fullSnapshot`, links previously ACTIVE but
- *  absent from this import are marked LOST (the monthly-diff behaviour). */
+/**
+ * Store an import and diff it. With `fullSnapshot`, active links missing from it are marked LOST.
+ */
 export async function importBacklinks(
   propertyId: string,
   rows: ParsedBacklink[],
@@ -238,11 +229,8 @@ export async function getBacklinks(propertyId: string): Promise<BacklinkSummaryV
 }
 
 /**
- * Referring-domain counts for the scorecard's metric #5 (plan step 10): how many
- * active referring domains we have now vs how many we had before this 28-day
- * window began (domains first seen earlier and still active). Growth in referring
- * domains is exactly what the metric rewards. Returns null when no backlinks have
- * ever been imported, so the metric stays honestly "unavailable".
+ * Referring domains for the scorecard: active now vs before this 28-day window. Null when no
+ * backlinks were ever imported, so the metric shows as unavailable.
  */
 export async function referringDomainGrowth(
   propertyId: string,

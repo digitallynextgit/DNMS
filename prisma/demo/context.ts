@@ -1,19 +1,6 @@
-// =============================================================================
-// Shared plumbing for the demo seed (prisma/seed-demo.ts).
-//
-// Every module under prisma/demo/ receives one DemoContext: the tenant it is
-// writing into, "today" (so every date is relative and the screens never look
-// stale), the ids created so far (people, departments, projects...), a seeded
-// random generator (so a re-run produces the same story), and the summary the
-// script prints at the end.
-//
-// ── TENANT SAFETY ────────────────────────────────────────────────────────────
-// All writes go through `make()` / `makeMany()` below, which stamp `tenantId`
-// EXPLICITLY on every row. The tenant guard would stamp it too inside
-// runWithTenant, but only on top-level writes and only when enforcement is on;
-// writing it ourselves means a row can never fall back to the column DEFAULT,
-// which is the founding (real) company. Nested creates are never used.
-// =============================================================================
+// Shared plumbing for the demo seed: one DemoContext (tenant, "today", ids so far, seeded RNG, summary).
+// Tenant safety: make()/makeMany() stamp tenantId explicitly on every row, so nothing can fall back to the
+// column DEFAULT (the real founding company). Never use nested creates.
 
 import { db } from "@/server/db"
 
@@ -26,7 +13,6 @@ export interface DemoContext {
   slug: string
   /** Today's IST calendar date as a UTC midnight - the anchor for every DATE column. */
   today: Date
-  /** The real current instant. */
   now: Date
   /** person key (dataset.ts) -> employee id */
   emp: Record<string, string>
@@ -50,11 +36,7 @@ export interface DemoContext {
   leaveType: Record<string, string>
   /** holiday "YYYY-MM-DD" -> id, optional (floating) holidays only */
   floatingHoliday: Map<string, string>
-  /**
-   * Why a person was not in the office on a day: person key -> day key -> kind.
-   * Written by the time-off module, read by attendance (no punch on those days)
-   * and payroll (paid or not), so the three always agree.
-   */
+  /** Why a person was away: person key -> day key -> kind (written by time-off, read by attendance and payroll). */
   away: Record<string, Map<string, AwayKind>>
   /** Stored attendance status: person key -> day key -> status. Read by payroll. */
   attendance: Record<string, Map<string, string>>
@@ -80,8 +62,6 @@ export function awayOn(ctx: DemoContext, key: string, day: Date): AwayKind | und
   return ctx.away[key]?.get(dayKey(day))
 }
 
-// ── Dates ────────────────────────────────────────────────────────────────────
-
 /** Today's calendar date in India, as a UTC midnight. */
 export function istToday(now = new Date()): Date {
   const ist = new Date(now.getTime() + IST_OFFSET_MIN * 60_000)
@@ -106,16 +86,12 @@ export function isWeekend(date: Date): boolean {
   return d === 0 || d === 6
 }
 
-/**
- * The instant `hhmm` IST happens on `day` (a UTC-midnight date).
- * at(day, "09:30") = 04:00Z that day.
- */
+/** The instant `hhmm` IST happens on `day`: at(day, "09:30") = 04:00Z. */
 export function at(day: Date, hhmm: string): Date {
   const [h, m] = hhmm.split(":").map(Number)
   return new Date(day.getTime() + ((h ?? 0) * 60 + (m ?? 0) - IST_OFFSET_MIN) * 60_000)
 }
 
-/** Monday of the week containing `date`. */
 export function mondayOf(date: Date): Date {
   const dow = date.getUTCDay() // 0 = Sunday
   return addDays(date, dow === 0 ? -6 : 1 - dow)
@@ -156,8 +132,6 @@ export function stamp(ctx: DemoContext, daysAgo: number, hhmm = "11:00"): Date {
   return at(addDays(ctx.today, -daysAgo), hhmm)
 }
 
-// ── Randomness (seeded, so every run tells the same story) ──────────────────
-
 export interface Rng {
   (): number
   int(min: number, max: number): number
@@ -179,8 +153,6 @@ export function makeRng(seed: number): Rng {
   next.chance = (p) => next() < p
   return next
 }
-
-// ── Writes ───────────────────────────────────────────────────────────────────
 
 type AnyRow = Record<string, unknown>
 interface Creator {
@@ -204,11 +176,7 @@ export async function make(ctx: DemoContext, model: string, data: AnyRow): Promi
   return row.id
 }
 
-/**
- * Insert many rows with tenantId stamped explicitly. createMany in chunks (the
- * app uses it on this database); if a chunk fails it falls back to one create
- * per row - the pg-adapter note in prisma/seed.ts - so a run still completes.
- */
+/** createMany in chunks with tenantId stamped; a failing chunk falls back to one create per row (pg adapter). */
 export async function makeMany(ctx: DemoContext, model: string, rows: AnyRow[]): Promise<number> {
   if (rows.length === 0) return 0
   const d = delegate(model)
@@ -229,8 +197,6 @@ export async function makeMany(ctx: DemoContext, model: string, rows: AnyRow[]):
   }
   return count
 }
-
-// ── Summary ──────────────────────────────────────────────────────────────────
 
 export class Summary {
   private readonly rows: { module: string; what: string; count: number }[] = []

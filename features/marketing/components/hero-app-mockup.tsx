@@ -29,8 +29,6 @@ const NAV: { key: ViewKey; label: string; icon: LucideIcon }[] = [
   { key: "seo", label: "SEO", icon: LineChart },
 ]
 
-/* ------------------------------ small helpers ----------------------------- */
-
 function Stat({ k, v }: { k: string; v: string }) {
   return (
     <div className="border-border bg-background rounded-sm border p-3">
@@ -48,8 +46,6 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
     </div>
   )
 }
-
-/* --------------------------------- views ---------------------------------- */
 
 function DashboardView() {
   return (
@@ -361,7 +357,6 @@ export function HeroAppMockup() {
   return (
     <div className="border-border bg-card relative overflow-hidden rounded-sm border text-left shadow-2xl">
       <BorderBeam />
-      {/* window chrome */}
       <div className="border-border bg-muted/50 flex items-center gap-2 border-b px-4 py-3">
         <span className="h-2.5 w-2.5 rounded-full bg-red-400/70" />
         <span className="h-2.5 w-2.5 rounded-full bg-yellow-400/70" />
@@ -370,7 +365,6 @@ export function HeroAppMockup() {
       </div>
 
       <div className="grid grid-cols-[56px_1fr] sm:grid-cols-[190px_1fr]">
-        {/* sidebar */}
         <nav className="border-border bg-muted/30 space-y-1 border-r p-2 sm:p-3">
           <div className="text-muted-foreground hidden px-2 pt-1 pb-2 text-[10px] font-semibold tracking-wider uppercase sm:block">
             Workspace
@@ -400,7 +394,6 @@ export function HeroAppMockup() {
           })}
         </nav>
 
-        {/* content */}
         <div className="min-h-[360px] p-4 sm:p-6">
           <div className="mb-4 flex items-center justify-between">
             <div className="text-sm font-semibold sm:text-base">{title}</div>

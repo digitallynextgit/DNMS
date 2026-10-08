@@ -4,11 +4,7 @@ import { getWeeklyHours, visiblePeople } from "@/features/projects/server/weekly
 import { mondayOf } from "@/features/projects/lib/work-week"
 import type { Session } from "next-auth"
 
-// GET /api/projects/weekly-hours?week=yyyy-mm-dd
-//
-// One week of logged hours for whoever the caller may see - see visiblePeople
-// for the rule. `week` is any day inside the week; it is normalised to that
-// week's Monday, so the caller never has to know which day rows are keyed by.
+// `week` is any day in the week; it's normalised to Monday. See visiblePeople for who's included.
 export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: Session) => {
   try {
     const raw = req.nextUrl.searchParams.get("week")

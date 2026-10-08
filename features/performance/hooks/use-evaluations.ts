@@ -54,8 +54,6 @@ export interface PaginationMeta {
   totalPages: number
 }
 
-// ─── Evaluations ──────────────────────────────────────────────────────────────
-
 export function useEvaluations(params?: {
   status?: string
   period?: string
@@ -115,8 +113,7 @@ export function useCreateEvaluation() {
   )
 }
 
-/** Generate today's evaluation for EVERY active employee at once, notifying each
- *  (and their manager). Idempotent per day. */
+/** Generates today's evaluation for every active employee (idempotent per day). */
 export function useGenerateEvaluations() {
   const qc = useQueryClient()
   return useMutation({
@@ -174,7 +171,6 @@ export function useDeleteEvaluation() {
   )
 }
 
-/** Delete every selected evaluation in one request (the table's selection bar). */
 export function useBulkDeleteEvaluations() {
   const qc = useQueryClient()
   return useMutation(
@@ -191,8 +187,6 @@ export function useBulkDeleteEvaluations() {
     }),
   )
 }
-
-// ─── KPI / parameter profiles (per employee, reused each cycle) ────────────────
 
 export interface PerfKpiRow {
   id: string

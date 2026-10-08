@@ -11,11 +11,7 @@ export const metadata: Metadata = {
   description: "Everything else in DNMS: your details, work, HR and company sections.",
 }
 
-/**
- * Phone-only navigation hub (the fifth bottom tab). On desktop the sidebar
- * already lists all of this, so the route is hidden there with a CSS guard and
- * the menu simply never appears next to the sidebar.
- */
+/** Phone-only navigation hub (the fifth bottom tab); hidden on desktop, where the sidebar lists it all. */
 export default async function MorePage() {
   const session = await auth()
   if (!session) redirect("/login")
@@ -25,9 +21,7 @@ export default async function MorePage() {
       <div className="md:hidden">
         <MobileMoreMenu session={session} />
       </div>
-      {/* Desktop reaches every one of these from the sidebar, but the route is
-          still bookmarkable (and a phone user can rotate/resize into it), so it
-          points somewhere instead of rendering an empty shell. */}
+      {/* Still bookmarkable on desktop (or after a resize), so it points somewhere. */}
       <div className="hidden md:flex md:min-h-[60vh] md:flex-col md:items-center md:justify-center md:gap-3 md:text-center">
         <p className="text-sm font-medium">Everything here is in the sidebar</p>
         <p className="text-muted-foreground max-w-sm text-sm">

@@ -5,8 +5,6 @@ import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export interface WfhEligibility {
   tier: 1 | 2 | 3
   label: string
@@ -32,9 +30,8 @@ export interface WfhEmployeeSnippet {
 export interface WfhRequest {
   id: string
   employeeId: string
-  /** First day of the range. */
   date: string
-  /** Last day; equal to `date` for a single-day request. */
+  /** Equal to `date` for a single-day request. */
   endDate: string
   /** Working days covered - weekends/holidays inside the range are skipped. */
   totalDays: number
@@ -46,7 +43,7 @@ export interface WfhRequest {
   hrApproverId: string | null
   hrApprovedAt: string | null
   rejectionReason: string | null
-  /** The reporting manager's advisory call; HR makes the final decision. */
+  /** Set when the reporting manager (rather than HR) made the decision. */
   managerDecision: "APPROVED" | "REJECTED" | null
   createdAt: string
   updatedAt: string
@@ -75,8 +72,6 @@ interface WfhFilters {
   limit?: number
 }
 
-// ─── Fetch ────────────────────────────────────────────────────────────────────
-
 async function fetchEligibility(): Promise<WfhEligibility> {
   return (await apiFetch<{ data: WfhEligibility }>("/api/wfh/eligibility")).data
 }
@@ -98,13 +93,11 @@ async function fetchWfhRequests(filters: WfhFilters): Promise<PaginatedResponse<
 }
 
 async function applyWfh(body: {
-  /** First day of the range. */
   date: string
-  /** Last day. Omitted = a single-day request. */
+  /** Omitted = single-day request. */
   endDate?: string
   reason?: string
   isEmergency?: boolean
-  /** Subject + letter exactly as composed/edited in the apply-screen preview. */
   emailSubject?: string
   emailBody?: string
 }): Promise<{ data: WfhRequest; tier: number }> {
@@ -146,8 +139,6 @@ async function fetchWfhInbox(
   return (await apiFetch<{ data: { data: WfhInbox } }>(`/api/wfh/my-team?${params.toString()}`))
     .data.data
 }
-
-// ─── Hooks ────────────────────────────────────────────────────────────────────
 
 export function useWfhEligibility() {
   return useQuery({ queryKey: ["wfh-eligibility"], queryFn: fetchEligibility, staleTime: 60_000 })

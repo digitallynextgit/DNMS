@@ -39,52 +39,37 @@ import Image from "next/image"
 export function Topbar({ session }: { session: Session }) {
   const { id, firstName, lastName, email, profilePhoto: sessionPhoto } = session.user
 
-  // DNMS staff only. Mirrors isPlatformAdmin() in server/platform-admin.ts, and
-  // is COSMETIC: it decides whether to offer the link, never whether the page
-  // opens. /platform re-checks server-side and answers notFound() to anyone
-  // else, so a stale token here leaks a menu item, not data.
-  //
-  // The env-list half of that check is deliberately not mirrored - the list is
-  // a bootstrap for when the role table is wrong, and the session cannot read
-  // server env anyway. Someone on the list without the role reaches the console
-  // by URL; granting them `admin_` is what puts it in their menu.
+  // Cosmetic only (mirrors isPlatformAdmin in server/platform-admin.ts); /platform re-checks
+  // server-side. The env-list half isn't mirrored - those users reach the console by URL.
   const isPlatformStaff =
     session.user.kind !== "client" &&
     session.user.tenantId === FOUNDING_TENANT_ID &&
     (session.user.roles ?? []).includes("admin_")
-  // Live photo: shares the same ["employee", id] cache as the profile page, so a
-  // photo upload/removal (which invalidates ["employee"]) refreshes the avatar
-  // here too - without waiting for the session JWT to be reissued at next login.
-  // Fall back to the session value until the live query resolves to avoid a flash.
+  // Shares the ["employee", id] cache with the profile page, so a photo change shows here at once.
   const { data: liveEmployee } = useEmployee(id)
   const profilePhoto = liveEmployee ? (liveEmployee.data?.profilePhoto ?? null) : sessionPhoto
   const { isCollapsed, toggle } = useSidebarStore()
   const clearPalette = useThemeStore((s) => s.clearPalette)
   const { setTheme } = useTheme()
 
-  // On logout, drop any custom palette and fall back to the default (system)
-  // theme so the next user / the login page starts from the default colors.
+  // Reset to the default theme so the next user and the login page don't inherit this palette.
   async function handleSignOut() {
     clearPalette()
     setTheme("system")
-    // Before the session goes: otherwise this browser keeps receiving the
-    // signed-out user's push notifications (a leak on shared devices).
     await unregisterPush()
     signOut({ callbackUrl: "/login" })
   }
 
   const { data: unreadCount = 0 } = useUnreadNotificationCount()
 
-  // The assistant's panel is rendered by the dashboard layout; this only drives
-  // its open state.
+  // The panel is rendered by the dashboard layout; this only toggles it.
   const aiOpen = useAiAssistantStore((s) => s.open)
   const toggleAi = useAiAssistantStore((s) => s.toggle)
 
   return (
     <header className="bg-background border-border flex h-14.25 shrink-0 items-center justify-between border-b px-4">
       <div className="flex min-w-0 flex-1 items-center">
-        {/* Phones have no sidebar to collapse, so the bar carries the wordmark
-            instead of the toggle. */}
+        {/* Phones have no sidebar, so show the wordmark instead of the toggle. */}
         <Link href="/dashboard" aria-label="DNMS" className="flex items-center md:hidden">
           <Image
             src="/logo_white_bg-96.png"
@@ -129,9 +114,6 @@ export function Topbar({ session }: { session: Session }) {
       </div>
 
       <div className="flex items-center gap-1">
-        {/* AI assistant. Lives here rather than as a floating bubble, which sat
-            on top of whatever occupied the bottom-right of the page. The panel
-            itself still opens in that corner. */}
         <Button
           variant="ghost"
           size="icon"
@@ -140,8 +122,7 @@ export function Topbar({ session }: { session: Session }) {
           aria-label="Ask DNMS"
           aria-pressed={aiOpen}
           className={cn(
-            // 40px on touch, 32px from md up: this bar is always on screen, and
-            // an icon-sm target is below the comfortable tap size on a phone.
+            // 40px tap target on phones, 32px from md up.
             "text-muted-foreground hover:text-foreground",
             aiOpen && "bg-muted text-foreground",
           )}
@@ -151,9 +132,7 @@ export function Topbar({ session }: { session: Session }) {
 
         <ThemePicker />
 
-        {/* Notifications */}
-        {/* asChild, not <Link><Button>: the latter renders <a><button>, which is
-            invalid HTML and leaves the anchor with no accessible name. */}
+        {/* asChild: <Link><Button> would render invalid <a><button>. */}
         <Button
           variant="ghost"
           size="icon"
@@ -172,7 +151,6 @@ export function Topbar({ session }: { session: Session }) {
 
         <div className="bg-border mx-1 h-4 w-px" />
 
-        {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="hover:bg-accent focus-visible:ring-ring flex items-center gap-2 rounded-sm px-2 py-1.5 transition-colors focus-visible:ring-2 focus-visible:outline-none">
@@ -217,9 +195,7 @@ export function Topbar({ session }: { session: Session }) {
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  {/* NOT tenant-prefixed: the console spans every company, so it
-                      lives at the root. "platform" is in GLOBAL_SEGMENTS, which
-                      is what stops the proxy reading it as a company slug. */}
+                  {/* Not tenant-prefixed: the console spans every company ("platform" is in GLOBAL_SEGMENTS). */}
                   <Link href="/platform" className="cursor-pointer gap-2 text-sm">
                     <Building2 className="h-3.5 w-3.5" /> DNMS Platform
                   </Link>

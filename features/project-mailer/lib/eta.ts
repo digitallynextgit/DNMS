@@ -1,15 +1,5 @@
-// =============================================================================
-// Campaign time estimate
-// =============================================================================
-// "Queued" with no end in sight reads as broken even when it is working fine -
-// the first campaign on this project looked stuck for a minute while it was
-// actually mid-send. This turns the queue's mechanics into a number a person can
-// read: roughly how long until the last email leaves.
-//
-// The numbers below MIRROR server/campaign-runner.ts and the scheduler. If the
-// batch size or tick cadence changes there, change it here too or the estimate
-// silently drifts from reality.
-// =============================================================================
+// Campaign time estimate. These numbers MIRROR server/campaign-runner.ts and the scheduler -
+// change them together or the estimate drifts.
 
 /** Emails one tick will send. Mirrors BATCH_SIZE in campaign-runner.ts. */
 export const BATCH_SIZE = 25
@@ -17,9 +7,7 @@ export const BATCH_SIZE = 25
 export const TICK_SECONDS = 30
 
 /**
- * Fallback per-email cost before we have anything measured: the runner's own
- * 250 ms inter-send pause plus a typical SMTP round trip. Only used for the
- * first estimate - once a campaign is moving we use its real observed rate.
+ * Per-email guess before anything is measured: the runner's 250 ms pause plus an SMTP round trip.
  */
 const ASSUMED_SECONDS_PER_EMAIL = 1.5
 
@@ -36,7 +24,6 @@ export interface CampaignProgress {
 }
 
 export interface CampaignEta {
-  /** Emails still to go out. */
   remaining: number
   /** Seconds until the last one leaves, NOT counting the pickup wait. */
   seconds: number
@@ -48,12 +35,7 @@ export interface CampaignEta {
 }
 
 /**
- * Estimate the remaining send time, or null when there is nothing to wait for.
- *
- * Deliberately returns the pickup wait separately: while a campaign is QUEUED
- * the scheduler could fire in one second or in thirty, and averaging that into a
- * single countdown would show a number that is wrong in both directions. The UI
- * says "starts within 30s" instead of pretending to know.
+ * Remaining send time, or null. The pickup wait is separate: while QUEUED it could be 1s or 30s.
  */
 export function estimateCampaign(c: CampaignProgress, now = Date.now()): CampaignEta | null {
   if (c.status !== "QUEUED" && c.status !== "SENDING") return null
@@ -62,10 +44,7 @@ export function estimateCampaign(c: CampaignProgress, now = Date.now()): Campaig
   const remaining = Math.max(0, c.totalCount - done)
   if (remaining === 0) return null
 
-  // Prefer the campaign's own throughput: it already includes this SMTP host's
-  // real latency, which varies far more between providers than any constant we
-  // could pick. Needs 2+ sends, because a single sample is mostly connection
-  // setup and reads as pessimistically slow.
+  // Prefer the campaign's observed rate (needs 2+ sends; the first is mostly connection setup).
   let secondsPerEmail = ASSUMED_SECONDS_PER_EMAIL
   let measured = false
   if (c.startedAt && done >= 2) {
@@ -77,11 +56,8 @@ export function estimateCampaign(c: CampaignProgress, now = Date.now()): Campaig
     }
   }
 
-  // Batches do not run back to back. Each tick sends at most BATCH_SIZE and
-  // returns; the next one starts on the following 30s beat (or as soon as the
-  // previous finishes, if it overran). So the wait is the gaps BETWEEN batches
-  // plus the duration of the final one - not simply remaining x perEmail, which
-  // would badly under-estimate any list over 25.
+  // Batches don't run back to back - one per 30s tick - so count the gaps between batches plus
+  // the final batch, not remaining x perEmail.
   const batches = Math.ceil(remaining / BATCH_SIZE)
   const fullBatchSeconds = BATCH_SIZE * secondsPerEmail
   const cycleSeconds = Math.max(TICK_SECONDS, fullBatchSeconds)

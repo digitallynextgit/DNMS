@@ -1,23 +1,8 @@
-// =============================================================================
-// Write the default checklist templates into one tenant.
-// =============================================================================
-// Shared by all three places that need it, so the three cannot drift the way
-// the role lists in this repo have:
-//
-//   features/tenants/server/provision.service.ts   a brand-new company
-//   prisma/seed.ts                                 a fresh database
-//   prisma/backfill-hr-checklists.ts               companies that already exist
-//
-// Takes a minimal client interface rather than importing `db`, because two of
-// those three run as standalone tsx scripts and one runs inside a transaction.
-// =============================================================================
+// Writes the default checklist templates into one tenant (provisioning and prisma/seed.ts).
 
 import { DEFAULT_CHECKLIST_TEMPLATES, type DefaultChecklistTemplate } from "./default-templates"
 
-/**
- * The slice of Prisma this needs. Structural, so the real client, a `tx` inside
- * `$transaction`, and a fake in a test all satisfy it without a cast.
- */
+/** The slice of Prisma this needs - the real client, a `tx`, or a test fake all fit. */
 export interface ChecklistSeedClient {
   checklistTemplate: {
     findFirst(args: {
@@ -51,22 +36,9 @@ export interface SeedResult {
 }
 
 /**
- * Seed both default templates for `tenantId`.
- *
- * IDEMPOTENT by design - it skips a kind the tenant already has rather than
- * replacing it. The backfill runs across every existing company and must never
- * overwrite a checklist HR has already edited; "already has one" is the whole
- * safety condition.
- *
- * Every row passes `tenantId` EXPLICITLY. The tenant guard stamps top-level
- * writes from ambient context, but these callers run outside a request (a seed
- * script, a provisioning transaction for a tenant that is not the caller's), so
- * the id is passed rather than inferred. The guard's spread order puts an
- * explicit value first, so it wins.
- *
- * Rows are created one at a time rather than nested under the template: the
- * guard does not stamp NESTED writes, so nested children would fall back to the
- * founding tenant's column default and land in the wrong company.
+ * Seed both default templates for `tenantId`. Idempotent: skips a kind the tenant already has.
+ * `tenantId` is passed explicitly (callers run outside a request), and rows are created one at a
+ * time because the tenant guard doesn't stamp nested writes.
  */
 export async function seedChecklistTemplates(
   client: ChecklistSeedClient,

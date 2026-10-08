@@ -6,24 +6,7 @@ import { syncDeviceSmart, type SyncProgress } from "@/features/attendance/server
 import type { Session } from "next-auth"
 import { resolveDevice } from "@/features/attendance/server/device-resolver"
 
-/**
- * POST /api/attendance/devices/[id]/sync/stream
- *
- * Same sync as the plain route, but streams NDJSON progress lines as it goes:
- *
- *   {"type":"progress", ...SyncProgress}\n
- *   {"type":"progress", ...}\n
- *   {"type":"done","synced":42,"employees":[...]}\n
- *   {"type":"error","error":"..."}\n
- *
- * A full backfill walks hundreds of device windows and can run for minutes. The
- * non-streaming route gives the UI nothing to show until it finishes, so the button
- * just spins with no idea whether it is 10% or 90% done. Here the server reports
- * after every window - and because the total window count is known BEFORE the walk
- * starts, the percentage and the ETA are real measurements, not a guess.
- *
- * Query params match the plain route: ?employeeNo=145, ?full=1
- */
+/** Same sync as ../sync, but streams NDJSON progress lines (progress, done, error). */
 export const POST = withAuth(
   PERMISSIONS.ATTENDANCE_WRITE,
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
@@ -45,7 +28,7 @@ export const POST = withAuth(
           try {
             controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"))
           } catch {
-            // client disconnected mid-sync - nothing to do, the walk finishes anyway
+            // Client disconnected; the sync finishes anyway.
           }
         }
 
@@ -56,8 +39,6 @@ export const POST = withAuth(
             onProgress: (p: SyncProgress) => send({ type: "progress", ...p }),
           })
 
-          // Only a completed, whole-device run may advance lastSyncAt - see the note
-          // in the sibling route.
           if (!onlyEmployeeNo && result.completed) {
             await db.hikvisionDevice.update({ where: { id }, data: { lastSyncAt: new Date() } })
           }
@@ -82,8 +63,7 @@ export const POST = withAuth(
       headers: {
         "Content-Type": "application/x-ndjson; charset=utf-8",
         "Cache-Control": "no-store, no-transform",
-        // Stop any intermediate proxy from buffering the stream (which would defeat
-        // the whole point - the UI would get every line at once, at the end).
+        // Stop proxies from buffering the stream.
         "X-Accel-Buffering": "no",
       },
     })

@@ -7,8 +7,6 @@ import { PERMISSIONS } from "@/lib/constants"
 import type { Prisma } from "@prisma/client"
 import type { Session } from "next-auth"
 
-// GET /api/recruitment/applications - HR's inbox of careers applications.
-// Filters: ?status= ?mode= ?q= (name/email/role) ?page= ?limit=
 export const GET = withAuth(
   PERMISSIONS.RECRUITMENT_READ,
   async (req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
@@ -50,9 +48,7 @@ export const GET = withAuth(
         db.careerApplication.count({ where: { status: "RECEIVED" } }),
       ])
 
-      // Prefer OUR stored copy of the CV over the marketing site's link: the
-      // external URL can expire, the B2 key cannot (same pattern as
-      // applicants.resumeKey - a fresh signed URL is minted on every read).
+      // Prefer our stored CV copy: the marketing site's URL can expire, the B2 key can't.
       const data = await Promise.all(
         applications.map(async (a) =>
           a.resumeKey

@@ -13,7 +13,6 @@ export const metadata: Metadata = {
 export default async function ChangePasswordPage() {
   const session = await auth()
   if (!session) redirect("/login")
-  // Already set their own password - nothing to do here.
   if (!session.user.mustChangePassword) redirect(await tenantPath("/dashboard"))
 
   return (

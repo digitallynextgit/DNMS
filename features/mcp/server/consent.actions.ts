@@ -4,10 +4,8 @@ import { requireSession } from "@/server/action-guard"
 import { fail, ok, runAction, type ActionResult } from "@/server/action-result"
 import { OAuthFlowError, approveAuthorization, denyAuthorization } from "./oauth.service"
 
-// Allow / Deny on the AI-connector consent screen (/oauth/consent/[id]).
-// Both return the URL to send the browser to - back to Claude/ChatGPT with
-// either a one-time code or access_denied. Server actions bring Next's origin
-// check, so a third-party page cannot click Allow on the person's behalf.
+// Allow / Deny on the consent screen. Server actions bring Next's origin check, so a third-party
+// page can't click Allow for the person.
 
 export async function approveConsent(id: string): Promise<ActionResult<{ redirectTo: string }>> {
   return runAction(async () => {

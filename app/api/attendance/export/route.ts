@@ -8,22 +8,10 @@ import type { Session } from "next-auth"
 const isoDate = (d: Date) => new Date(d).toISOString().slice(0, 10)
 const isoTime = (d: Date | null) => (d ? new Date(d).toISOString().slice(11, 16) : "")
 
-// Every filter here is optional, so a bare call used to mean `where: {}` - i.e.
-// every attendance log ever recorded, joined per row, materialised in Node and
-// string-concatenated into one response. Against the 10-connection pool that is
-// an app-wide stall triggerable by a single GET.
-//
-// A bounded range is now mandatory. The cap is wider than the directory view's
-// 92 days (attendance-directory.queries.ts) because a yearly export is a
-// legitimate use of THIS endpoint, where it is not of that one.
+// A range is required: an unbounded export would load every log ever and stall the DB pool.
 const MAX_RANGE_DAYS = 366
 const MS_PER_DAY = 86_400_000
 
-/**
- * GET /api/attendance/export?dateFrom=&dateTo=&status=&employeeId=
- * Streams the matching attendance logs as a CSV download (monthly report).
- * `dateFrom` and `dateTo` are REQUIRED and span at most a year.
- */
 export const GET = withAuth(
   PERMISSIONS.ATTENDANCE_WRITE,
   async (req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
@@ -58,8 +46,6 @@ export const GET = withAuth(
 
       const logs = await db.attendanceLog.findMany({
         where,
-        // `select`, not `include`: the CSV needs 9 scalar columns, and `include`
-        // shipped every column of every log row to build them.
         select: {
           date: true,
           checkIn: true,

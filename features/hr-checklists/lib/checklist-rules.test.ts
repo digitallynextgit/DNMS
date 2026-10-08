@@ -10,7 +10,6 @@ import {
   type ChecklistItemState,
 } from "./checklist-rules"
 
-// Helper so each test names only what it cares about.
 function item(over: Partial<ChecklistItemState> = {}): ChecklistItemState {
   return {
     id: over.id ?? "i1",
@@ -78,8 +77,7 @@ describe("canComplete - the relieving gate", () => {
   })
 
   it("does NOT block on an unfinished TASK, even a required one", () => {
-    // Deliberate: an unticked "team farewell email" is untidy; issuing a
-    // relieving letter without Finance signing is a different kind of problem.
+    // Only clearances block - an unticked farewell email is merely untidy.
     const result = canComplete([
       item({ itemKind: "TASK", isRequired: true, isDone: false }),
       item({ id: "b", itemKind: "CLEARANCE", isRequired: true, isDone: true }),

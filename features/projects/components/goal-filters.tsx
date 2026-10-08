@@ -9,33 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { DateRangeField, type DateRangeValue } from "@/components/shared/date-range-field"
 import { TagChip, type GoalNode, type GoalsSummary, type Status } from "./goal-status"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Narrowing the goal board to a date window and a set of tags.
-//
-// ── WHY THIS IS IN THE BROWSER AND NOT IN THE QUERY ──────────────────────────
-// A project holds tens of goals, not thousands, and the whole tree is already
-// fetched and cached for the Overview card. Filtering server-side would buy a
-// round-trip per keystroke and would have to re-derive every parent's progress
-// from a partial set of children - which is how a filtered board ends up
-// disagreeing with the unfiltered one about the same goal.
-//
-// ── A PARENT'S NUMBERS ARE NEVER RECOMPUTED FROM WHAT SURVIVED THE FILTER ────
-// `progress`, `status` and `countableChildren` come off the server's roll-up
-// over ALL of a goal's sub-goals, and they stay that way here. "Launch the
-// storefront: 40%" means 40% of the launch, not 40% of the two sub-goals that
-// happened to fall inside the week you were looking at. Hiding a sub-goal
-// changes what is on screen; it must not change what is true.
-//
-// What IS recomputed is the summary strip, over the goals still visible - and
-// the strip says so in words, because "Done 1/2" with a filter on and no
-// explanation is a number that looks wrong.
-//
-// ── AN UNDATED GOAL IS NOT IN ANY WEEK ───────────────────────────────────────
-// A goal with no target date fails every date filter. The alternative - always
-// keeping undated goals so nothing is "lost" - defeats the filter: ask for this
-// week and you get this week plus the backlog. They come back the moment the
-// date filter is cleared, and the board says how many are hidden.
-// ─────────────────────────────────────────────────────────────────────────────
+// Filtered in the browser. A parent's progress/status always come from the server's roll-up over ALL
+// its sub-goals; only the summary strip is recomputed. An undated goal fails every date filter.
 
 export interface GoalFilters {
   /** Matched against a goal's TARGET date. `preset` drives the trigger label. */
@@ -59,21 +34,14 @@ const counts = (g: GoalNode): boolean => g.isActive && !NOT_COUNTABLE.has(g.stat
 /** UTC, matching the server, so "upcoming" means the same day on both sides. */
 const todayKey = (): string => new Date().toISOString().slice(0, 10)
 
-/**
- * Does this one goal match?
- *
- * Tags are matched case-insensitively - the server preserves the casing that was
- * typed, so a filter keyed on the exact string would miss "Weekly" when the user
- * clicked "weekly" on a different goal.
- */
+/** Tags match case-insensitively: the server keeps the casing that was typed. */
 function matches(goal: GoalNode, f: GoalFilters): boolean {
   if (f.tags.length > 0) {
     const own = new Set(goal.tags.map((t) => t.toLowerCase()))
     if (!f.tags.some((t) => own.has(t.toLowerCase()))) return false
   }
   if (f.date.from || f.date.to) {
-    // yyyy-MM-dd compares correctly as a string, so no Date objects are built
-    // here - and no timezone can shift a goal out of its own week.
+    // yyyy-MM-dd compares as a string, so no timezone can shift a goal's week.
     if (!goal.targetDate) return false
     if (f.date.from && goal.targetDate < f.date.from) return false
     if (f.date.to && goal.targetDate > f.date.to) return false
@@ -81,14 +49,7 @@ function matches(goal: GoalNode, f: GoalFilters): boolean {
   return true
 }
 
-/**
- * The summary strip, recomputed over whatever survived the filter.
- *
- * The formulas are the server's (see getProjectGoals) applied to a smaller set:
- * main goals only for the progress average and the done count, the whole visible
- * tree for the row-level tallies. Each goal's own `progress` is the server's
- * figure, untouched.
- */
+/** The server's formulas (getProjectGoals) over the visible set; each goal's own `progress` is untouched. */
 function summarise(goals: GoalNode[]): Omit<GoalsSummary, "allTags" | "unlinkedOpenTasks"> {
   const flat: GoalNode[] = []
   const walk = (n: GoalNode) => {
@@ -115,8 +76,7 @@ function summarise(goals: GoalNode[]): Omit<GoalsSummary, "allTags" | "unlinkedO
     discardedGoals: flat.filter((g) => g.isActive && g.status === "DISCARDED").length,
     inactiveGoals: flat.filter((g) => !g.isActive).length,
     overdueGoals: flat.filter((g) => g.overdue).length,
-    // Both off the COUNTABLE set, matching summariseGoalRows: a discarded goal
-    // that was slipping when it was dropped is not a warning any more.
+    // Countable set only, matching summariseGoalRows: a discarded goal is no longer a warning.
     atRiskGoals: flat.filter((g) => counts(g) && g.status === "AT_RISK").length,
     slippingGoals: flat.filter((g) => counts(g) && g.slipping).length,
     nextTargetDate: upcoming[0] ?? null,
@@ -146,20 +106,14 @@ export function filterGoals(summary: GoalsSummary, f: GoalFilters): FilteredGoal
     const kids = goal.children.filter((c) => matches(c, f))
     if (!self && kids.length === 0) continue
 
-    // A goal that is ITSELF in the window is shown whole - you asked for this
-    // goal, so you get all of its parts, including the ones due later. A goal
-    // that is only on screen because some of its sub-goals matched shows just
-    // those sub-goals, which is the thing that was actually asked for.
+    // A goal itself in the window shows whole; one shown only for matching sub-goals shows just those.
     const children = self ? goal.children : kids
     hiddenSubs += goal.children.length - children.length
     goals.push(children === goal.children ? goal : { ...goal, children })
   }
 
   return {
-    // allTags is the PROJECT's vocabulary, not this view's: the tag picker must
-    // keep offering every tag, or filtering to one would empty the list you use
-    // to filter by another.
-    // Both are facts about the PROJECT, not the filtered view.
+    // allTags is the project's vocabulary, so the tag picker keeps offering every tag.
     summary: {
       ...summarise(goals),
       allTags: summary.allTags,
@@ -171,11 +125,6 @@ export function filterGoals(summary: GoalsSummary, f: GoalFilters): FilteredGoal
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The bar
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Multi-select over the tags a project actually uses. */
 function TagFilter({
   allTags,
   selected,
@@ -244,14 +193,7 @@ function TagFilter({
   )
 }
 
-/**
- * Date range + tags, and a plain-English readout of what they left behind.
- *
- * The readout is not decoration. Every filtered board eventually gets looked at
- * by somebody who forgot a filter was on and reads the empty space as "we have
- * no goals this quarter"; saying "showing 3 of 12" next to a Clear button costs
- * a line and settles it.
- */
+/** Also says "showing 3 of 12", so a forgotten filter isn't read as "no goals". */
 export function GoalFilterBar({
   value,
   onChange,
@@ -282,7 +224,6 @@ export function GoalFilterBar({
         onChange={(tags) => onChange({ ...value, tags })}
       />
 
-      {/* The chosen tags, each removable where it is read. */}
       {value.tags.map((tag) => (
         <span key={tag} className="inline-flex items-center gap-1">
           <TagChip tag={tag} />

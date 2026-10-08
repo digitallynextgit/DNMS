@@ -33,7 +33,6 @@ export interface LinkFormValues {
 
 const NO_TAG = "__none"
 
-/** A readable default title from a pasted URL: "figma.com" rather than nothing. */
 function titleFromUrl(raw: string): string {
   try {
     const u = new URL(raw)
@@ -45,14 +44,13 @@ function titleFromUrl(raw: string): string {
 
 interface LinkFormProps {
   initial?: Partial<LinkFormValues>
-  /** Where it will be saved, for the description line; null = top level. */
+  /** For the description line; null = top level. */
   folderName?: string | null
   pending?: boolean
   onSubmit: (values: LinkFormValues) => void
   onCancel: () => void
 }
 
-/** Add or edit a saved link. `initial.url` pre-fills from a paste/drop. */
 export function LinkDialog({
   open,
   onOpenChange,
@@ -64,8 +62,7 @@ export function LinkDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
-        {/* State lives in a child that only exists while open, so each opening
-            starts from `initial` without an effect. */}
+        {/* Mounted only while open, so each opening starts fresh from `initial`. */}
         <LinkForm {...form} onCancel={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>

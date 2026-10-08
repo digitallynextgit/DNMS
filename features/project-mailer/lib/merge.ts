@@ -1,18 +1,5 @@
-// =============================================================================
-// Merge-variable engine
-// =============================================================================
-// Client-safe (no server imports): the compose screen previews with the exact
-// same function the runner sends with, so what you see is what goes out.
-//
-// The rule that matters: an UNKNOWN variable renders as EMPTY, never as literal
-// "{{plan}}". Templates are written once and the recipient list changes under
-// them, so requiring every placeholder to exist on every row would mean either
-// maintaining both in lockstep or mailing subscribers raw markup.
-//
-// Supports a fallback: {{name|there}} → the name, or "there" when it is missing
-// or blank. That is what makes "Hi {{name|there}}," safe on a list where only
-// some rows have a name.
-// =============================================================================
+// Merge-variable engine, client-safe: the preview and the sender use the same code. Unknown
+// variables render empty, never as literal "{{plan}}". {{name|there}} gives a fallback.
 
 /** Always available, whatever custom fields a recipient carries. */
 export const BUILTIN_VARS = [
@@ -65,12 +52,7 @@ export function buildVars(source: MergeSource): Record<string, string> {
   return vars
 }
 
-/**
- * Substitute every `{{var}}`. Unknown or blank → the fallback, else empty.
- *
- * Runs on the raw string rather than the DOM, so it works identically for the
- * subject line, hand-written HTML and rich-text output.
- */
+/** Substitute every `{{var}}` on the raw string; unknown or blank -> the fallback, else empty. */
 export function renderMerge(text: string, vars: Record<string, string>): string {
   if (!text) return ""
   return text.replace(TOKEN, (_full, key: string, fallback?: string) => {
@@ -89,9 +71,7 @@ export const SAMPLE_VARS: Record<string, string> = {
 }
 
 /**
- * Preview values: real sample data for builtins, and a visible placeholder for
- * anything custom, so an unfilled variable is obvious in the preview instead of
- * silently collapsing to nothing the way it will when sent.
+ * Preview values: samples for builtins, a visible placeholder for custom vars (they'd send empty).
  */
 export function previewVars(usedVars: string[], overrides: Record<string, string> = {}) {
   const vars: Record<string, string> = { ...SAMPLE_VARS }

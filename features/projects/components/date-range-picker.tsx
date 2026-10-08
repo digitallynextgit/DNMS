@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { CalendarDays, X } from "lucide-react"
 import type { DateRange } from "react-day-picker"
 
@@ -33,14 +33,7 @@ function formatRange(range: DayRange): string {
   return `${fmt.format(from)} - ${MONTH_DAY_YEAR.format(to)}`
 }
 
-/**
- * Calendar range filter (shadcn Calendar in a Popover).
- *
- * Picking a range takes two clicks, and react-day-picker reports the first one
- * as a half-open range. Applying that immediately would fire a request for
- * "one day" every time somebody starts a selection, so the draft is held here
- * and only handed up once BOTH ends exist.
- */
+/** Holds the draft until both ends are picked, so a half-open range never fires a request. */
 export function DateRangePicker({
   value,
   onChange,
@@ -55,14 +48,18 @@ export function DateRangePicker({
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<DateRange | undefined>()
 
-  // Re-seed the draft whenever the popover opens, so re-opening shows what is
-  // currently applied rather than a half-finished selection from last time.
-  useEffect(() => {
-    if (!open) return
-    setDraft(
-      value ? { from: parseDateString(value.from), to: parseDateString(value.to) } : undefined,
-    )
-  }, [open, value])
+  // Re-seed on open, so it shows what's applied rather than a stale half-selection.
+  const [prevOpen, setPrevOpen] = useState(open)
+  const [prevValue, setPrevValue] = useState(value)
+  if (open !== prevOpen || value !== prevValue) {
+    setPrevOpen(open)
+    setPrevValue(value)
+    if (open) {
+      setDraft(
+        value ? { from: parseDateString(value.from), to: parseDateString(value.to) } : undefined,
+      )
+    }
+  }
 
   const handleSelect = (next: DateRange | undefined) => {
     setDraft(next)
@@ -80,13 +77,10 @@ export function DateRangePicker({
             type="button"
             variant="outline"
             className={cn(
-              // The default rung is 36px tall, so it lines up with the
-              // SegmentedControl / Input it sits beside in a filter row - see
-              // components/shared/segmented-control.
+              // Default height (36px) lines up with the SegmentedControl / Input beside it.
               "rounded-sm px-3 font-medium",
               value && "border-primary/50 bg-muted",
-              // Square off the inner edge so the button and the Clear control
-              // next to it read as one control, not two.
+              // Square off the inner edge so this and the Clear button read as one control.
               value && onClear && "rounded-r-none border-r-0",
             )}
           >
@@ -101,8 +95,7 @@ export function DateRangePicker({
             defaultMonth={parseDateString(value?.from) ?? new Date()}
             selected={draft}
             onSelect={handleSelect}
-            // There is no data after today, so offering those days would only
-            // ever return an empty chart.
+            // No data exists after today.
             disabled={{ after: new Date() }}
             autoFocus
           />

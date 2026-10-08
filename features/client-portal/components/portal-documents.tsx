@@ -13,17 +13,7 @@ import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 
-// =============================================================================
-// The client's view of a project's shared documents and assets.
-// =============================================================================
-// Everything here was deliberately shared by a staff member - the underlying
-// table also holds internal briefs and working files, which the server filters
-// out. This component never sees them.
-//
-// A library, and only that. Approving a file used to happen here too; that
-// decision now lives on the content plan, attached to the thing that was
-// actually commissioned rather than to a loose file.
-// =============================================================================
+// The client's view of shared documents. The server filters out anything not shared.
 
 interface PortalFile {
   id: string
@@ -169,8 +159,7 @@ export function PortalDocuments({ projectRef }: { projectRef: string }) {
           >
             <Download className="h-3.5 w-3.5" />
           </Button>
-          {/* A file you uploaded is yours to withdraw. A staff-published
-              document is not yours to remove. */}
+          {/* Only the client's own uploads can be withdrawn. */}
           {f.uploadedByClient && (
             <Button
               variant="ghost"

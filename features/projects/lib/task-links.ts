@@ -1,18 +1,4 @@
-// =============================================================================
-// Resource links on a task: the brief, the doc, the published page.
-//
-// Shared by the API and the sheet so the rule that decides what is accepted is
-// the same one that decides what the cell offers to save.
-// =============================================================================
-
-/**
- * http(s) only, and only what actually parses.
- *
- * These render as clickable anchors for the whole team, so a cell anyone can
- * type in is a cell where "javascript:alert(1)" can be typed. Scheme-checking
- * the PARSED url rather than the raw string is what makes that safe - a
- * "https://evil" prefix check would pass "javascript:https://…".
- */
+/** http(s) only, checked on the PARSED url - a prefix check would pass "javascript:https://…". */
 export function isSafeHttpUrl(value: string): boolean {
   try {
     const u = new URL(value.trim())
@@ -22,10 +8,7 @@ export function isSafeHttpUrl(value: string): boolean {
   }
 }
 
-/**
- * What a link is called in the grid: its host, minus the "www.", plus a hint of
- * the path so three Google Docs are distinguishable from each other.
- */
+/** Grid label: host minus "www." plus a path hint, so several Google Docs are distinguishable. */
 export function linkLabel(value: string): string {
   try {
     const u = new URL(value.trim())
@@ -39,15 +22,8 @@ export function linkLabel(value: string): string {
 }
 
 /**
- * Trimmed, blanks dropped, duplicates collapsed to the first.
- *
- * The same URL twice on one task is never meaningful - it is a double paste -
- * and it used to reach React as two children with the same key. Collapsing them
- * here is what stops that happening rather than papering over it at render.
- *
- * Compared as exact strings after trimming, deliberately: query strings and
- * fragments distinguish real resources (a Google Sheet's `?gid=` is a different
- * tab), so normalising them away would merge links that are not the same.
+ * Trimmed, blanks dropped, duplicates collapsed (they would be duplicate React keys). Exact string
+ * match on purpose: query strings like a Sheet's `?gid=` are different resources.
  */
 export function dedupeLinks(links: string[]): string[] {
   return [...new Set(links.map((l) => l.trim()).filter(Boolean))]

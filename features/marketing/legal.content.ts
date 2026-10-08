@@ -1,20 +1,8 @@
 import { siteConfig } from "@/lib/site"
 
-// =============================================================================
-// Legal document content.
-//
-// ⚠ THESE ARE DRAFTS, NOT LEGAL ADVICE. They are written to describe what this
-// application ACTUALLY does - the data it stores, the third parties it calls,
-// the cookies it sets - which is the part a template cannot give you and the
-// part a lawyer will ask for first. Have them reviewed before you rely on them,
-// and re-read them whenever a new sub-processor or data type is added.
-//
-// Jurisdiction assumed: India (DPDP Act 2023, IT Act 2000 and the SPDI Rules).
-// Selling into the EU/UK adds GDPR obligations this draft only gestures at.
-//
-// Everything identifying the company comes from lib/site.ts, so the entity
-// name, address and inboxes are corrected in one place.
-// =============================================================================
+// Legal document content. DRAFTS, NOT LEGAL ADVICE: written to match what the app actually does,
+// so re-check them when a sub-processor or data type is added. Jurisdiction: India (DPDP Act 2023,
+// IT Act 2000, SPDI Rules). Company details come from lib/site.ts.
 
 export interface LegalSection {
   heading: string
@@ -28,15 +16,7 @@ export interface LegalSection {
 export interface LegalDoc {
   slug: string
   title: string
-  /**
-   * The trailing part of `title` to render in the brand accent on the page
-   * heading. Must be a SUFFIX of `title`; anything else is ignored and the
-   * heading falls back to accenting the last word.
-   *
-   * Omit it for the common case. It exists for titles where the last word alone
-   * reads oddly - "Refund & Cancellation POLICY" splits the pair that belongs
-   * together, so that one accents "Cancellation Policy" instead.
-   */
+  /** Suffix of `title` to accent instead of the last word. Ignored if not a suffix. */
   titleAccent?: string
   /** One line under the title. */
   summary: string
@@ -50,11 +30,7 @@ const { legal, emails, name, fullName, domain } = siteConfig
 /** Kept in one place so every document reports the same revision date. */
 const UPDATED = "26 August 2026"
 
-// -----------------------------------------------------------------------------
-// The sub-processor list is shared between the privacy policy and the cookie
-// policy. It is the list a customer's own DPO will ask for, so it names what
-// each third party actually receives rather than saying "service providers".
-// -----------------------------------------------------------------------------
+// Shared by the privacy and cookie policies; names what each third party actually receives.
 const SUBPROCESSORS: { term: string; detail: string }[] = [
   {
     term: "Backblaze B2",
@@ -88,9 +64,6 @@ const SUBPROCESSORS: { term: string; detail: string }[] = [
   },
 ]
 
-// =============================================================================
-// Privacy policy
-// =============================================================================
 const privacy: LegalDoc = {
   slug: "privacy",
   title: "Privacy Policy",
@@ -245,9 +218,6 @@ const privacy: LegalDoc = {
   ],
 }
 
-// =============================================================================
-// Terms & conditions
-// =============================================================================
 const terms: LegalDoc = {
   slug: "terms",
   title: "Terms & Conditions",
@@ -388,9 +358,6 @@ const terms: LegalDoc = {
   ],
 }
 
-// =============================================================================
-// Cookie policy
-// =============================================================================
 const cookies: LegalDoc = {
   slug: "cookies",
   title: "Cookie Policy",
@@ -462,9 +429,6 @@ const cookies: LegalDoc = {
   ],
 }
 
-// =============================================================================
-// Refund & cancellation
-// =============================================================================
 const refund: LegalDoc = {
   slug: "refund",
   title: "Refund & Cancellation Policy",
@@ -524,8 +488,6 @@ const refund: LegalDoc = {
     },
   ],
 }
-
-// =============================================================================
 
 export const LEGAL_DOCS = { privacy, terms, cookies, refund } as const
 export type LegalSlug = keyof typeof LEGAL_DOCS

@@ -137,9 +137,7 @@ export function ResourcesTab({ projectId, currentUserId, isProjectAdmin }: Props
     },
     {
       header: "Uploaded by",
-      // uploadedBy is null when the file came from the CLIENT PORTAL - a client
-      // is not an employee, so there is no staff row to show. Naming them and
-      // marking the row keeps it obvious where an unfamiliar file came from.
+      // uploadedBy is null for client-portal uploads (a client isn't an employee).
       cell: (r) => (
         <div className="flex items-center gap-1.5">
           <AvatarDisplay
@@ -266,15 +264,11 @@ function ResourceActions({
   const canDelete = resource.uploadedById === currentUserId || isProjectAdmin
   const shared = resource.isClientVisible === true
 
-  // Publishing to the portal is a project-manager act, not an uploader one: it
-  // is the only control here that changes who OUTSIDE the company can see the
-  // file. The API enforces the same rule, so hiding the button is a courtesy
-  // rather than the boundary.
+  // Portal sharing is a project-manager act; the API enforces it, hiding the button is a courtesy.
   const share = useShareResource(projectId)
   const review = useReviewResource(projectId)
 
-  // Only a file the CLIENT uploaded and that is still awaiting a decision. A
-  // staff-shared file is the client's to approve, not ours.
+  // Only client uploads still awaiting a decision; staff-shared files are the client's to approve.
   const needsOurReview =
     isProjectAdmin && !!resource.uploadedByClient && resource.reviewStatus === "IN_REVIEW"
 

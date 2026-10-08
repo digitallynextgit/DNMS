@@ -16,8 +16,7 @@ import {
   type PolicyLeaveType,
 } from "@/features/leave/hooks/use-leave-policy"
 
-/** Re-sync + Save toolbar. Rendered next to the tabs in the page header; shares
- *  the editor instance with the matrix below it. */
+/** Re-sync + Save toolbar for the page header; shares the editor with the matrix below. */
 export function LeavePolicyActions({ editor }: { editor: LeavePolicyEditor }) {
   const { dirty, handleSave, saving, resyncPending, resyncOpen, setResyncOpen, confirmResync } =
     editor

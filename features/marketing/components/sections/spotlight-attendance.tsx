@@ -20,8 +20,7 @@ interface Snapshot {
   rows: Row[]
 }
 
-// Fallback shown before the fetch resolves or if it returns nothing, so the
-// panel never looks empty.
+// Shown until the fetch resolves, or if it returns nothing.
 const DEMO_ROWS: Row[] = [
   { name: "Aarav Sharma", time: "09:02", status: "Present" },
   { name: "Diya Patel", time: "09:11", status: "Present" },
@@ -44,11 +43,9 @@ const TONE: Record<string, string> = {
   Weekend: "text-muted-foreground bg-muted",
 }
 
-/** Pulls the live attendance snapshot (latest working day) from the public API.
- *  Client-side so the marketing page stays static; keeps the demo rows until it
- *  resolves and if it returns nothing. Fires only once the section is NEAR the
- *  viewport - this sits ~8 viewports down the homepage, and fetching at mount
- *  competed with the hero's first paint for nothing anyone could see. */
+/**
+ * Live attendance snapshot from the public API, fetched only once the section nears the viewport.
+ */
 function useAttendanceSnapshot(ref: React.RefObject<HTMLElement | null>) {
   const [snap, setSnap] = useState<Snapshot | null>(null)
   useEffect(() => {
@@ -75,8 +72,7 @@ function useAttendanceSnapshot(ref: React.RefObject<HTMLElement | null>) {
           load()
         }
       },
-      // A viewport of lead time, so the demo rows are usually swapped before
-      // the reader arrives at the section.
+      // One viewport of lead time, so real rows usually arrive before the reader.
       { rootMargin: "100% 0px" },
     )
     io.observe(el)
@@ -88,16 +84,13 @@ function useAttendanceSnapshot(ref: React.RefObject<HTMLElement | null>) {
   return snap
 }
 
-/** Bespoke visual: a biometric terminal with a sweeping scan line, feeding a
- *  live punch → status list. Both panels stretch to full height so the card
- *  never shows empty background. */
+/** A biometric terminal with a scan line, feeding a live punch list. */
 function AttendanceVisual() {
   const rootRef = useRef<HTMLDivElement>(null)
   const snap = useAttendanceSnapshot(rootRef)
   const rows = snap?.rows ?? DEMO_ROWS
   return (
     <div ref={rootRef} className="flex h-full flex-col gap-3 sm:flex-row">
-      {/* scanner */}
       <div className="border-border bg-background relative flex flex-1 flex-col items-center justify-center overflow-hidden rounded-sm border p-6">
         <div className="text-primary relative">
           <span className="border-primary/40 animate-dnms-pulse-ring absolute inset-0 rounded-full border" />
@@ -105,13 +98,12 @@ function AttendanceVisual() {
             <Fingerprint className="h-9 w-9" />
           </span>
         </div>
-        {/* Full-height track - see bento-overview.tsx for the pattern. */}
+        {/* Full-height track - see bento-overview.tsx. */}
         <div className="animate-dnms-scan pointer-events-none absolute top-0 right-6 left-6 h-full">
           <div className="via-primary h-px bg-gradient-to-r from-transparent to-transparent" />
         </div>
         <div className="text-muted-foreground mt-4 text-xs">Scanning · ISAPI</div>
       </div>
-      {/* live rows */}
       <div className="border-border bg-background flex flex-1 flex-col rounded-sm border p-3">
         <div className="text-muted-foreground mb-1 flex items-center justify-between gap-2 text-[10px] font-medium uppercase">
           <span className="flex items-center gap-1.5">

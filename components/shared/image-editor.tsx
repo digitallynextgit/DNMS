@@ -1,28 +1,9 @@
 "use client"
 
 /**
- * Crop, rotate, filter, draw and caption an image before sending it.
- *
- * Canvas rather than a library: the editors on npm ship a few hundred kilobytes
- * of scene graph to do what four ctx calls do, and this loads on the send screen
- * of a chat - a place people reach constantly.
- *
- * ── The one design decision everything else follows ─────────────────────────
- * EVERY operation commits to a new canvas pushed onto a history stack. Crop,
- * rotate, a filter, a finished pen stroke, a placed label: each flattens what is
- * on screen into fresh pixels and becomes the new base.
- *
- * The alternative - keeping crop, rotation, filters and strokes as separate
- * layers composited at render time - means every stroke has to be re-projected
- * through whatever crop and rotation arrive afterwards, and a stroke drawn
- * before a 90° turn lands somewhere else entirely. Committing sidesteps that
- * class of bug completely: coordinates are only ever in the CURRENT canvas's
- * space, because there is only ever one canvas.
- *
- * The cost is that filters are not re-adjustable once applied, and Undo is the
- * way back rather than a slider. For a chat attachment that is the right trade -
- * and Undo is one press, which a layered model would have made harder, not
- * easier.
+ * Crop, rotate, filter, draw and caption an image on a canvas. Every operation commits to a new
+ * canvas on a history stack, so coordinates are always in the current canvas's space. Filters can't
+ * be re-adjusted afterwards; Undo is the way back.
  */
 
 import * as React from "react"
@@ -55,8 +36,6 @@ interface Rect {
   h: number
 }
 
-/** ctx.filter strings. Kept modest: these are photos of a whiteboard or a bug,
- *  not a mood board, so the set is "make it readable" rather than Instagram. */
 const FILTERS: { key: string; label: string; css: string }[] = [
   { key: "none", label: "Original", css: "none" },
   { key: "mono", label: "Mono", css: "grayscale(1)" },
@@ -67,24 +46,13 @@ const FILTERS: { key: string; label: string; css: string }[] = [
   { key: "doc", label: "Document", css: "grayscale(1) contrast(1.7) brightness(1.12)" },
 ]
 
-/** Ink the user picks. Literal hexes on purpose: these are baked into the
- *  image, so they must NOT follow the theme - a note drawn in red has to stay
- *  red for whoever opens it, whatever palette they are running. */
+/** Literal hexes on purpose: they're baked into the image, so they must not follow the theme. */
 const PEN_COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7", "#ffffff", "#111111"]
 const PEN_SIZES = [3, 6, 12]
 
-/**
- * How many steps back Undo can go.
- *
- * Each entry is a whole canvas - width × height × 4 bytes - so a 12 MP phone
- * photo costs ~48 MB per step. Unbounded, twenty pen strokes would be a gigabyte
- * of retained bitmaps and a dead tab. Past the cap the OLDEST edit is dropped,
- * never index 0: the untouched original stays reachable so "undo everything"
- * always has somewhere to land.
- */
+/** Each step is a full bitmap (~48 MB for 12 MP), so it's capped. The oldest edit goes first; the original stays. */
 const MAX_HISTORY = 12
 
-/** A blank canvas of the given size, ready to draw into. */
 function makeCanvas(w: number, h: number): HTMLCanvasElement {
   const c = document.createElement("canvas")
   c.width = w
@@ -92,14 +60,7 @@ function makeCanvas(w: number, h: number): HTMLCanvasElement {
   return c
 }
 
-/**
- * The theme's primary, as something canvas can stroke with.
- *
- * A canvas takes a colour string, not a CSS variable, so the token has to be
- * resolved at draw time. `--primary` is stored as bare HSL channels ("0 0% 93%")
- * for Tailwind's `hsl(var(--primary) / <alpha>)` pattern, hence wrapping rather
- * than using the value directly. Falls back to white, which reads on any photo.
- */
+/** --primary is stored as bare HSL channels, so wrap it for canvas. Falls back to white. */
 function primaryColor(): string {
   if (typeof window === "undefined") return "#ffffff"
   const raw = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim()
@@ -119,31 +80,26 @@ export function ImageEditor({
 }: {
   file: File
   onCancel: () => void
-  /** The edited image, as a new File carrying the original's name. */
+  /** A new File with the original's name. */
   onSave: (edited: File) => void
 }) {
   const viewRef = React.useRef<HTMLCanvasElement>(null)
-  // The committed pixels, newest last. history[0] is the untouched original, so
-  // Undo can always walk all the way back without keeping a separate copy.
+  // Newest last; history[0] is the untouched original.
   const [history, setHistory] = React.useState<HTMLCanvasElement[]>([])
   const [tool, setTool] = React.useState<Tool>(null)
   const [saving, setSaving] = React.useState(false)
 
-  // Pen
   const [penColor, setPenColor] = React.useState(PEN_COLORS[0]!)
   const [penSize, setPenSize] = React.useState(PEN_SIZES[1]!)
   const strokeRef = React.useRef<Point[] | null>(null)
 
-  // Crop
   const [crop, setCrop] = React.useState<Rect | null>(null)
   const cropStart = React.useRef<Point | null>(null)
 
-  // Text
   const [label, setLabel] = React.useState("")
 
   const base = history[history.length - 1] ?? null
 
-  // ── Load ──────────────────────────────────────────────────────────────────
   React.useEffect(() => {
     const url = URL.createObjectURL(file)
     const img = new Image()
@@ -157,7 +113,6 @@ export function ImageEditor({
     return () => URL.revokeObjectURL(url)
   }, [file])
 
-  /** Paint the committed canvas, plus whatever is mid-gesture, to the screen. */
   const paint = React.useCallback(() => {
     const view = viewRef.current
     if (!view || !base) return
@@ -169,8 +124,7 @@ export function ImageEditor({
     ctx.clearRect(0, 0, view.width, view.height)
     ctx.drawImage(base, 0, 0)
 
-    // The stroke in progress lives here, not in history - it is not a commit
-    // until the pointer lifts.
+    // The stroke in progress isn't in history until the pointer lifts.
     const pts = strokeRef.current
     if (pts && pts.length > 1) {
       ctx.strokeStyle = penColor
@@ -184,8 +138,6 @@ export function ImageEditor({
     }
 
     if (crop) {
-      // Dim everything outside the selection so the eye reads the keep, not the
-      // discard.
       ctx.save()
       ctx.fillStyle = "rgba(0,0,0,0.55)"
       ctx.beginPath()
@@ -216,9 +168,7 @@ export function ImageEditor({
     setCrop(null)
   }
 
-  // ── Pointer → canvas coordinates ──────────────────────────────────────────
-  // The canvas is displayed scaled-to-fit, so a client point has to be mapped
-  // back through that scale or every stroke lands offset from the cursor.
+  // The canvas is scaled to fit, so map client points back through that scale.
   function toCanvas(e: React.PointerEvent<HTMLCanvasElement>): Point {
     const view = e.currentTarget
     const r = view.getBoundingClientRect()
@@ -261,8 +211,6 @@ export function ImageEditor({
 
   function onPointerUp() {
     if (tool === "draw" && strokeRef.current && strokeRef.current.length > 1 && base) {
-      // Flatten the stroke into a new base. From here on it is just pixels, so
-      // a later crop or rotate carries it without any re-projection.
       const next = cloneCanvas(base)
       const view = viewRef.current
       const ctx = next.getContext("2d")!
@@ -281,7 +229,6 @@ export function ImageEditor({
     cropStart.current = null
   }
 
-  // ── Operations ────────────────────────────────────────────────────────────
   function applyFilter(css: string) {
     if (!base) return
     const next = makeCanvas(base.width, base.height)
@@ -321,8 +268,7 @@ export function ImageEditor({
     const size = Math.max(18, Math.round(base.width / 22))
     ctx.font = `700 ${size}px system-ui, sans-serif`
     ctx.textBaseline = "top"
-    // Outlined, so it stays legible over a light photo and a dark one alike -
-    // the single most common reason text-on-image is unreadable.
+    // Outlined so it reads over light and dark photos.
     ctx.lineWidth = Math.max(2, size / 8)
     ctx.strokeStyle = "rgba(0,0,0,0.75)"
     ctx.strokeText(label, at.x, at.y)
@@ -336,8 +282,7 @@ export function ImageEditor({
   function save() {
     if (!base) return
     setSaving(true)
-    // PNG in, PNG out - re-encoding a screenshot as JPEG is how crisp text turns
-    // into mush. Everything else goes out as JPEG, which is far smaller.
+    // PNG stays PNG (JPEG blurs screenshot text); everything else goes out as smaller JPEG.
     const png = file.type === "image/png"
     base.toBlob(
       (blob) => {
@@ -359,7 +304,6 @@ export function ImageEditor({
 
   return (
     <div className="bg-background absolute inset-0 z-40 flex flex-col">
-      {/* Toolbar */}
       <div className="flex h-14 shrink-0 items-center gap-1 border-b px-2">
         <Button variant="ghost" size="icon" aria-label="Cancel editing" onClick={onCancel}>
           <X className="h-5 w-5" />
@@ -404,7 +348,6 @@ export function ImageEditor({
         </Button>
       </div>
 
-      {/* Canvas */}
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-3">
         {!base ? (
           <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
@@ -420,15 +363,13 @@ export function ImageEditor({
               tool === "draw" && "cursor-crosshair",
               tool === "crop" && "cursor-crosshair",
               tool === "text" && label.trim() && "cursor-copy",
-              // touch-none: without it a drag on a phone scrolls the pane
-              // instead of drawing.
+              // touch-none: otherwise a drag on a phone scrolls instead of drawing.
               (tool === "draw" || tool === "crop") && "touch-none",
             )}
           />
         )}
       </div>
 
-      {/* Per-tool options */}
       {tool && (
         <div className="bg-card shrink-0 border-t p-2">
           {tool === "filter" && (

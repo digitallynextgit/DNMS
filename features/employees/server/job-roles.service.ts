@@ -91,10 +91,7 @@ export async function updateJobRole(
   })
 }
 
-/**
- * Soft-deactivate (isActive=false) by default, or hard-delete with permanent=true
- * (only when no employee references the role).
- */
+/** Soft-deactivate by default; permanent=true hard-deletes only when no employee uses it. */
 export async function deleteJobRole(
   id: string,
   permanent = false,

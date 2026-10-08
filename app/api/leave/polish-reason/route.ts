@@ -5,10 +5,7 @@ import type { Session } from "next-auth"
 
 export const runtime = "nodejs"
 
-// POST /api/leave/polish-reason  { reason, leaveType?, days?, startDate?, endDate? }
-// Returns THREE rewrites of the employee's own reason, in different registers, so
-// they choose rather than accept whatever the model produced. Advisory only:
-// nothing is stored, and the employee can always keep their original words.
+// Returns three rewrites of the employee's reason to choose from. Advisory only - nothing is stored.
 
 const SYSTEM_PROMPT = `You help an employee word the reason on their leave request so their manager reads it clearly and takes it seriously. You are NOT writing the whole email - only the reason paragraph that sits inside it.
 

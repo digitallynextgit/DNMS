@@ -1,17 +1,6 @@
-// =============================================================================
-// Campaign runner
-// =============================================================================
-// Drains the send queue. Called by the in-process scheduler every 30 seconds -
-// bulk sending cannot happen inside the HTTP request that starts it: a
-// 2,000-recipient blast would time out halfway with no record of which half went.
-//
-// Everything about the design is aimed at "survives being interrupted":
-//   • One ProjectCampaignSend row per recipient, written up front.
-//   • Rows are claimed with a conditional update, so two overlapping ticks can
-//     never send the same email twice.
-//   • A crash mid-campaign leaves the remaining rows PENDING; the next tick just
-//     carries on.
-// =============================================================================
+// Drains the campaign send queue on the scheduler's 30s tick (bulk sends can't run in a request).
+// One send row per recipient, claimed conditionally, so a crash or overlapping tick never
+// double-sends and the next tick just carries on.
 
 import "server-only"
 
@@ -36,13 +25,7 @@ export interface RunnerSummary {
   failed: number
 }
 
-/**
- * Build the transport for the account the campaign was queued against.
- *
- * Deliberately by mailerId, not by project: a project can hold several sending
- * accounts, and a campaign must go out from the one that was chosen - not
- * whichever happens to be first.
- */
+/** Transport for the account the campaign was queued with - a project can have several. */
 async function smtpFor(mailerId: string | null): Promise<ExplicitSmtp | null> {
   if (!mailerId) return null
   const mailer = await db.projectMailer.findUnique({ where: { id: mailerId } })
@@ -65,19 +48,11 @@ async function smtpFor(mailerId: string | null): Promise<ExplicitSmtp | null> {
   }
 }
 
-/**
- * Process one batch across whichever campaigns are in flight.
- *
- * Deliberately batch-per-tick rather than "finish this campaign": a huge
- * campaign must not starve a small one queued behind it, and a tick that runs
- * for minutes would overlap the next.
- */
+/** One batch per tick across all live campaigns, so a huge one can't starve a small one. */
 export async function runCampaignQueue(): Promise<RunnerSummary> {
   const summary: RunnerSummary = { campaigns: 0, sent: 0, failed: 0 }
 
-  // Resolved once per tick, not per email. Every campaign image is re-pointed at
-  // this host on the way out, so a body composed against localhost - or against a
-  // previous domain - still arrives with an image the recipient can actually load.
+  // Resolved once per tick; every image is re-pointed at this host (see absolutizeMailerImages).
   const appUrl = (await getConfig("APP_URL")) ?? process.env.NEXTAUTH_URL ?? ""
 
   const campaigns = await db.projectCampaign.findMany({
@@ -103,7 +78,6 @@ export async function runCampaignQueue(): Promise<RunnerSummary> {
       take: BATCH_SIZE,
     })
 
-    // Nothing left: close it out and move on.
     if (pending.length === 0) {
       const failed = await db.projectCampaignSend.count({
         where: { campaignId: campaign.id, status: "FAILED" },
@@ -114,8 +88,7 @@ export async function runCampaignQueue(): Promise<RunnerSummary> {
       await db.projectCampaign.update({
         where: { id: campaign.id },
         data: {
-          // FAILED only when NOTHING got through - a partial send is still a
-          // send, and the per-recipient log says exactly who missed out.
+          // FAILED only when nothing got through; the per-recipient log shows who missed out.
           status: sent === 0 && failed > 0 ? "FAILED" : "SENT",
           sentCount: sent,
           failedCount: failed,
@@ -127,8 +100,7 @@ export async function runCampaignQueue(): Promise<RunnerSummary> {
 
     const smtp = await smtpFor(campaign.mailerId)
     if (!smtp) {
-      // No usable mailer: fail the whole campaign rather than silently leaving
-      // it QUEUED forever, and say why on every outstanding row.
+      // No usable mailer: fail the campaign (and say why) instead of leaving it QUEUED forever.
       await db.projectCampaignSend.updateMany({
         where: { campaignId: campaign.id, status: "PENDING" },
         data: {
@@ -149,18 +121,15 @@ export async function runCampaignQueue(): Promise<RunnerSummary> {
     })
 
     for (const row of pending) {
-      // Claim it first. `status: "PENDING"` in the WHERE is what makes two
-      // overlapping ticks unable to send the same email twice - the second
-      // update matches zero rows.
+      // Claim first: the PENDING condition stops two overlapping ticks sending the same email.
       const claimed = await db.projectCampaignSend.updateMany({
         where: { id: row.id, status: "PENDING" },
-        // claimedAt is what requeueStuckSends measures staleness from (API-08).
+        // requeueStuckSends measures staleness from claimedAt.
         data: { status: "SENDING", claimedAt: new Date() },
       })
       if (claimed.count === 0) continue
 
-      // Re-check the unsubscribe at SEND time, not just when the list was built:
-      // somebody who opts out mid-campaign must not get the rest of it.
+      // Re-check the unsubscribe at send time - someone may opt out mid-campaign.
       if (row.recipient && !row.recipient.isSubscribed) {
         {
           await db.projectCampaignSend.update({
@@ -172,9 +141,7 @@ export async function runCampaignQueue(): Promise<RunnerSummary> {
         }
       }
 
-      // Same engine the compose preview uses, so what was previewed is what
-      // sends - including unknown variables collapsing to empty rather than
-      // shipping literal {{braces}} to a subscriber.
+      // Same engine as the compose preview, so what was previewed is what sends.
       const vars = buildVars({
         email: row.email,
         name: row.name,
@@ -228,22 +195,13 @@ export async function runCampaignQueue(): Promise<RunnerSummary> {
 }
 
 /**
- * Rows left in SENDING belong to a tick that died mid-flight (deploy, crash).
- * Put them back so the queue picks them up rather than stranding them.
- *
- * Safe because a claimed row is only marked SENT/FAILED after the send returns:
- * the worst case is one duplicate email, which is far better than a recipient
- * silently never receiving the campaign at all.
+ * Requeue rows left SENDING by a tick that died. Worst case is one duplicate email, which beats
+ * a recipient never getting it.
  */
 export async function requeueStuckSends(olderThanMinutes = 10): Promise<number> {
   const cutoff = new Date(Date.now() - olderThanMinutes * 60_000)
-  // claimedAt, NOT createdAt (API-08). A bulk campaign inserts every send row
-  // at once, so they share a createdAt: measuring from it meant that once a run
-  // outlived the threshold, rows that were actively SENDING were flipped back to
-  // PENDING and their recipients got the campaign twice. claimedAt is stamped at
-  // the moment of the claim, so this now means what it says.
-  //
-  // A null claimedAt is a row that was never claimed, so it is not stuck.
+  // From claimedAt, not createdAt: all rows share a createdAt, so active sends would be requeued
+  // and sent twice. A null claimedAt was never claimed, so isn't stuck.
   const { count } = await db.projectCampaignSend.updateMany({
     where: { status: "SENDING", claimedAt: { lt: cutoff } },
     data: { status: "PENDING", claimedAt: null },

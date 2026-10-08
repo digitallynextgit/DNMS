@@ -3,14 +3,7 @@
 import { cn } from "@/lib/utils"
 import type { ChecklistProgressView } from "../types"
 
-/**
- * Progress for one checklist: the overall bar, plus the clearance count when
- * there are any.
- *
- * The clearance number is called out separately because it is the one that
- * decides anything - 20 of 24 items done means nothing if the four outstanding
- * are the sign-offs blocking somebody's relieving letter.
- */
+/** Overall progress, plus the clearance count - the number that actually blocks relieving. */
 export function ChecklistProgressBar({
   progress,
   showClearances = true,

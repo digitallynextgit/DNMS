@@ -9,8 +9,7 @@ import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import type { Prisma } from "@prisma/client"
 import type { Session } from "next-auth"
 
-// Callers that omit ?page (e.g. an employee's payslip history) used to get EVERY
-// record. Pagination is now always applied; they get one max-size page instead.
+// Page size for callers that omit ?page (e.g. an employee's payslip history).
 const UNPAGED_LIMIT = 100
 
 export const GET = withAuth(
@@ -24,9 +23,6 @@ export const GET = withAuth(
       const employeeId = searchParams.get("employeeId") ?? undefined
       const search = searchParams.get("search")?.trim() || undefined
 
-      // Pagination is ALWAYS applied (never an unbounded read). The HR records
-      // table passes ?page and gets the 10-row default; consumers that omit it
-      // (an employee's payslip history) fall back to a single 100-row page.
       const pageParam = searchParams.get("page")
       const { page, limit, skip, take } = resolvePagination(
         { page: pageParam, limit: searchParams.get("limit") },
@@ -37,13 +33,11 @@ export const GET = withAuth(
       if (month) where.month = month
       if (year) where.year = year
       if (status) where.status = status
-      // HR (payroll:write) sees everyone; employees only their own payslips.
       if (hasPermission(session, PERMISSIONS.PAYROLL_WRITE)) {
         if (employeeId) where.employeeId = employeeId
       } else {
         where.employeeId = session.user.id
       }
-      // Employee name / number search (server-side).
       if (search) {
         where.employee = {
           OR: [
@@ -106,7 +100,6 @@ export const POST = withAuth(
         return NextResponse.json({ error: "month must be between 1 and 12" }, { status: 400 })
       }
 
-      // Fetch employees to process
       const employeeWhere: Record<string, unknown> = {
         isActive: true,
         status: "ACTIVE",
@@ -131,14 +124,9 @@ export const POST = withAuth(
         )
       }
 
-      // Pay model: daily rate = monthly salary ÷ 30 (fixed divisor). An employee
-      // earns one day's pay for every calendar day they're credited - weekends and
-      // company holidays are paid, and each WORKING day is paid only when they were
-      // present (or on approved PAID leave). A working day with no punch and no paid
-      // leave is an unpaid absence and docks salary/30. Days before joining aren't
-      // paid; future days of an in-progress month are assumed present.
-      // So a fully-present 31-day month pays salary×31/30, a 28-day month ×28/30,
-      // and three absences dock salary×3/30.
+      // Pay model: daily rate = salary / 30. Weekends, company holidays, approved floating holidays and
+      // the birthday are paid days off; a working day is paid when present, on approved WFH (a working
+      // day, not leave) or on paid leave. Pre-joining days are unpaid; future days count as present.
       const daysInMonth = new Date(Date.UTC(yearNum, monthNum, 0)).getUTCDate()
       const STANDARD_MONTH_DAYS = 30
 
@@ -151,50 +139,62 @@ export const POST = withAuth(
 
       const employeeIdList = employees.map((e) => e.id)
 
-      // ── One read per table for the WHOLE month / ALL employees ───────────────
-      // (previously six sequential queries INSIDE the per-employee loop).
-      const [monthHolidays, existingRecords, allAttendanceLogs, allApprovedLeaves, allFloating] =
-        await Promise.all([
-          // Company holidays (office closed → paid days off). Optional/floating
-          // holidays stay normal working days.
-          db.holiday.findMany({
-            where: { date: { gte: monthStart, lte: monthEnd }, isOptional: false },
-            select: { date: true },
-          }),
-          db.payrollRecord.findMany({
-            where: { employeeId: { in: employeeIdList }, month: monthNum, year: yearNum },
-            select: { employeeId: true },
-          }),
-          db.attendanceLog.findMany({
-            where: {
-              employeeId: { in: employeeIdList },
-              date: { gte: monthStart, lte: monthEnd },
-            },
-            select: { employeeId: true, date: true, status: true },
-          }),
-          db.leaveRequest.findMany({
-            where: {
-              employeeId: { in: employeeIdList },
-              status: "APPROVED",
-              startDate: { lte: monthEnd },
-              endDate: { gte: monthStart },
-            },
-            select: {
-              employeeId: true,
-              startDate: true,
-              endDate: true,
-              leaveType: { select: { isPaid: true } },
-            },
-          }),
-          db.floatingHolidaySelection.findMany({
-            where: {
-              employeeId: { in: employeeIdList },
-              status: "APPROVED",
-              holiday: { date: { gte: monthStart, lte: monthEnd } },
-            },
-            select: { employeeId: true, holiday: { select: { date: true } } },
-          }),
-        ])
+      const [
+        monthHolidays,
+        existingRecords,
+        allAttendanceLogs,
+        allApprovedLeaves,
+        allFloating,
+        allApprovedWfh,
+      ] = await Promise.all([
+        // Optional holidays stay working days unless the person's floating request was approved.
+        db.holiday.findMany({
+          where: { date: { gte: monthStart, lte: monthEnd }, isOptional: false },
+          select: { date: true },
+        }),
+        db.payrollRecord.findMany({
+          where: { employeeId: { in: employeeIdList }, month: monthNum, year: yearNum },
+          select: { employeeId: true },
+        }),
+        db.attendanceLog.findMany({
+          where: {
+            employeeId: { in: employeeIdList },
+            date: { gte: monthStart, lte: monthEnd },
+          },
+          select: { employeeId: true, date: true, status: true },
+        }),
+        db.leaveRequest.findMany({
+          where: {
+            employeeId: { in: employeeIdList },
+            status: "APPROVED",
+            startDate: { lte: monthEnd },
+            endDate: { gte: monthStart },
+          },
+          select: {
+            employeeId: true,
+            startDate: true,
+            endDate: true,
+            leaveType: { select: { isPaid: true } },
+          },
+        }),
+        db.floatingHolidaySelection.findMany({
+          where: {
+            employeeId: { in: employeeIdList },
+            status: "APPROVED",
+            holiday: { date: { gte: monthStart, lte: monthEnd } },
+          },
+          select: { employeeId: true, holiday: { select: { date: true } } },
+        }),
+        db.wfhRequest.findMany({
+          where: {
+            employeeId: { in: employeeIdList },
+            status: "APPROVED",
+            date: { lte: monthEnd },
+            endDate: { gte: monthStart },
+          },
+          select: { employeeId: true, date: true, endDate: true },
+        }),
+      ])
 
       const holidaySet = new Set(monthHolidays.map((h) => ymd(h.date)))
       const isOffDay = (date: Date) => {
@@ -202,7 +202,6 @@ export const POST = withAuth(
         return dow === 0 || dow === 6 || holidaySet.has(ymd(date))
       }
 
-      // Bucket every row by employeeId so the loop below is pure in-memory work.
       const existingByEmployee = new Set(existingRecords.map((r) => r.employeeId))
 
       const attendanceByEmployee = new Map<string, { date: Date; status: string }[]>()
@@ -227,6 +226,19 @@ export const POST = withAuth(
         else floatingByEmployee.set(f.employeeId, [f.holiday.date])
       }
 
+      const wfhByEmployee = new Map<string, Set<string>>()
+      for (const w of allApprovedWfh) {
+        const days = wfhByEmployee.get(w.employeeId) ?? new Set<string>()
+        const cur = new Date(
+          Date.UTC(w.date.getUTCFullYear(), w.date.getUTCMonth(), w.date.getUTCDate()),
+        )
+        while (cur <= w.endDate) {
+          days.add(ymd(cur))
+          cur.setUTCDate(cur.getUTCDate() + 1)
+        }
+        wfhByEmployee.set(w.employeeId, days)
+      }
+
       const rowsToCreate: {
         employeeId: string
         netSalary: number
@@ -239,7 +251,6 @@ export const POST = withAuth(
 
       for (const employee of employees) {
         try {
-          // Skip if record already exists
           if (existingByEmployee.has(employee.id)) {
             skipped.push(employee.id)
             continue
@@ -254,12 +265,10 @@ export const POST = withAuth(
             continue
           }
 
-          // Attendance punches keyed by day.
           const attendanceLogs = attendanceByEmployee.get(employee.id) ?? []
           const attByDay = new Map<string, string>()
           for (const log of attendanceLogs) attByDay.set(ymd(log.date), log.status)
 
-          // Approved leaves → per-working-day paid / unpaid sets.
           const approvedLeaves = leavesByEmployee.get(employee.id) ?? []
           const paidLeave = new Set<string>()
           const unpaidLeave = new Set<string>()
@@ -278,32 +287,34 @@ export const POST = withAuth(
             }
           }
 
-          // Approved floating holidays → paid days off for this employee.
           const floatingOff = new Set<string>()
           const floating = floatingByEmployee.get(employee.id) ?? []
           for (const date of floating) floatingOff.add(ymd(date))
+          const wfhDays = wfhByEmployee.get(employee.id) ?? new Set<string>()
 
-          // ── Walk every calendar day and credit pay from attendance ──────────
-          // Off days (weekend/holiday) are paid. Working days are paid only when
-          // the employee was present / on paid leave; an absence (no punch, no paid
-          // leave) or unpaid leave docks salary/30. Half-days pay 0.5.
+          // Month + day only; a 29 Feb birthday has no day off in a non-leap year.
+          const dob = employee.dateOfBirth
+          const birthdayYmd = dob
+            ? `${yearNum}-${String(dob.getUTCMonth() + 1).padStart(2, "0")}-${String(dob.getUTCDate()).padStart(2, "0")}`
+            : null
+
           let payableDays = 0 // days credited (drives the proration ratio)
-          let lopDays = 0 // unpaid days, for the record
-          let leaveDaysInMonth = 0 // paid-leave days, for the record
+          let lopDays = 0
+          let leaveDaysInMonth = 0
           for (let d = 1; d <= daysInMonth; d++) {
             const date = new Date(Date.UTC(yearNum, monthNum - 1, d))
             const key = ymd(date)
-            if (joiningYmd && key < joiningYmd) continue // before joining → unpaid, not employed
-            if (isOffDay(date) || floatingOff.has(key)) {
-              payableDays += 1 // weekend / holiday / approved floating holiday → paid
+            if (joiningYmd && key < joiningYmd) continue
+            if (isOffDay(date) || floatingOff.has(key) || key === birthdayYmd) {
+              payableDays += 1
               continue
             }
             if (key > todayYmd) {
-              payableDays += 1 // future working day of an in-progress month → assumed present
+              payableDays += 1
               continue
             }
             const att = attByDay.get(key)
-            if (att === "PRESENT" || att === "LATE") {
+            if (att === "PRESENT" || att === "LATE" || wfhDays.has(key)) {
               payableDays += 1
             } else if (att === "HALF_DAY") {
               payableDays += 0.5
@@ -314,17 +325,14 @@ export const POST = withAuth(
               payableDays += 1
               leaveDaysInMonth += 1
             } else {
-              // No punch and no paid leave (incl. unpaid leave) → unpaid absence.
               lopDays += 1
             }
           }
           payableDays = Math.round(payableDays * 100) / 100
           lopDays = Math.round(lopDays * 100) / 100
 
-          // Daily rate = salary ÷ 30; pay = rate × credited days.
           const ratio = payableDays / STANDARD_MONTH_DAYS
 
-          // Scale earnings proportionally
           const basicSalary = Math.round(ss.basicSalary * ratio * 100) / 100
           const hra = Math.round(ss.hra * ratio * 100) / 100
           const conveyance = Math.round(ss.conveyance * ratio * 100) / 100
@@ -335,11 +343,8 @@ export const POST = withAuth(
 
           const otherDeductions = 0
 
-          // Shared with the PATCH editor - see computePayslip (DUP-01). The two
-          // formulas used to be written out separately here and there, and they
-          // disagreed. Statutory deductions are zeroed inside computePayslip via
-          // STATUTORY_DEDUCTIONS_ENABLED (company is under the 20-employee
-          // threshold; LWP/absences already reduced gross via proration).
+          // Shared with the PATCH editor. Statutory deductions are zeroed inside (the company is under the
+          // 20-employee threshold; absences already reduced gross via proration).
           const { grossSalary, pfEmployee, pfEmployer, esi, tds, totalDeductions, netSalary } =
             computePayslip(
               {
@@ -390,15 +395,13 @@ export const POST = withAuth(
         }
       }
 
-      // ── Write: one createMany for every payslip, one createMany for the notices ──
       const monthName = new Date(yearNum, monthNum - 1).toLocaleString("default", {
         month: "long",
       })
       const notified: typeof rowsToCreate = []
       if (rowsToCreate.length > 0) {
         try {
-          // skipDuplicates guards the (employeeId, month, year) unique index against
-          // a concurrent generate run; the rows we read above were already filtered.
+          // skipDuplicates guards the (employeeId, month, year) index against a concurrent generate run.
           const result = await db.payrollRecord.createMany({
             data: rowsToCreate.map((r) => r.data),
             skipDuplicates: true,
@@ -406,8 +409,7 @@ export const POST = withAuth(
           createdCount = result.count
           notified.push(...rowsToCreate)
         } catch (batchError) {
-          // Batch insert failed → fall back to per-row inserts so one bad row can't
-          // sink the whole run (preserves the old per-employee `errors` semantics).
+          // Fall back to per-row inserts so one bad row can't sink the whole run.
           console.error("[PAYROLL_GENERATE] Batch insert failed, falling back:", batchError)
           for (const row of rowsToCreate) {
             try {
@@ -422,7 +424,6 @@ export const POST = withAuth(
         }
       }
 
-      // In-app notification: payslip ready
       if (notified.length > 0) {
         await createNotifications(
           notified.map((r) => ({

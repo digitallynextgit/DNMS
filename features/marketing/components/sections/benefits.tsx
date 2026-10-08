@@ -5,15 +5,13 @@ import { cn } from "@/lib/utils"
 import { DotBackdrop, Reveal, SpotlightCard } from "../fx"
 import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
-/** Outcome-led grid: what a company GETS, rendered as pointer-follow cards with
- *  alternating red/blue accents that light up on hover. */
+/** Outcome-led grid of pointer-follow cards. */
 export function Benefits() {
   return (
     <section id="benefits" className="relative scroll-mt-20 overflow-hidden py-20 sm:py-24">
       <DotBackdrop />
 
       <div className="relative mx-auto max-w-[1600px] px-4 sm:px-6">
-        {/* Hero-style pill */}
         <Reveal>
           <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
@@ -27,7 +25,6 @@ export function Benefits() {
           </span>
         </Reveal>
 
-        {/* Two columns: title (left) + supporting copy (right) */}
         <div className="mt-6 grid items-start gap-8 lg:grid-cols-2 lg:gap-16">
           <Reveal>
             <h2 className="text-4xl font-bold tracking-tight text-balance sm:text-5xl">
@@ -57,7 +54,6 @@ export function Benefits() {
                     red ? "hover:border-red-500/40" : "hover:border-blue-500/40",
                   )}
                 >
-                  {/* corner glow that blooms on hover */}
                   <span
                     aria-hidden
                     className={cn(
@@ -65,7 +61,6 @@ export function Benefits() {
                       red ? "bg-red-500/15" : "bg-blue-500/15",
                     )}
                   />
-                  {/* big faint index */}
                   <span
                     aria-hidden
                     className="text-foreground/[0.05] pointer-events-none absolute right-0 -bottom-5 text-[6rem] leading-none font-bold select-none"

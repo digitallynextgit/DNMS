@@ -22,28 +22,8 @@ import { useProjectDeliverables } from "../hooks/use-deliverables"
 import { MAX_TYPE_LENGTH } from "../lib/deliverable-types"
 import type { GoalNode, GoalTarget } from "./goal-status"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// What a goal PROMISED, as opposed to the work planned to get there.
-//
-// "Launch the storefront" is an intention; "20 reels in September" is a number
-// somebody can be held to, and it is the only thing on this board a client
-// would recognise as the deal. Tasks say how we mean to get there and can all
-// be done with nothing to show; a target is met or it is not.
-//
-// ── THE ROW SAYS THREE THINGS AND NOTHING ELSE ───────────────────────────────
-// WHAT (the type), HOW FAR (made of promised), and WHEN (the period). The bar
-// repeats "how far" for the person scanning rather than reading, and the tick
-// is the only state worth a colour: met, or still open. Over-delivery reads as
-// met and 100%, never 140% - the promise was twenty, and twenty-eight reels is
-// a full bar with a bigger numerator, not a bar that has burst.
-//
-// ── EDITING IS INLINE, DELETING ASKS ─────────────────────────────────────────
-// Changing a quantity is a correction and happens where it is read. Removing a
-// target erases what was promised, which is the sort of thing that gets noticed
-// a month later, so it goes through a confirmation that names the target.
-// ─────────────────────────────────────────────────────────────────────────────
+// Over-delivery reads as met and 100%, never 140%.
 
-/** A period bound, shortened: targets are read in rows, not in sentences. */
 function shortDay(iso: string, withYear: boolean): string {
   return new Date(`${iso}T00:00:00.000Z`).toLocaleDateString("en-GB", {
     day: "numeric",
@@ -53,13 +33,7 @@ function shortDay(iso: string, withYear: boolean): string {
   })
 }
 
-/**
- * "1-30 Sep", "from 1 Sep", "until 30 Sep", or nothing at all.
- *
- * An open-ended target counts everything ever attributed to the goal, and
- * saying so in words ("any time") would put a phrase on every row of a project
- * that never uses periods. Silence reads as "no window", which is what it is.
- */
+/** "1-30 Sep", "from 1 Sep", "until 30 Sep", or null for an open-ended target. */
 export function periodLabel(t: Pick<GoalTarget, "periodStart" | "periodEnd">): string | null {
   const { periodStart: a, periodEnd: b } = t
   if (!a && !b) return null
@@ -71,7 +45,6 @@ export function periodLabel(t: Pick<GoalTarget, "periodStart" | "periodEnd">): s
   return `${shortDay(a!, !sameYear)} - ${shortDay(b!, true)}`
 }
 
-/** One target, read-only. The same row on the board and in the drill-down. */
 export function GoalTargetRow({ t, className }: { t: GoalTarget; className?: string }) {
   const period = periodLabel(t)
   return (
@@ -100,7 +73,6 @@ export function GoalTargetRow({ t, className }: { t: GoalTarget; className?: str
   )
 }
 
-/** Every target on a goal, read-only. Renders nothing when there are none. */
 export function GoalTargetList({
   targets,
   className,
@@ -127,15 +99,7 @@ interface Draft {
 
 const EMPTY_DRAFT: Draft = { deliverableType: "", quantity: "", periodStart: "", periodEnd: "" }
 
-/**
- * The add/edit form, inline.
- *
- * The type is free text with a datalist of what this project has ACTUALLY
- * produced, rather than a closed dropdown: a target for something nobody has
- * made yet is exactly the target worth setting, and a project's vocabulary is
- * its own. The server folds case, so "Reel" and "reel" cannot become two
- * different promises.
- */
+/** The type is free text, suggested from what the project has produced; the server folds case. */
 function TargetForm({
   projectId,
   initial,
@@ -165,8 +129,7 @@ function TargetForm({
       : EMPTY_DRAFT,
   )
   const listId = React.useId()
-  // Only mounted while the form is open, so a board full of goals does not each
-  // fetch the ledger to fill a datalist nobody opened.
+  // Mounted only while the form is open, so idle goals don't fetch the ledger.
   const ledger = useProjectDeliverables(projectId, {})
   const types = ledger.data?.types?.length ? ledger.data.types : (ledger.data?.suggestedTypes ?? [])
 
@@ -262,14 +225,7 @@ function TargetForm({
   )
 }
 
-/**
- * A goal's targets, with the manager's controls.
- *
- * `canManage` and not `canStaff`: a team manager may break a goal into tasks,
- * but what was COMMITTED to the client is the account manager's to change. The
- * server enforces the same split, so a button offered here that the API would
- * refuse is the thing this gate exists to prevent.
- */
+/** `canManage`, not `canStaff`: what was committed to the client is the account manager's to change. */
 export function GoalTargets({
   projectId,
   goal,
@@ -282,12 +238,7 @@ export function GoalTargets({
   goal: GoalNode
   canManage: boolean
   className?: string
-  /**
-   * Controlled "adding a target" state. The goal card owns it so the way in
-   * can live in that goal's footer with the other add-actions, instead of a
-   * "+ Target" button under every row on a board that has no targets at all.
-   * Left out, the component keeps its own state and behaves as before.
-   */
+  /** Controlled "adding" state, owned by the goal card; left out, the component keeps its own. */
   adding?: boolean
   onAddingChange?: (v: boolean) => void
 }) {
@@ -299,11 +250,7 @@ export function GoalTargets({
   const { addTarget, updateTarget, removeTarget } = useGoalTargetMutations(projectId)
 
   const targets = goal.targets
-  // Nothing promised: the goal reads cleaner without an empty section under
-  // it, so the way IN moved to the goal's own footer row. "+ Target" used to
-  // sit under every goal and sub-goal whether or not the team had ever used
-  // targets - an advanced feature at full volume on a board with none. The
-  // component still renders (invisibly) because it hosts the add dialog.
+  // Still renders when empty, because it hosts the add dialog.
   const visible = targets.length > 0
 
   const pending = addTarget.isPending || updateTarget.isPending
@@ -367,9 +314,6 @@ export function GoalTargets({
         )}
       </ul>
 
-      {/* A dialog, not an inline row: the form has four fields and it used to
-          unfold INSIDE the goal card, pushing the sub-goals down the page while
-          you filled it in. */}
       {canManage && goal.isActive && (
         <Dialog open={adding} onOpenChange={(o) => !o && setAdding(false)}>
           <DialogContent className="sm:max-w-lg">

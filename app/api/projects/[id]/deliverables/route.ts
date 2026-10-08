@@ -7,12 +7,7 @@ import { createDeliverable } from "@/features/projects/server/deliverables.servi
 import { STATUS_ORDER, type DeliverableStatus } from "@/features/projects/lib/deliverable-lifecycle"
 import { AppError } from "@/lib/errors"
 
-// GET  /api/projects/[id]/deliverables - the ledger + counts for one project
-// POST /api/projects/[id]/deliverables - log something that was made, or plan it
-//
-// READ is open to anyone on the project: what the team produced is the shared
-// record of the work. WRITE is any member for their own output; the service
-// decides who may log on somebody else's behalf and who may plan work at all.
+// Anyone on the project may read; the service decides who may log for others or plan work.
 export const dynamic = "force-dynamic"
 
 /** `?status=DELIVERED,ACCEPTED`. Unknown names are dropped, not 400'd. */
@@ -50,9 +45,6 @@ export const POST = withProjectAccess(
       const created = await createDeliverable(session, ctx.params.id!, body)
       return NextResponse.json({ data: created }, { status: 201 })
     } catch (err) {
-      // The service's messages are written for the person filling the form; the
-      // code beside it is for the form itself (a locked period is a different
-      // conversation from a bad date).
       if (err instanceof AppError) {
         const code = (err.details as { code?: string } | undefined)?.code ?? err.code
         return NextResponse.json({ error: err.message, code }, { status: err.statusCode })

@@ -121,15 +121,13 @@ export default function RecruitmentPage() {
     queryFn: () => fetchJobs(statusFilter || undefined),
   })
   const { data: deptsData } = useQuery({ queryKey: ["departments"], queryFn: fetchDepts })
-  // useMemo, not a bare `?? []`: the fallback minted a new array identity on
-  // every render, so every downstream useMemo keyed on these re-ran regardless.
+  // useMemo, not a bare ?? []: a new array each render would re-run every downstream useMemo.
   const jobs = useMemo(() => jobsData?.data ?? [], [jobsData])
   const depts = useMemo(() => deptsData?.data ?? [], [deptsData])
   // Tree order with full paths, for the posting's department dropdown.
   const deptOptions = useMemo(() => flattenDepartmentTree(depts), [depts])
 
-  // Client-side pagination of the postings grid. Stats below stay computed from
-  // the full `jobs` list so the counts remain accurate across all pages.
+  // Only the grid is paginated; stats use the full jobs list.
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(jobs.length / PAGE_SIZE))
   const pagedJobs = useMemo(
@@ -137,13 +135,11 @@ export default function RecruitmentPage() {
     [jobs, page],
   )
 
-  // Reset to page 1 whenever the status filter changes (skips mount so a
-  // deep-linked ?page=N survives first render).
+  // Skips mount so a deep-linked ?page=N survives first render.
   useUpdateEffect(() => {
     setPage(1)
   }, [statusFilter])
 
-  // Clamp the page if the underlying list shrinks (e.g. after a delete).
   useEffect(() => {
     if (!isLoading && page > totalPages) setPage(totalPages)
   }, [page, totalPages, isLoading])
@@ -193,19 +189,17 @@ export default function RecruitmentPage() {
   })
 
   const selectedDept = depts.find((d) => d.id === form.departmentId)
-  const [deptTone, setDeptTone] = useState<"red" | "teal" | "">("")
-  const [deptJobsLabel, setDeptJobsLabel] = useState("")
+  const [deptTone, setDeptTone] = useState<"red" | "teal" | "">(selectedDept?.careersTone ?? "")
+  const [deptJobsLabel, setDeptJobsLabel] = useState(selectedDept?.careersJobsLabel ?? "")
   const [deptSaving, setDeptSaving] = useState(false)
 
-  // Deps are the department IDENTITY only. With careersTone/careersJobsLabel in
-  // here as well, a background refetch that returned updated values re-ran this
-  // and silently discarded the edits the user had not saved yet. Switching
-  // department is the only thing that should reload these fields.
-  useEffect(() => {
+  // Department identity only: reacting to the rest would let a background refetch wipe unsaved edits.
+  const [prevDeptId, setPrevDeptId] = useState(selectedDept?.id)
+  if (selectedDept?.id !== prevDeptId) {
+    setPrevDeptId(selectedDept?.id)
     setDeptTone(selectedDept?.careersTone ?? "")
     setDeptJobsLabel(selectedDept?.careersJobsLabel ?? "")
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDept?.id])
+  }
 
   const [aiGenerating, setAiGenerating] = useState(false)
 
@@ -311,7 +305,6 @@ export default function RecruitmentPage() {
         }
       />
 
-      {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
@@ -348,7 +341,6 @@ export default function RecruitmentPage() {
         </Card>
       </div>
 
-      {/* Filters */}
       <div className="flex items-center gap-2">
         {["", "OPEN", "DRAFT", "ON_HOLD", "CLOSED"].map((s) => (
           <button
@@ -444,7 +436,6 @@ export default function RecruitmentPage() {
         </div>
       )}
 
-      {/* Pagination */}
       {!isLoading && jobs.length > 0 && (
         <Pagination
           page={page}
@@ -455,7 +446,6 @@ export default function RecruitmentPage() {
         />
       )}
 
-      {/* Create Job Dialog */}
       <FormDialog
         open={open}
         onOpenChange={setOpen}
@@ -730,7 +720,6 @@ export default function RecruitmentPage() {
         </div>
       </FormDialog>
 
-      {/* Delete Job confirmation */}
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(o) => !o && setDeleteTarget(null)}

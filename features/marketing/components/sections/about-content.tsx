@@ -24,14 +24,12 @@ const PRINCIPLES = [
   },
 ]
 
-/** About page body. Static content, so a plain server component. */
 export function AboutContent() {
   return (
     <div className="relative">
       <GridBackdrop />
 
       <div className="relative mx-auto max-w-[1600px] px-4 pt-28 pb-8 sm:px-6 lg:pt-32">
-        {/* ── Header ─────────────────────────────────────────────────────── */}
         <Reveal>
           <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
@@ -45,21 +43,10 @@ export function AboutContent() {
           </span>
         </Reveal>
 
-        {/* Title left, standfirst right.
-            ── TOP-ALIGNED ──
-            Neither `items-end` nor `items-center` works when the two blocks are
-            different heights: bottom alignment pushes the shorter block up above
-            the title, centring straddles it. Starting them on the same line is
-            the only rule that holds however the copy wraps.
-
-            The columns are sized around line one of the heading: 35 characters,
-            which needs roughly 900px at this size to stay on one line. The right
-            column takes 0.65fr so the paragraph settles at three lines rather
-            than four, which keeps the two blocks close in height. */}
+        {/* Title left, standfirst right, top-aligned so it holds however the copy wraps. */}
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.65fr)] lg:items-start lg:gap-12 xl:gap-16">
           <Reveal delay={60}>
-            {/* Two explicit lines, not text-balance: the red phrase earns its
-                own line, and where it breaks should not depend on the viewport. */}
+            {/* Two explicit lines, not text-balance, so the red phrase gets its own line. */}
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl xl:text-[3.25rem]">
               <span className="block">Software for the parts of a company</span>
               <span className="block" style={{ color: BRAND_RED }}>
@@ -78,7 +65,6 @@ export function AboutContent() {
         </div>
       </div>
 
-      {/* ── Story ──────────────────────────────────────────────────────── */}
       <div className="relative mx-auto max-w-[1600px] px-4 py-12 sm:px-6">
         <div className="grid gap-10 lg:grid-cols-[minmax(0,0.6fr)_minmax(0,1.4fr)] lg:gap-16 xl:gap-24">
           <Reveal>
@@ -109,7 +95,6 @@ export function AboutContent() {
         </div>
       </div>
 
-      {/* ── Principles ─────────────────────────────────────────────────── */}
       <div className="relative mx-auto max-w-[1600px] px-4 py-12 sm:px-6">
         <Reveal>
           <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">What we hold to</h2>
@@ -132,7 +117,6 @@ export function AboutContent() {
         </div>
       </div>
 
-      {/* ── What's in it ───────────────────────────────────────────────── */}
       <div className="relative mx-auto max-w-[1600px] px-4 py-12 sm:px-6">
         <Reveal>
           <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -157,7 +141,6 @@ export function AboutContent() {
         </div>
       </div>
 
-      {/* ── Company facts ──────────────────────────────────────────────── */}
       <div className="relative mx-auto max-w-[1600px] px-4 py-12 sm:px-6">
         <Reveal>
           <div className="border-border/70 bg-card/50 rounded-sm border p-6 sm:p-8">
@@ -195,7 +178,6 @@ export function AboutContent() {
         </Reveal>
       </div>
 
-      {/* ── CTA ────────────────────────────────────────────────────────── */}
       <div className="relative mx-auto max-w-[1600px] px-4 pt-6 pb-20 text-center sm:px-6">
         <Reveal>
           <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">

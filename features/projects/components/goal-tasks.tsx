@@ -32,21 +32,10 @@ import { useAssignableEmployees, useUpdateTask } from "../hooks/use-projects"
 import { useTaskList } from "./progress-task-list"
 import type { GoalNode } from "./goal-status"
 
-/** A team the current user may staff work into. Name only - this is a picker. */
 export interface StaffableTeam {
   id: string
   name: string
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// The work behind a goal, on the Goals tab.
-//
-// A goal used to be a checkbox somebody remembered to tick. Now it lists the
-// tasks that serve it, derives its progress from them, and is where a manager
-// breaks a goal into work: "Add task" raises a task already linked, "Link
-// tasks" sweeps existing unlinked ones in. The employee never has to pick a
-// goal - it was picked for them here.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const NONE = "__none__"
 
@@ -63,7 +52,6 @@ export function useInvalidateGoalWork(projectId: string) {
   }
 }
 
-/** Sweep existing unlinked tasks under this goal. */
 function LinkTasksDialog({
   projectId,
   goal,
@@ -158,16 +146,7 @@ function LinkTasksDialog({
   )
 }
 
-/**
- * Raise a task that already serves this goal.
- *
- * TEAM AND OUTPUT ARE ASKED FOR HERE, not left to a default nobody revisits.
- * The team decides who can staff it and which manager sees it on their board;
- * "produces output" decides whether finishing it prompts for a deliverable.
- * Both were previously guessed from the project, and a task raised for the
- * content team that never asked for the reel is how a goal reads 100% with
- * nothing delivered.
- */
+/** Asks for the team and "produces output" explicitly rather than guessing them from the project. */
 function AddTaskForm({
   projectId,
   goal,
@@ -184,8 +163,7 @@ function AddTaskForm({
   const [assigneeId, setAssigneeId] = React.useState(NONE)
   const [dueDate, setDueDate] = React.useState(goal.targetDate ?? "")
   const [hours, setHours] = React.useState("")
-  // The first team they manage, because that is the one they are almost always
-  // staffing - and a required field left blank is a 400 they have to read.
+  // The first team they manage, since a blank required field is a 400.
   const [teamId, setTeamId] = React.useState(() => teams[0]?.id ?? NONE)
   const [producesOutput, setProducesOutput] = React.useState(true)
   const people = useAssignableEmployees(projectId)
@@ -264,9 +242,7 @@ function AddTaskForm({
         aria-label="Estimated hours"
         className="w-24"
       />
-      {/* On by default: most work here exists to produce the thing the goal
-          promised, and the prompt when it is finished is how that thing gets
-          recorded. Off for the meetings and the admin. */}
+      {/* On by default: most goal work produces what the goal promised. */}
       <label className="text-muted-foreground flex cursor-pointer items-center gap-1.5 text-[11px]">
         <Checkbox
           checked={producesOutput}
@@ -285,15 +261,7 @@ function AddTaskForm({
   )
 }
 
-/**
- * The tasks under one goal (or milestone), with the staffing actions.
- * `compact` is the sub-goal row's version: indented, no header line.
- *
- * `canStaff` and not `canManage`: breaking a goal into work, and taking work
- * back out of it, is the TEAM manager's job as much as the account manager's -
- * they are the ones who know what it takes. What was promised to the client
- * (the targets) stays manage-only. The server draws the same line.
- */
+/** `canStaff`, not `canManage`: team managers may staff goals too; targets stay manage-only (as on the server). */
 export function GoalTasks({
   projectId,
   goal,
@@ -307,19 +275,10 @@ export function GoalTasks({
 }: {
   projectId: string
   goal: GoalNode
-  /** May add, link and unlink work under this goal. */
   canStaff: boolean
-  /** Teams this person may staff into, for the add form's picker. */
   teams?: StaffableTeam[]
   compact?: boolean
-  /**
-   * Controlled "add a task" / "link tasks" state, owned by the goal card.
-   *
-   * Uncontrolled, this band drew "+ Add task | Link tasks" under EVERY goal and
-   * sub-goal whether or not any work existed - four copies of the same two
-   * buttons on one card, which is most of what made it unreadable. The card now
-   * offers those once, in its own footer and in each sub-goal's menu.
-   */
+  /** Controlled add/link state, owned by the goal card (which offers those buttons once). */
   adding?: boolean
   onAddingChange?: (v: boolean) => void
   linking?: boolean
@@ -336,7 +295,6 @@ export function GoalTasks({
   const updateTask = useUpdateTask()
   const tasks = goal.tasks
 
-  // Nothing to show and nothing being started: stay out of the way entirely.
   if (tasks.length === 0 && (!canStaff || (controlled && !adding && !linking))) return null
 
   return (
@@ -352,8 +310,6 @@ export function GoalTasks({
           <span className="font-medium">
             {goal.doneTasks} of {goal.countableTasks} tasks done
           </span>
-          {/* The hours reading, beside the count: a 10h task and a 1h task
-              move this one differently. Only when estimates exist. */}
           {goal.hoursProgress !== null && (
             <span
               className="text-muted-foreground tabular-nums"
@@ -406,10 +362,7 @@ export function GoalTasks({
                   <PackageCheck className="h-3 w-3" /> {t.outputs}
                 </span>
               )}
-              {/* Two different facts wearing two different weights: nobody has
-                  logged what this produced (chase it), versus somebody was
-                  asked and said there was nothing to log (leave them alone).
-                  One amber label for both is how people stop reading amber. */}
+              {/* "Not logged yet" (chase it) and "nothing to log" (leave it) get different weights. */}
               {t.status === "DONE" &&
                 t.producesOutput &&
                 t.outputs === 0 &&
@@ -446,9 +399,6 @@ export function GoalTasks({
         </ul>
       )}
 
-      {/* A dialog, not an unfolding row. The form has a title, a team and a
-          couple of toggles, and opening it inline shoved every sub-goal below
-          it down the page while you typed. */}
       {canStaff && goal.isActive && (
         <Dialog open={adding} onOpenChange={(o) => !o && setAdding(false)}>
           <DialogContent className="sm:max-w-lg">

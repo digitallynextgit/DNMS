@@ -4,7 +4,6 @@ import { PHILOSOPHY } from "../../marketing.constants"
 import { DotBackdrop, Reveal } from "../fx"
 import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
-/** Centered pull-quote - the product philosophy. No CTAs. */
 export function Philosophy() {
   return (
     <section className="relative overflow-hidden py-20 sm:py-24">

@@ -6,10 +6,7 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
-// GET /api/projects/performance
-// Task-throughput performance for people and projects: how much is completed,
-// and how much of it lands on time. Admins (project:write) see everything; anyone
-// else sees the teams they manage, the projects they own, and their own tasks.
+// Admins (project:write) see all; others see their managed teams, owned projects and own tasks.
 export const GET = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -24,17 +21,11 @@ export const GET = withSession(
             ],
           }
 
-      // Optional narrowing. `projectId` scopes to one project; `from`/`to`
-      // (inclusive, yyyy-mm-dd) scope to tasks DUE inside the window - the
-      // question this page answers is "what was due in this period", so an
-      // undated task is out of scope for a dated view by definition.
+      // from/to (inclusive) scope to tasks DUE in the window, so undated tasks are out of a dated view.
       const { searchParams } = req.nextUrl
       const projectId = searchParams.get("projectId") ?? undefined
       const from = searchParams.get("from")
       const to = searchParams.get("to")
-
-      // (`from`/`to` are applied as SQL predicates on the aggregate below;
-      // there is no longer a Prisma `where` object to build them into.)
 
       const todayStart = new Date()
       todayStart.setUTCHours(0, 0, 0, 0)
@@ -47,23 +38,8 @@ export const GET = withSession(
       const weekEnd = new Date(weekStart)
       weekEnd.setUTCDate(weekEnd.getUTCDate() + 7)
 
-      // ── Aggregate in the DATABASE, not in Node ──────────────────────────────
-      //
-      // This used to `findMany` every matching task and tally it in a JS loop.
-      // With no filters (and "All time" is a real preset on the page, not just a
-      // hand-crafted request) `where` collapsed to `{ AND: [] }` for an admin,
-      // so the whole project_tasks table streamed into Node on a page load.
-      //
-      // Truncating was not an option: this page is nothing but aggregates, and a
-      // clipped scan reports confidently WRONG totals. So the tally moved into
-      // one grouped query instead.
-      //
-      // Grouped by (assignee, project) rather than aggregated three times: every
-      // bucket is an additive count/sum, so summary, byEmployee and byProject are
-      // all cheap roll-ups of the same small result. That also preserves the
-      // original semantics exactly - summary counted every task, byEmployee only
-      // tasks WITH an assignee, byProject only tasks WITH a project - because the
-      // NULL groups simply drop out of the respective roll-up.
+      // Aggregated in the DB, grouped by (assignee, project): summary, byEmployee and byProject are cheap
+      // roll-ups of the same result, and the NULL groups drop out of the per-employee/per-project ones.
       const scopeSql = isAdmin
         ? Prisma.sql`TRUE`
         : Prisma.sql`(tm.manager_id = ${session.user.id} OR p.owner_id = ${session.user.id} OR t.assignee_id = ${session.user.id})`
@@ -75,22 +51,12 @@ export const GET = withSession(
         ? Prisma.sql`t.due_date <= ${new Date(`${to}T23:59:59.999Z`)}`
         : Prisma.sql`TRUE`
 
-      // ── What "overdue" means ────────────────────────────────────────────────
-      //
-      // PAST ITS DATE AND NOT FINISHED. That is the whole rule. It deliberately
-      // does NOT also require the task to be actively in play: a task parked on
-      // hold is still work that was promised for a date that has gone by, and
-      // hiding it made the number smaller than the truth.
-      //
-      // CLOSED is "finished or dropped" - the only states that can never be
-      // overdue, because nobody owes them any more. CANCELLED is legacy and
-      // rides with DISCARDED.
+      // Overdue = past its date and not finished (on hold still counts). CANCELLED is legacy, like DISCARDED.
       const CLOSED = Prisma.sql`(t.status IN ('DONE', 'DISCARDED', 'CANCELLED'))`
-      // due_date is @db.Date, so it reads back as UTC midnight. Strictly before
-      // today's midnight, so a task due TODAY has all of today to be done.
+      // due_date is @db.Date (UTC midnight); a task due today has all of today.
       const LATE = Prisma.sql`(t.due_date IS NOT NULL AND t.due_date < ${todayStart})`
       const OVERDUE = Prisma.sql`(NOT ${CLOSED} AND ${LATE})`
-      // The original compared completedAt against dueDate at 23:59:59.999 UTC.
+      // End of the due day (23:59:59.999).
       const DUE_END = Prisma.sql`(t.due_date + INTERVAL '1 day' - INTERVAL '1 millisecond')`
 
       type GroupRow = {
@@ -161,11 +127,6 @@ export const GET = withSession(
         WHERE ${scopeSql} AND ${projectSql} AND ${fromSql} AND ${toSql}
         GROUP BY t.assignee_id, t.project_id, t.team_id
       `
-      // team_id joined the GROUP BY so the Progress page can stack one bar per
-      // TEAM inside a project on the same exclusive states as everything else.
-      // Every other roll-up is a plain sum, so the finer grouping changes none
-      // of their totals - a (person, project) pair now arrives as a few rows
-      // instead of one and adds up the same.
 
       type Bucket = {
         assigned: number
@@ -178,16 +139,8 @@ export const GET = withSession(
         discarded: number
         dueThisWeek: number
         doneThisWeek: number
-        // ── Mutually exclusive display states ────────────────────────────────
-        // `inProgress` and `overdue` above OVERLAP - a late in-progress task
-        // increments both - which is right for "how many are late" but wrong for
-        // any part-to-whole chart, where it would count that task twice and the
-        // slices would not sum to the total. These split the same tasks into
-        // buckets that each own a task exactly once:
-        //   completed + discarded + onHold + overdue + openProgress + openTodo
-        //   = assigned
-        // Added alongside the originals rather than replacing them, so the AI
-        // briefing and the drill-downs keep the numbers they were written for.
+        // `inProgress` and `overdue` overlap; these split the same tasks so each is counted exactly once
+        // (completed + discarded + onHold + overdue + openProgress + openTodo = assigned).
         openTodo: number
         openProgress: number
         allocatedHours: number
@@ -210,9 +163,7 @@ export const GET = withSession(
         spentHours: 0,
       })
 
-      // Every bucket is additive, so folding a group row into a bucket is just
-      // a sum. COUNT() comes back as BigInt over the wire; SUM() of a float
-      // column comes back as a number.
+      // COUNT() arrives as BigInt; SUM() of a float column as a number.
       const add = (b: Bucket, g: GroupRow) => {
         b.assigned += Number(g.assigned)
         b.completed += Number(g.completed)
@@ -230,17 +181,7 @@ export const GET = withSession(
         b.spentHours += Number(g.spent_hours ?? 0)
       }
 
-      // ── Two figures the date range must NOT narrow ─────────────────────────
-      //
-      // overdueNow: "what is late right now" is a question about today, not
-      // about the window. With the page defaulting to This week, the range-
-      // scoped overdue count silently dropped every task that fell late in an
-      // earlier week and was still open - the ones a manager most needs to see.
-      // The tile shows this; the range-scoped `overdue` in the buckets stays for
-      // the charts that describe the window.
-      //
-      // trend: eight Monday-start weeks ending this one, so the pace line has a
-      // shape. A pace line clipped to a one-week range is a single dot.
+      // Not narrowed by the date range: overdueNow is about today; the trend needs eight weeks for a shape.
       const trendStart = new Date(weekStart)
       trendStart.setUTCDate(trendStart.getUTCDate() - 7 * 7)
 
@@ -274,8 +215,7 @@ export const GET = withSession(
       ])
       const overdueNow = Number(overdueRow?.n ?? 0)
 
-      // date_trunc returns the Monday as a timestamp; keyed by its date so the
-      // lookup does not depend on how the driver renders midnight.
+      // Keyed by date so the lookup doesn't depend on how the driver renders midnight.
       const key = (d: Date) => d.toISOString().slice(0, 10)
       const completedMap = new Map(completedByWeek.map((r) => [key(r.wk), Number(r.n)]))
       const dueMap = new Map(dueByWeek.map((r) => [key(r.wk), Number(r.n)]))
@@ -291,8 +231,7 @@ export const GET = withSession(
       const byEmp = new Map<string, Bucket>()
       const byProj = new Map<string, Bucket>()
       const byTeamMap = new Map<string, Bucket>()
-      // Teamless tasks still need a bar, or a project's team bars would not add
-      // up to its donut. Same sentinel the per-project progress query uses.
+      // Teamless tasks still need a bar, or the team bars wouldn't add up to the donut.
       const NO_TEAM = "__no_team__"
 
       for (const g of groups) {
@@ -307,8 +246,7 @@ export const GET = withSession(
           add(b, g)
           byProj.set(g.project_id, b)
         }
-        // Only meaningful inside one project: across the portfolio a "team"
-        // bar would merge same-named teams from different clients.
+        // Only within one project: across the portfolio, same-named teams from different clients would merge.
         if (projectId) {
           const key = g.team_id ?? NO_TEAM
           const b = byTeamMap.get(key) ?? zero()
@@ -317,8 +255,6 @@ export const GET = withSession(
         }
       }
 
-      // Display info for just the ids that actually appear - a couple of small
-      // keyed reads instead of joining these columns onto every task row.
       const teamIds = [...byTeamMap.keys()].filter((k) => k !== NO_TEAM)
       const [empInfo, projInfo, teamInfo] = await Promise.all([
         byEmp.size
@@ -330,8 +266,6 @@ export const GET = withSession(
         byProj.size
           ? db.project.findMany({
               where: { id: { in: [...byProj.keys()] } },
-              // slug: the drill-down links to the project page, and every link
-              // in the app is slug-first (see projectHref).
               select: { id: true, name: true, code: true, slug: true },
             })
           : Promise.resolve([]),
@@ -387,13 +321,7 @@ export const GET = withSession(
         })
         .sort((a, b) => b.assigned - a.assigned)
 
-      // The picker's option list must NOT follow the filters, or selecting a
-      // project would leave it as the only option and there would be no way
-      // back. Scope-filtered only.
-      //
-      // Queried off `projects` rather than `project_tasks` + distinct: the old
-      // shape read one row PER TASK just to recover the project list behind them
-      // - a second full scan of the same table the aggregate above already walked.
+      // The picker's options must not follow the filters, or there'd be no way back from one project.
       const projects = (
         await db.project.findMany({
           where: { tasks: { some: scopeWhere } },

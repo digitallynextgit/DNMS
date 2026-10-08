@@ -1,8 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeaderSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
 
-// Work From Home landing: header (+ Apply WFH) + an eligibility card + the
-// request-history table, matching the non-manager My WFH view.
 export default function WfhLoading() {
   return (
     <div className="space-y-6">

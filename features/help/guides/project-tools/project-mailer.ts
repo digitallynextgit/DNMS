@@ -1,9 +1,7 @@
 import { Mail } from "lucide-react"
 import type { HelpGuide } from "../../types"
 
-// Screens: features/project-mailer/components/project-mailer-tab.tsx (Campaigns,
-// Templates, Recipients, Accounts and their dialogs), body-composer.tsx and
-// recipient-import-dialog.tsx.
+// Screens: features/project-mailer/components/* (the mailer tab and its dialogs).
 
 const MAILER = "/projects/sunmeadow-organics-launch?tab=mailer"
 
@@ -231,9 +229,7 @@ export const projectMailerGuide: HelpGuide = {
             path: MAILER,
             actions: [
               { click: { role: "button", name: "New campaign" } },
-              // Send to sits below the body editor; pointing at it scrolls the
-              // dialog down to it. (Send from then scrolls out of view - that is
-              // why this is a picture of its own.)
+              // Pointing at Send to scrolls the dialog down (Send from then scrolls away, hence its own shot).
               { hover: { text: "Send to", exact: true } },
             ],
             highlight: [

@@ -7,9 +7,8 @@ import { toDateOnly } from "@/lib/dates"
 import { renderFloatingHolidayRequestEmail } from "@/lib/email-layout"
 import { getConfig, warmConfig } from "@/server/app-config"
 
-// Roles whose decision is FINAL on a floating-holiday request - the same list the
-// request routes use. Only consulted as a *fallback* addressee when the applicant
-// has no active reporting manager.
+// Final deciders on a floating-holiday request; used only as the fallback addressee when the
+// applicant has no active manager.
 const HR_ROLE_NAMES: string[] = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.ADMIN_]
 
 export interface FloatingHolidayMailEnvelope {
@@ -19,12 +18,8 @@ export interface FloatingHolidayMailEnvelope {
   ccHr: string | null
 }
 
-/**
- * Who a floating-holiday letter actually goes to. Mirrors the leave / WFH
- * contract: the applicant's REPORTING MANAGER when they have an active one,
- * otherwise the first HR/admin approver - exactly the people the PATCH route
- * lets decide. Never the applicant themselves.
- */
+/** Who the letter goes to: the applicant's active manager, else the first HR/admin approver -
+ *  never the applicant. */
 export async function resolveFloatingHolidayMailEnvelope(
   applicantId: string,
 ): Promise<FloatingHolidayMailEnvelope> {
@@ -79,7 +74,6 @@ function buildMessageId(key: string): string {
 
 export interface FloatingHolidayLetterInput {
   applicantId: string
-  /** The floating-holiday selection row. */
   selectionId: string
   holidayName: string
   holidayDate: Date
@@ -90,7 +84,6 @@ export interface FloatingHolidayLetterInput {
   year: number
 }
 
-/** A rendered letter plus the envelope it goes out in. */
 export interface PreparedFloatingHolidayLetter {
   applicantId: string
   to: string
@@ -103,13 +96,7 @@ export interface PreparedFloatingHolidayLetter {
   references: string
 }
 
-/**
- * Build the letter and resolve its envelope WITHOUT sending. Split out from the
- * sender so the backfill script can await a real send while the request path
- * stays fire-and-forget - one renderer, no drift between the two.
- *
- * Returns null when there is nobody to address it to.
- */
+/** Build the letter and its envelope without sending (null when there's nobody to address). */
 export async function prepareFloatingHolidayLetter(
   input: FloatingHolidayLetterInput,
 ): Promise<PreparedFloatingHolidayLetter | null> {
@@ -150,8 +137,7 @@ export async function prepareFloatingHolidayLetter(
     usedCount: input.usedCount,
     limit: input.limit,
     year: input.year,
-    // Approvals live on the "Requests" tab of the holiday calendar, the same
-    // link the in-app notification points at.
+    // Approvals live on the holiday calendar's "Requests" tab.
     reviewUrl: appUrl
       ? `${appUrl.replace(/\/$/, "")}/calendar?view=holidays&tab=requests`
       : undefined,
@@ -169,23 +155,15 @@ export async function prepareFloatingHolidayLetter(
     subject: email.subject,
     html: email.html,
     text: email.text,
-    // It reads as the employee's letter, so Reply should reach the employee.
     replyTo: applicant.email ?? undefined,
     messageId: buildMessageId(`floating-holiday-${input.selectionId}`),
-    // Shared phantom root, so a re-application on the same row threads onto
-    // the original conversation even when Gmail rewrites the Message-ID.
+    // Shared References root keeps re-applications on one thread (Gmail rewrites Message-IDs).
     references: buildMessageId(`floating-holiday-thread-${input.selectionId}`),
   }
 }
 
-/**
- * Send the application letter for a freshly-submitted floating-holiday request:
- * TO the manager, Cc HR and the applicant. Sent AS the employee from their own
- * mailbox (via their stored App Password) so it genuinely comes from them,
- * falling back to the system mailer when they have none on file.
- *
- * Always non-blocking - a mail failure must never fail the request.
- */
+/** Send the application letter as the employee (App Password, else the system mailer): to the
+ *  manager, Cc HR and the applicant. Never fails the request. */
 export async function sendFloatingHolidayRequestLetter(
   input: FloatingHolidayLetterInput,
 ): Promise<void> {

@@ -12,7 +12,6 @@ export function Closing() {
       <GridBackdrop />
 
       <div className="relative mx-auto max-w-[1600px] px-4 sm:px-6">
-        {/* Hero-style pill */}
         <Reveal>
           <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
@@ -27,7 +26,6 @@ export function Closing() {
         </Reveal>
 
         <div className="mt-6 grid items-start gap-10 lg:grid-cols-2 lg:gap-16">
-          {/* Left: closing statement */}
           <Reveal>
             <h2 className="text-4xl font-bold tracking-tight text-balance sm:text-5xl">
               Everything your company runs on.{" "}
@@ -35,7 +33,6 @@ export function Closing() {
             </h2>
           </Reveal>
 
-          {/* Right: copy + newsletter */}
           <Reveal delay={120}>
             <p className="text-muted-foreground text-lg text-pretty lg:text-xl">
               {siteConfig.description}

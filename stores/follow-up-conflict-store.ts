@@ -2,13 +2,8 @@ import { create } from "zustand"
 import type { FollowUpConflictDetails } from "@/features/projects/lib/follow-up-conflict"
 
 /**
- * The pending "keep it or remove it?" question about a hold follow-up.
- *
- * Shared state because the two halves live apart: the question is RAISED
- * wherever a task status is changed (the sheet, the kanban, the detail panel,
- * My Tasks) and ANSWERED by a single dialog mounted once in the dashboard
- * shell. Without this, every one of those screens would need its own copy of
- * the dialog and they would drift.
+ * The pending "keep or remove the hold follow-up?" question: raised wherever a task status
+ * changes, answered by one dialog in the dashboard shell.
  */
 export interface FollowUpConflict extends FollowUpConflictDetails {
   /** Re-run the rejected status change, this time confirmed. */

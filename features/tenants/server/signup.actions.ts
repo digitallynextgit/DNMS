@@ -8,24 +8,10 @@ import { ok, fail, runAction, type ActionResult } from "@/server/action-result"
 import { provisionTenant, ProvisionError } from "./provision.service"
 import { signupSchema } from "../schemas/signup.schema"
 
-// =============================================================================
-// Self-service signup (M5) - the only unauthenticated WRITE in the app.
-//
-// Everything else that creates data sits behind a session. This does not, by
-// definition: the person has no account yet. That makes it the one endpoint
-// where abuse costs something real (a tenant, five roles, an employee), so it
-// gets checks the authenticated paths do not need.
-// =============================================================================
+// Self-service signup - the only unauthenticated write, so it gets extra abuse checks.
 
-/**
- * Crude per-IP throttle: 3 signups per hour from one address.
- *
- * In-process, so it resets on deploy and is per-instance. That is enough to stop
- * a script creating a thousand workspaces and NOT enough to call rate limiting -
- * a determined abuser rotates addresses. Before this is advertised publicly it
- * wants something shared and durable (the same store the queue uses, or a
- * captcha). Written down here rather than left as an assumption.
- */
+/** Crude per-IP throttle (3 signups/hour), in-process and per-instance - not real rate limiting.
+ *  TODO: use a shared store or a captcha before signup is advertised publicly. */
 const ATTEMPTS = new Map<string, number[]>()
 const WINDOW_MS = 60 * 60 * 1000
 const MAX_PER_WINDOW = 3
@@ -96,8 +82,7 @@ export async function createWorkspace(
       })
       return ok({
         slug: result.slug,
-        // They are not signed in yet - the form signs them in with the password
-        // they just chose, then lands here.
+        // The form signs them in with the new password first, then lands here.
         redirectTo: `/${result.slug}/dashboard`,
       })
     } catch (err) {

@@ -16,7 +16,6 @@ export function Faq() {
   return (
     <section id="faq" className="relative scroll-mt-20 py-20 sm:py-24">
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6">
-        {/* Hero-style pill */}
         <Reveal>
           <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
@@ -30,7 +29,6 @@ export function Faq() {
           </span>
         </Reveal>
 
-        {/* Two columns: title (left) + supporting copy (right) */}
         <div className="mt-6 grid items-start gap-8 lg:grid-cols-2 lg:gap-16">
           <Reveal>
             <h2 className="text-4xl font-bold tracking-tight text-balance sm:text-5xl">
@@ -91,8 +89,6 @@ export function Faq() {
           })}
         </div>
 
-        {/* The homepage carries a selection, not the whole set. Saying how many
-            are left is what makes this a route rather than a dead end. */}
         <Reveal delay={FEATURED_FAQS.length * 80}>
           <div className="mt-10 flex flex-wrap items-center gap-x-4 gap-y-2">
             <Link

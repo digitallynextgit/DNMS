@@ -7,17 +7,13 @@ import type { MetaDashboard } from "../server/meta-sync.service"
 
 const key = (projectId: string) => ["project-integration", projectId]
 
-/**
- * Which metrics window to load: a rolling `days` count, or an explicit
- * `from`/`to` span of inclusive "yyyy-MM-dd" days. Omit everything for all data.
- */
+/** A rolling `days` count or an inclusive yyyy-MM-dd `from`/`to` span; omit for all data. */
 export interface IntegrationRange {
   days?: number
   from?: string
   to?: string
 }
 
-/** `range` limits the metrics window (undefined = all synced data). */
 export function useProjectIntegration(projectId: string, range?: IntegrationRange) {
   const { days, from, to } = range ?? {}
   // An explicit span wins over the rolling window, matching the server.
@@ -31,8 +27,6 @@ export function useProjectIntegration(projectId: string, range?: IntegrationRang
   const qs = query.toString()
 
   return useQuery({
-    // The querystring IS the cache key: two different ranges must not share an
-    // entry, and it changes exactly when the request does.
     queryKey: [...key(projectId), qs || "all"],
     queryFn: () =>
       apiFetch<{ data: MetaDashboard }>(

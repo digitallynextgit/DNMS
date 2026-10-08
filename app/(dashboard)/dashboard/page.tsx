@@ -9,14 +9,7 @@ import { getDashboardStats, getMyDashboard } from "@/features/dashboard/server/d
 
 import { DashboardClient } from "./dashboard-client"
 
-/**
- * Server shell for the dashboard: prefetch the panel the signed-in user will
- * actually see, so <AdminDashboard> / <EmployeeDashboard> paint on first render
- * instead of firing their own `useQuery` after hydration.
- *
- * DashboardClient picks its panel from `usePermissions()` exactly as before -
- * we only mirror that branch here to know WHICH query to warm.
- */
+/** Prefetches the panel DashboardClient will pick, so it paints on first render. */
 export default async function DashboardPage() {
   const queryClient = getQueryClient()
   const session = await auth()
@@ -26,8 +19,7 @@ export default async function DashboardPage() {
     const isManager = hasPermission(session, PERMISSIONS.EMPLOYEE_READ)
     try {
       if (isManager) {
-        // /api/dashboard/stats is additionally gated by dashboard:read - if the
-        // user lacks it the API would 403, so don't seed a cache entry either.
+        // The API also needs dashboard:read; without it, don't seed a cache entry.
         if (hasPermission(session, PERMISSIONS.DASHBOARD_READ)) {
           await queryClient.prefetchQuery({
             queryKey: ["dashboard-stats"],
@@ -46,8 +38,7 @@ export default async function DashboardPage() {
         })
       }
     } catch (error) {
-      // A prefetch must never take the page down - the client hook will just
-      // fetch on mount, exactly as it did before.
+      // A prefetch must never take the page down - the client hook fetches on mount.
       console.error("[DASHBOARD_PREFETCH]", error)
     }
   }

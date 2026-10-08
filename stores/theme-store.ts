@@ -29,9 +29,7 @@ export const useThemeStore = create<ThemeStore>()(
     }),
     {
       name: "dnms-theme-palette",
-      // v2: the catalogue was culled from 123 themes to 7. Anyone whose saved
-      // theme no longer exists falls back to the default palette instead of
-      // keeping an orphaned cssVars blob forever.
+      // v2: a saved theme that no longer exists falls back to the default palette.
       version: 2,
       migrate: (persisted) => {
         const id = (persisted as { paletteId?: string } | null)?.paletteId

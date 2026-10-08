@@ -97,11 +97,7 @@ function tokenize(s: string): string[] {
   return (s.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []).filter((t) => !STOP.has(t))
 }
 
-/**
- * Pull the extracted text of the documents most relevant to the question - by
- * keyword overlap with each accessible file's title/name/category. Bounded to 3
- * files so a chat can't fan out into a huge, slow read.
- */
+/** Keyword-matches the caller's accessible files by title/name/category; capped at 3 files. */
 async function retrieveRelevantFiles(session: Session, query: string): Promise<string> {
   const qTokens = new Set(tokenize(query))
   if (qTokens.size === 0) return ""
@@ -143,9 +139,7 @@ async function retrieveRelevantFiles(session: Session, query: string): Promise<s
 const MAX_QUESTION = 2000
 const MAX_HISTORY = 8
 
-// POST /api/ai/chat  { messages: [{ role, content }] }
-// Answers from a permission-scoped snapshot of the caller's data. Stateless -
-// nothing is stored.
+// Stateless: answers from a permission-scoped snapshot of the caller's data, nothing is stored.
 export const POST = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     if (!isAiConfigured()) {
@@ -173,15 +167,11 @@ export const POST = withSession(
     try {
       const context = await buildAiContext(session)
 
-      // Prior turns give follow-ups ("and what about her?") something to hang on.
       const history = messages
         .slice(-1 - MAX_HISTORY, -1)
         .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
         .join("\n")
 
-      // If the question looks like it's about a file, pull the TEXT of the most
-      // relevant documents (scoped to what this user can read) and hand it to the
-      // model. Bounded: at most 3 files, each text-capped by the extractor.
       const fileContents = await retrieveRelevantFiles(session, `${history}\n${last.content}`)
 
       const user = [

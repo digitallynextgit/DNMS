@@ -8,14 +8,8 @@ import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS } from "@/lib/constants"
 import { verifiedClientName } from "./redirects"
 
-// =============================================================================
-// AI connections (OAuth grants) as people see them on /ai-connections.
-//   - everyone: their own connections, with Disconnect
-//   - role:write holders (whoever manages access): everyone's, with Disconnect
-// OAuthGrant is tenant-scoped, so all of this stays inside the caller's company
-// automatically. The hidden admin_ account's connections never show in the
-// company list (VISIBLE_EMPLOYEE_FILTER), consistent with its invisibility.
-// =============================================================================
+// AI connections on /ai-connections: everyone sees their own; role:write holders see everyone's.
+// Tenant-scoped; the hidden admin_ account's connections never show in the company list.
 
 const RECENT_REVOKED_MS = 30 * 24 * 60 * 60 * 1000
 

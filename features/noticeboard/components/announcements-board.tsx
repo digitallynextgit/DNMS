@@ -1,12 +1,7 @@
 "use client"
 
-/**
- * The announcements board.
- *
- * Reading is open to everyone; the compose/edit controls only render for
- * `announcement:write` holders - and the API enforces the same, so hiding the
- * button is convenience, not security.
- */
+/** The announcements board. Compose/edit controls show only for announcement:write holders (the
+ *  API enforces it too). */
 
 import * as React from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
@@ -124,9 +119,7 @@ export function AnnouncementsBoard() {
         ]}
       />
 
-      {/* Month and category are SELECTS in the shared toolbar, not a chip strip
-          plus a sidebar: every other list page in DNMS filters this way, and two
-          filters do not earn 240px of permanent screen width. */}
+      {/* Month and category as selects in the shared toolbar, like every other list page. */}
       <FilterToolbar
         hasActiveFilters={hasFilters}
         onClear={() => {
@@ -219,7 +212,7 @@ export function AnnouncementsBoard() {
                 </div>
               )}
             </div>
-            {/* whitespace-pre-wrap: line breaks typed by HR are meaningful. */}
+            {/* whitespace-pre-wrap: line breaks typed by HR matter. */}
             <p className="mt-2 text-sm whitespace-pre-wrap">{a.body}</p>
           </article>
         ))}

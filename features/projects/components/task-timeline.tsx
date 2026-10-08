@@ -101,36 +101,30 @@ function actorName(a: { firstName: string; lastName: string } | null): string | 
   return a ? `${a.firstName} ${a.lastName}`.trim() : null
 }
 
-/** Re-render every 30s so an open period's elapsed time stays current. */
-function useTick(active: boolean) {
-  const [, setTick] = useState(0)
+/** Re-render every 30s so an open period's elapsed time stays current; returns when it last ticked. */
+function useTick(active: boolean): number {
+  const [tickedAt, setTickedAt] = useState(() => Date.now())
   useEffect(() => {
     if (!active) return
-    const id = setInterval(() => setTick((n) => n + 1), 30_000)
+    const id = setInterval(() => setTickedAt(Date.now()), 30_000)
     return () => clearInterval(id)
   }, [active])
+  return tickedAt
 }
 
-/** One rail, two kinds of thing that happened to the task. */
 type Moment =
   | { kind: "phase"; at: string; phase: TimelineEntry }
   | { kind: "edit"; at: string; edit: EditEntry }
 
 const legOf = (m: Moment): number => (m.kind === "phase" ? m.phase.legIndex : m.edit.legIndex)
 
-/**
- * The task's activity log: every phase it passed through and every edit anyone
- * made, on ONE chronology.
- *
- * Phases and edits used to be separate ideas - the timeline knew the first, the
- * audit log the second, and neither could answer "what happened to this task".
- * Interleaved by time they read as the story they are, so a title rewritten
- * mid-flight sits exactly where it happened rather than in another list.
- */
+/** Phases and edits interleaved on one chronology. */
 export function TaskTimeline({ taskId, open }: { taskId: string | undefined; open: boolean }) {
-  const { data, isLoading } = useTaskTimeline(taskId, open)
+  const { data, isLoading, dataUpdatedAt } = useTaskTimeline(taskId, open)
   const hasOpenPeriod = !!data?.entries.some((e) => !e.endedAt)
-  useTick(open && hasOpenPeriod)
+  const tickedAt = useTick(open && hasOpenPeriod)
+  // A fetch can bring in a new open period between ticks, so it moves "now" too.
+  const now = Math.max(tickedAt, dataUpdatedAt)
 
   const moments = useMemo<Moment[]>(() => {
     if (!data) return []
@@ -140,23 +134,20 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
       phase: p,
     }))
     const edits: Moment[] = (data.edits ?? []).map((e) => ({ kind: "edit", at: e.at, edit: e }))
-    // Ties broken by leg, so the moment a new leg starts never sorts above the
-    // hold that caused it - the divider would then appear before its own cause.
+    // Ties broken by leg, so a new leg never sorts above the hold that caused it.
     return [...phases, ...edits].sort((a, b) => a.at.localeCompare(b.at) || legOf(a) - legOf(b))
   }, [data])
 
   if (isLoading) return <Skeleton className="h-32 rounded-sm" />
   if (!data) return null
 
-  // Only worth a summary when a status was entered more than once - otherwise it
-  // just repeats the single number already sitting on that row.
+  // Only worth a summary when a status was entered more than once.
   const repeated = Object.entries(data.totals).filter(
     ([status]) => data.entries.filter((e) => e.status === status).length > 1,
   )
 
   return (
     <div className="space-y-4">
-      {/* The three moments people actually ask about. */}
       <div className="grid grid-cols-3 gap-2 text-xs">
         <MomentCard icon={Plus} label="Created" value={formatMoment(data.createdAt)} />
         <MomentCard
@@ -173,8 +164,6 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
         />
       </div>
 
-      {/* Only when the work actually spans more than one task - otherwise it is
-          a banner saying "this happened once", which is noise. */}
       {data.legs.length > 1 && (
         <div className="bg-muted/40 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-sm border-l-2 border-l-amber-500 px-2 py-1.5 text-[11px]">
           <span className="font-medium">Carried across {data.legs.length} days</span>
@@ -209,9 +198,7 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
           const running = m.kind === "phase" && !m.phase.endedAt
           const who = actorName(m.kind === "phase" ? m.phase.actor : m.edit.actor)
 
-          // The work was carried onto a new task here. Announcing it inline is
-          // the whole point: without it the log jumps to a task created days
-          // later with no explanation of where it came from.
+          // The work was carried onto a new task here; say so inline.
           const leg = legOf(m)
           const startsNewLeg = leg > 1 && (i === 0 || legOf(moments[i - 1]!) !== leg)
           const legInfo = startsNewLeg ? data.legs.find((l) => l.index === leg) : undefined
@@ -239,8 +226,6 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
                 </li>
               )}
               <li className="flex gap-3 pb-4 last:pb-0">
-                {/* Rail: a dot for a phase, a pencil for an edit, so the two are
-                  distinguishable before reading a word of either. */}
                 <div className="flex flex-col items-center">
                   {m.kind === "phase" ? (
                     <CircleDot
@@ -273,22 +258,18 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
                         >
                           {formatDuration(
                             running
-                              ? (Date.now() - new Date(m.phase.startedAt).getTime()) / 1000
+                              ? (now - new Date(m.phase.startedAt).getTime()) / 1000
                               : (m.phase.durationSeconds ?? 0),
                           )}
                           {running && " so far"}
                         </span>
-                        {/* Only shown on the OPEN hold: a resume date on a stretch
-                          the task has already left is a date that has been
-                          superseded, not history. */}
+                        {/* Only on the open hold: a past stretch's resume date has been superseded. */}
                         {running && m.phase.status === "ON_HOLD" && data.holdExpectedDate && (
                           <span className="text-muted-foreground text-[11px]">
                             · expected back {formatDay(data.holdExpectedDate)}
                           </span>
                         )}
                       </div>
-                      {/* "On hold" and "Discarded" are only half an answer without
-                        the why - which is the question the log gets asked. */}
                       {m.phase.note && (
                         <p className="bg-muted/40 text-muted-foreground rounded-sm px-2 py-1 text-[11px] break-words whitespace-pre-wrap">
                           {m.phase.note}
@@ -306,8 +287,6 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
                           className="bg-muted/40 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-sm px-2 py-1 text-[11px]"
                         >
                           <span className="text-muted-foreground">{c.label}</span>
-                          {/* Old struck through, new plain: which is which has to
-                            be readable at a glance, not inferred from order. */}
                           <span className="text-muted-foreground/70 line-through">{c.from}</span>
                           <ArrowRight className="text-muted-foreground/50 h-3 w-3 shrink-0" />
                           <span className="font-medium">{c.to}</span>

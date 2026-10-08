@@ -22,8 +22,7 @@ export function DashboardClient() {
     day: "numeric",
   })
 
-  // HR / admin roles can read the employee directory - they get the org-wide
-  // HR dashboard. Regular employees (self-service only) get a personal view.
+  // employee:read holders get the org-wide HR dashboard; everyone else a personal view.
   const isManager = can(PERMISSIONS.EMPLOYEE_READ)
   const firstName = session?.user.firstName
   const isLoading = status === "loading"
@@ -43,10 +42,7 @@ export function DashboardClient() {
         <EmployeeDashboard />
       )}
 
-      {/* The company noticeboard, below whichever role dashboard rendered above.
-          Deliberately shared rather than duplicated into both: announcements,
-          photos and birthdays are company-wide, and an HR manager has no less
-          reason to see a colleague's birthday than anyone else. */}
+      {/* Company-wide noticeboard, shared by both role dashboards. */}
       {!isLoading && (
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="space-y-4 lg:col-span-2">

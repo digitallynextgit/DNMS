@@ -47,19 +47,12 @@ import { FacebookIcon, inr, compact, CAMPAIGN_STATUS_COLORS } from "./meta-share
 import { DateRangePicker, type DayRange } from "./date-range-picker"
 import { useProjectIntegration, useSyncMeta } from "../hooks/use-integration"
 
-/**
- * Insights tab = the DATA, with a sub-tab per platform. Connections are managed in
- * the Integration tab; this only reads and renders what's been synced.
- */
 export function InsightsTab({ projectId, canManage }: { projectId: string; canManage: boolean }) {
   const [connections, setConnections] = useState(false)
   return (
     <Tabs defaultValue="meta" className="mt-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <TabsBar spacing="none" items={[{ value: "meta", label: "Meta Ads", icon: MetaAdsIcon }]} />
-        {/* The connections manager lives here rather than in a tab of its own:
-            it exists only to feed these charts, and it is opened once and
-            dismissed rather than read. */}
         <Button variant="outline" className="gap-1.5" onClick={() => setConnections(true)}>
           <Plug className="h-3.5 w-3.5" /> Connections
         </Button>
@@ -82,7 +75,6 @@ function MetaAdsIcon() {
   return <FacebookIcon className="text-[#1877F2]" />
 }
 
-/** The "no day limit" option's value - see the SegmentedControl below. */
 const ALL_RANGE = "all"
 
 const RANGES: { label: string; days?: number }[] = [
@@ -105,9 +97,7 @@ const PAGE_SIZE = 10
 
 function MetaInsights({ projectId, canManage }: { projectId: string; canManage: boolean }) {
   const [rangeDays, setRangeDays] = useState<number | undefined>(30)
-  // Set only while a custom span is active. It overrides the preset rather than
-  // replacing it, so clearing the custom range falls back to whatever preset was
-  // last chosen instead of leaving the filter with nothing selected.
+  // Overrides the preset rather than replacing it, so clearing it falls back to the last preset.
   const [customRange, setCustomRange] = useState<DayRange | undefined>()
   const { data, isLoading } = useProjectIntegration(
     projectId,
@@ -115,7 +105,6 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
   )
   const sync = useSyncMeta(projectId)
 
-  // Campaigns table controls
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | string>("all")
   const [sortBy, setSortBy] = useState<SortKey>("spend")
@@ -187,12 +176,10 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
 
   return (
     <div className="space-y-4">
-      {/* Date range + sync */}
       <div className="flex flex-wrap items-center gap-2">
         <SegmentedControl
           aria-label="Date range"
-          // "All" carries no day count, so it needs a sentinel rather than
-          // String(undefined) - Number() of that is NaN, not "no limit".
+          // "All" has no day count, so it needs a sentinel value.
           value={rangeDays === undefined ? ALL_RANGE : String(rangeDays)}
           // A preset is only "on" when no custom span is overriding it.
           muted={Boolean(customRange)}
@@ -239,7 +226,6 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
         <p className="text-destructive text-xs">Last sync error: {data.lastSyncError}</p>
       )}
 
-      {/* KPI cards (windowed) */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard title="Spend" value={inr(t.spend)} icon={IndianRupee} loading={isLoading} />
         <StatCard
@@ -284,7 +270,6 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
         />
       </div>
 
-      {/* Trend */}
       {data.daily.length > 0 && (
         <Card>
           <CardContent className="p-4">
@@ -344,7 +329,6 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
         </Card>
       )}
 
-      {/* Campaigns: search + status + sort + pagination */}
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput
           value={search}
@@ -376,8 +360,7 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
           value={sortBy}
           onValueChange={(v) => {
             setSortBy(v as SortKey)
-            // A new order makes the page number meaningless - page 2 of one
-            // sort is not page 2 of another. Same as every filter above.
+            // A new sort makes the page number meaningless.
             setPage(1)
           }}
         >
@@ -407,9 +390,7 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
       ) : filtered.length === 0 ? (
         <EmptyState compact icon={ExternalLink} title="No campaigns match these filters." />
       ) : (
-        // rowKey is a composite (UI-07): Meta campaign names can repeat within an
-        // account, so name alone collides and can misassign rows on re-sort. A
-        // stable campaign id in the payload would be better; this avoids it meanwhile.
+        // Composite key: Meta campaign names can repeat within an account. A stable campaign id would be better.
         <DataTable
           columns={columns}
           rows={paged}

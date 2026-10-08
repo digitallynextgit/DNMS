@@ -6,16 +6,8 @@ import { sendFloatingHolidayRequestLetter } from "@/features/attendance/server/f
 import { SYSTEM_ROLES, FLOATING_HOLIDAY_LIMIT } from "@/lib/constants"
 import type { Session } from "next-auth"
 
-// Statuses that count against an employee's yearly allowance.
-const ACTIVE = ["PENDING", "APPROVED"] as const
-
-// Who can review floating-holiday requests: HR, or anyone who manages someone.
 const HR_ROLES: string[] = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.ADMIN_]
 
-/**
- * GET /api/attendance/floating-holidays?year=2026
- * The optional holidays for the year + the current employee's requests (with status).
- */
 export const GET = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -45,11 +37,11 @@ export const GET = withSession(
             createdAt: true,
           },
         }),
-        // Does this person manage anyone? (drives the approver inbox tab)
         isHr ? Promise.resolve(0) : db.employee.count({ where: { managerId: session.user.id } }),
       ])
 
-      const used = selections.filter((s) => ACTIVE.includes(s.status as "PENDING" | "APPROVED"))
+      // Only approved holidays use the allowance; pending ones are still just requests.
+      const used = selections.filter((s) => s.status === "APPROVED")
 
       return NextResponse.json({
         data: {
@@ -58,7 +50,6 @@ export const GET = withSession(
           remaining: Math.max(0, FLOATING_HOLIDAY_LIMIT - used.length),
           optionalHolidays,
           selections,
-          // True for HR or anyone who manages at least one employee.
           isApprover: isHr || reportsCount > 0,
         },
       })
@@ -69,14 +60,7 @@ export const GET = withSession(
   },
 )
 
-/**
- * Announce a freshly-submitted (or re-submitted) floating-holiday request:
- * the in-app notification + push to every approver, plus the application letter
- * emailed to the manager with HR and the applicant on Cc.
- *
- * The mail is fire-and-forget inside sendFloatingHolidayRequestLetter, so a
- * mailbox problem can never fail the application itself.
- */
+// The mail is fire-and-forget, so a mailbox problem never fails the application.
 async function notifyAndMail(
   applicantId: string,
   selectionId: string,
@@ -110,11 +94,6 @@ async function notifyAndMail(
   })
 }
 
-/**
- * POST /api/attendance/floating-holidays   body: { holidayId, reason? }
- * Applies for a floating holiday. Creates a PENDING request and notifies the
- * employee's manager + HR. It only counts once HR approves.
- */
 export const POST = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -132,7 +111,6 @@ export const POST = withSession(
         )
       }
 
-      // Can't apply for a floating holiday whose date has already passed.
       const todayUtc = new Date()
       todayUtc.setUTCHours(0, 0, 0, 0)
       if (new Date(holiday.date) < todayUtc) {
@@ -152,7 +130,7 @@ export const POST = withSession(
       })
       if (existing) {
         if (existing.status === "REJECTED" || existing.status === "CANCELLED") {
-          // Let them re-apply on a previously rejected/cancelled one.
+          // Re-apply on a previously rejected/cancelled request.
           const reopened = await db.floatingHolidaySelection.update({
             where: { id: existing.id },
             data: {
@@ -166,15 +144,15 @@ export const POST = withSession(
               reviewedAt: null,
             },
           })
-          const usedAfter = await db.floatingHolidaySelection.count({
-            where: { employeeId: session.user.id, year, status: { in: [...ACTIVE] } },
+          const approvedCount = await db.floatingHolidaySelection.count({
+            where: { employeeId: session.user.id, year, status: "APPROVED" },
           })
           await notifyAndMail(
             session.user.id,
             reopened.id,
             holiday,
             reopened.reason,
-            usedAfter,
+            approvedCount + 1,
             year,
           )
           return NextResponse.json({ data: reopened }, { status: 200 })
@@ -185,10 +163,10 @@ export const POST = withSession(
         )
       }
 
-      const activeCount = await db.floatingHolidaySelection.count({
-        where: { employeeId: session.user.id, year, status: { in: [...ACTIVE] } },
+      const approvedCount = await db.floatingHolidaySelection.count({
+        where: { employeeId: session.user.id, year, status: "APPROVED" },
       })
-      if (activeCount >= FLOATING_HOLIDAY_LIMIT) {
+      if (approvedCount >= FLOATING_HOLIDAY_LIMIT) {
         return NextResponse.json(
           {
             error: `You can avail only ${FLOATING_HOLIDAY_LIMIT} floating holidays for ${year}.`,
@@ -213,7 +191,7 @@ export const POST = withSession(
         selection.id,
         holiday,
         selection.reason,
-        activeCount + 1,
+        approvedCount + 1,
         year,
       )
 
@@ -225,10 +203,6 @@ export const POST = withSession(
   },
 )
 
-/**
- * DELETE /api/attendance/floating-holidays?holidayId=...
- * Withdraws the current employee's own floating-holiday request.
- */
 export const DELETE = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {

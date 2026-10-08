@@ -10,19 +10,7 @@ import {
   splitTenant,
 } from "./tenant-url"
 
-/**
- * The invariant that keeps /{tenant}/... working.
- *
- * A dashboard route whose first segment is missing from TENANT_SCOPED_SEGMENTS
- * is read by looksLikeSlug() as a COMPANY NAME. The proxy then strips it, finds
- * a tenant that is not the session's, and bounces the user to
- * /select-workspace?next=... - so the page becomes unreachable for everyone.
- *
- * It happened to /avatars once (recorded in tenant-url.ts) and again to
- * /onboarding and /clearances when the HR checklists were added. The comments
- * in that file point at scripts/verify-tenant-urls.ts to prevent it, but that
- * script no longer exists - this test replaces it, and runs in `pnpm test`.
- */
+/** A dashboard route missing from TENANT_SCOPED_SEGMENTS is read as a company slug and becomes unreachable. */
 describe("TENANT_SCOPED_SEGMENTS covers every dashboard route", () => {
   const dashboardDir = path.join(process.cwd(), "app", "(dashboard)")
 

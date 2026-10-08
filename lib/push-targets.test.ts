@@ -28,8 +28,7 @@ describe("isLoopbackOrigin", () => {
 })
 
 describe("isPushDeliverable", () => {
-  // The reported bug: one notification arriving twice, once from the deployed
-  // site and once from a localhost service worker.
+  // One notification arriving twice: from the deployed site and from a localhost service worker.
   it("never delivers a production push to a localhost registration", () => {
     expect(isPushDeliverable(DEV, PROD)).toBe(false)
   })

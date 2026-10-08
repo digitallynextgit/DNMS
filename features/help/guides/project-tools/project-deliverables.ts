@@ -1,9 +1,7 @@
 import { PackageCheck } from "lucide-react"
 import type { HelpGuide } from "../../types"
 
-// Screens: features/projects/components/deliverables-tab.tsx (the board and a
-// deliverable's own page), plan-period-dialog.tsx, log-work-dialog.tsx, and the
-// report dialog on the Progress page (deliverables-report-dialog.tsx).
+// Screens: deliverables-tab.tsx, its dialogs, and the Progress page's deliverables-report-dialog.tsx.
 
 const BOARD = "/projects/sunmeadow-organics-launch?tab=deliverables"
 

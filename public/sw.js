@@ -1,9 +1,4 @@
-/* DNMS service worker - Web Push.
- *
- * This runs independently of any open tab, which is the whole point: the SSE
- * stream only lives while a page is open, so closing the tab used to mean no
- * alerts at all. Push wakes this worker instead.
- */
+/* DNMS service worker - Web Push. Runs with no tab open, unlike the SSE stream. */
 
 self.addEventListener("install", () => {
   // Take over immediately instead of waiting for old tabs to close.
@@ -35,10 +30,8 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      // If an APP tab (dashboard/portal - where the in-app toast lives) is
-      // actually on screen, that toast already showed this notification -
-      // don't stack an OS one on top. A visible marketing or login page has
-      // no toast layer, so it must NOT suppress the OS notification.
+      // A visible APP tab already showed the in-app toast. Marketing/login pages have no toast
+      // layer, so they must not suppress the OS notification.
       const APP_PATHS = ["/dashboard", "/portal", "/projects", "/chat", "/attendance"]
       const visible = clients.some((c) => {
         if (c.visibilityState !== "visible") return false
@@ -67,9 +60,7 @@ self.addEventListener("notificationclick", (event) => {
         if ("focus" in client) {
           client.focus()
           if ("navigate" in client) {
-            // navigate() rejects for a tab this worker does not control (e.g.
-            // opened before the SW registered) - fall back to a fresh window
-            // instead of a click that silently does nothing.
+            // navigate() rejects for a tab this worker doesn't control - fall back to a new window.
             return client.navigate(link).catch(() => self.clients.openWindow(link))
           }
           return undefined

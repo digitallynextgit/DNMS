@@ -1,11 +1,3 @@
-/**
- * Shared pagination helpers for server actions and API route handlers.
- *
- * `resolvePagination` clamps incoming page/limit params (default slot = 10,
- * max 100) and computes the Prisma `skip`/`take`. `paginationMeta` builds the
- * canonical response shape consumed by the client `<Pagination>` component.
- */
-
 export interface PaginationInput {
   page?: number | string | null
   limit?: number | string | null
@@ -28,7 +20,7 @@ export interface ResolvedPagination {
 const DEFAULT_LIMIT = 10
 const MAX_LIMIT = 100
 
-/** Clamp page/limit and derive `skip`/`take` for a Prisma `findMany`. */
+/** Clamps page/limit (default limit 10, max 100) into Prisma `skip`/`take`. */
 export function resolvePagination(
   input: PaginationInput = {},
   defaultLimit: number = DEFAULT_LIMIT,
@@ -39,7 +31,6 @@ export function resolvePagination(
   return { page, limit, skip: (page - 1) * limit, take: limit }
 }
 
-/** Build the canonical `{ total, page, limit, totalPages }` metadata object. */
 export function paginationMeta(total: number, page: number, limit: number): PaginationMeta {
   return { total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) }
 }

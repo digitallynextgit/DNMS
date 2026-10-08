@@ -8,26 +8,17 @@ export interface EmailJobData {
   text?: string
   logId?: string
   replyTo?: string
-  // Threading headers, so a decision email replies on the original thread.
   inReplyTo?: string
   references?: string | string[]
-  // Explicit Message-ID for this email (so a later reply can thread onto it).
   messageId?: string
   attachments?: Array<{ filename: string; content: Buffer; contentType: string }>
-  // Which configured mailbox to send from (default "default"). Use "notifications"
-  // for system mail (credentials, alerts) so it goes out via the Brevo relay.
+  // Use "notifications" for system mail (credentials, alerts) - it goes via the Brevo relay.
   profile?: MailerProfile
 }
 
 /**
- * Fire-and-forget email. Sends directly (no Redis/BullMQ) but, crucially, WITHOUT
- * blocking the caller: the promise is deliberately not awaited, so the HTTP
- * response returns immediately and the SMTP handshake happens after it.
- *
- * Use this for every email that is a SIDE EFFECT of an action (approval notices,
- * assignment alerts, payslip notices). Keep `await sendEmail(...)` only where the
- * send IS the action (password-reset OTP, offer letter), or where the caller needs
- * the returned Message-ID for email threading.
+ * Fire-and-forget email (not awaited, so the response returns first). Use for side-effect mail; keep
+ * `await sendEmail` where the send IS the action or the Message-ID is needed for threading.
  */
 export function addEmailJob(data: EmailJobData): void {
   void sendEmail({

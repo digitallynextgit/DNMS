@@ -57,13 +57,7 @@ import {
   type FlatDepartment,
 } from "../lib/department-tree"
 
-// =============================================================================
-// The Departments page as an org board: one card per top-level department
-// (SMG, ADAC, MAP…), its sub-departments listed inside and sub-sub-departments
-// indented under a guide line - the organogram, not a spreadsheet. Every item
-// carries its outline number (1, 1.5, 1.5.1), its headcount (a link to those
-// employees in the directory) and one actions menu instead of a row of icons.
-// =============================================================================
+// The Departments page as an org board: a card per top-level department with its subtree inside.
 
 /** A department in tree order, with the active headcount of it and everything below it. */
 type Node = FlatDepartment<AdminDepartment> & { employees: number }
@@ -76,7 +70,6 @@ const levelNoun = (depth: number, n: number) =>
   `${(DEPARTMENT_LEVEL_LABELS[depth] ?? "Department").toLowerCase()}${n === 1 ? "" : "s"}`
 
 interface Board {
-  /** Shown children of a department, in tree order. */
   kidsOf: (id: string) => Node[]
   /** The live search, lower-cased; "" when not searching. */
   query: string
@@ -105,7 +98,6 @@ export function DepartmentsBoard() {
   } | null>(null)
   const [confirm, setConfirm] = useState<{ kind: "delete" | "deactivate"; node: Node } | null>(null)
 
-  // ── The tree ──────────────────────────────────────────────────────────────
   const nodes: Node[] = useMemo(() => {
     const own = new Map(departments.map((d) => [d.id, d.activeEmployees]))
     return flattenDepartmentTree(departments).map((d) => {
@@ -126,8 +118,7 @@ export function DepartmentsBoard() {
     return map
   }, [nodes])
 
-  // Search keeps a match's parents (where it sits) and children (what is in
-  // it) on screen.
+  // Search keeps a match's parents and children on screen.
   const query = search.trim().toLowerCase()
   const shown = useMemo(() => {
     if (!query) return null
@@ -146,7 +137,6 @@ export function DepartmentsBoard() {
     (childrenOf.get(id) ?? []).filter((n) => !shown || shown.has(n.id))
   const roots = kidsOf(null)
 
-  // ── Actions ───────────────────────────────────────────────────────────────
   const openCreate = (parent?: Node) =>
     setForm({ editing: null, name: "", parentId: parent?.id ?? "" })
   const openEdit = (node: Node) =>
@@ -189,7 +179,6 @@ export function DepartmentsBoard() {
     onDelete: (node) => setConfirm({ kind: "delete", node }),
   }
 
-  // How many at each level, for the stat cards.
   const atDepth = [0, 1, 2].map((d) => nodes.filter((n) => n.depth === d).length)
   const employees = departments.reduce((sum, d) => sum + d.activeEmployees, 0)
   const pendingBelow = confirm ? departmentDescendantIds(departments, confirm.node.id).size : 0
@@ -238,8 +227,7 @@ export function DepartmentsBoard() {
           }
         />
       ) : (
-        // Masonry: cards differ a lot in height (SMG lists ten, HR & Admin
-        // none), and columns pack them without the gaps a grid row leaves.
+        // Masonry columns: card heights vary a lot, and a grid would leave gaps.
         <div className="columns-1 gap-4 md:columns-2 2xl:columns-3">
           {roots.map((root) => (
             <DepartmentCard key={root.id} node={root} board={board} />
@@ -330,9 +318,6 @@ export function DepartmentsBoard() {
   )
 }
 
-// ── Pieces ──────────────────────────────────────────────────────────────────
-
-/** How many there are at each level, and how many employees they hold. */
 function DepartmentStats({
   loading,
   departments,
@@ -362,7 +347,6 @@ function DepartmentStats({
   )
 }
 
-/** A top-level department: its own header, then everything under it. */
 function DepartmentCard({ node, board }: { node: Node; board: Board }) {
   const kids = board.kidsOf(node.id)
   const subSubs = kids.reduce((sum, k) => sum + board.kidsOf(k.id).length, 0)
@@ -428,7 +412,6 @@ function DepartmentCard({ node, board }: { node: Node; board: Board }) {
   )
 }
 
-/** A sub- or sub-sub-department row, with its own children indented below. */
 function DepartmentItem({ node, board }: { node: Node; board: Board }) {
   const kids = board.kidsOf(node.id)
   return (
@@ -453,7 +436,6 @@ function DepartmentItem({ node, board }: { node: Node; board: Board }) {
         <Headcount node={node} />
         {board.canWrite && <NodeMenu node={node} board={board} />}
       </div>
-      {/* The guide line ties sub-sub-departments to their parent. */}
       {kids.length > 0 && (
         <ul className="border-border mb-1 ml-3 space-y-px border-l pl-2">
           {kids.map((k) => (
@@ -577,12 +559,9 @@ function InactiveTag() {
   )
 }
 
-// ── Skeletons ───────────────────────────────────────────────────────────────
-
 /** Rows per placeholder card - uneven on purpose, like the real board. */
 const SKELETON_ROWS = [5, 1, 2, 0, 4, 3]
 
-/** The board's cards while the list loads. */
 export function DepartmentCardsSkeleton() {
   return (
     <div className="columns-1 gap-4 md:columns-2 2xl:columns-3">

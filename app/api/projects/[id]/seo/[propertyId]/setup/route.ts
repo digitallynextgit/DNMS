@@ -5,15 +5,11 @@ import { getSetupState } from "@/features/seo/server/seo.setup.service"
 import { resolveProjectId } from "@/features/projects/server/project-access"
 import { PERMISSIONS } from "@/lib/constants"
 
-// GET - the guided setup checklist for this site: which steps are done, what
-// each unlocks, and which scorecard points are still locked behind config.
 export const GET = withAuth(
   PERMISSIONS.PROJECT_READ,
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
     const { propertyId } = ctx.params
-    // The URL carries a slug now, and plain withAuth doesn't resolve one. The
-    // ownership check below matches against the stored projectId, so it needs
-    // the real id.
+    // Plain withAuth doesn't resolve the slug, and the ownership check below needs the real id.
     const id = await resolveProjectId(ctx.params.id)
     if (!id) return NextResponse.json({ error: "Project not found" }, { status: 404 })
 

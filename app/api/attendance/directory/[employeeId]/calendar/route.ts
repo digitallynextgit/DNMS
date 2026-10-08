@@ -5,10 +5,6 @@ import { PERMISSIONS } from "@/lib/constants"
 import { workingDaysBetween } from "@/lib/dates"
 import type { Session } from "next-auth"
 
-// Per-day attendance calendar for a SPECIFIC employee (HR view, opened from the
-// attendance directory). Same day-status logic as /api/attendance/me/calendar,
-// but keyed by the employeeId in the path and gated by attendance:write.
-
 const SINGLE_PUNCH_SPLIT_IST_HOUR = 14
 
 function istHour(d: Date): number {
@@ -66,8 +62,7 @@ export const GET = withAuth(
           select: { startDate: true, endDate: true, leaveType: { select: { name: true } } },
         }),
         db.wfhRequest.findMany({
-          // Overlap, not containment: a range that started last month still
-          // paints whichever of its days fall inside this one.
+          // Overlap, not containment, so a range that started last month still shows.
           where: {
             employeeId,
             status: "APPROVED",
@@ -92,14 +87,11 @@ export const GET = withAuth(
           cursor.setUTCDate(cursor.getUTCDate() + 1)
         }
       }
-      // A WFH request covers a RANGE, so expand it the way `leaveByDay` above
-      // expands leave. Skipping weekends/holidays is load-bearing, not cosmetic:
-      // the day-status chain below tests wfhByDay BEFORE isWeekend, so a
+      // Skip weekends/holidays: the status chain below checks wfhByDay before isWeekend, so a
       // Saturday inside a Thu-Mon range would otherwise read "Work from home".
       const nonWorkingDays = new Set(holidayByDay.keys())
       const wfhByDay = new Set<string>()
       for (const w of wfh) {
-        // Clip to the month being rendered.
         const from = w.date > monthStart ? w.date : monthStart
         const to = w.endDate < monthEnd ? w.endDate : monthEnd
         for (const day of workingDaysBetween(from, to, nonWorkingDays)) wfhByDay.add(ymd(day))
@@ -112,8 +104,7 @@ export const GET = withAuth(
       })
       const firstStr = firstPunch ? ymd(firstPunch.date) : null
 
-      // An employee's birthday is a paid day off (their choice to come in or
-      // not) - shown as a holiday when they don't punch.
+      // A birthday is a paid day off - shown as a holiday when they don't punch.
       const employee = await db.employee.findUnique({
         where: { id: employeeId },
         select: { dateOfBirth: true },
@@ -167,7 +158,7 @@ export const GET = withAuth(
         } else if (beforeStart) {
           status = "UPCOMING"
         } else if (birthdayStr && ds === birthdayStr) {
-          status = "HOLIDAY" // birthday → paid day off
+          status = "HOLIDAY"
           label = "Birthday 🎂"
         } else if (holidayByDay.has(ds)) {
           status = "HOLIDAY"

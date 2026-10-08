@@ -18,15 +18,11 @@ import { workbookTeamForProject } from "@/features/projects/server/sheets.servic
 import { canContributeToWorkbookTeam } from "@/features/projects/server/project-access"
 import type { Session } from "next-auth"
 
-// GET /api/projects/[id]/resources/[fileId] - returns metadata + signed download URL
 export const GET = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId, fileId } = ctx.params
-      // ?download=1 signs the URL with an attachment Content-Disposition, so the
-      // browser saves the file instead of rendering it. Without it a PDF or an
-      // image opens inline, which is what "View" wants. One route, two verbs -
-      // the alternative is a second endpoint that differs by one boolean.
+      // ?download=1 signs with an attachment disposition; without it PDFs/images open inline (View).
       const asDownload = new URL(req.url).searchParams.get("download") === "1"
       const resource = await db.projectResource.findUnique({
         where: { id: fileId },
@@ -39,15 +35,13 @@ export const GET = withProjectAccess(
         return NextResponse.json({ error: "Resource not found" }, { status: 404 })
       }
 
-      // Drive-hosted (video): Drive's own viewer, which streams rather than
-      // making the browser pull the whole file first. No signed url to mint.
+      // Drive-hosted video uses Drive's streaming viewer; no signed URL needed.
       const signedUrl = resource.driveFileId
         ? asDownload
           ? `https://drive.google.com/uc?export=download&id=${resource.driveFileId}`
           : resource.driveWebViewLink
         : await getSignedUrl(
-            // Non-null whenever driveFileId is null - the table's CHECK
-            // constraint gives every row exactly one store.
+            // Non-null when driveFileId is null (a CHECK constraint gives every row exactly one store).
             resource.objectKey!,
             900, // 15 min
             asDownload ? { downloadFileName: resource.fileName } : undefined,
@@ -60,13 +54,12 @@ export const GET = withProjectAccess(
   },
 )
 
-// DELETE /api/projects/[id]/resources/[fileId] - uploader, team manager, or admin
+// Uploader, team manager, or admin.
 export const DELETE = withSession(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { fileId } = ctx.params
-      // The URL carries a slug now; this route is behind plain withSession, so
-      // resolve it before comparing against the resource's stored projectId.
+      // Plain withSession, so resolve the slug before comparing with the stored projectId.
       const projectId = await resolveProjectId(ctx.params.id)
       if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
 
@@ -90,9 +83,7 @@ export const DELETE = withSession(
       }
 
       try {
-        // A Drive video must be UN-PUBLISHED, not just trashed: dropping the row
-        // leaves Drive still serving the public link to everyone who saved it,
-        // with nothing in this app left pointing at it.
+        // Un-publish Drive videos, not just drop the row, or Drive keeps serving the public link.
         if (resource.driveFileId) await deleteVideoAsset(resource.driveFileId)
         else await deleteFile(resource.objectKey!)
       } catch {
@@ -100,9 +91,7 @@ export const DELETE = withSession(
       }
       await db.projectResource.delete({ where: { id: fileId } })
 
-      // One fewer thing handed over, so Made follows it down - unless the count
-      // was already running ahead of the attachments, which syncMadeCount
-      // leaves alone. Read AFTER the delete, so `before` is one more.
+      // Made follows the attachment count down (syncMadeCount leaves a count running ahead alone).
       if (resource.deliverableId) {
         const entry = await db.projectDeliverable.findUnique({
           where: { id: resource.deliverableId },
@@ -134,19 +123,8 @@ export const DELETE = withSession(
   },
 )
 
-/**
- * PATCH /api/projects/[id]/resources/[fileId] - retag a file.
- *
- * The tag is a GUESS made from the filename on upload (see doc-tag.ts), so it
- * is wrong often enough that it has to be correctable in place - a guess nobody
- * can fix is worse than no guess, because people learn to distrust the column
- * rather than repair it.
- *
- * Same permission set as DELETE, minus the destructiveness: the uploader, the
- * team's manager, or a project manager/admin. Retagging is not a read-only act
- * (it moves a file in everyone else's filter) but it is recoverable, so the
- * check is deliberately no stricter than the one on the file itself.
- */
+// The tag is a filename guess on upload, so it must be correctable. Same people as DELETE: the
+// uploader, the team's manager, or a project manager/admin.
 export const PATCH = withSession(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -169,10 +147,8 @@ export const PATCH = withSession(
         return NextResponse.json({ error: "You cannot edit this file" }, { status: 403 })
       }
 
-      // Three edits share this route - retag, rename, move - because they share
-      // the permission rule above and are all recoverable. `tag: null` is a
-      // legal value: it clears the tag back to "never classified", which is
-      // distinct from the OTHER tag. `folderId: null` moves to the top level.
+      // Retag, rename and move share this route. `tag: null` clears to "never classified" (not OTHER);
+      // `folderId: null` moves to the top level.
       const parsed = resourcePatchSchema.safeParse(await req.json().catch(() => null))
       if (!parsed.success) {
         return NextResponse.json(
@@ -181,12 +157,7 @@ export const PATCH = withSession(
         )
       }
       const body = parsed.data
-      // Retag, rename and move are recoverable and open to the uploader. SHARING
-      // is not in that class - it is the only field here that changes who
-      // outside the company can see the file - so it takes the project-manager
-      // permission rather than "I uploaded it".
-      // A review decision is a project-manager act too: it is what releases a
-      // client's asset as accepted, and it is recorded against whoever made it.
+      // Sharing (who outside the company sees the file) and review decisions are project-manager acts.
       if (body.reviewStatus !== undefined && !isAdmin) {
         return NextResponse.json(
           { error: "Only a project manager can review a client file" },
@@ -215,9 +186,7 @@ export const PATCH = withSession(
       if (body.tag !== undefined && body.tag !== null && !isDocTag(body.tag)) {
         return NextResponse.json({ error: "Invalid tag" }, { status: 422 })
       }
-      // ATTACHING needs permission on the target row; DETACHING (null) does
-      // not, because it takes nothing away from anyone - the file stays in the
-      // project's Files, and whoever may edit this file may tidy up its links.
+      // Attaching needs permission on the target row; detaching doesn't (it takes nothing away).
       if (body.workbookTeamId) {
         const row = await workbookTeamForProject(body.workbookTeamId, projectId)
         if (!row) {
@@ -241,10 +210,7 @@ export const PATCH = withSession(
           ...(body.fileName !== undefined ? { fileName: body.fileName } : {}),
           ...(body.folderId !== undefined ? { folderId: body.folderId } : {}),
           ...(body.workbookTeamId !== undefined ? { workbookTeamId: body.workbookTeamId } : {}),
-          // Sharing opens the review loop; unsharing closes it and clears the
-          // decision, because an approval of a file nobody can see any more is
-          // not a fact worth keeping. The table's CHECK constraint refuses a
-          // review status on an unshared row, so these move together or not at all.
+          // Sharing opens the review loop; unsharing clears the decision (a CHECK constraint ties them).
           ...(body.isClientVisible === true
             ? {
                 isClientVisible: true,
@@ -290,8 +256,6 @@ export const PATCH = withSession(
           ...(body.folderId !== undefined
             ? { folder: { from: resource.folderId, to: updated.folderId } }
             : {}),
-          // Logged loudly: this is the field that exposes a file to people
-          // outside the company.
           ...(body.reviewStatus !== undefined
             ? { review: { from: resource.reviewStatus, to: body.reviewStatus } }
             : {}),

@@ -9,18 +9,8 @@ import { compilePatterns, matchPattern } from "../lib/route-match"
 import { publicOrigin } from "./config"
 import { runAsPrincipal, type Principal } from "./principal"
 
-// =============================================================================
-// The pass-through: run any DNMS API route AS the connected person.
-//
-// This is what makes the connector "everything": instead of re-implementing
-// each module for the AI, the AI calls the same route handlers the DNMS web app
-// calls, in-process, with the person's delegated session. Every check the route
-// already has - withAuth, requirePermission, "is this your project", "is this
-// your direct report" - applies unchanged, and so does audit logging.
-//
-// Route modules are imported lazily from the generated catalogue, so a call
-// only loads the one route it needs.
-// =============================================================================
+// Runs any DNMS API route in-process AS the connected person, so every existing permission
+// check and audit log applies unchanged. Routes are lazy-imported from the generated catalogue.
 
 type RouteHandler = (
   req: NextRequest,
@@ -66,11 +56,7 @@ export interface InvokedRoute {
   info: ApiMethodInfo
 }
 
-/**
- * Run one DNMS API route in-process as the person - every policy gate here
- * (excluded routes, read-only connections, uploads) - and hand back the raw
- * Response. `callApi` reads it as data; the download tools read it as a file.
- */
+/** Run one route as the person (after the connector's policy gates) and return the raw Response. */
 export async function invokeRoute(
   principal: Principal,
   input: ApiCallInput,
@@ -238,10 +224,7 @@ async function readResponse(res: Response, route: string, path = ""): Promise<Ap
   }
 }
 
-/**
- * Keep a JSON payload under MAX_CHARS by halving its largest arrays. Returns a
- * human note describing what was cut, or null if nothing was.
- */
+/** Fit JSON under MAX_CHARS by halving its largest arrays; returns a note on what was cut. */
 function fitToBudget(value: unknown): { value: unknown; trimmed: string | null } {
   let size = JSON.stringify(value)?.length ?? 0
   if (size <= MAX_CHARS) return { value, trimmed: null }
@@ -288,10 +271,6 @@ function largestArray(node: unknown, path: string, depth: number): ArrayRef | nu
   }
   return best
 }
-
-// ---------------------------------------------------------------------------
-// Catalogue search, for dnms_find_endpoints.
-// ---------------------------------------------------------------------------
 
 export interface EndpointSummary {
   path: string

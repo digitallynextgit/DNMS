@@ -1,7 +1,4 @@
-// Careers public API contract + admin row types.
-//
-// The public contract (CareersDepartmentGroup[]) is exactly what the marketing
-// site renders, so the site swap is a one-line change. See temp/README.md §4.
+// The public contract (CareersDepartmentGroup[]) is exactly what the marketing site renders.
 
 import type { CareersTone } from "@/features/recruitment"
 
@@ -10,7 +7,6 @@ export type CareersMode = "full-time" | "internship"
 export type CareerDbMode = "FULL_TIME" | "INTERNSHIP"
 export type CareerStatus = "DRAFT" | "PUBLISHED"
 
-// ─── Public contract (consumed by the marketing site) ───────────────────────
 export interface PublicCareerRoleDescription {
   intro: string
   jobEssence?: string
@@ -40,7 +36,6 @@ export interface CareersDepartmentGroup {
   subDepartments: PublicCareerSubDepartment[]
 }
 
-// ─── Admin row types (the management tree, all statuses) ─────────────────────
 export interface AdminCareerOpening {
   id: string
   label: string

@@ -33,8 +33,7 @@ export function DocumentUploadDialog({
   onOpenChange,
   employeeId,
 }: DocumentUploadDialogProps) {
-  // Locker uploads (employeeId set) go to the EmployeeDocument table; company
-  // uploads go to the Document table. Both hooks run; we pick by employeeId.
+  // Locker uploads (employeeId set) go to EmployeeDocument, company uploads to Document.
   const companyUpload = useUploadDocument()
   const employeeUpload = useUploadEmployeeDocument(employeeId ?? "")
   const uploadMutation = employeeId ? employeeUpload : companyUpload

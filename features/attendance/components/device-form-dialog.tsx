@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Eye, EyeOff } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -30,15 +30,19 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
   const updateDevice = useUpdateDevice()
   const isPending = createDevice.isPending || updateDevice.isPending
 
-  useEffect(() => {
+  // Re-seeded whenever the dialog opens or closes, or the device changes.
+  const [seededFor, setSeededFor] = useState<{ device?: HikvisionDevice | null; open: boolean }>({
+    open: false,
+  })
+  if (seededFor.device !== editDevice || seededFor.open !== open) {
+    setSeededFor({ device: editDevice, open })
     if (editDevice) {
       setName(editDevice.name)
       setDeviceSerial(editDevice.deviceSerial)
       setIpAddress(editDevice.ipAddress)
       setPort(String(editDevice.port))
       setUsername(editDevice.username)
-      // The password is never returned by the API. Leave the field blank on edit
-      // ("Leave blank to keep current") - only a typed value replaces it.
+      // The API never returns the password; blank on edit keeps the stored one.
       setPassword("")
       setLocation(editDevice.location ?? "")
     } else {
@@ -51,7 +55,7 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
       setLocation("")
     }
     setShowPassword(false)
-  }, [editDevice, open])
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -64,8 +68,6 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
         username,
         location: location || null,
       }
-      // Only send the password when the user actually typed one, so editing a
-      // device without retyping it keeps the stored credential instead of wiping it.
       if (password) payload.password = password
 
       if (isEdit && editDevice) {
@@ -92,7 +94,6 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
       onSubmit={handleSubmit}
       contentClassName="sm:max-w-[480px]"
     >
-      {/* Name */}
       <div className="space-y-2">
         <Label required htmlFor="device-name">
           Device Name
@@ -106,7 +107,6 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
         />
       </div>
 
-      {/* Device Serial */}
       <div className="space-y-2">
         <Label required htmlFor="device-serial">
           Device Serial
@@ -120,7 +120,6 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
         />
       </div>
 
-      {/* IP + Port */}
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2 space-y-1.5">
           <Label required htmlFor="ip-address">
@@ -150,7 +149,6 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
         </div>
       </div>
 
-      {/* Username */}
       <div className="space-y-2">
         <Label required htmlFor="username">
           Username
@@ -164,7 +162,6 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
         />
       </div>
 
-      {/* Password */}
       <div className="space-y-2">
         <Label required htmlFor="device-password">
           Password
@@ -190,7 +187,6 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
         </div>
       </div>
 
-      {/* Location */}
       <div className="space-y-2">
         <Label htmlFor="location">Location (optional)</Label>
         <Input

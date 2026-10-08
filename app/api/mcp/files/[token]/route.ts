@@ -5,13 +5,8 @@ import { resolvePrincipalByGrant } from "@/features/mcp/server/principal"
 import { logToolCall } from "@/features/mcp/server/usage"
 import { clientIp, rateLimited } from "@/lib/rate-limit"
 
-// GET /api/mcp/files/[token] - where a download link from the AI connector
-// lands (dnms_download / dnms_export_table). Opened in a browser, so there is
-// no bearer token: the signed, 10-minute token IS the credential, and it names
-// the connection it was issued to. proxy.ts lets /api/mcp/* through.
-//
-// Before serving anything the connection is looked up again, so a disconnected
-// app, a deactivated person or a changed password stops the link immediately.
+// Opened in a browser, so the signed 10-minute token is the credential. The connection is re-checked
+// on every hit, so disconnecting the app or deactivating the person stops the link at once.
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -41,8 +36,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ token: stri
 
   const started = Date.now()
   const file = heldFile(link.n, link.g)
-  // The in-memory copy is gone (a restart) - a GET report can be rebuilt as the
-  // same person, so permissions are checked again. A POST one cannot.
+  // In-memory copy gone (restart): a GET report can be rebuilt as the same person; a POST one cannot.
   const rebuilt = file ? null : await rebuildFile(principal, link.p)
   if (!file && !rebuilt) return gone("This file is no longer available.")
   const out = file ?? { ...rebuilt!, grantId: link.g, expiresAt: link.e }

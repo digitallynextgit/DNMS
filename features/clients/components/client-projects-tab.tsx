@@ -19,18 +19,13 @@ import {
   TASK_PRIORITY_COLORS,
 } from "@/lib/constants"
 import { formatDate } from "@/lib/utils"
-// Concrete modules rather than the projects barrel: the barrel would land every
-// project tab in this page's bundle, which is the thing dynamic() there avoids.
+// Direct module, not the projects barrel, which would pull every project tab into this bundle.
 import { ProjectFormDialog } from "@/features/projects/components/project-form-dialog"
 import { ProjectLogo } from "@/features/projects/components/project-logo"
 import { projectHref } from "@/features/projects/lib/project-href"
 import { clientKeys, type ClientProject, type ClientRecord } from "../hooks/use-clients"
 
-/**
- * The client's projects, and the place to start a new one for them. The form
- * opens with the client already chosen, so "new project for Acme" is one click
- * from Acme's page rather than a trip through the projects board.
- */
+/** The client's projects; the new-project form opens with this client already chosen. */
 export function ClientProjectsTab({ client }: { client: ClientRecord }) {
   const { can } = usePermissions()
   const canCreate = can(PERMISSIONS.PROJECT_WRITE)

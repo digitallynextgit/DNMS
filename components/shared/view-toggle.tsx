@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useSyncExternalStore } from "react"
 import { LayoutGrid, List, Kanban, Table2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { TAB_TRACK, TAB_TRIGGER, TAB_TRIGGER_ACTIVE, TAB_TRIGGER_IDLE } from "@/components/ui/tabs"
@@ -30,10 +30,7 @@ export function ViewToggle({
 }: Props) {
   return (
     <div
-      // Same track and same option styling as a real tab strip - see the class
-      // constants in components/ui/tabs.tsx. No TAB_TRACK_SCROLL: two to four
-      // icons never overflow, and a scroll container here would swallow the
-      // rounded corners.
+      // Same track as a tab strip (components/ui/tabs.tsx), minus the scroll, which would clip the corners.
       className={cn(TAB_TRACK, className)}
       role="tablist"
       aria-label="View mode"
@@ -109,18 +106,34 @@ export function ViewToggle({
   )
 }
 
+const subscribeNever = () => () => {}
+
+function readViewMode(storageKey: string): ViewMode | null {
+  try {
+    const stored = localStorage.getItem(storageKey)
+    return stored && (VIEW_MODES as string[]).includes(stored) ? (stored as ViewMode) : null
+  } catch {
+    return null
+  }
+}
+
 export function useViewMode(
   storageKey: string,
   defaultMode: ViewMode = "card",
 ): [ViewMode, (v: ViewMode) => void] {
   const [mode, setMode] = useState<ViewMode>(defaultMode)
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(storageKey)
-      if (stored && (VIEW_MODES as string[]).includes(stored)) setMode(stored as ViewMode)
-    } catch {}
-  }, [storageKey])
+  // Saved choice per key; undefined on the server and while hydrating, so the markup matches.
+  const stored = useSyncExternalStore<ViewMode | null | undefined>(
+    subscribeNever,
+    () => readViewMode(storageKey),
+    () => undefined,
+  )
+  const [restoredKey, setRestoredKey] = useState<string | null>(null)
+  if (stored !== undefined && restoredKey !== storageKey) {
+    setRestoredKey(storageKey)
+    if (stored) setMode(stored)
+  }
 
   function update(v: ViewMode) {
     setMode(v)

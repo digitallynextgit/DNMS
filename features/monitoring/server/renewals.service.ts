@@ -1,13 +1,5 @@
-// =============================================================================
-// Renewal register
-// =============================================================================
-// What expires, when, and whose job it is. The 14 Aug outage had six days of
-// warning from the registrar; what was missing was a named person with a date.
-//
-// Reminders fire at fixed STAGES rather than daily, so the 60-day heads-up and
-// the "expires tomorrow" alarm feel different. Past expiry it nags every day and
-// escalates, because at that point silence has already cost something.
-// =============================================================================
+// Renewal register: reminders fire at fixed STAGES (not daily); past expiry it nags daily and
+// escalates.
 
 import "server-only"
 
@@ -28,14 +20,7 @@ function daysUntil(date: Date): number {
   return Math.round((target.getTime() - start.getTime()) / 86_400_000)
 }
 
-/**
- * Already said this today?
- *
- * This sweep runs on the in-process scheduler, which ticks hourly rather than
- * once a day, so "alert daily while overdue" has to mean daily and not hourly.
- * Per-asset timestamps are what enforce that, and they survive a restart -
- * a module-level "last run" flag would not.
- */
+/** Already alerted today? The scheduler ticks hourly; per-asset timestamps keep "daily" daily. */
 function alertedToday(last: Date | null): boolean {
   if (!last) return false
   const a = new Date(last)
@@ -47,15 +32,8 @@ function alertedToday(last: Date | null): boolean {
   )
 }
 
-/**
- * The tightest stage this asset has reached, or null when it's still beyond the
- * widest one.
- *
- * "Tightest" = the SMALLEST stage the asset is still inside, so 20 days out
- * reports 30 (not 60) and only reports 14 once it crosses that line. Searching
- * ascending is what gets that - searching the descending STAGES would match 60
- * first and the asset would never progress.
- */
+/** The smallest stage the asset is inside (20 days out -> 30), or null beyond the widest.
+ *  Searched ascending - descending would always match 60. */
 function stageFor(days: number): number | null {
   if (days <= 0) return 0
   const ascending = [...STAGES].sort((a, b) => a - b)
@@ -69,13 +47,8 @@ export interface RenewalSweepSummary {
   overdue: number
 }
 
-/**
- * Walk the register and nudge whoever owns anything approaching expiry.
- *
- * `lastAlertStage` is what makes this safe to run daily: an asset only alerts
- * again once it crosses into a TIGHTER stage, so 60 days out you hear once, not
- * thirty times.
- */
+/** Nudge the owners of anything near expiry. `lastAlertStage` means an asset alerts again only
+ *  on entering a tighter stage. */
 export async function runRenewalSweep(): Promise<RenewalSweepSummary> {
   const horizon = new Date()
   horizon.setDate(horizon.getDate() + STAGES[0])
@@ -113,9 +86,7 @@ export async function runRenewalSweep(): Promise<RenewalSweepSummary> {
 
     if (days < 0) summary.overdue++
 
-    // Alert on entering a TIGHTER stage. Overdue (stage 0) is the exception -
-    // it repeats daily, because by then it is actively costing money - but only
-    // once a day, however often the scheduler ticks.
+    // Alert on entering a tighter stage; overdue (stage 0) repeats, at most once a day.
     const tightened = asset.lastAlertStage === null || stage < asset.lastAlertStage
     if (!tightened) {
       if (stage !== 0) continue
@@ -132,8 +103,7 @@ export async function runRenewalSweep(): Promise<RenewalSweepSummary> {
           ? "expires TODAY"
           : `expires in ${days} day${days === 1 ? "" : "s"}`
 
-    // Auto-renew being on is explicitly NOT reassurance - it was on for the
-    // domain that lapsed. The message says so, so nobody reads "auto" and skips.
+    // Auto-renew is not reassurance (it was on for the domain that lapsed), so the message says so.
     const renewNote = asset.autoRenew
       ? "Auto-renew is on, which is not a guarantee - confirm the payment actually went through."
       : "Auto-renew is OFF - this will not renew itself."
@@ -165,9 +135,7 @@ export async function runRenewalSweep(): Promise<RenewalSweepSummary> {
     if (level > 0) summary.escalated++
   }
 
-  // ── Payment methods expiring ─────────────────────────────────────────────
-  // The root cause of a failed auto-renewal is usually a dead card, and that
-  // fails silently well before any domain does.
+  // Expiring payment methods: a dead card is the usual cause of a failed auto-renewal.
   const cardHorizon = new Date()
   cardHorizon.setDate(cardHorizon.getDate() + 30)
   const expiringCards = await db.projectAsset.findMany({
@@ -187,8 +155,7 @@ export async function runRenewalSweep(): Promise<RenewalSweepSummary> {
   for (const card of expiringCards) {
     if (!card.paymentExpiresAt) continue
     const days = daysUntil(card.paymentExpiresAt)
-    // A fortnightly heads-up, not an outage siren - and its OWN timestamp, so it
-    // neither suppresses nor is suppressed by the renewal alert above.
+    // A fortnightly heads-up with its own timestamp, independent of the renewal alert above.
     if (days > 30) continue
     if (days > 0 && days % 14 !== 0) continue
     if (alertedToday(card.lastCardAlertAt)) continue

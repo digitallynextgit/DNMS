@@ -10,8 +10,6 @@ import { formatDate, formatFileSize, cn, truncate } from "@/lib/utils"
 import { DOCUMENT_CATEGORY_LABELS } from "@/lib/constants"
 import { apiFetch } from "@/lib/api-fetch"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface DocumentCardDocument {
   id: string
   title: string
@@ -27,14 +25,9 @@ interface DocumentCardProps {
   document: DocumentCardDocument
   onDelete?: (id: string) => void
   canDelete?: boolean
-  /**
-   * When set, this is a personal (employee locker) document: download links are
-   * resolved from the EmployeeDocument table / B2 instead of the company store.
-   */
+  /** Set = a personal locker document (EmployeeDocument), not a company one. */
   employeeId?: string
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 interface FileIconMeta {
   Icon: ElementType
@@ -74,8 +67,6 @@ function isExpired(expiresAt: Date | string): boolean {
   return new Date(expiresAt).getTime() < Date.now()
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export function DocumentCard({ document, onDelete, canDelete, employeeId }: DocumentCardProps) {
   const { Icon, colorClass } = getFileIcon(document.mimeType)
   const categoryLabel = DOCUMENT_CATEGORY_LABELS[document.category] ?? document.category
@@ -84,8 +75,7 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
   const [viewLoading, setViewLoading] = useState(false)
   const [downloadLoading, setDownloadLoading] = useState(false)
 
-  // Resolve a fresh short-lived presigned URL. `download: true` forces the file
-  // to download (content-disposition: attachment); otherwise it opens inline.
+  // `download: true` forces content-disposition: attachment; otherwise it opens inline.
   const resolveUrl = async (download: boolean): Promise<string | undefined> => {
     const query = download ? "?download=1" : ""
     const url = employeeId
@@ -95,7 +85,6 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
     return body.data.data?.url
   }
 
-  // View: open the document/image inline in a new tab.
   const handleView = async () => {
     setViewLoading(true)
     try {
@@ -108,10 +97,7 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
     }
   }
 
-  // Download: pull the actual file to disk. The presigned URL carries an
-  // attachment disposition, so navigating an anchor to it downloads rather than
-  // navigating away. `window.document` is used because the `document` prop here
-  // shadows the global document object.
+  // `window.document` because the `document` prop shadows the global.
   const handleDownload = async () => {
     setDownloadLoading(true)
     try {
@@ -143,12 +129,10 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
   return (
     <>
       <div className="bg-card hover:bg-muted/30 flex items-start gap-4 rounded-sm border p-4 transition-colors">
-        {/* File icon */}
         <div className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded-sm">
           <Icon className={cn("h-5 w-5", colorClass)} />
         </div>
 
-        {/* Content */}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-foreground text-sm font-medium" title={document.title}>
@@ -191,7 +175,6 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex shrink-0 items-center gap-1">
           <Button
             size="icon"

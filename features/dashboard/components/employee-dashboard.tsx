@@ -23,8 +23,7 @@ import { StatCard } from "@/components/shared/stat-card"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { LeaveBalanceCard } from "@/features/leave"
-// From the module, not the projects barrel: the barrel re-exports every project
-// COMPONENT, and this is a client bundle that has no use for any of them.
+// Direct import, not the projects barrel, which would pull every project component into this bundle.
 import { formatHours } from "@/features/projects/lib/format-hours"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 import { PAYROLL_STATUS_LABELS } from "@/lib/constants"
@@ -107,8 +106,7 @@ async function fetchEmployeeDashboard(): Promise<EmployeeDashboardData> {
   const res = await fetch("/api/dashboard/me")
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    // fail() nests { error: { code, message } } - reading .error alone put
-    // "[object Object]" in the user-facing banner.
+    // fail() nests { error: { code, message } }.
     const message =
       typeof body?.error === "string" ? body.error : (body?.error?.message ?? undefined)
     throw new Error(message ?? "Failed to load your dashboard")
@@ -134,9 +132,6 @@ export function EmployeeDashboard() {
         </div>
       )}
 
-      {/* Work first, then HR. An employee opens this page to answer "what am I
-          supposed to be doing", and the panel used to answer only "how much
-          leave do I have" - true, but not the question. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
         <StatCard
           title="Due Today"
@@ -184,7 +179,6 @@ export function EmployeeDashboard() {
         />
       </div>
 
-      {/* Quick actions */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Button asChild variant="outline" className="min-w-0 justify-start gap-2">
           <Link href="/projects/my-tasks">
@@ -218,10 +212,7 @@ export function EmployeeDashboard() {
         </Button>
       </div>
 
-      {/* ── What I am supposed to be doing ─────────────────────────────────── */}
-      {/* min-w-0 on the cards: a grid item defaults to min-width:auto, so a long
-          task title (or any nowrap content) would otherwise widen the column past
-          the viewport instead of truncating inside it. */}
+      {/* min-w-0: grid items default to min-width:auto, so a long title would widen the column. */}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="min-w-0 lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -258,7 +249,6 @@ export function EmployeeDashboard() {
           </CardContent>
         </Card>
 
-        {/* This week, in hours - the honest version of "am I on track". */}
         <Card className="min-w-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
@@ -269,7 +259,6 @@ export function EmployeeDashboard() {
             {isLoading ? (
               <Skeleton className="h-24 w-full" />
             ) : !work ? (
-              // A failed query must not skeleton forever - say so instead.
               <p className="text-muted-foreground text-sm">
                 Couldn&apos;t load this week&apos;s hours.
               </p>
@@ -283,7 +272,6 @@ export function EmployeeDashboard() {
                       : "spent · nothing booked"}
                   </span>
                 </div>
-                {/* A meter, not a chart: one ratio against a limit. */}
                 <div className="bg-muted h-2 w-full overflow-hidden rounded-sm">
                   <div
                     className="h-full rounded-sm"
@@ -313,7 +301,6 @@ export function EmployeeDashboard() {
         </Card>
       </div>
 
-      {/* Where my work sits - one row per client still owed something. */}
       {work && work.projects.length > 0 && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -359,7 +346,6 @@ export function EmployeeDashboard() {
         </Card>
       )}
 
-      {/* Leave balances */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
@@ -394,7 +380,6 @@ export function EmployeeDashboard() {
       </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Latest payslip */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
@@ -435,7 +420,6 @@ export function EmployeeDashboard() {
           </CardContent>
         </Card>
 
-        {/* Upcoming holidays */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
@@ -490,7 +474,6 @@ const WEEK_TONES = {
   todo: "var(--state-todo)",
 } as const
 
-/** One small count in the week panel, colour-coded to the shared state palette. */
 function WeekStat({
   label,
   value,
@@ -509,12 +492,7 @@ function WeekStat({
   )
 }
 
-/**
- * One task line: what it is, whose it is, and how it stands.
- *
- * Overdue and running are called out in words as well as colour - the same rule
- * the charts follow, and the reason the row is readable in a screenshot.
- */
+/** Overdue and running are spelled out in words as well as colour. */
 function TaskLine({ task }: { task: DashTask }) {
   const overdue =
     !!task.dueDate &&

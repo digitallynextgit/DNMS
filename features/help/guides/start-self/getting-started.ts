@@ -366,8 +366,7 @@ export const gettingStartedGuide: HelpGuide = {
             as: "employee",
             path: "/dashboard",
             device: "mobile",
-            // The Home icon, not the whole bar: the bar is as wide as the screen,
-            // so its number circle was cut off at the left edge.
+            // The Home icon, not the whole bar - the bar's number circle was cut off at the left edge.
             highlight: [{ css: "nav[aria-label='Primary'] a:first-child > span.relative" }],
           },
         },

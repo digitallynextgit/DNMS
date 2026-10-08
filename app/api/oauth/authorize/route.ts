@@ -3,12 +3,8 @@ import { startAuthorization } from "@/features/mcp/server/oauth.service"
 import { publicOrigin } from "@/features/mcp/server/config"
 import { clientIp, rateLimited } from "@/lib/rate-limit"
 
-// GET /api/oauth/authorize - OAuth 2.1 authorization endpoint (AI connector).
-//
-// Public (proxy.ts PUBLIC_PREFIXES): an AI app sends the person's browser here
-// before they are known. We validate the request, park it, and send the
-// browser to the login-protected consent page. The id goes in the PATH, not a
-// query string, because the proxy's login redirect keeps only the path.
+// Public: the AI app sends the browser here before login. The id goes in the PATH because the
+// proxy's login redirect keeps only the path.
 
 export const dynamic = "force-dynamic"
 
@@ -27,10 +23,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/**
- * Shown when the request is too broken to send back to the app (unknown
- * client, unregistered redirect). Plain HTML: the person may not be signed in.
- */
+/** For requests too broken to send back to the app. Plain HTML: the person may not be signed in. */
 function errorPage(title: string, message: string, status: number) {
   const esc = (s: string) =>
     s.replace(

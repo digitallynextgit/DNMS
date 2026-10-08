@@ -6,9 +6,7 @@ import { deleteFolder, moveFolder, renameFolder } from "@/features/projects/serv
 import { folderUpdateSchema } from "@/features/projects/schemas/files.schema"
 import { createAuditLog } from "@/lib/audit"
 
-// PATCH /api/projects/[id]/folders/[folderId]  body { name?, parentId? }
-// Rename and/or move. The service enforces creator-or-manager, sibling
-// uniqueness and the no-cycle rule, and mirrors the change to Drive.
+// The service enforces creator-or-manager, sibling uniqueness and no cycles, and mirrors to Drive.
 export const PATCH = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, folderId } = ctx.params
@@ -29,7 +27,7 @@ export const PATCH = withProjectAccess(
   },
 )
 
-// DELETE /api/projects/[id]/folders/[folderId] - only when empty (see service).
+// Only when empty (enforced in the service).
 export const DELETE = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, folderId } = ctx.params

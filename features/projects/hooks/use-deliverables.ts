@@ -17,9 +17,7 @@ import {
   type DeliverableStatus,
 } from "../lib/deliverable-lifecycle"
 
-// The lifecycle table is client-safe on purpose - the row's buttons and the
-// server's rules come from the same file. Re-exported here so a component that
-// already imports the hook does not need a second import for the labels.
+// Re-exported so components using the hook need no second import for the labels.
 export {
   DELIVERABLE_STATUS_LABELS,
   MADE_STATUSES,
@@ -33,7 +31,7 @@ export {
 }
 export type { DeliverableActor, DeliverableStatus }
 
-// ─── Types mirror deliverables.queries.ts ─────────────────────────────────────
+// Types mirror deliverables.queries.ts.
 
 export interface DeliverableFile {
   id: string
@@ -48,48 +46,37 @@ export interface DeliverableRow {
   projectId: string
   project: { id: string; name: string; code: string; slug: string | null }
   team: { id: string; name: string } | null
-  /** The maker. Null while the row is still owed by the team and unclaimed. */
   employee: { id: string; name: string; profilePhoto: string | null } | null
   loggedByName: string | null
-  /** The client asked for this one through the portal, rather than the team planning it. */
   plannedByClient: boolean
   task: { id: string; title: string } | null
   goal: { id: string; title: string } | null
   type: string
   title: string
   quantity: number
-  /** How many of `quantity` are made. Moves as work lands, without the status. */
   deliveredQuantity: number
   status: DeliverableStatus
   startedOn: string | null
-  /** Null only while the row is owed. */
   completedOn: string | null
   dueOn: string | null
-  /** The window this covers, yyyy-MM-dd. Both set, or both null. */
   periodStart: string | null
   periodEnd: string | null
   revisionCount: number
-  /** Stage two: the account manager signed it off. */
   acceptedAt: string | null
   acceptedByName: string | null
-  /** The client signed it off themselves, rather than staff recording their word. */
   acceptedByClient: boolean
-  /** Stage one: the maker's manager checked it. Null if it skipped straight to stage two. */
   verifiedByName: string | null
   verifiedAt: string | null
-  /** The last time it was sent back, kept even after it moves on. */
   sentBack: {
     by: string | null
     reason: string | null
     at: string
-    /** Sent back by the client, not by a manager. Different thing to answer. */
     byClient: boolean
   } | null
   links: string[]
   notes: string | null
   files: DeliverableFile[]
   verified: boolean
-  /** The period has closed: only a project manager may still change this row. */
   locked: boolean
   hours: number | null
   hoursPerUnit: number | null
@@ -104,7 +91,6 @@ export interface DeliverableEventRow {
   changes: Record<string, [unknown, unknown]> | null
   reason: string | null
   actorName: string | null
-  /** The actor was the client, through the portal, not a member of staff. */
   actorIsClient: boolean
   createdAt: string
 }
@@ -135,11 +121,6 @@ export interface DeliverablesOverview {
     count: number
     byType: TypeCount[]
   }[]
-  /**
-   * Every scope, not just one project. A team name is unique only inside its
-   * project, so each row names the project too. `id` is the team's, or
-   * `__no_team__:<projectId>` for output logged without one.
-   */
   byTeam: {
     id: string
     name: string
@@ -204,8 +185,6 @@ export interface StatusChangeInput {
   note?: string | null
 }
 
-// ─── Reads ────────────────────────────────────────────────────────────────────
-
 function qs(f: DeliverableFilters, includeProject: boolean): string {
   const p = new URLSearchParams()
   if (includeProject && f.projectId) p.set("projectId", f.projectId)
@@ -219,10 +198,6 @@ function qs(f: DeliverableFilters, includeProject: boolean): string {
   return p.toString()
 }
 
-/**
- * One project's ledger. Keyed under ["deliverables", projectId, ...] so every
- * write on that project invalidates the prefix and every open view refreshes.
- */
 export function useProjectDeliverables(projectId: string | undefined, f: DeliverableFilters = {}) {
   const q = qs(f, false)
   return useQuery({
@@ -252,10 +227,7 @@ export function useDeliverablesOverview(f: DeliverableFilters = {}, enabled = tr
   })
 }
 
-/**
- * One row's history. Only fetched when a history dialog is actually open - a
- * per-row events query would be one request per line of the ledger.
- */
+/** One row's history; only fetched while a history dialog is open. */
 export function useDeliverableEvents(
   projectId: string | undefined,
   deliverableId: string | undefined,
@@ -272,28 +244,16 @@ export function useDeliverableEvents(
   })
 }
 
-/**
- * The download link for the CSV export. A plain URL rather than a mutation: the
- * browser has to navigate to it for the attachment header to do its job. The
- * server requires a real `from`/`to` range, so pass one.
- */
+/** CSV export URL (navigated to, so the attachment header works). Needs a real from/to range. */
 export function deliverablesExportUrl(f: DeliverableFilters, client = false): string {
   const p = new URLSearchParams(qs(f, true))
   if (client) p.set("client", "1")
   return `/api/projects/deliverables/export?${p.toString()}`
 }
 
-// ─── Writes ───────────────────────────────────────────────────────────────────
-
 const json = { "Content-Type": "application/json" }
 
-/**
- * Every mutation invalidates the whole ["deliverables"] prefix: a project's
- * ledger, the portfolio view and the Progress popups all read the same rows,
- * and a log entry that shows on one and not the others is a bug report. Goals
- * go with it - a delivered thing moves a goal's target, so a goal card still
- * reading 2 of 3 after the third one landed is the same bug wearing a hat.
- */
+/** Invalidates every ["deliverables"] view, plus goals - delivered work moves goal targets. */
 export function useDeliverableMutations(projectId: string) {
   const qc = useQueryClient()
   const invalidate = () => {
@@ -404,14 +364,6 @@ export function useDeliverableMutations(projectId: string) {
   return { create, update, setStatus, verify, remove, upload, removeFile }
 }
 
-/**
- * What the signed-in person owes, across every project - their own rows plus
- * anything their team owes that nobody has picked up.
- *
- * Kept out of the per-project deliverables cache on purpose: this is a
- * cross-project inbox, and invalidating it from a single project's mutation
- * would leave the other projects' rows stale.
- */
 export function useMyOwedDeliverables(opts: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["my-owed-deliverables"],

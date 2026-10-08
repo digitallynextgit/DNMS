@@ -1,22 +1,7 @@
-/**
- * Last-mile fixes applied to campaign HTML on its way out.
- *
- * These exist because a body is not always something our editor produced: people
- * paste finished HTML from a designer, and that markup arrives exactly as
- * written. The editor inserts responsive images already - pasted markup does not,
- * and a bare <img> renders at its natural width (1200px here) inside a phone-width
- * inbox, which is how a campaign went out that had to be scrolled sideways to read.
- *
- * So the rule is enforced where every body passes through, not where we happen to
- * control the input.
- */
+// Last-mile fixes on outgoing campaign HTML. Pasted designer HTML doesn't get the editor's
+// responsive images, so it's enforced here, where every body passes.
 
-/**
- * What makes an image behave inside an email column on any screen.
- *
- * `border:0` is not decoration: Outlook and older Yahoo draw a blue link border
- * around any image wrapped in an <a>, which is exactly what a clickable banner is.
- */
+/** `border:0` stops Outlook/old Yahoo drawing a blue border round linked images. */
 const RESPONSIVE_STYLE = "max-width:100%;height:auto;display:block;border:0;"
 
 const IMG_TAG = /<img\b[^>]*>/gi
@@ -26,22 +11,15 @@ const FIXED_WIDTH_ATTR = /\swidth\s*=\s*(["']?)(\d+)\1(?=[\s/>])/i
 const FIXED_HEIGHT_ATTR = /\sheight\s*=\s*(["']?)(\d+)\1(?=[\s/>])/i
 
 /**
- * Make every image in the body scale down to the reader's screen.
- *
- * Leaves a tag alone if it already sets max-width - a designer who wrote their
- * own constraint meant it, and overriding it would be us breaking their layout
- * rather than fixing it.
- *
- * A hard `height` attribute is dropped alongside a hard `width`: keeping it while
- * the width becomes fluid is what squashes an image out of its aspect ratio.
+ * Make every image scale to the reader's screen. Tags that already set max-width are left alone;
+ * a fixed height goes with a fixed width so the aspect ratio holds.
  */
 export function makeImagesResponsive(html: string): string {
   return html.replace(IMG_TAG, (tag) => {
     if (/max-width\s*:/i.test(tag)) return tag
 
     let out = tag
-    // A pixel width attribute beats max-width in several clients, so it has to go.
-    // The style below is what sizes the image from here on.
+    // A pixel width attribute beats max-width in several clients.
     if (FIXED_WIDTH_ATTR.test(out)) {
       out = out.replace(FIXED_WIDTH_ATTR, "").replace(FIXED_HEIGHT_ATTR, "")
     }

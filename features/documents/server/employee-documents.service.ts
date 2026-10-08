@@ -12,10 +12,7 @@ import { ok, fail, runAction, serialize, type ActionResult } from "@/server/acti
 export async function getEmployeeDocuments(employeeId: string): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
-    // Reading ANOTHER employee's personal documents is an HR act, so it is gated
-    // on employee:read (HR/admin only) - NOT document:read, which the base
-    // `employee` role holds and which would otherwise let any staffer pull
-    // anyone's contracts/IDs. Everyone can still read their OWN via the self check.
+    // Others' documents need employee:read (HR), NOT document:read, which every employee holds.
     const canReadAny = hasPermission(session, PERMISSIONS.EMPLOYEE_READ)
     if (!canReadAny && session.user.id !== employeeId) return fail("Forbidden")
 
@@ -99,16 +96,13 @@ export async function getEmployeeDocumentUrl(
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
-    // See getEmployeeDocuments: cross-employee reads need employee:read (HR),
-    // not the base-role document:read; owners always reach their own.
     const canReadAny = hasPermission(session, PERMISSIONS.EMPLOYEE_READ)
     if (!canReadAny && session.user.id !== employeeId) return fail("Forbidden")
 
     const document = await db.employeeDocument.findFirst({ where: { id: docId, employeeId } })
     if (!document) return fail("Document not found")
 
-    // Files are private in B2; hand back a short-lived presigned URL. When
-    // download is requested, force a download instead of an inline view.
+    // Files are private; return a short-lived presigned URL (forced download if requested).
     const url = await getSignedUrl(
       document.objectKey,
       3600,

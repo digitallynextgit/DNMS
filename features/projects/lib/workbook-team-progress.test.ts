@@ -16,8 +16,7 @@ const progress = (quantity: number, links: number, files: number) =>
 
 describe("teamProgress", () => {
   it("counts links and files together", () => {
-    // Some work ships as a URL and some as a file; which it is says nothing
-    // about whether the work happened.
+    // URL vs file says nothing about whether the work happened.
     expect(progress(4, 2, 2).handedIn).toBe(4)
     expect(progress(4, 4, 0).handedIn).toBe(4)
     expect(progress(4, 0, 4).handedIn).toBe(4)
@@ -44,8 +43,7 @@ describe("teamProgress", () => {
   })
 
   it("exempts a row nobody has quantified", () => {
-    // 0 means "on the plan, not yet quantified", not "owes nothing" - so it
-    // must not be held to a number nobody set.
+    // 0 means "not yet quantified", not "owes nothing".
     const p = progress(0, 0, 0)
     expect(p.canComplete).toBe(true)
     expect(p.fraction).toBe(1)
@@ -75,8 +73,7 @@ describe("statusProblem", () => {
   })
 
   it("never blocks STUCK or DISCARDED", () => {
-    // These are how a team says the work is NOT coming. Demanding the work
-    // first, in order to admit it is not coming, would be absurd.
+    // These say the work is NOT coming, so they can't demand the work first.
     const nothingDone = progress(10, 0, 0)
     expect(statusProblem("STUCK", nothingDone)).toBeNull()
     expect(statusProblem("DISCARDED", nothingDone)).toBeNull()

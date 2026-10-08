@@ -1,11 +1,7 @@
 import { redirect } from "next/navigation"
 import { tenantPath } from "@/server/tenant-request"
 
-/**
- * The Holiday Calendar is now one view of /calendar. Links that still point
- * here - notification emails already sent, bookmarks - land on the same view,
- * including the floating-requests tab (?tab=requests).
- */
+/** Old links (sent emails, bookmarks) land on the same view of /calendar. */
 export default async function HolidayCalendarRedirect({
   searchParams,
 }: {

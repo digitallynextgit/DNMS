@@ -14,15 +14,10 @@ export function CustomThemeApplier() {
 
   useEffect(() => {
     const root = document.documentElement
-    // Marketing pages get no custom palette. This component lives in the ROOT
-    // layout, so without the check it painted the dashboard's chosen colours
-    // onto the public site - which is not themeable and hardcodes the brand red.
-    // Treated exactly like "no palette selected": the variables are removed
-    // rather than overridden, so nothing is left behind for the next page.
+    // Marketing pages are never themed: treat them as "no palette" so the variables are removed.
     const theme = isMarketingPath(pathname) ? null : findTheme(paletteId)
 
-    // Multi-colour treatment: [data-multicolor] switches on the gradient
-    // primary controls + two-hue ambient background in globals.css.
+    // [data-multicolor] turns on the gradient controls + ambient background in globals.css.
     function clearGradient() {
       delete root.dataset.multicolor
       root.style.removeProperty("--mc-1")

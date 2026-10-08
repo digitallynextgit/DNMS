@@ -6,14 +6,6 @@ import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { SheetAssignee, WorkbookTeamMember } from "../../lib/sheet-types"
 
-// =============================================================================
-// The small person bits the Calendars tab draws over and over: a face, a face
-// with a name, a row of faces.
-//
-// Lifted out of project-sheet.tsx unchanged so the month picker and the team
-// plan can use them without importing from a two-thousand-line grid component.
-// =============================================================================
-
 /** The value a Select uses for "nobody". */
 export const UNASSIGNED = "__none__"
 
@@ -35,7 +27,6 @@ export function PersonAvatar({
   )
 }
 
-/** Avatar + first name, or a muted placeholder. */
 export function AssigneeChip({
   person,
   emptyLabel = "Unassigned",
@@ -55,14 +46,6 @@ export function AssigneeChip({
   )
 }
 
-/**
- * A row of faces with an overflow count.
- *
- * teams-tab.tsx has one of these too, typed to its own member shape. Left as a
- * deliberate duplicate rather than re-typed and shared: making that one generic
- * would mean editing a file this work otherwise never opens, for twenty lines
- * of JSX. An honest duplicate beats a forced abstraction.
- */
 export function MemberAvatars({
   people,
   max = 4,
@@ -83,7 +66,6 @@ export function MemberAvatars({
         <PersonAvatar
           key={p.employeeId}
           person={p}
-          // Overlapped, with a ring so faces stay separable against each other.
           className="ring-background -ml-1.5 ring-2 first:ml-0"
         />
       ))}

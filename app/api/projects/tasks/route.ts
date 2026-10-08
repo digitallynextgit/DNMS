@@ -7,31 +7,14 @@ import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 
-// GET /api/projects/tasks
-//
-// The tasks BEHIND a number on the Progress page. Every tile, donut slice and
-// bar there is a count; this is the list that count was made from, so a
-// drill-down can show "which 42" rather than restating "42".
-//
-// ── THE STATES ARE THE PERFORMANCE ROUTE'S, EXACTLY ──────────────────────────
-// `state` maps onto the same five mutually exclusive buckets that
-// /api/projects/performance stacks and slices, with the same definitions (an
-// open task past its due date is OVERDUE and nothing else; the rest split by
-// whether work has started). If the two ever disagreed, a slice of 42 would
-// open a list of 39, and the whole page would stop being believed.
-//
-// Same visibility rule as that route too: admins see everything, everyone else
-// the teams they manage, the projects they own and their own tasks.
-//
-// Static segment beside the dynamic [id] one, like /api/projects/performance
-// and /api/projects/goals - Next resolves the literal path first.
+// The tasks behind a count on the Progress page. `state` uses exactly the performance route's buckets
+// and visibility rules - if they disagreed, a slice of 42 would open a list of 39.
 export const dynamic = "force-dynamic"
 
 const STATES = ["overdue", "todo", "progress", "hold", "done", "open", "all"] as const
 type State = (typeof STATES)[number]
 
-// The popup pages by 150 and "show more" grows the page; 900 is six pages,
-// past which a list is a search problem rather than a scrolling one.
+// Pages of 150; 900 is six pages, past which it's a search problem.
 const MAX_LIMIT = 900
 
 export const GET = withSession(
@@ -66,20 +49,14 @@ export const GET = withSession(
     const todayStart = new Date()
     todayStart.setUTCHours(0, 0, 0, 0)
 
-    // Mirrors the performance route's predicates exactly - if these two ever
-    // disagree, a slice of N opens a list of M.
-    //
-    // CLOSED is "finished or dropped": the only states that can never be
-    // overdue. Being on hold does NOT exempt a task - it was promised for a
-    // date that has passed, so it is late like any other.
+    // Mirrors the performance route's predicates exactly. Being on hold does not exempt a task from overdue.
     const CLOSED = ["DONE", "DISCARDED", "CANCELLED"] as const
     const notLate: Prisma.ProjectTaskWhereInput = {
       OR: [{ dueDate: null }, { dueDate: { gte: todayStart } }],
     }
     const byState: Record<State, Prisma.ProjectTaskWhereInput> = {
       overdue: { status: { notIn: [...CLOSED] }, dueDate: { lt: todayStart } },
-      // The three live buckets exclude anything late, so overdue owns those
-      // rows outright and the five states stay mutually exclusive.
+      // The live buckets exclude anything late, so the five states stay mutually exclusive.
       todo: {
         status: { notIn: [...CLOSED, "ON_HOLD", "IN_PROGRESS", "IN_REVIEW"] },
         ...notLate,
@@ -87,8 +64,7 @@ export const GET = withSession(
       progress: { status: { in: ["IN_PROGRESS", "IN_REVIEW"] }, ...notLate },
       hold: { status: "ON_HOLD", ...notLate },
       done: { status: "DONE" },
-      // "Open" on the tile = pending = assigned minus completed minus dropped,
-      // so it spans overdue, todo, progress AND hold.
+      // "Open" on the tile = not finished or dropped, so it spans overdue, todo, progress and hold.
       open: { status: { notIn: [...CLOSED] } },
       all: {},
     }
@@ -112,9 +88,7 @@ export const GET = withSession(
       db.projectTask.findMany({
         where,
         take: limit,
-        // Each list reads in the order its question is asked. "What did we
-        // finish" is newest first. "What is late" is longest-late first - the
-        // one to chase. "What is coming" is soonest first.
+        // Done: newest first. Late: longest-late first. Upcoming: soonest first.
         orderBy:
           state === "done"
             ? [{ completedAt: { sort: "desc", nulls: "last" } }, { dueDate: "desc" }]

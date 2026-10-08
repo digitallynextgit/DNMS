@@ -89,8 +89,7 @@ export function FormSkeleton({ rows = 4 }: { rows?: number }) {
   )
 }
 
-/** Page title + subtitle, optionally with an action button on the right. Matches
- *  the <PageHeader> most pages render, so the header doesn't jump on hydrate. */
+/** Matches <PageHeader>, so the header doesn't jump on hydrate. */
 export function PageHeaderSkeleton({ withActions = false }: { withActions?: boolean }) {
   return (
     <div className="flex items-center justify-between py-4">
@@ -108,7 +107,6 @@ export function PageHeaderSkeleton({ withActions = false }: { withActions?: bool
   )
 }
 
-/** A single metric/stat card (label + big number + sub-line + corner icon). */
 export function StatCardSkeleton() {
   return (
     <div className="border-border bg-card rounded-sm border p-5">
@@ -124,8 +122,6 @@ export function StatCardSkeleton() {
   )
 }
 
-/** A row of stat cards. Same 4-up grid the dashboards/analytics use, so the KPI
- *  strip lands where the real cards will. */
 export function StatCardsSkeleton({ count = 4 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -136,7 +132,6 @@ export function StatCardsSkeleton({ count = 4 }: { count?: number }) {
   )
 }
 
-/** A chart placeholder: a titled card with a sized block, not a bare list. */
 export function ChartSkeleton({ height = "h-64" }: { height?: string }) {
   return (
     <div className="border-border bg-card space-y-3 rounded-sm border p-5">
@@ -146,9 +141,7 @@ export function ChartSkeleton({ height = "h-64" }: { height?: string }) {
   )
 }
 
-/** Entity cards (projects / employees / recruitment): an avatar-or-logo block, a
- *  couple of text lines, and a footer row - NOT the stat-card shape. Rendered in
- *  the same 3-up grid the real card grids use so nothing reflows on load. */
+/** Project / employee / recruitment cards, in the same 3-up grid as the real ones. */
 export function EntityCardGridSkeleton({ count = 6 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -173,8 +166,7 @@ export function EntityCardGridSkeleton({ count = 6 }: { count?: number }) {
   )
 }
 
-/** The admin/analytics dashboard shape: header, a 4-up stat strip, two charts,
- *  then two lists. Use this instead of PageSkeleton for pages that have no table. */
+/** Header, stat strip, two charts, two lists - for dashboards with no table. */
 export function DashboardSkeleton() {
   return (
     <div className="space-y-6">
@@ -192,8 +184,7 @@ export function DashboardSkeleton() {
   )
 }
 
-/** A header + optional stat strip + a table card. The default shape for the many
- *  directory/list pages; pass the real column count for a closer match. */
+/** The default shape for list pages; pass the real column count for a closer match. */
 export function TablePageSkeleton({
   cols = 5,
   rows = 8,
@@ -223,16 +214,12 @@ export function TablePageSkeleton({
   )
 }
 
-/** The profile / employee-detail shape: header, an avatar summary card, a 5-tab
- *  bar, then two info cards each with a 3-up grid of label/value rows. Shared so
- *  the route's loading.tsx and the client page's isLoading branch render the same
- *  thing - no reflow when the query resolves. */
+/** Profile / employee-detail shape, shared by loading.tsx and the page's isLoading branch. */
 export function ProfilePageSkeleton() {
   return (
     <div className="space-y-6">
       <PageHeaderSkeleton withActions />
 
-      {/* Summary card: avatar + name / meta / badges / contact. */}
       <div className="border-border bg-card rounded-sm border p-6">
         <div className="flex flex-col items-start gap-6 sm:flex-row">
           <Skeleton className="bg-muted h-24 w-24 shrink-0 animate-pulse rounded-full" />
@@ -254,14 +241,12 @@ export function ProfilePageSkeleton() {
         </div>
       </div>
 
-      {/* Tab bar (Info / Documents / Roles / Security / Notifications). */}
       <div className="flex flex-wrap gap-1">
         {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="bg-muted h-9 w-28 animate-pulse rounded-sm" />
         ))}
       </div>
 
-      {/* Info tab: two cards, each a section title + a 3-up grid of label/value rows. */}
       {Array.from({ length: 2 }).map((_, card) => (
         <div key={card} className="border-border bg-card space-y-6 rounded-sm border p-6">
           <Skeleton className="bg-muted h-4 w-40 animate-pulse" />

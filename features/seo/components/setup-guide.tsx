@@ -20,15 +20,8 @@ import {
 } from "../hooks/use-seo"
 import { AiSuggestDialog } from "./ai-suggest-dialog"
 
-// =============================================================================
-// The guided setup flow. The SEO module spans ten plan steps, and an operator
-// landing on it cold cannot tell what is configured, what is missing, or which
-// gap costs the most - so this turns the whole thing into a numbered checklist
-// where every row states what it unlocks and carries the button that does it.
-//
-// Steps that the AI can propose values for (money keywords, competitors) get a
-// "Suggest with AI" affordance; the suggestions still go through human approval.
-// =============================================================================
+// Guided setup: a numbered checklist where each step says what it unlocks and carries its action.
+// AI suggestions (keywords, competitors) still need human approval.
 
 export function SetupGuide({
   projectId,
@@ -125,7 +118,6 @@ export function SetupGuide({
 
   return (
     <div className="space-y-4">
-      {/* Progress header */}
       <Card className="overflow-hidden">
         <CardContent className="flex flex-wrap items-center gap-4 p-4">
           <Progress percent={setup.percent} size={64} />
@@ -140,7 +132,6 @@ export function SetupGuide({
                   ? `Next: ${nextStep.title}, which ${nextStep.impact.toLowerCase()}.`
                   : "The required steps are done. The optional ones add more detail."}
             </p>
-            {/* A bar as well as the dial, so progress reads at a glance on mobile. */}
             <div className="bg-muted mt-2 h-1.5 w-full overflow-hidden rounded-sm">
               <div
                 className={cn(
@@ -163,7 +154,6 @@ export function SetupGuide({
         </CardContent>
       </Card>
 
-      {/* The steps, as a grid of cards */}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {setup.steps.map((step, i) => (
           <StepCard
@@ -195,12 +185,8 @@ export function SetupGuide({
 }
 
 /**
- * One step as a self-contained, clickable card. The whole card runs the step's
- * action, so there is no hunting for a small button. The inner "Suggest with AI"
- * button stops propagation, otherwise clicking it would also fire the card.
- *
- * It is a div rather than a button because it contains a button, and nesting
- * buttons is invalid HTML. role/tabIndex/onKeyDown restore keyboard behaviour.
+ * One step as a clickable card. A div with role/tabIndex/onKeyDown, not a button, because it
+ * holds a button; that inner button stops propagation.
  */
 function StepCard({
   index,
@@ -247,7 +233,6 @@ function StepCard({
         busy && "pointer-events-none opacity-60",
       )}
     >
-      {/* Status stripe down the left edge. */}
       <span
         aria-hidden
         className={cn(

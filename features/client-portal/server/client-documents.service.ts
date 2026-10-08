@@ -9,33 +9,8 @@ import { getObjectKey, uploadFile, getSignedUrl, deleteFile, isB2Configured } fr
 import { deleteVideoAsset } from "@/lib/drive-media"
 import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES } from "@/lib/constants"
 
-// =============================================================================
-// Documents & assets, from the CLIENT side.
-// =============================================================================
-// A shared library, and only that: what the team published, plus whatever the
-// client sent back. The approve / request-changes loop that used to live here
-// has moved to the content plan, where a decision attaches to the thing that
-// was actually commissioned rather than to a loose file. Two review surfaces
-// asking the same question in different words was one too many.
-//
-// `reviewStatus` is still SET on a client upload - it is the TEAM's queue, and
-// the project Files tab reads it. It is simply no longer the client's to move.
-// The portal reads the same project_resources table staff use, which is exactly
-// why every query here is filtered on `isClientVisible: true`. That flag
-// defaults to false, so a file reaches an outsider only because a staff member
-// deliberately shared it - an internal brief sitting in the same folder is
-// invisible here by construction, not by remembering to exclude it.
-//
-// Every recordActivity call passes the SESSION, never null: it dispatches on
-// the actor, and a null session is read as staff - which sent every client
-// action to audit_logs (whose actor_id is an employees foreign key, so it
-// landed with no actor at all) and wrote nothing to the client's own Activity
-// tab. Pass the session; the routing is its job.
-//
-// Every entry point starts with requireClientModule(projectRef, "documents"),
-// which re-proves the session, the grant and the module. The projectRef in the
-// URL is a lookup key, never an authorisation.
-// =============================================================================
+// Client-side shared library. Every query filters on isClientVisible (defaults to false).
+// Always pass the session to recordActivity: a null session is logged as staff.
 
 /** What the portal is allowed to know about a file. No object keys, no internals. */
 const PORTAL_FILE_SELECT = {
@@ -63,9 +38,7 @@ export async function listClientDocuments(projectRef: string): Promise<ActionRes
       orderBy: [{ createdAt: "desc" }],
     })
 
-    // Only folders that actually contain something shared. Listing the whole
-    // tree would leak the project's internal structure - folder names alone say
-    // a lot about work an outsider has no business seeing.
+    // Only folders holding shared files - folder names alone can leak internal work.
     const folderIds = [...new Set(files.map((f) => f.folderId).filter((id): id is string => !!id))]
     const folders = folderIds.length
       ? await db.projectFolder.findMany({
@@ -88,9 +61,7 @@ export async function getClientDocumentUrl(
   return runAction(async () => {
     const { session, grant } = await requireClientModule(projectRef, "documents")
 
-    // projectId AND isClientVisible, both: an id from another project, or an
-    // unshared file in this one, must be indistinguishable from one that does
-    // not exist.
+    // An id from another project, or an unshared file, must read as not found.
     const file = await db.projectResource.findFirst({
       where: { id: fileId, projectId: grant.projectId, isClientVisible: true },
       select: {
@@ -103,10 +74,7 @@ export async function getClientDocumentUrl(
     })
     if (!file) return fail("File not found", undefined, 404)
 
-    // This list is every client-visible resource, so it includes the content
-    // plan's Drive-hosted videos as well as Backblaze documents. Those stream
-    // through us: the client has no Google account in that Workspace, so Drive's
-    // own link would show them a request-access page.
+    // Drive-hosted plan videos stream through us - the client has no Drive access.
     let url: string
     if (file.driveFileId) {
       url = `/api/portal/projects/${projectRef}/documents/${file.id}/stream`
@@ -131,11 +99,7 @@ export async function getClientDocumentUrl(
 }
 
 /**
- * A file uploaded FROM the portal.
- *
- * Lands shared and IN_REVIEW: the client put it there for the team to look at,
- * so hiding it would be pointless and marking it approved would let one side
- * approve its own submission.
+ * Upload from the portal. Lands shared and IN_REVIEW, so the client can't approve their own file.
  */
 export async function uploadClientDocument(
   projectRef: string,
@@ -178,8 +142,7 @@ export async function uploadClientDocument(
         mimeType: file.type || "application/octet-stream",
         objectKey,
         description,
-        // The client is the uploader - uploadedById stays null. The CHECK
-        // constraint on the table enforces exactly one of the two.
+        // The client is the uploader; the CHECK constraint allows only one of the two.
         uploadedById: null,
         uploadedByClientId: session.user.id,
         isClientVisible: true,
@@ -189,7 +152,6 @@ export async function uploadClientDocument(
       select: { id: true, fileName: true },
     })
 
-    // Tell the team. A file that arrives silently is a file nobody looks at.
     const staff = await db.projectTeam.findMany({
       where: { projectId: grant.projectId, managerId: { not: null } },
       select: { managerId: true },
@@ -247,8 +209,6 @@ export async function deleteClientDocument(
         driveFileId: true,
       },
     })
-    // Deliberately narrow: a client may withdraw their OWN upload and nothing
-    // else. A staff-published document is not theirs to remove.
     if (!file) return fail("File not found", undefined, 404)
     if (file.reviewStatus === "APPROVED") {
       return fail("That file has been approved and can no longer be withdrawn", undefined, 409)
@@ -256,14 +216,11 @@ export async function deleteClientDocument(
 
     await db.projectResource.delete({ where: { id: file.id } })
     try {
-      // Withdrawing a published video has to REVOKE the public link, not just
-      // delete the row - otherwise the thing the client is withdrawing stays
-      // reachable to everyone they already sent it to.
+      // Revoke a published video's public link, not just delete the row.
       if (file.driveFileId) await deleteVideoAsset(file.driveFileId)
       else await deleteFile(file.objectKey!)
     } catch (e) {
-      // The row is gone; an orphaned object is a storage-cleanup problem, not a
-      // reason to fail the request the person already saw succeed.
+      // The row is gone; a leftover object is a cleanup job, not a failed request.
       console.error("[portal] object delete failed", file.objectKey ?? file.driveFileId, e)
     }
 

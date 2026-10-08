@@ -3,19 +3,8 @@ import "server-only"
 import { db } from "@/server/db"
 import { referringDomainGrowth } from "./seo.backlinks.service"
 
-// =============================================================================
-// The monthly scorecard from the SEO plan, step 10.
-//
-// Ten weighted metrics, 100 points total. The hard part is honesty: several
-// inputs (backlinks, crawl errors) have no free API, and GA4/CrUX may not be
-// connected yet. Rather than scoring an unmeasured metric as 0 - which would
-// make a healthy site look broken - each metric reports `available`, unavailable
-// ones are excluded from BOTH the numerator and the denominator, and `coverage`
-// records how much of the 100 points was actually measurable.
-//
-// A score of 82 at 55% coverage is a very different claim from 82 at 95%, and
-// the UI shows both.
-// =============================================================================
+// Monthly SEO scorecard: ten weighted metrics, 100 points. Unmeasurable metrics are left out of
+// both sides of the score, and `coverage` says how much of the 100 was measured.
 
 export type MetricKey =
   | "organicClicks"
@@ -69,7 +58,7 @@ const WEIGHTS: Record<MetricKey, { weight: number; label: string }> = {
   aiCitations: { weight: 5, label: "AI citations + referral traffic" },
 }
 
-/** Plan step 10: 80+ healthy | 60-79 watch | 40-59 intervene | <40 escalate. */
+/** 80+ healthy | 60-79 watch | 40-59 intervene | <40 escalate. */
 export function bandFor(score: number): Scorecard["band"] {
   if (score >= 80) return "HEALTHY"
   if (score >= 60) return "WATCH"
@@ -77,10 +66,7 @@ export function bandFor(score: number): Scorecard["band"] {
   return "ESCALATE"
 }
 
-/**
- * Growth metrics score on change, not absolute value: flat = 0.6 (holding
- * ground is not failure), +20% or better = full marks, -30% or worse = 0.
- */
+/** Growth scores on change: flat = 0.6, +20% or better = 1, -30% or worse = 0. */
 function growthRatio(current: number, previous: number): number {
   if (previous <= 0) return current > 0 ? 1 : 0.6
   const change = (current - previous) / previous
@@ -106,11 +92,7 @@ async function gscTotals(propertyId: string, start: string, end: string) {
   }
 }
 
-/**
- * Build (and store) the scorecard for a 28-day window ending `endDate`.
- * 28 days rather than a calendar month so the comparison is like-for-like -
- * February vs January would otherwise punish a site for the calendar.
- */
+/** Build and store the 28-day scorecard ending `endDate` (28 days so months compare fairly). */
 export async function buildScorecard(
   propertyId: string,
   endDate = new Date(),
@@ -153,7 +135,6 @@ export async function buildScorecard(
     })
   }
 
-  // ── 1. Organic clicks (GSC, 20) ────────────────────────────────────────────
   const cur = await gscTotals(property.id, period.start, period.end)
   const prev = await gscTotals(property.id, previousPeriod.start, previousPeriod.end)
   const hasGsc = cur.snapshotIds.length > 0
@@ -167,7 +148,6 @@ export async function buildScorecard(
       : "No Search Console snapshots in this window.",
   })
 
-  // ── 2. Organic conversions (GA4, 20) ───────────────────────────────────────
   const [trafficNow, trafficPrev] = await Promise.all([
     db.seoTraffic.findFirst({
       where: { propertyId: property.id, periodEnd: { gte: asDate(period.start) } },
@@ -190,7 +170,6 @@ export async function buildScorecard(
       : "GA4 not connected - add the GA4 property id and grant the service account.",
   })
 
-  // ── 3. Money-query top-10s (GSC, 15) ───────────────────────────────────────
   if (hasGsc && property.moneyKeywords.length > 0) {
     const rows = await db.seoQueryStat.findMany({
       where: { snapshotId: { in: cur.snapshotIds } },
@@ -219,7 +198,6 @@ export async function buildScorecard(
     })
   }
 
-  // ── 4. Queries with impressions (GSC, 10) ──────────────────────────────────
   if (hasGsc) {
     const [nowCount, prevCount] = await Promise.all([
       db.seoQueryStat.count({ where: { snapshotId: { in: cur.snapshotIds } } }),
@@ -236,7 +214,6 @@ export async function buildScorecard(
     add("queryCount", { available: false, note: "No Search Console data." })
   }
 
-  // ── 5. Referring domains (10) - from imported backlink exports (step 8) ─────
   const rd = await referringDomainGrowth(property.id, asDate(period.start))
   if (rd) {
     add("referringDomains", {
@@ -253,7 +230,6 @@ export async function buildScorecard(
     })
   }
 
-  // ── 6. Indexed vs published pages (GSC, 5) ─────────────────────────────────
   if (hasGsc) {
     const [nowPages, prevPages] = await Promise.all([
       db.seoPageStat.count({ where: { snapshotId: { in: cur.snapshotIds } } }),
@@ -270,7 +246,6 @@ export async function buildScorecard(
     add("indexedPages", { available: false, note: "No Search Console data." })
   }
 
-  // ── 7. CWV all-green on money pages (CrUX/PSI, 5) ──────────────────────────
   const vitals = await db.seoVitals.findMany({
     where: { propertyId: property.id, checkedAt: { gte: asDate(period.start) } },
     orderBy: { checkedAt: "desc" },
@@ -296,16 +271,13 @@ export async function buildScorecard(
     })
   }
 
-  // ── 8. Critical crawl errors (5) - from the latest technical audit ─────────
   const audit = await db.seoTechnicalAudit.findFirst({
     where: { propertyId: property.id },
     orderBy: { createdAt: "desc" },
     select: { criticalCount: true, warningCount: true, pagesChecked: true },
   })
   if (audit) {
-    // This metric is about CRITICAL crawl errors, so critical issues dominate:
-    // each costs a third of the weight (3 criticals ≈ zero). Warnings only nudge
-    // it - a site with zero critical errors shouldn't be zeroed by warnings alone.
+    // Criticals dominate (each ~a third of the weight); warnings only nudge it.
     const ratio = Math.max(0, 1 - audit.criticalCount * 0.34 - audit.warningCount * 0.03)
     add("crawlErrors", {
       available: true,
@@ -324,7 +296,6 @@ export async function buildScorecard(
     })
   }
 
-  // ── 9. Content published vs planned (content calendar, 5) ──────────────────
   const [planned, posted] = await Promise.all([
     db.contentCalendarEntry.count({
       where: {
@@ -351,7 +322,6 @@ export async function buildScorecard(
         : "Nothing planned in the content calendar for this window.",
   })
 
-  // ── 10. AI citations + referral traffic (GA4, 5) ───────────────────────────
   add("aiCitations", {
     available: !!trafficNow,
     value: trafficNow?.aiReferrals ?? null,

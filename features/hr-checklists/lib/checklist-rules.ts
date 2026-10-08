@@ -1,25 +1,11 @@
-// =============================================================================
-// Checklist rules - the decisions, with no database attached.
-// =============================================================================
-// PURE. Everything here takes plain values and returns plain values, so the
-// three rules that actually matter can be tested directly rather than inferred
-// from a service that also writes rows and sends email.
-//
-// The one that matters most is canComplete(): it is the enforcement behind
-// "until all department clearances are signed, relieving will not be issued".
-// =============================================================================
+// Pure checklist rules. canComplete() enforces "no relieving until all clearances are signed".
 
 /** Milliseconds in a day. Dates here are date-only, so no DST arithmetic. */
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
- * When an item is due.
- *
- * `offsetDays` is relative to the instance anchor - joining date for onboarding,
- * last working day for an exit, where a negative offset means "before they go".
- * Returns null when there is no anchor (an employee created with no joining
- * date) or the item carries no offset: a checklist with no dates is still a
- * usable checklist, and a made-up date is worse than none.
+ * When an item is due: `offsetDays` from the anchor (joining date, or last working day for an
+ * exit - negative means before). Null with no anchor or offset: no date beats a made-up one.
  */
 export function itemDueDate(
   anchorDate: Date | string | null | undefined,
@@ -28,8 +14,7 @@ export function itemDueDate(
   if (anchorDate == null || offsetDays == null) return null
   const anchor = anchorDate instanceof Date ? anchorDate : new Date(anchorDate)
   if (Number.isNaN(anchor.getTime())) return null
-  // Build from the UTC calendar parts: these columns are DATE, and shifting by
-  // a local-time offset can land the result on the previous day.
+  // UTC calendar parts: these are DATE columns, and a local offset can shift the day.
   const base = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate())
   return new Date(base + offsetDays * DAY_MS)
 }
@@ -49,15 +34,7 @@ export interface CompletionCheck {
   blocking: { id: string; text: string }[]
 }
 
-/**
- * May this checklist be completed?
- *
- * Only a required CLEARANCE blocks. A required TASK does not: HR completing an
- * exit with an unticked "team farewell email" is a tidiness problem, whereas
- * completing one without Finance's sign-off issues a relieving letter to
- * somebody who may still owe the company money. The document draws exactly that
- * line, and so does this.
- */
+/** Only a required CLEARANCE blocks completion; a required TASK does not. */
 export function canComplete(items: readonly ChecklistItemState[]): CompletionCheck {
   const blocking = items
     .filter((i) => i.itemKind === "CLEARANCE" && i.isRequired && !i.isDone)
@@ -81,15 +58,13 @@ export function checklistProgress(items: readonly ChecklistItemState[]): Checkli
   return {
     total,
     done,
-    // Math.floor, so 23 of 24 reads 95 and not 100. A checklist that says it is
-    // finished when it is not is the one number nobody may round.
+    // floor, so 23 of 24 reads 95, never 100.
     percent: total === 0 ? 0 : done === total ? 100 : Math.floor((done / total) * 100),
     clearancesTotal: clearances.length,
     clearancesDone: clearances.filter((i) => i.isDone).length,
   }
 }
 
-/** The employee facts assignee resolution needs. */
 export interface AssigneeContext {
   employeeId: string
   managerId?: string | null
@@ -100,15 +75,8 @@ export interface AssigneeContext {
 }
 
 /**
- * Who owns an item, as a real employee id.
- *
- * Returns null for HR deliberately: HR is a pool, not a person, and every
- * holder of the write scope can action those. Pinning them to one HR user would
- * mean an exit stalls because somebody is on leave.
- *
- * MANAGER falls back to the head of the employee's own department. People do
- * exist with no manager set - a department head, an early hire - and their exit
- * must still route to somebody rather than silently to nobody.
+ * Who owns an item, as an employee id. HR returns null - HR is a pool, so any HR user can act.
+ * MANAGER falls back to the head of the employee's own department.
  */
 export function resolveAssignee(
   assigneeRole: "HR" | "MANAGER" | "EMPLOYEE" | "DEPARTMENT_HEAD",
@@ -128,15 +96,8 @@ export function resolveAssignee(
 }
 
 /**
- * May this person tick this item?
- *
- * A CLEARANCE is the assignee's to sign and nobody else's - that is what makes
- * it a sign-off rather than a checkbox. HR can still override, because somebody
- * has to be able to finish an exit when a department head has left or is
- * unreachable, and an override is recorded against the HR user who did it.
- *
- * An ordinary TASK is looser: its assignee, or any HR-scoped user, since an
- * unassigned (HR-pool) task belongs to whoever picks it up.
+ * A CLEARANCE is signed by its assignee only, or overridden by HR (recorded). A TASK can be
+ * ticked by its assignee or any HR-scoped user.
  */
 export function canActOnItem(
   item: { itemKind: "TASK" | "CLEARANCE"; assigneeId: string | null },
@@ -147,14 +108,7 @@ export function canActOnItem(
   return actorHasWriteScope
 }
 
-/**
- * Is this employee serving notice?
- *
- * Deliberately derived rather than stored. `EmployeeStatus` gains no
- * SERVING_NOTICE value, so no existing status filter anywhere in the app
- * quietly changes meaning - an accepted resignation with a last working day
- * that has not arrived yet IS the notice period.
- */
+/** Derived, not a stored status: an accepted resignation whose last working day hasn't passed. */
 export function isServingNotice(
   resignationStatus: string | null | undefined,
   lastWorkingDate: Date | string | null | undefined,

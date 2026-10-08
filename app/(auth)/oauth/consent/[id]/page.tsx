@@ -8,9 +8,7 @@ import { tenantScopedSession } from "@/server/tenant-request"
 export const metadata: Metadata = { title: "Connect an AI app" }
 export const dynamic = "force-dynamic"
 
-// /oauth/consent/[id] - the AI-connector consent screen. Login-protected by the
-// proxy (logged-out visitors go to /login?callbackUrl=/oauth/consent/<id> and
-// come back). Routing glue: the decision lives in features/mcp.
+// The AI-connector consent screen; the proxy sends logged-out visitors to /login and back.
 export default async function OAuthConsentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const session = await tenantScopedSession()

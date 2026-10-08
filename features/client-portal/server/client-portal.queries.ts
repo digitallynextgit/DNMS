@@ -1,18 +1,5 @@
-// =============================================================================
-// Client portal reads
-// =============================================================================
-// Everything a signed-in CLIENT can fetch. Two invariants hold in every function
-// here, and nothing in this file may be written that breaks them:
-//
-//   1. The project reference is never trusted from the request. It arrives as a
-//      SLUG and is resolved by requireClientModule, which proves the grant and
-//      the module and hands back the real id. Every `where` below filters on
-//      `grant.projectId` - filtering on the slug would silently match nothing.
-//   2. `select` is always explicit and hand-written. No `include`, no spreading
-//      a Prisma row into a response. Internal columns (a channel's encrypted
-//      credentials, sync errors, cost fields) must not be one careless
-//      `include` away from a client's browser.
-// =============================================================================
+// Client portal reads. Always filter on grant.projectId (never the slug), and use explicit
+// `select`s - no `include` - so internal columns can't reach a client.
 
 import "server-only"
 
@@ -126,8 +113,7 @@ export async function getClientProduct(
     const projectId = grant.projectId
 
     const product = await db.product.findFirst({
-      // projectId in the WHERE, not just the id: without it, any product id
-      // guessed from another project would resolve.
+      // projectId too, or a product id from another project would resolve.
       where: { id: productId, projectId },
       select: { ...PRODUCT_CARD_SELECT, description: true },
     })
@@ -137,12 +123,7 @@ export async function getClientProduct(
   })
 }
 
-/**
- * The project's sales channels. Requires the "channels" module.
- * Note the select: `credentials`, `lastSyncError` and `externalId` are
- * deliberately absent - a client sees that a channel exists and whether it is
- * live, never how we connect to it.
- */
+/** Sales channels ("channels" module). Never credentials, sync errors or external ids. */
 export async function listClientChannels(projectRef: string): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const { grant } = await requireClientModule(projectRef, "channels")
@@ -202,15 +183,7 @@ export async function getClientInventory(projectRef: string): Promise<ActionResu
   })
 }
 
-/**
- * The client's own activity on this project.
- *
- * Reads client_activity_logs ONLY - never audit_logs, which is staff activity
- * and is not theirs to see. Scoped twice over: to their own clientUserId, and to
- * the project the grant resolved. Account-level rows (projectId null: sign-in,
- * password change) are included because "was that me?" is the main reason anyone
- * opens an activity log at all.
- */
+/** The client's own activity (client_activity_logs, never audit_logs), incl. account-level rows. */
 export async function listClientActivity(
   projectRef: string,
   limit = 100,

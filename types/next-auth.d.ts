@@ -1,34 +1,20 @@
 import type { DefaultSession } from "next-auth"
 
-/**
- * `kind` separates the two populations that can hold a session:
- *   "employee" - internal staff (Employee row, roles + permission scopes)
- *   "client"   - external client portal account (ClientUser row, no grants)
- *
- * Staff guards reject "client" and the portal guard rejects "employee", so the
- * two can never be mistaken for one another. Legacy tokens issued before this
- * field existed have no `kind` and are read as "employee" (see server/auth.ts).
- */
+/** "employee" = staff (roles + scopes); "client" = portal account (no grants). */
 export type SessionKind = "employee" | "client"
 
 declare module "next-auth" {
   interface Session {
     user: {
-      /**
-       * The PROFILE id - an `employees` id for staff, a `client_users` id for a
-       * portal client. Unchanged by M2 on purpose: the whole app keys off it.
-       * For the platform identity behind it, use `userId`.
-       */
+      /** The PROFILE id (`employees` or `client_users`); the person is `userId`. */
       id: string
       email: string
       kind: SessionKind
-      /** The `users` row - the person, independent of company or capacity (M2). */
+      /** The `users` row - the person, independent of company or capacity. */
       userId: string
-      /** The `memberships` row this session is acting through (M2). */
       membershipId: string
-      /** The company this session is scoped to (M2). */
       tenantId: string
-      /** That company's URL segment, e.g. "digitallynext" (M2). */
+      /** URL segment, e.g. "digitallynext". */
       tenantSlug: string
       /** Empty string for clients. */
       employeeNo: string
@@ -73,18 +59,9 @@ declare module "next-auth/jwt" {
     roles: string[]
     permissions: string[]
     mustChangePassword: boolean
-    /**
-     * Epoch ms of the last membership re-check. The JWT callback re-reads the
-     * membership when this is older than 15 minutes, so revoking access takes
-     * effect within that window instead of at the token's expiry.
-     */
+    /** Epoch ms of the last membership re-check (re-run after 15 minutes). */
     checkedAt: number
-    /**
-     * Epoch ms of the sign-in that issued this token - when the password was
-     * actually proven. Never refreshed. The re-check signs the session out when
-     * users.passwordChangedAt is newer than this, so a credential change
-     * revokes every pre-existing session within the 15-minute window.
-     */
+    /** Epoch ms of the sign-in that proved the password. Never refreshed. */
     authAt: number
   }
 }

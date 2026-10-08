@@ -15,8 +15,7 @@ const employeeSelect = {
   select: EMPLOYEE_SUMMARY_SELECT,
 }
 
-// GET - list evaluations. HR (performance:review) sees all; everyone else sees
-// the ones they must act on: their own self-evaluations + ones they manage.
+// HR (performance:review) sees all; others see their own self-evaluations and the ones they manage.
 export const GET = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -26,7 +25,6 @@ export const GET = withSession(
       const period = searchParams.get("period") || undefined
       const q = searchParams.get("q")?.trim() || undefined
 
-      // Pagination: 1-indexed page, fixed slot size of 10 (clamped).
       const { page, limit, skip, take } = resolvePagination(
         { page: searchParams.get("page"), limit: searchParams.get("limit") },
         10,
@@ -67,7 +65,6 @@ export const GET = withSession(
           take,
         }),
         db.evaluation.count({ where }),
-        // Distinct period labels in scope, for the filter dropdown.
         db.evaluation.findMany({
           where: scope,
           distinct: ["periodLabel"],
@@ -88,8 +85,6 @@ export const GET = withSession(
   },
 )
 
-// POST - create an evaluation for an employee (HR). Snapshots the active
-// template's criteria, then notifies the employee + manager to fill it.
 export const POST = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -115,7 +110,6 @@ export const POST = withSession(
       })
       if (!employee) return NextResponse.json({ error: "Employee not found" }, { status: 404 })
 
-      // Snapshot the employee's KPI/parameter profile (self + manager sides).
       const { selfCriteria, managerCriteria } = await buildEvaluationCriteria(employeeId)
       const resolvedManagerId = managerId || employee.managerId || null
 
@@ -137,7 +131,6 @@ export const POST = withSession(
         },
       })
 
-      // Nudge both fillers.
       const link = `/performance/evaluations/${evaluation.id}`
       await createNotification({
         employeeId,

@@ -1,15 +1,5 @@
-// =============================================================================
-// Client-portal auth/access guards
-// =============================================================================
-// The single chokepoint for "may this client see this?". Every portal read goes
-// through `requireClientProject` / `requireClientModule` - none of them take a
-// projectId on trust from the request.
-//
-// Access is resolved from the DATABASE on every request, never from the JWT.
-// That costs one indexed lookup and buys immediate revocation: pulling a grant
-// or suspending an account takes effect on the client's very next click instead
-// of whenever their token happens to expire.
-// =============================================================================
+// Client-portal access guards. Access is read from the DB on every request, never the JWT, so
+// revoking a grant or account takes effect on the client's next click.
 
 import "server-only"
 
@@ -25,15 +15,11 @@ export interface ClientProjectGrant {
   projectName: string
   projectCode: string
   projectSlug: string | null
-  /**
-   * What portal URLs are built from: the slug when the project has one, else the
-   * id. Readable links, and it is what `requireClientProject` accepts back.
-   */
+  /** For portal URLs: the slug when there is one, else the id. */
   projectRef: string
   modules: ClientModuleKey[]
 }
 
-/** A signed-in, ACTIVE client account. Staff sessions are rejected. */
 export async function requireClientSession(): Promise<Session> {
   const session = await getSession()
   if (!session) throw new ActionError("Unauthorized", 401)
@@ -41,8 +27,7 @@ export async function requireClientSession(): Promise<Session> {
     throw new ActionError("Forbidden: client portal accounts only", 403)
   }
 
-  // Sessions are stateless JWTs, so an account disabled mid-session still holds
-  // a valid cookie - re-check on every call rather than trusting the token.
+  // A disabled account still holds a valid JWT, so re-check every call.
   const account = await db.clientUser.findUnique({
     where: { id: session.user.id },
     select: { isActive: true },
@@ -52,14 +37,12 @@ export async function requireClientSession(): Promise<Session> {
   return session
 }
 
-/** Every project this client may see, with the modules their package unlocks. */
 export async function listClientGrants(clientUserId: string): Promise<ClientProjectGrant[]> {
   const rows = await db.clientProjectAccess.findMany({
     where: {
       clientUserId,
       status: "ACTIVE",
-      // An archived project disappears from the portal without anyone having to
-      // remember to revoke the grant.
+      // Archived projects drop out without anyone revoking the grant.
       project: { isArchived: false },
     },
     select: {
@@ -80,15 +63,8 @@ export async function listClientGrants(clientUserId: string): Promise<ClientProj
 }
 
 /**
- * Resolve ONE project for this client from a SLUG OR ID.
- *
- * Portal URLs carry the slug, so this accepts either form and hands back the
- * grant - whose `projectId` is the real id. Callers must query on that, never on
- * the ref they were given, or a slug ends up in a `where: { projectId }` and
- * silently matches nothing.
- *
- * Throws 404 (not 403) when there is no grant: a client should not be able to
- * probe which projects exist by comparing error codes.
+ * Accepts a slug or id; callers must then query on `grant.projectId`, never the ref.
+ * 404 (not 403) when there is no grant, so clients can't probe which projects exist.
  */
 export async function requireClientProject(
   clientUserId: string,
@@ -98,8 +74,6 @@ export async function requireClientProject(
     where: {
       clientUserId,
       status: "ACTIVE",
-      // The ref is matched against BOTH forms. A slug simply fails the `id`
-      // arm (ids are uuids) rather than erroring, and vice versa.
       project: { isArchived: false, OR: [{ id: projectRef }, { slug: projectRef }] },
     },
     select: {
@@ -119,13 +93,7 @@ export async function requireClientProject(
   }
 }
 
-/**
- * The guard every portal data read starts with: the caller must be an active
- * client, hold this project, AND hold this module on it.
- *
- * Returns the grant so the caller can query on `grant.projectId` - the resolved
- * id - instead of the slug it was handed.
- */
+/** Every portal read starts here: active client + project grant + module on it. */
 export async function requireClientModule(
   projectRef: string,
   module: ClientModuleKey,

@@ -10,14 +10,7 @@ import {
   workbookBelongsToProject,
 } from "@/features/projects/server/sheets.service"
 
-/**
- * GET - ONE calendar in full: its tabs, their columns and rows, and the team
- * plan.
- *
- * The heavy read, and the only one. GET /workbooks lists every edition of every
- * calendar without any of that, because monthly editions mean that list grows
- * by twelve a year per calendar and the picker only needs their names.
- */
+// The only heavy read: one calendar in full. GET /workbooks lists editions without grids.
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
     const workbook = await getWorkbook(ctx.params.id!, ctx.params.workbookId!)
@@ -26,15 +19,7 @@ export const GET = withProjectAccess(
   },
 )
 
-/**
- * PATCH - rename a calendar, or set the month this edition covers. Anyone on
- * the project.
- *   body { name?: string, periodMonth?: "2026-09" | null }
- *
- * RENAMING RENAMES EVERY MONTH of the calendar - see renameWorkbook. Setting
- * the month is how a legacy calendar called "…(H2S-Sept)" gets a real month,
- * by the person who knows which one it was.
- */
+// Renaming renames every month of the calendar (see renameWorkbook).
 export const PATCH = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     const { id: projectId, workbookId } = ctx.params
@@ -55,8 +40,7 @@ export const PATCH = withProjectAccess(
     }
 
     try {
-      // Both in one request is allowed; the month goes last so a failed rename
-      // does not leave the month moved.
+      // The month goes last so a failed rename doesn't leave the month moved.
       let data = wantsName ? await renameWorkbook(workbookId!, body.name!) : null
       if (wantsMonth) data = await setWorkbookMonth(workbookId!, body.periodMonth ?? null)
       return NextResponse.json({ data })
@@ -72,14 +56,7 @@ export const PATCH = withProjectAccess(
   },
 )
 
-/**
- * DELETE - manager only. Takes every tab with it (columns, rows, history),
- * which is why it sits on the same side as deleting a tab.
- *
- * Deletes ONE MONTH, not the series. A month is a thing somebody made and can
- * decide was a mistake; "delete every edition of this calendar" is not an
- * action anybody has asked for and would be far too easy to do by accident.
- */
+// Manager only. Deletes ONE month (with its tabs, columns, rows and history), never the whole series.
 export const DELETE = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
     const { id: projectId, workbookId } = ctx.params

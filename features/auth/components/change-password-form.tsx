@@ -53,15 +53,14 @@ export function ChangePasswordForm() {
       toast.error(e instanceof Error ? e.message : "Failed to update password")
       return
     }
-    // Re-issue the JWT (now mustChangePassword=false) by signing in with the new
-    // password - deterministic, unlike update() which races the cookie write. Then
-    // hard-navigate so the proxy reads the fresh cookie.
+    // Re-sign-in to re-issue the JWT (update() races the cookie write), then hard-navigate so the
+    // proxy reads the fresh cookie.
     const email = session?.user?.email
     if (email) {
       await signIn("credentials", { email, password: values.newPassword, redirect: false })
     }
     toast.success("Password updated")
-    window.location.href = "/dashboard"
+    window.location.assign("/dashboard")
   }
 
   return (

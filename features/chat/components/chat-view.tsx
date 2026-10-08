@@ -1,15 +1,5 @@
 "use client"
 
-/**
- * Personal chat, laid out the way every messaging app is: a list of
- * conversations beside one open thread, both filling the screen.
- *
- * Realtime comes from ONE EventSource on /api/chat/stream, opened here and
- * shared by both panes. A stream per conversation would spend a browser
- * connection per open thread, and browsers cap those at six per origin - the
- * notification stream already holds one.
- */
-
 import * as React from "react"
 import { useSearchParams } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
@@ -93,11 +83,10 @@ interface ConversationRow {
   other: Person | null
   lastMessage: { body: string; createdAt: string; fromMe: boolean } | null
   unread: number
-  /** Set = kept at the top of MY list. Private to me, not the other person. */
+  /** Pinned to the top of MY list only. */
   pinnedAt: string | null
 }
 
-/** One conversation that matched a global search, and what matched inside it. */
 interface ConversationHit {
   conversationId: string
   other: Person | null
@@ -118,7 +107,6 @@ interface Message {
   poll: PollCardData | null
   event: EventCardData | null
   contact: ContactCardData | null
-  /** The line this one answers, flattened server-side so a bubble can render it. */
   replyTo: { id: string; body: string | null; fromMe: boolean } | null
   fromMe: boolean
   attachments: Attachment[]
@@ -127,14 +115,11 @@ interface Message {
 
 export function ChatView() {
   const qc = useQueryClient()
-  // A chat notification links to /chat?c=<id>, so arriving from the bell opens
-  // the thread it was about rather than dropping you on an empty picker.
+  // Notifications link to /chat?c=<id>.
   const params = useSearchParams()
   const [activeId, setActiveId] = React.useState<string | null>(params.get("c"))
   const [picking, setPicking] = React.useState(false)
   const [search, setSearch] = React.useState("")
-  // A message picked out of the global results. Handed to the thread, which owns
-  // scrolling and can only act once its messages have actually loaded.
   const [jumpTarget, setJumpTarget] = React.useState<string | null>(null)
 
   const { data, isPending } = useQuery({
@@ -147,10 +132,7 @@ export function ChatView() {
       ).data.data,
   })
 
-  // The open conversation, in a ref so the SSE effect can read the latest value
-  // without re-subscribing (UI-04 / PERF-05). Keying the effect on activeId tore
-  // the stream down and reopened it on every conversation switch, dropping events
-  // that arrived in the reconnect gap.
+  // A ref, so the SSE effect reads the latest value without re-subscribing.
   const activeIdRef = React.useRef(activeId)
   React.useEffect(() => {
     activeIdRef.current = activeId
@@ -169,8 +151,6 @@ export function ChatView() {
       qc.invalidateQueries({ queryKey: ["chat", "messages", event.conversationId] })
       qc.invalidateQueries({ queryKey: ["chat", "unread-count"] })
 
-      // Only toast for a thread you are NOT looking at - a toast for the message
-      // already on screen is noise.
       if (
         event.type === "message" &&
         event.conversationId !== activeIdRef.current &&
@@ -189,9 +169,6 @@ export function ChatView() {
   const q = search.trim()
   const searchingAll = q.length >= MIN_SEARCH_QUERY
 
-  // Names AND what was said, the way the project message search has always
-  // worked. Filtering the loaded list by name only finds a chat you already
-  // remember having.
   const { data: results, isFetching: searchBusy } = useQuery({
     queryKey: ["chat", "search-all", q],
     queryFn: async () =>
@@ -204,8 +181,7 @@ export function ChatView() {
   })
 
   return (
-    // Fills the scroll container instead of measuring the viewport: with a
-    // bottom tab bar on phones a `100vh` pane would hang below the fold.
+    // h-full, not 100vh: the phone tab bar would push a 100vh pane below the fold.
     <div className="flex h-full flex-col gap-4">
       <PageHeader
         title="Chat"
@@ -218,10 +194,7 @@ export function ChatView() {
         }
       />
 
-      {/* Both panes share one fixed height so the thread scrolls internally and
-          the page itself never does - the composer stays put while you read. */}
       <div className="grid min-h-96 flex-1 overflow-hidden rounded-sm border lg:grid-cols-[340px_1fr]">
-        {/* ── Conversation list ─────────────────────────────────────────── */}
         <aside
           className={cn("bg-card flex min-h-0 flex-col border-r", activeId && "hidden lg:flex")}
         >
@@ -265,8 +238,6 @@ export function ChatView() {
               </p>
             )}
 
-            {/* One block per conversation: the person, then the lines inside it
-                that matched. Clicking a line opens the chat AT that message. */}
             {searchingAll &&
               results?.map((r) => (
                 <div key={r.conversationId} className="border-b">
@@ -390,7 +361,6 @@ export function ChatView() {
           </div>
         </aside>
 
-        {/* ── Thread ────────────────────────────────────────────────────── */}
         {activeId ? (
           <Thread
             key={activeId}
@@ -435,18 +405,14 @@ function Thread({
 }: {
   conversationId: string
   other: Person | null
-  /** Whether THIS person has pinned the conversation to the top of their list.
-   *  Named apart from `pinned`, which is the pinned-MESSAGES shelf below. */
+  /** Conversation pinned in MY list (not the pinned-messages shelf). */
   conversationPinned: boolean
-  /** A message id picked out of the global search, to scroll to on open. */
   jumpTarget?: string | null
   onJumped?: () => void
   onBack: () => void
 }) {
   const qc = useQueryClient()
 
-  // Pinning only reorders the LIST, so that is the only query to refresh - the
-  // open thread's own messages are untouched by it.
   const pinConversation = useMutation({
     mutationFn: () => apiFetch(`/api/chat/conversations/${conversationId}/pin`, { method: "POST" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["chat", "conversations"] }),
@@ -468,36 +434,22 @@ function Thread({
   const [editing, setEditing] = React.useState<Message | null>(null)
   const [editDraft, setEditDraft] = React.useState("")
   const [uploading, setUploading] = React.useState(false)
-  // The message being answered. Held here rather than in the draft so the quote
-  // survives editing the text, and clears in one place when the send lands.
   const [replyTo, setReplyTo] = React.useState<Message | null>(null)
-  /** Files picked but not yet sent - the review screen is open while this is
-   *  non-empty. Nothing is uploaded until Send, so backing out is free. */
   const [staged, setStaged] = React.useState<File[]>([])
-  /** Which attachment the viewer is on, by id. Null = closed. */
   const [viewing, setViewing] = React.useState<string | null>(null)
   const [infoFor, setInfoFor] = React.useState<Message | null>(null)
   const [forwarding, setForwarding] = React.useState<Message | null>(null)
   const [searching, setSearching] = React.useState(false)
   const [searchQ, setSearchQ] = React.useState("")
-  // Briefly ringed after jumping to it from search or the pinned shelf, so the
-  // eye lands on the right line instead of hunting the whole screen.
   const [flashId, setFlashId] = React.useState<string | null>(null)
   const [profileOpen, setProfileOpen] = React.useState(false)
-  // The edit window closes on a clock, not on a click, so the control has to
-  // disappear on its own rather than waiting for the next refetch.
+  // Re-render on a timer so the Edit option disappears when its window closes.
   const [, forceTick] = React.useState(0)
-  // Sent but not yet acknowledged. Held here rather than written into the query
-  // cache, so a failed send can hand the text back instead of leaving a bubble
-  // in the thread that never actually existed.
+  // Optimistic sends, kept out of the query cache so a failed send can hand the text back.
   const [pending, setPending] = React.useState<{ id: string; body: string; createdAt: string }[]>(
     [],
   )
-  // While a voice note is being recorded the bar needs the whole composer row,
-  // so the text field and its neighbours stand down rather than being squeezed.
   const [recording, setRecording] = React.useState(false)
-  // Which card composer is open. One value rather than three booleans: they are
-  // mutually exclusive dialogs, and three flags can disagree.
   const [card, setCard] = React.useState<"poll" | "event" | "contact" | null>(null)
   const endRef = React.useRef<HTMLDivElement>(null)
 
@@ -516,8 +468,6 @@ function Thread({
   const messages = React.useMemo(() => data?.messages ?? [], [data?.messages])
   const person = other ?? data?.other ?? null
 
-  // Assembled HERE rather than in a bubble: only the thread knows what else
-  // was sent, which is what makes next/previous and the filmstrip possible.
   const gallery = React.useMemo<MediaItem[]>(
     () =>
       messages.flatMap((m) =>
@@ -554,8 +504,7 @@ function Thread({
   }, [conversationId, messages.length, qc])
 
   React.useEffect(() => {
-    // A search jump owns the scroll position; snapping to the bottom would
-    // undo it the moment the messages land.
+    // Don't snap to the bottom while jumping to a search hit.
     if (jumpTarget) return
     endRef.current?.scrollIntoView({ block: "end" })
   }, [messages.length, pending.length, jumpTarget])
@@ -565,22 +514,38 @@ function Thread({
     return () => clearInterval(t)
   }, [])
 
-  /** Scroll a message into view and flag it, from search or the pinned shelf. */
-  const jumpTo = React.useCallback((id: string) => {
-    setSearching(false)
+  // Scrolls to the message and fades out the flash its caller set.
+  const scrollToMessage = React.useCallback((id: string) => {
     const el = document.getElementById(`chat-msg-${id}`)
     el?.scrollIntoView({ block: "center", behavior: "smooth" })
-    setFlashId(id)
     setTimeout(() => setFlashId((cur) => (cur === id ? null : cur)), 1600)
   }, [])
 
-  // Wait for the messages to exist before hunting for the element - on open the
-  // thread is still loading and getElementById would find nothing.
+  const jumpTo = React.useCallback(
+    (id: string) => {
+      setSearching(false)
+      setFlashId(id)
+      scrollToMessage(id)
+    },
+    [scrollToMessage],
+  )
+
+  // Wait until the messages exist, or getElementById finds nothing. State flips during render,
+  // the scroll waits for the DOM.
+  const readyJump = jumpTarget && messages.length > 0 ? jumpTarget : null
+  const [prevReadyJump, setPrevReadyJump] = React.useState<string | null>(null)
+  if (readyJump !== prevReadyJump) {
+    setPrevReadyJump(readyJump)
+    if (readyJump) {
+      setSearching(false)
+      setFlashId(readyJump)
+    }
+  }
   React.useEffect(() => {
     if (!jumpTarget || messages.length === 0) return
-    jumpTo(jumpTarget)
+    scrollToMessage(jumpTarget)
     onJumped?.()
-  }, [jumpTarget, messages.length, jumpTo, onJumped])
+  }, [jumpTarget, messages.length, scrollToMessage, onJumped])
 
   const { data: pinned } = useQuery({
     queryKey: ["chat", "pinned", conversationId],
@@ -621,8 +586,7 @@ function Thread({
         body: JSON.stringify({ body: v.body, replyToId: v.replyToId }),
       }),
     onSuccess: async (_data, v) => {
-      // Drop the placeholder only once the real message is in the cache -
-      // clearing it first makes the bubble blink out and back in.
+      // Drop the placeholder only after the refetch, or the bubble blinks.
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["chat", "messages", conversationId] }),
         qc.invalidateQueries({ queryKey: ["chat", "conversations"] }),
@@ -631,7 +595,6 @@ function Thread({
     },
     onError: (e: Error, v) => {
       setPending((list) => list.filter((x) => x.id !== v.tempId))
-      // Hand the words back rather than losing them to a failed request.
       setDraft((d) => d || v.body)
       toast.error(e.message)
     },
@@ -663,14 +626,12 @@ function Thread({
     onError: (e: Error) => toast.error(e.message),
   })
 
-  /** Files and voice notes take the same road: multipart, one message per send. */
   async function upload(
     files: File[],
     durationSec?: number,
     waveform?: number[],
     asSticker?: boolean,
-    /** Caption from the preview screen. Falls back to whatever is in the
-     *  composer, which is how a voice note or sticker carries typed text. */
+    /** Falls back to the composer text (voice notes and stickers). */
     caption?: string,
   ) {
     if (files.length === 0) return
@@ -723,15 +684,21 @@ function Thread({
   let lastDay = ""
   // Whose run of messages we are in, so only its first bubble gets a tail.
   let lastMine: boolean | null = null
+  const rows: { m: Message; showDay: boolean; startsGroup: boolean }[] = []
+  for (const m of messages) {
+    const key = dayKey(m.createdAt)
+    const showDay = key !== lastDay
+    lastDay = key
+    rows.push({ m, showDay, startsGroup: showDay || m.fromMe !== lastMine })
+    lastMine = m.fromMe
+  }
+  // The first optimistic send starts a run unless my own message is already the last one.
+  const pendingStartsGroup = lastMine !== true
 
   return (
     // relative: the attachment review screen covers THIS pane, not the viewport.
     <section className="bg-background relative flex min-h-0 flex-col">
-      {/* Header */}
       <div className={cn(SPLIT_PANE_HEADER, "bg-card gap-2.5 px-3")}>
-        {/* h-10 w-10, not the 32px icon-sm default: below lg this is the ONLY
-            way back to the conversation list, and it only ever renders on
-            touch devices (lg:hidden). */}
         <Button
           variant="ghost"
           size="icon"
@@ -790,8 +757,6 @@ function Thread({
         </Button>
       </div>
 
-      {/* Searching inside the thread. The list on the left already filters by
-          name; this is the half that finds what somebody actually said. */}
       {searching && (
         <div className="bg-card shrink-0 border-b p-2">
           <Input
@@ -832,7 +797,6 @@ function Thread({
         </div>
       )}
 
-      {/* The pinned shelf, shared by both sides. */}
       {!searching && pinned && pinned.length > 0 && (
         <div className="bg-muted/40 flex shrink-0 items-center gap-2 border-b px-3 py-1.5">
           <Pin className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
@@ -851,7 +815,6 @@ function Thread({
         </div>
       )}
 
-      {/* Messages */}
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         {isPending && <Skeleton className="h-24 rounded-sm" />}
         {!isPending && messages.length === 0 && pending.length === 0 && (
@@ -860,20 +823,9 @@ function Thread({
           </p>
         )}
 
-        {messages.map((m) => {
-          // Grouped on the calendar day, labelled by the shared formatter that
-          // the project thread uses too.
-          const key = dayKey(m.createdAt)
-          const showDay = key !== lastDay
-          lastDay = key
+        {rows.map(({ m, showDay, startsGroup }) => {
           const day = formatDaySeparator(m.createdAt)
-          // A run from one person reads as a single block: the first bubble
-          // carries the tail and the gap, the rest sit tight beneath it.
-          const startsGroup = showDay || m.fromMe !== lastMine
-          lastMine = m.fromMe
 
-          // Read beats delivered beats sent, and each comes from a stamp: their
-          // read mark, our delivery mark, or simply the row existing.
           const status: Delivery =
             new Date(m.createdAt).getTime() <= otherReadAt
               ? "read"
@@ -893,9 +845,6 @@ function Thread({
                 )}
               >
                 {!m.deletedAt && (
-                  // React above, ⋮ below: the two things you do TO a message, in
-                  // one fixed column you can aim at - rather than a bar that
-                  // floated over the words you were reading.
                   <div
                     className={cn(
                       "flex shrink-0 flex-col items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 has-[[data-state=open]]:opacity-100",
@@ -918,8 +867,6 @@ function Thread({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align={m.fromMe ? "end" : "start"}>
-                        {/* Only for your own: there is nothing to report about
-                          whether YOU have read somebody else's message. */}
                         {m.fromMe && (
                           <DropdownMenuItem onClick={() => setInfoFor(m)}>
                             <Info className="mr-2 h-3.5 w-3.5" />
@@ -954,8 +901,6 @@ function Thread({
                             </>
                           )}
                         </DropdownMenuItem>
-                        {/* Editable only while the window is open, and the clock is
-                          on the label so it is not a surprise when it goes. */}
                         {m.fromMe &&
                           m.attachments.length === 0 &&
                           isWithinEditWindow(m.createdAt) && (
@@ -995,16 +940,12 @@ function Thread({
                     "relative max-w-[78%] min-w-0 rounded-sm px-2.5 py-1.5 shadow-sm",
                     m.fromMe ? BUBBLE_OUT : BUBBLE_IN,
                     flashId === m.id && "ring-2 ring-amber-400",
-                    // Square off the corner the tail grows out of, so the two
-                    // shapes read as one bubble rather than a blob beside a box.
                     startsGroup && (m.fromMe ? "rounded-tr-none" : "rounded-tl-none"),
                     m.deletedAt && "opacity-70",
                   )}
                 >
                   {startsGroup && <BubbleTail side={m.fromMe ? "right" : "left"} />}
 
-                  {/* What this answers. Clicking it walks back up the thread -
-                      a quote you cannot follow is just decoration. */}
                   {m.replyTo && !m.deletedAt && (
                     <button
                       type="button"
@@ -1078,8 +1019,7 @@ function Thread({
                           />
                         </div>
                       )}
-                      {/* Cards carry their own words, so the auto preview the
-                          server writes for the chat list is not repeated here. */}
+                      {/* Cards carry their own text, so the body preview isn't repeated. */}
                       {(m.poll || m.event || m.contact) && (
                         <div className="mb-1">
                           <MessageCards
@@ -1118,8 +1058,6 @@ function Thread({
                     {m.pinnedAt && !m.deletedAt && <Pin className="h-2.5 w-2.5" />}
                     {m.editedAt && !m.deletedAt && <span>edited</span>}
                     {formatClockTime(m.createdAt)}
-                    {/* One tick: the server has it. Two: it reached their
-                        device. Two in blue: they opened the thread. */}
                     {m.fromMe && !m.deletedAt && (
                       <button
                         type="button"
@@ -1145,11 +1083,8 @@ function Thread({
           )
         })}
 
-        {/* Still in flight. Shown as a real bubble with a clock, so the question
-            "did that send?" has an answer before the round-trip comes back. */}
-        {pending.map((item) => {
-          const startsGroup = lastMine !== true
-          lastMine = true
+        {pending.map((item, i) => {
+          const startsGroup = i === 0 && pendingStartsGroup
           return (
             <div key={item.id} className={cn("flex justify-end", startsGroup ? "mt-2" : "mt-0.5")}>
               <div
@@ -1172,7 +1107,6 @@ function Thread({
         <div ref={endRef} />
       </div>
 
-      {/* Composer */}
       {replyTo && !recording && (
         <div className="bg-card flex shrink-0 items-center gap-2 border-t px-2 pt-2">
           <div className="border-primary/60 bg-muted min-w-0 flex-1 border-l-2 px-2 py-1">
@@ -1217,8 +1151,6 @@ function Thread({
         }}
       />
 
-      {/* A 1:1 chat has exactly one recipient, so the panel gets a list of one
-          - the same component the project thread hands a whole team to. */}
       <MessageInfoDialog
         open={!!infoFor}
         onOpenChange={(o) => !o && setInfoFor(null)}
@@ -1342,8 +1274,6 @@ function ContactPicker({
         </div>
         <div className="max-h-80 space-y-1 overflow-y-auto">
           {isPending && <Skeleton className="h-40 rounded-sm" />}
-          {/* A failed lookup used to render "Nobody matches", which reads as an
-              empty directory rather than a broken request. Say which it is. */}
           {!isPending && error && (
             <p className="text-destructive py-6 text-center text-xs">
               Could not load colleagues. {error instanceof Error ? error.message : ""}

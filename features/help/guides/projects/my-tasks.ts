@@ -101,9 +101,7 @@ export const myTasksGuide: HelpGuide = {
             id: "my-tasks-sheet-totals",
             as: "employee",
             path: "/projects/my-tasks",
-            // Week total is the last column, past the right edge of the window -
-            // pointing at it scrolls the sheet sideways. Daily total stays pinned
-            // on the left.
+            // Week total is past the right edge; pointing at it scrolls the sheet sideways.
             actions: [{ hover: { text: "Week total", exact: true } }],
             highlight: [
               { text: "Week total", exact: true },
@@ -180,8 +178,7 @@ export const myTasksGuide: HelpGuide = {
             id: "my-tasks-status-menu",
             as: "employee",
             path: "/projects/my-tasks",
-            // The number button itself: a role+name lookup also hits the Plan cell
-            // around it (a div role=button whose name contains this label).
+            // The number button itself: a role+name lookup also hits the Plan cell around it.
             actions: [
               { click: { css: 'button[aria-label^="Status of task"]' } },
               { waitFor: { role: "menu" } },
@@ -233,8 +230,7 @@ export const myTasksGuide: HelpGuide = {
             as: "employee",
             path: "/projects/my-tasks",
             actions: [{ click: { role: "tab", name: "Card view" } }],
-            // Only today's group: the list runs back weeks, so a full-window
-            // picture lands on old, closed days.
+            // Only today's group: a full-window picture would land on old, closed days.
             highlight: [
               { css: 'button[aria-expanded]:has-text("Today ·")' },
               {
@@ -290,8 +286,7 @@ export const myTasksGuide: HelpGuide = {
             as: "employee",
             path: "/projects/my-tasks",
             actions: [{ click: { role: "button", name: "New Task" } }],
-            // The whole dropdowns (Radix triggers are buttons with role combobox),
-            // not just the grey placeholder text inside them.
+            // The whole dropdowns (Radix triggers are role=combobox buttons), not the placeholder text.
             highlight: [
               { css: '[role=dialog] button[role=combobox]:has-text("Select a project")' },
               { css: '[role=dialog] button[role=combobox]:has-text("Pick a project first")' },
@@ -362,8 +357,7 @@ export const myTasksGuide: HelpGuide = {
               { waitFor: { role: "option", name: "Priya Sharma" } },
             ],
             highlight: [
-              // By css: while the list is open, Radix marks the rest of the page
-              // aria-hidden, so a role lookup no longer finds the picker itself.
+              // By css: while the list is open, Radix hides the rest of the page from role lookups.
               { css: 'button[aria-label="Whose tasks"]' },
               { role: "option", name: "Priya Sharma" },
             ],

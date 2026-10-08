@@ -26,21 +26,7 @@ import {
 import type { WorkbookIndexEntry } from "../../lib/sheet-types"
 import { PersonAvatar } from "./person-bits"
 
-// =============================================================================
-// Picking a calendar, and then a month of it.
-//
-// Two controls, because there are two questions and they used to be collapsed
-// into one. A calendar's name used to carry its month - "Performance Marketing
-// Calendar(H2S-Sept)" - which made the dropdown a list of near-identical
-// strings and left September and October as unrelated rows. The name picks the
-// calendar; the stepper picks the month.
-//
-// ── STEPPING WALKS THE MONTHS THAT EXIST ─────────────────────────────────────
-// Not the calendar year. A project that ran August and October has no
-// September, and a stepper that walked the year would land on an empty month
-// and make the user press again. The arrows jump to the next edition that is
-// actually there, and stop at the ends.
-// =============================================================================
+// The arrows step through the months that exist, not the calendar year.
 
 type Series = CalendarSeries<WorkbookIndexEntry>
 
@@ -59,9 +45,7 @@ export function CalendarNamePicker({
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          // No width cap and no truncation: the name of the calendar you are in
-          // is the one label on this bar that has to be readable in full. The
-          // strip wraps, so a long name costs a line, not sense.
+          // No width cap or truncation: this name must be readable in full; the strip wraps.
           className="gap-1.5 px-2.5 font-medium"
           aria-label="Switch calendar"
           title={activeName ?? undefined}
@@ -87,11 +71,7 @@ export function CalendarNamePicker({
                 s.name === activeName && "bg-primary/10 text-primary font-medium",
               )}
             >
-              {/* Wrapped, never truncated - two calendars whose names differ
-                  only at the end are the same calendar to an ellipsis. */}
               <span className="min-w-0 break-words whitespace-normal">{s.name}</span>
-              {/* The second line says whether stepping is even meaningful,
-                  before you commit to opening it. */}
               <span className="flex w-full items-center gap-1.5 text-[11px] opacity-70">
                 {dated.length > 0 ? (
                   <>
@@ -125,15 +105,7 @@ export function CalendarNamePicker({
   )
 }
 
-/**
- * The month, with arrows either side and a jump list behind the label.
- *
- * MonthNav in components/shared is not reused here, deliberately: it renders
- * "label then arrows" and its label is plain text. This one needs the label to
- * BE the jump menu, because getting from September 2026 back to last October
- * should not be twelve presses. Changing the shared one would move the
- * attendance and holiday calendars for no reason.
- */
+/** Not the shared MonthNav: here the label itself is the jump menu. */
 export function CalendarMonthPicker({
   series,
   month,
@@ -160,7 +132,6 @@ export function CalendarMonthPicker({
   const prev = stepEdition(series, month, -1)
   const next = stepEdition(series, month, 1)
 
-  /** Editions grouped by year, for the jump list. */
   const byYear = React.useMemo(() => {
     const out = new Map<number, WorkbookIndexEntry[]>()
     for (const e of dated) {
@@ -173,9 +144,7 @@ export function CalendarMonthPicker({
     return [...out.entries()].sort((a, b) => b[0] - a[0])
   }, [dated])
 
-  // A calendar with no dated editions at all is not a monthly calendar, and a
-  // stepper over nothing is worse than no stepper: it invites a press that
-  // cannot do anything.
+  // No dated editions means it's not a monthly calendar, so no stepper.
   if (dated.length === 0) {
     return (
       <span className="flex items-center gap-1.5">

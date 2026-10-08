@@ -21,38 +21,23 @@ export class DeviceUnreachableError extends Error {
   }
 }
 
-// A never-synced employee is backfilled from their joining date. The device only
-// retains a finite event buffer, so this just caps how far back we ever ask.
+// Backfill cap for never-synced employees (the device only keeps a finite event buffer).
 const MAX_BACKFILL_DAYS = 730
-// History is pulled in SHORT windows spanning ALL employees at once (no per-person
-// device filter). Some Hikvision firmware ignores the server-side person filter,
-// so a wide per-person query silently pulls everyone's events and truncates at
-// fetchAttendanceEvents' ~1500-event pagination ceiling - dropping the newest
-// punches (this is why individual employees got wrong/missing days). Keeping the
-// window short keeps one call's event count well under that ceiling: at ~25
-// employees x ~20 punches/day, 2 days ≈ 1000 events, a comfortable margin.
-// (Mirrors scripts/export-hikvision-punches.ts, which fetches the same way.)
+// History is fetched in short all-employee windows: some firmware ignores the person filter and
+// fetchAttendanceEvents caps at ~1500 events, so wide queries drop the newest punches.
 const BATCH_DAYS = 2
-// How far back an INCREMENTAL sync re-reads, counting from the device's last
-// successful sync day. This is a self-healing window: a day is only correct once
-// everyone has punched out, so a sync that ran mid-afternoon recorded a truncated
-// check-out for that day. Re-reading the last week lets those days settle to the
-// real first/last punch, and fills any day a failed/skipped sync left empty.
-// (Manually corrected days are still never overwritten - see upsertDay.)
+// Incremental syncs re-read the last week so days synced before everyone punched out settle
+// to the real first/last punch (manual corrections are never overwritten).
 const INCREMENTAL_LOOKBACK_DAYS = 7
-// If a single window returns at least this many raw events, warn loudly - a sign
-// BATCH_DAYS is nearing the pagination ceiling and should be lowered before data
-// silently goes missing.
+// Warn when one window nears the pagination ceiling (lower BATCH_DAYS if this fires).
 const WARN_EVENT_THRESHOLD = 1000
-// The device clock is IST; days/times are grouped and stored in IST so the app
-// shows the same local time the device displayed.
+// The device clock is IST; days and times are stored in IST.
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000
 
 export interface EmployeeSyncResult {
   employeeNo: string
   name?: string
-  /** "full" = whole history backfilled, "incremental" = from the last sync day
-   *  to today, "skipped" = no biometric code. */
+  /** "incremental" = from the last sync day to today; "skipped" = no biometric code. */
   mode: "full" | "incremental" | "skipped"
   from: string | null
   to: string | null
@@ -63,16 +48,12 @@ export interface EmployeeSyncResult {
 /** Emitted after each device window so the UI can draw a real progress bar + ETA. */
 export interface SyncProgress {
   phase: "probing" | "fetching" | "writing" | "done"
-  /** Device windows completed / total. Known up front, so percent + ETA are real. */
   windowsDone: number
   windowsTotal: number
   /** The IST day range just fetched, e.g. "2026-07-13..2026-07-14". */
   currentRange?: string
-  /** Punches attributed so far. */
   punches: number
-  /** Milliseconds elapsed since the sync started. */
   elapsedMs: number
-  /** Estimated milliseconds remaining, from the measured average window time. */
   etaMs: number | null
   message?: string
 }
@@ -88,27 +69,20 @@ interface SyncEmployee {
   createdAt: Date
 }
 
-// ─── IST date helpers ───────────────────────────────────────────────────────
-// We work in IST "YYYY-MM-DD" day strings so a punch lands on the calendar day
-// the employee actually punched (the device is IST), not a UTC-shifted day.
+// IST "YYYY-MM-DD" day strings, so a punch lands on the day it was made (the device is IST).
 
-/** The IST calendar day (YYYY-MM-DD) for an instant. */
 function istDayStr(d: Date): string {
   return new Date(d.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10)
 }
-/** Today's IST day (YYYY-MM-DD). */
 function istTodayStr(): string {
   return istDayStr(new Date())
 }
-/** The UTC instant at the start (00:00:00 IST) of an IST day. */
 function istDayStartUtc(dayStr: string): Date {
   return new Date(`${dayStr}T00:00:00.000+05:30`)
 }
-/** The UTC instant at the end (23:59:59 IST) of an IST day. */
 function istDayEndUtc(dayStr: string): Date {
   return new Date(`${dayStr}T23:59:59.999+05:30`)
 }
-/** Shift a YYYY-MM-DD day string by `n` days. */
 function addDaysStr(dayStr: string, n: number): string {
   const d = new Date(`${dayStr}T00:00:00.000Z`)
   d.setUTCDate(d.getUTCDate() + n)
@@ -131,16 +105,8 @@ export interface ManualDayLocks {
   statusManual: boolean
 }
 
-/**
- * Upsert one attendance row for an employee + IST day from that day's punches.
- * The day's FIRST punch is the check-in and the LAST is the check-out.
- *
- * Manual corrections are honoured PER FIELD, not per row: if HR fixed only the
- * check-in, that check-in is pinned but the check-out still follows the device
- * (and vice versa). Work hours / status are then recomputed from whatever the
- * merged pair actually is, so a corrected check-in plus a real device check-out
- * yields the right total. Only a day where every field is pinned is skipped.
- */
+/** Upsert one IST day from its punches (first = check-in, last = check-out). HR corrections
+ *  are pinned per field, the rest follows the device; a fully pinned day is skipped. */
 async function upsertDay(
   employeeId: string,
   deviceId: string,
@@ -150,9 +116,6 @@ async function upsertDay(
 ): Promise<"written" | "skipped"> {
   const date = new Date(`${istDay}T00:00:00.000Z`)
 
-  // The caller fetches every manual day for this employee ONCE (see below), so this
-  // no longer costs a findUnique per employee-day. A full 730-day backfill used to be
-  // 2 queries x days x employees, all sequential.
   const locks = manualByDay.get(istDay)
   // Nothing the device can contribute - every field is pinned by HR.
   if (locks?.checkInManual && locks.checkOutManual && locks.statusManual) return "skipped"
@@ -161,7 +124,6 @@ async function upsertDay(
   const deviceIn: Date | null = punches[0] ?? null
   const deviceOut: Date | null = punches.length > 1 ? punches[punches.length - 1]! : null
 
-  // Pinned field wins; everything else takes the device's value.
   const checkIn = locks?.checkInManual ? locks.checkIn : deviceIn
   const checkOut = locks?.checkOutManual ? locks.checkOut : deviceOut
 
@@ -174,8 +136,7 @@ async function upsertDay(
     ? locks.status
     : computeAttendanceStatus({ checkIn, workHours })
 
-  // A partially-corrected row keeps its "manual" provenance; only a fully
-  // device-derived row is (re)labelled as such.
+  // A partially corrected row keeps its "manual" provenance.
   const hasManual = !!(locks?.checkInManual || locks?.checkOutManual || locks?.statusManual)
 
   await db.attendanceLog.upsert({
@@ -205,26 +166,9 @@ async function upsertDay(
 }
 
 /**
- * Smart sync for one device.
- *
- * Strategy (mirrors scripts/export-hikvision-punches.ts): probe once, then walk
- * the needed date span in SHORT windows, querying EVERY employee's punches in a
- * single device call per window (no per-person filter - the firmware ignores it)
- * and attributing each punch client-side by its device code. This avoids the
- * pagination-ceiling truncation that a wide per-person query hits, so nobody's
- * newest days go silently missing.
- *
- *  - Full backfill (`full`, or a never-synced employee): from the joining date
- *    (capped at the device's retention window).
- *  - Incremental (Refresh / Sync button, cron): re-reads the last
- *    INCREMENTAL_LOOKBACK_DAYS days before the device's last successful sync, so
- *    days that were still incomplete when we last looked (e.g. synced before
- *    everyone punched out) settle to the real times, and any day a previous sync
- *    missed is filled in - not just today.
- *
- * Days are grouped in IST; the day's first punch = check-in, last = check-out.
- * Manual corrections are preserved. Pass `onlyEmployeeNo` to target one person.
- * Throws DeviceUnreachableError when the device can't be reached.
+ * Sync one device: walk the date span in short windows, fetching all employees' punches per call
+ * and matching them by device code. Full backfill starts at the joining date (capped); incremental
+ * re-reads INCREMENTAL_LOOKBACK_DAYS before the last sync. Throws DeviceUnreachableError.
  */
 export async function syncDeviceSmart(
   deviceId: string,
@@ -232,7 +176,6 @@ export async function syncDeviceSmart(
   opts: {
     onlyEmployeeNo?: string
     full?: boolean
-    /** Called after each device window; drives the UI progress bar + ETA. */
     onProgress?: (p: SyncProgress) => void
   } = {},
 ): Promise<{ totalSynced: number; results: EmployeeSyncResult[]; completed: boolean }> {
@@ -247,7 +190,6 @@ export async function syncDeviceSmart(
   const today = istTodayStr()
   const retentionFloor = istDayStr(new Date(Date.now() - MAX_BACKFILL_DAYS * 86_400_000))
 
-  // Incremental syncs backfill from the device's last successful sync day.
   const device = await db.hikvisionDevice.findUnique({
     where: { id: deviceId },
     select: { lastSyncAt: true },
@@ -275,7 +217,6 @@ export async function syncDeviceSmart(
     },
   })
 
-  // Per-employee accumulator (results + the punches attributed to them).
   const acc = new Map<
     string,
     {
@@ -287,9 +228,8 @@ export async function syncDeviceSmart(
     }
   >()
 
-  // Map every device code (employeeNo AND deviceId) → candidate employees, so a
-  // punch is matched no matter which code it carries. Codes can, in principle,
-  // be held by more than one person over time; disambiguate by joining date.
+  // Map both codes (employeeNo and deviceId) to employees; a code reused over time is
+  // disambiguated by joining date.
   const codeToCandidates = new Map<string, SyncEmployee[]>()
   function addCode(code: string | null, emp: SyncEmployee) {
     if (!code) return
@@ -312,20 +252,9 @@ export async function syncDeviceSmart(
     }
     for (const c of codes) addCode(c, emp)
 
-    // Does this person need a FULL backfill?
-    //
-    // The test is "were they already covered by a previous device sync?", i.e. were
-    // they created BEFORE the device's last sync. It is deliberately NOT "do they
-    // have any attendance rows": an employee whose code isn't on the device (or who
-    // simply never punched) has no rows and never will, so the row-based test kept
-    // them flagged "never synced" FOREVER - and because the device walk spans back to
-    // the oldest employee floor, ONE such person dragged every sync into a full
-    // multi-year crawl (~460 device calls) even when everyone else needed one day.
-    //
-    // createdAt > lastSyncAt correctly catches the case that matters: an employee
-    // added AFTER the last sync (even with a backdated joining date) still gets their
-    // whole history pulled. An existing employee who genuinely needs a re-backfill can
-    // be fixed with the per-row "Full" button (?full=1).
+    // Full backfill only for employees created after the last sync - NOT "has no rows": someone
+    // not on the device never gets rows and would force a multi-year crawl on every sync.
+    // Re-backfill an existing employee with the per-row "Full" button (?full=1).
     const isNewSinceLastSync = !device?.lastSyncAt || emp.createdAt > device.lastSyncAt
     const doFull = !!opts.full || isNewSinceLastSync
 
@@ -334,16 +263,12 @@ export async function syncDeviceSmart(
       const joinDay = emp.dateOfJoining ? istDayStr(emp.dateOfJoining) : null
       floor = joinDay && joinDay > retentionFloor ? joinDay : retentionFloor
     } else {
-      // Step a WEEK back from the last sync so punches that landed after the last
-      // sync (or days that were still incomplete when we last looked) are re-read
-      // and corrected, and any day a previous sync missed gets filled in.
       const s = addDaysStr(since ?? today, -INCREMENTAL_LOOKBACK_DAYS)
       floor = s < retentionFloor ? retentionFloor : s > today ? today : s
     }
     acc.set(emp.id, { emp, floor, doFull, punchesByDay: new Map(), seen: new Set() })
   }
 
-  /** Resolve which employee a device code's punch belongs to on a given IST day. */
   function resolveEmployee(code: string, day: string): SyncEmployee | null {
     const cands = codeToCandidates.get(code)
     if (!cands || cands.length === 0) return null
@@ -356,18 +281,13 @@ export async function syncDeviceSmart(
     )[0]
   }
 
-  // The whole span to query = earliest per-employee floor .. today. (Employees
-  // with no code contribute no floor.)
   const floors = [...acc.values()].map((a) => a.floor).filter((f): f is string => f !== null)
   const globalFloor = floors.length ? floors.reduce((a, b) => (a < b ? a : b)) : today
 
-  // Walk backward from today to globalFloor in short windows (most-recent first),
-  // so the latest days are always captured even if an older window fails.
+  // Walk back from today in short windows, newest first, so recent days survive an older failure.
   const deviceErrors: string[] = []
   let consecutiveFailures = 0
   let batchEnd = today
-  // Total windows is known before we start (the span is fixed), so the progress bar
-  // is a real fraction and the ETA is measured, not guessed.
   const windowsTotal = Math.max(1, Math.ceil((daysBetween(globalFloor, today) + 1) / BATCH_DAYS))
   let windowsDone = 0
   let punches = 0
@@ -378,11 +298,8 @@ export async function syncDeviceSmart(
         ? globalFloor
         : addDaysStr(batchEnd, -(BATCH_DAYS - 1))
 
-    // major=5 (access control), minor=0 (all sub-types) so every punch is
-    // captured regardless of auth method (face/card/fingerprint). No person
-    // filter: pull everyone in the window and match client-side. Retry a couple
-    // of times before giving up on the window - the device can drop the odd
-    // request mid-run even though it's reachable.
+    // major=5 (access control), minor=0 (all auth methods); no person filter, matched client-side.
+    // Retried because the device can drop the odd request mid-run.
     let events: Awaited<ReturnType<typeof fetchAttendanceEvents>>["events"] = []
     let error: string | undefined
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -401,9 +318,7 @@ export async function syncDeviceSmart(
       error = res.error
     }
     if (error) {
-      // Don't abandon everything older on a single flaky window - record it and
-      // keep walking back (so e.g. a hiccup near April can't drop March). Only
-      // bail once several windows in a row fail, i.e. the device really went down.
+      // Record a flaky window and keep walking back; bail only after several failures in a row.
       deviceErrors.push(`${batchStart}..${batchEnd}: ${error}`)
       if (++consecutiveFailures >= 3) {
         bailed = true
@@ -460,7 +375,6 @@ export async function syncDeviceSmart(
     message: "Writing attendance…",
   })
 
-  // Upsert per employee/day and build results.
   const sharedError = deviceErrors.length ? deviceErrors.join("; ") : undefined
   const results: EmployeeSyncResult[] = []
   let totalSynced = 0
@@ -483,9 +397,7 @@ export async function syncDeviceSmart(
     const writeErrors: string[] = []
     let synced = 0
 
-    // ONE query for every manual correction in this employee's punch range, instead
-    // of a findUnique per day inside the loop. Pulls the per-field locks + the
-    // pinned values so upsertDay can merge them with the device's punches.
+    // One query for all manual corrections in this employee's range (per-field locks + values).
     const dayKeys = [...punchesByDay.keys()]
     const manualRows = await db.attendanceLog.findMany({
       where: {
@@ -507,8 +419,7 @@ export async function syncDeviceSmart(
       manualRows.map((r) => [r.date.toISOString().slice(0, 10), r]),
     )
 
-    // Writes go out with bounded concurrency rather than strictly one-at-a-time.
-    // The chunk stays at/below the pg pool size so we queue rather than thrash it.
+    // Bounded write concurrency, kept at/below the pg pool size.
     const WRITE_CHUNK = 10
     const entries = [...punchesByDay.entries()]
     for (let i = 0; i < entries.length; i += WRITE_CHUNK) {
@@ -547,26 +458,14 @@ export async function syncDeviceSmart(
     message: `${totalSynced} day(s) written`,
   })
 
-  // `completed` = the device walk finished the whole span. The caller only advances
-  // the device's lastSyncAt when this is true - otherwise a run that bailed early
-  // would mark employees as "covered" when their older windows never got fetched.
+  // The caller advances lastSyncAt only when `completed`, so a run that bailed early doesn't
+  // mark the unfetched windows as covered.
   return { totalSynced, results, completed: !bailed }
 }
 
-// ─── One punch, arriving on its own ───────────────────────────────────────────
-
 /**
- * Record a single punch pushed by the device, rather than pulled by a sync.
- *
- * Deliberately routed through the SAME upsertDay() the sync uses. A push
- * receiver that wrote its own rows would drift from the pull path the first time
- * either changed - and the two have to agree, because both write the same day.
- *
- * upsertDay derives check-in from the earliest punch and check-out from the
- * latest, so the day's existing pair is fed back in alongside the new punch: a
- * punch later than both extends the day, one in between changes nothing, and an
- * earlier one corrects the check-in. Manual HR corrections stay pinned exactly
- * as they do on a sync.
+ * Record one punch pushed by the device, via the same upsertDay() as the sync so both paths agree.
+ * The day's existing device check-in/out are fed back in alongside the new punch.
  */
 export async function recordPunch(
   employeeId: string,
@@ -589,8 +488,7 @@ export async function recordPunch(
     },
   })
 
-  // Only the DEVICE-derived edges are replayed. A pinned field is passed as a
-  // lock instead, so feeding it back as a punch would double-count it.
+  // Only device-derived edges are replayed; pinned fields go in as locks to avoid double counting.
   const punches: Date[] = [punchAt]
   if (existing?.checkIn && !existing.checkInManual) punches.push(existing.checkIn)
   if (existing?.checkOut && !existing.checkOutManual) punches.push(existing.checkOut)

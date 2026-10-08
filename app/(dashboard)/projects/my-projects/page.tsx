@@ -7,11 +7,7 @@ import { listProjects } from "@/features/projects/server/projects.queries"
 
 import { ProjectsClient } from "../projects-client"
 
-/**
- * Server shell for the projects board (now at /projects/my-projects): prefetch
- * the project list so ProjectsClient's useQuery(["projects"]) finds a warm cache
- * and paints immediately, with no client fetch on first load.
- */
+/** Prefetches the project list so ProjectsClient paints from a warm cache. */
 export default async function MyProjectsPage() {
   const queryClient = getQueryClient()
   const session = await auth()

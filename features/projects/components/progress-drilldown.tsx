@@ -53,31 +53,8 @@ import {
   type TaskState,
 } from "./progress-task-list"
 
-// =============================================================================
-// The popup behind every number on the Progress page.
-//
-// One dialog, four kinds of content:
-//
-//   state   - "which 42?": the tasks a tile or slice was counting
-//   client  - one project as a mini dashboard: overview, tasks, people, goals,
-//             hours. Reuses the per-project progress query, so it agrees with
-//             the project's own Overview tab to the task.
-//   person  - one person across the scope: their mix, their punctuality, their
-//             tasks grouped by client
-//   goals   - the goal tree, for one project or every project in scope
-//
-// ── A STACK, NOT A ROUTER ────────────────────────────────────────────────────
-// Popups open popups: a client's People tab opens a person, whose task list
-// names clients. Rather than a second dialog on top of the first, the content
-// is a stack with a Back button - the same window, one step deeper. A
-// dialog-on-dialog is where every "professional dashboard" starts to feel like
-// a filing cabinet.
-//
-// ── EVERY VIEW SAYS ITS SCOPE ────────────────────────────────────────────────
-// The page mixes "as of today" (overdue, goals) with "in the date range"
-// (everything else) on purpose, so every popup header spells out which one it
-// is. A list titled "Overdue" with no scope is a list somebody will argue with.
-// =============================================================================
+// The popup behind every Progress number. Views stack (with Back) instead of dialog-on-dialog,
+// and every header states its scope ("as of today" vs the date range).
 
 export interface DrillRange {
   from?: string | null
@@ -141,8 +118,7 @@ export function rangeLabel(r?: DrillRange): string {
   return `due ${formatDate(r.from, "d MMM")}${r.to ? ` - ${formatDate(r.to, "d MMM")}` : ""}`
 }
 
-// The performance query, shared with the page so the client popup opens from
-// the cache the page already filled. Same key builder, same order of params.
+// Shared with the page (same key builder, same param order) so the client popup opens from cache.
 export function performanceQuery(projectId?: string, range?: DrillRange): string {
   const p = new URLSearchParams()
   if (projectId) p.set("projectId", projectId)
@@ -175,10 +151,6 @@ export function usePerformance(projectId?: string, range?: DrillRange, enabled =
     enabled,
   })
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Small parts
-// ─────────────────────────────────────────────────────────────────────────────
 
 function Tile({
   label,
@@ -247,11 +219,7 @@ function StateChips({
   )
 }
 
-/**
- * A titled panel. `collapsible` turns the header into a toggle - for a popup
- * that stacks several of these (every project's goals), so a reader can fold
- * the ones they are not reading instead of scrolling past them.
- */
+/** `collapsible` lets a reader fold the panels they aren't reading. */
 function Section({
   title,
   sub,
@@ -352,10 +320,6 @@ function bucketOf(tasks: DrillTask[]): ChartBucket {
   return b
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The four views
-// ─────────────────────────────────────────────────────────────────────────────
-
 function StateView({ d, push }: { d: Extract<Drill, { kind: "state" }>; push: Push }) {
   void push
   return (
@@ -396,9 +360,7 @@ function ClientView({ d, push }: { d: Extract<Drill, { kind: "client" }>; push: 
           spacing="none"
           items={[
             { value: "overview", label: "Overview" },
-            // The counts hang off queries that are still loading, so they stay
-            // inside the label rather than using `count`, which would render
-            // "(0)" until the data lands.
+            // Counts stay in the label: `count` would render "(0)" while the query loads.
             { value: "tasks", label: `Tasks${s ? ` (${s.assigned})` : ""}` },
             {
               value: "people",
@@ -486,8 +448,6 @@ function ClientView({ d, push }: { d: Extract<Drill, { kind: "client" }>; push: 
                   </button>
                 }
               >
-                {/* A summary panel, capped: the full list is one click away on
-                    the Tasks tab, and thirty rows here would bury Due next. */}
                 <TaskList
                   filters={{ state: "overdue", projectId: d.project.id }}
                   groupBy="none"
@@ -558,13 +518,11 @@ function ClientView({ d, push }: { d: Extract<Drill, { kind: "client" }>; push: 
         <div className="border-border/60 border-b px-5 py-3">
           <StateChips value={state} onChange={setState} />
         </div>
-        {/* Edge to edge so the list's own sticky toolbar sits flush. */}
         <TaskList
           filters={{
             state,
             projectId: d.project.id,
-            // "Overdue" is a today question everywhere on the page; the rest
-            // follow the range the page was showing.
+            // "Overdue" is always as of today; the rest follow the page's range.
             from: state === "overdue" ? undefined : d.range?.from,
             to: state === "overdue" ? undefined : d.range?.to,
           }}
@@ -699,23 +657,14 @@ function PersonView({ d }: { d: Extract<Drill, { kind: "person" }> }) {
     from: d.range?.from,
     to: d.range?.to,
   })
-  // Memoised so the derived bucket and chip counts below only recompute when
-  // the response changes, not on every render of a filter chip.
   const tasks = React.useMemo(() => data?.data ?? [], [data])
 
-  // ── Stats come from the SERVER AGGREGATE, not from the rows on screen ──────
-  // The list is paged (150 at a time). Deriving the donut and the tiles from it
-  // meant that the moment somebody crossed a page - and the busiest person here
-  // is already at 136 - their completion rate would quietly be computed from a
-  // slice of their work, with nothing on screen saying so. The performance
-  // endpoint aggregates in SQL over the whole scope and is already in cache
-  // from the page behind this popup, so this is both correct and free.
+  // Stats come from the server aggregate, not the rows: the list is paged, so rows would undercount.
   const perf = usePerformance(d.projectId, d.range)
   const aggregate = perf.data?.byEmployee.find((e) => e.id === d.person.id)
   const derived = React.useMemo(() => bucketOf(tasks), [tasks])
   const b = aggregate ?? derived
-  // Chip counts describe the rows actually loaded, so they always match what
-  // clicking the chip will show.
+  // Chip counts describe the loaded rows, so they match what the chip shows.
   const counts = React.useMemo(() => {
     const c: Partial<Record<TaskState, number>> = { all: tasks.length }
     for (const chip of STATE_CHIPS) {
@@ -779,8 +728,6 @@ function PersonView({ d }: { d: Extract<Drill, { kind: "person" }> }) {
         <div className="space-y-3">
           <StateChips value={state} onChange={setState} counts={counts} />
           <div className="border-border/60 overflow-hidden rounded-sm border">
-            {/* Says so rather than quietly showing a slice. The tiles above are
-                unaffected - they come from the server aggregate. */}
             {truncated && (
               <p className="text-muted-foreground border-border/60 border-b px-4 py-2 text-[11px]">
                 Listing the first {tasks.length} of {data?.total} tasks. The figures above cover all
@@ -798,8 +745,6 @@ function PersonView({ d }: { d: Extract<Drill, { kind: "person" }> }) {
         </div>
       </div>
 
-      {/* The third column for a person: not what they are doing, what they
-          MADE. Same scope as the tasks above it. */}
       <div className="border-border/60 -mx-5 border-t">
         <p className="flex items-center gap-1.5 px-5 pt-4 text-sm font-medium">
           <PackageCheck className="h-4 w-4" /> What they made
@@ -954,12 +899,7 @@ function GoalsView({ d, push }: { d: Extract<Drill, { kind: "goals" }>; push: Pu
   )
 }
 
-/**
- * What was made, in a scope: the type mix and the entries, with their links and
- * files. Serves the Output card's clicks, the client popup's tab and the person
- * popup's section from one component, so "3 reels" opens the same three rows
- * wherever it was clicked.
- */
+/** Serves the Output card, the client tab and the person section, so "3 reels" opens the same rows everywhere. */
 function DeliverablesView({ d }: { d: Extract<Drill, { kind: "deliverables" }> }) {
   const [type, setType] = React.useState<string | null>(d.type ?? null)
   const { data, isLoading } = useDeliverablesOverview({
@@ -1018,8 +958,6 @@ function DeliverablesView({ d }: { d: Extract<Drill, { kind: "deliverables" }> }
                 Showing only {type} · clear
               </button>
             )}
-            {/* Exports exactly what is on screen, filters and all - a popup
-                opened from "3 reels" downloads those three, not the ledger. */}
             <DeliverablesExportMenu
               className="ml-auto"
               filters={{
@@ -1059,10 +997,6 @@ function DeliverablesView({ d }: { d: Extract<Drill, { kind: "deliverables" }> }
     </div>
   )
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// The shell
-// ─────────────────────────────────────────────────────────────────────────────
 
 type Push = (d: Drill) => void
 
@@ -1147,8 +1081,7 @@ function Header({ d }: { d: Drill }) {
 function Body({ d, push }: { d: Drill; push: Push }) {
   switch (d.kind) {
     case "state":
-      // Edge to edge, no padding: the list's toolbar is sticky and has to sit
-      // flush with the top of the scroll area to stay under your hand.
+      // No padding: the list's sticky toolbar must sit flush with the scroll area.
       return <StateView d={d} push={push} />
     case "client":
       return <ClientView d={d} push={push} />
@@ -1161,10 +1094,7 @@ function Body({ d, push }: { d: Drill; push: Push }) {
   }
 }
 
-/**
- * Mounted fresh per root drill (the parent keys it), so the stack seeds from
- * props with no effect and no stale content from the last thing opened.
- */
+/** Keyed per root drill by the parent, so the stack seeds from props with no stale content. */
 function DrillStack({ root }: { root: Drill }) {
   const [stack, setStack] = React.useState<Drill[]>([root])
   const current = stack[stack.length - 1]!

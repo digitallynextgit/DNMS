@@ -5,12 +5,7 @@ import { withProjectAccess, canManageProject } from "@/features/projects/server/
 import { updateGoal, deleteGoal, setGoalActive } from "@/features/projects/server/goals.service"
 import { AppError } from "@/lib/errors"
 
-// PATCH  /api/projects/[id]/goals/[goalId] - edit title, dates, status, progress
-// DELETE /api/projects/[id]/goals/[goalId] - remove it (sub-goals cascade)
-//
-// Both manage-only. withProjectAccess resolves and authorises the PROJECT; the
-// service then checks the goal belongs to it, so a valid goal id from another
-// project is a 404 rather than an edit.
+// The service checks the goal belongs to this project, so another project's goal id is a 404.
 export const dynamic = "force-dynamic"
 
 async function requireManager(session: Session, projectId: string) {
@@ -43,10 +38,7 @@ export const DELETE = withProjectAccess(
       return NextResponse.json({ error: "Only project managers can delete goals" }, { status: 403 })
     }
     try {
-      // Two different operations behind one button, and the difference is
-      // deliberate: the dialog defaults to DEACTIVATE, and only an explicit
-      // ?permanent=1 destroys the goal and its history. A misclick should cost
-      // a click to undo, not a quarter of context.
+      // Defaults to deactivate; only ?permanent=1 destroys the goal and its history.
       const permanent = _req.nextUrl.searchParams.get("permanent") === "1"
       if (permanent) {
         await deleteGoal(projectId, ctx.params.goalId!)

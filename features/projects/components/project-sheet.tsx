@@ -91,66 +91,22 @@ import {
   type WorkbookIndexEntry,
 } from "../lib/sheet-types"
 
-// =============================================================================
-// The sheet: a spreadsheet the team builds itself.
-//
-// It replaces a nine-field form whose fields never matched what any one project
-// actually planned. Columns are the team's to define, so the grid makes no
-// assumption about what a row means.
-//
-// ── WHO CAN DO WHAT, AND WHY IT SHOWS ────────────────────────────────────────
-// Anyone on the project can add sheets, columns and rows and edit any cell.
-// Only the account manager or an admin can DELETE any of the three. Delete
-// controls are not rendered at all for everyone else rather than shown disabled:
-// a row of greyed bins invites people to ask for permissions they do not need,
-// and the sheet is meant to feel open.
-//
-// Every edit is recorded. That is what makes open editing safe, and it is why
-// History sits in the toolbar rather than behind a menu.
-//
-// ── EDITING MODEL ────────────────────────────────────────────────────────────
-// One cell edits at a time, with the value held locally until it is committed
-// (Enter, Tab, or clicking away). Escape abandons it. Committed values are shown
-// from a local override until the refetch that follows brings the server's copy
-// back, so typing never flickers through a stale value.
-// =============================================================================
+// Anyone on the project may edit; only the account manager or an admin may delete (those controls
+// aren't rendered for others). Every edit is recorded, which is what makes open editing safe.
 
 const PLACEHOLDER = ""
 
-// Spreadsheet geometry.
-//
-// Text WRAPS inside a cell and is clipped to the row's height, which is exactly
-// what a spreadsheet does: the value is all there, and you drag the row taller
-// to see more of it. Both dimensions are draggable and both persist.
-/**
- * Default cell size.
- *
- * A rectangle, not a line: at 28px tall nothing wrapped in practice, because a
- * single line filled the cell and everything after it was clipped. Three lines
- * of the body size, and wide enough for a short sentence, is the smallest thing
- * that behaves like a field you can write in.
- */
+/** Three lines of body text tall - the smallest size that behaves like a field you can write in. */
 const ROW_H = 64
 const COL_W = 220
 const GUTTER_W = 44
-/** The header row. Stays compact - it holds a label, not content. */
 const HEADER_H = 30
-/**
- * How many rows the grid offers. Every one is live: typing in row 700 creates
- * a row at position 700, and rows nobody has touched cost nothing because they
- * are not database rows at all.
- */
+/** Every row is live: typing in row 700 creates it; untouched rows aren't database rows. */
 const TOTAL_ROWS = 1000
 /** Rows rendered above and below the visible band, to hide fast scrolling. */
 const OVERSCAN = 8
 
-/**
- * Types whose control IS the editor.
- *
- * A dropdown or a checkbox commits in one gesture, so there is no "start
- * editing" step to enter - and Enter or a printable key must not try to open
- * one, or the cell ends up in a state it cannot leave.
- */
+/** Types whose control IS the editor - Enter or a printable key must not try to "open" them. */
 const LIVE_TYPES = new Set<SheetColumnType>(["SELECT", "PERSON", "CHECKBOX"])
 
 function fmtWhen(iso: string): string {
@@ -162,7 +118,6 @@ function fmtWhen(iso: string): string {
   })
 }
 
-/** A cell's text with every hit of the find query highlighted. */
 function mark(text: string, highlight?: string): React.ReactNode {
   const q = highlight?.trim().toLowerCase()
   if (!q) return text
@@ -184,7 +139,6 @@ function mark(text: string, highlight?: string): React.ReactNode {
   return parts
 }
 
-/** What a value looks like when it is NOT being edited. */
 function DisplayCell({
   column,
   value,
@@ -194,7 +148,6 @@ function DisplayCell({
   column: SheetColumn
   value: CellValue
   people: Map<string, string>
-  /** The find query, if any - hits are wrapped in <mark>. */
   highlight?: string
 }) {
   if (column.type === "CHECKBOX") {
@@ -238,8 +191,7 @@ function DisplayCell({
     )
   }
   if (column.type === "PERSON") {
-    // Falls back to the stored id when the person has left the project, rather
-    // than rendering an empty cell that looks like nobody was ever assigned.
+    // Falls back to the stored id when the person has left the project.
     return <span>{mark(people.get(String(value)) ?? String(value), highlight)}</span>
   }
   if (column.type === "SELECT") {
@@ -253,10 +205,6 @@ function DisplayCell({
     return <span className="tabular-nums">{mark(String(value), highlight)}</span>
   return <span className="whitespace-pre-wrap">{mark(String(value), highlight)}</span>
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Column dialog (add + edit share it - the fields are identical)
-// ─────────────────────────────────────────────────────────────────────────────
 
 function ColumnDialog({
   open,
@@ -274,12 +222,17 @@ function ColumnDialog({
   const [type, setType] = React.useState<SheetColumnType>("TEXT")
   const [options, setOptions] = React.useState("")
 
-  React.useEffect(() => {
-    if (!open) return
-    setName(column?.name ?? "")
-    setType(column?.type ?? "TEXT")
-    setOptions((column?.options ?? []).join("\n"))
-  }, [open, column])
+  const [prevOpen, setPrevOpen] = React.useState(false)
+  const [prevColumn, setPrevColumn] = React.useState(column)
+  if (open !== prevOpen || column !== prevColumn) {
+    setPrevOpen(open)
+    setPrevColumn(column)
+    if (open) {
+      setName(column?.name ?? "")
+      setType(column?.type ?? "TEXT")
+      setOptions((column?.options ?? []).join("\n"))
+    }
+  }
 
   const submit = () => {
     if (!name.trim()) return
@@ -369,10 +322,6 @@ function ColumnDialog({
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// History
-// ─────────────────────────────────────────────────────────────────────────────
-
 const EVENT_VERB: Record<SheetEvent["type"], string> = {
   SHEET_CREATED: "created the sheet",
   SHEET_RENAMED: "renamed the sheet",
@@ -458,23 +407,7 @@ function HistoryDialog({
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The grid
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * The resize handle, on a column header's right edge or a row gutter's bottom.
- *
- * POINTER CAPTURE, not window listeners: capturing routes every subsequent
- * pointer event back to this element even once the pointer has left its 8px,
- * which is what a drag always does immediately. It also ends cleanly if the
- * pointer is lost, which a window listener has to be told about.
- *
- * The element is in NORMAL FLOW - a flex child of the header or gutter - after
- * two attempts with absolute positioning failed. A table cell is not a
- * dependable containing block, so an absolutely-positioned handle was landing
- * somewhere other than the cell it belonged to and could not be hit at all.
- */
+/** Pointer capture, not window listeners; normal flow, as an absolute grip mislands in a table cell. */
 function Grip({
   axis,
   onStart,
@@ -486,7 +419,6 @@ function Grip({
   onStart: (e: React.PointerEvent) => void
   onMove: (e: React.PointerEvent) => void
   onEnd: () => void
-  /** Double-click restores the default size. */
   onReset: () => void
 }) {
   const [dragging, setDragging] = React.useState(false)
@@ -496,8 +428,7 @@ function Grip({
       aria-orientation={axis === "col" ? "vertical" : "horizontal"}
       title="Drag to resize, double-click to reset"
       onPointerDown={(e) => {
-        // Left button only: a right-click here should open the browser menu,
-        // not start a resize nothing will finish.
+        // Left button only, so right-click still opens the browser menu.
         if (e.button !== 0) return
         e.preventDefault()
         e.stopPropagation()
@@ -540,10 +471,6 @@ interface CellRef {
   columnId: string
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Who owns a sheet
-// ─────────────────────────────────────────────────────────────────────────────
-
 /** Sentinel for "nobody" - Radix Select cannot hold an empty string value. */
 const UNASSIGNED = "__none__"
 
@@ -559,7 +486,6 @@ function PersonAvatar({ person, className }: { person: SheetAssignee; className?
   )
 }
 
-/** Avatar + first name, or a muted "Unassigned". */
 function AssigneeChip({ person }: { person: SheetAssignee | null }) {
   if (!person) return <span className="text-muted-foreground text-xs">No manager</span>
   return (
@@ -573,17 +499,7 @@ function AssigneeChip({ person }: { person: SheetAssignee | null }) {
   )
 }
 
-/**
- * The CALENDAR MANAGER: the one person supervising this month.
- *
- * A manager gets a picker over every active employee - the point is to be able
- * to hand a calendar to anyone in the company, not only to whoever happens to
- * be on this project's teams. Everyone else sees the same chip, read-only.
- *
- * One person, on purpose. The work itself is split across teams, and that split
- * lives in the team plan below; this is who answers for the whole of it, which
- * is a question with exactly one answer.
- */
+/** The calendar manager: one person answering for the month; managers can pick any active employee. */
 function WorkbookAssignee({
   projectId,
   workbook,
@@ -597,7 +513,6 @@ function WorkbookAssignee({
   onAssign: (employeeId: string | null) => void
   pending: boolean
 }) {
-  // Only fetched for someone who can actually act on it.
   const people = useAssignableEmployees(projectId, canStaff)
 
   if (!canStaff) {
@@ -614,9 +529,7 @@ function WorkbookAssignee({
       onValueChange={(v) => onAssign(v === UNASSIGNED ? null : v)}
       disabled={pending}
     >
-      {/* Custom trigger content instead of <SelectValue />: it has to show the
-          avatar, and it must keep working when the current owner has since
-          been deactivated and so is missing from the list below. */}
+      {/* Custom trigger content: shows the avatar, and still works if the owner was deactivated. */}
       <SelectTrigger
         className="hover:bg-foreground/5 h-8 w-auto gap-1.5 border-transparent bg-transparent px-2"
         title="Who manages this calendar"
@@ -661,16 +574,12 @@ export function ProjectSheetSection({
   projectId: string
   canManage: boolean
 }) {
-  // TWO reads, not one. The index names every calendar and every month of it,
-  // cheaply; the detail carries the open month's grid and team plan. They used
-  // to be one call that returned every row of every tab of every calendar -
-  // which a monthly calendar turns into twelve times that a year.
+  // Two reads: a cheap index of every calendar and month, and the open month's detail.
   const qc = useQueryClient()
   const { data: index, isLoading } = useWorkbookIndex(projectId)
   const { data: teams } = useProjectTeams(projectId)
   const m = useSheetMutations(projectId)
-  // Assigning follows the staffing rule, not the delete rule: a team manager
-  // owns the work, so they get to say who owns the sheet it lives in.
+  // Assigning follows the staffing rule, not the delete rule.
   const { data: session } = useSession()
   const me = session?.user?.id ?? null
   const projectTeams = React.useMemo(() => teams?.data ?? [], [teams])
@@ -679,27 +588,16 @@ export function ProjectSheetSection({
     [projectTeams, me],
   )
   const canStaff = canManage || managedTeamId !== null
-  /**
-   * The one team this person is ON, when there is exactly one.
-   *
-   * Used to emphasise their row in the plan and to let them hand work in
-   * against it. Only when it is unambiguous: somebody on no team, or a manager
-   * across several, gets catalogue order and no highlight, because moving the
-   * list about for them helps nobody.
-   */
+  /** The one team this person is on, only when unambiguous. */
   const myTeamId = React.useMemo(() => {
     if (!me) return null
     const mine = projectTeams.filter((t) => t.members.some((mm) => mm.employeeId === me))
     return mine.length === 1 ? mine[0]!.id : (managedTeamId ?? null)
   }, [projectTeams, me, managedTeamId])
 
-  // THREE levels now: the calendar (a name), the month of it, and the tab.
   const series = React.useMemo(() => groupIntoSeries(index ?? []), [index])
   const [seriesName, setSeriesName] = React.useState<string | null>(null)
-  /**
-   * The month the user has ASKED for, which is not always a month that exists.
-   * Null means "whatever this calendar opens on".
-   */
+  /** The month asked for, which may not exist; null = whatever this calendar opens on. */
   const [requestedMonth, setRequestedMonth] = React.useState<YearMonth | null>(null)
 
   const activeSeries = React.useMemo(
@@ -707,29 +605,15 @@ export function ProjectSheetSection({
     [series, seriesName],
   )
 
-  /**
-   * The edition on screen, derived rather than stored.
-   *
-   * Holding an id alongside the name and the month would let the three
-   * disagree the first time somebody picks a calendar and a month in one
-   * gesture. The fallbacks resolve here rather than in an effect, for the same
-   * reason the tab below does: an effect would fight the user's first click,
-   * and it would need a second render to do it.
-   */
+  /** Derived, not stored, so the name, month and id can't disagree. */
   const entry = React.useMemo<WorkbookIndexEntry | null>(() => {
     if (!activeSeries) return null
     const at = editionIndexForMonth(activeSeries, requestedMonth)
     if (at >= 0) return activeSeries.editions[at]!
-    // The requested month has no edition on this calendar - which happens the
-    // moment somebody switches calendars. Fall back to its newest, so picking
-    // a calendar never lands on nothing.
+    // The requested month has no edition here (e.g. after switching calendars): use the newest.
     return activeSeries.editions[0] ?? null
   }, [activeSeries, requestedMonth])
 
-  /**
-   * The month actually on screen. DERIVED from the edition, never stored
-   * beside it: the two can only disagree if both exist, so only one does.
-   */
   const month = React.useMemo(() => parseMonth(entry?.periodMonth), [entry])
 
   const { data: workbook, isLoading: bookLoading } = useWorkbook(projectId, entry?.id ?? null)
@@ -742,18 +626,11 @@ export function ProjectSheetSection({
 
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const [editing, setEditing] = React.useState<CellRef | null>(null)
-  /** The highlighted cell: a ROW POSITION and a column index. A sheet has a
-   *  cursor even when nothing is being typed. */
+  /** Row position + column index; a sheet has a cursor even when nothing is being typed. */
   const [selected, setSelected] = React.useState<{ r: number; c: number } | null>(null)
   const [draft, setDraft] = React.useState("")
 
-  /**
-   * Jump straight to an edition by id - what both pickers hand back.
-   *
-   * Declared here rather than beside the month state because it writes
-   * setActiveId, and a callback that reads a binding declared below it is a
-   * temporal-dead-zone error waiting for the first person to call it early.
-   */
+  /** Declared here, not beside the month state: it uses setActiveId, and reading a later binding is a TDZ error. */
   const openEdition = React.useCallback(
     (workbookId: string) => {
       const found = (index ?? []).find((w) => w.id === workbookId)
@@ -767,14 +644,7 @@ export function ProjectSheetSection({
   )
   // Committed-but-not-yet-refetched values, keyed "position:columnId".
   const [overrides, setOverrides] = React.useState<Record<string, CellValue>>({})
-  /**
-   * Sizes already committed but not yet echoed back by the server.
-   *
-   * saveLayout deliberately does not refetch - a refetch on every mouse-up
-   * would make the column jump as the server's copy lands. Without this the
-   * released column would snap straight back to its old width and the resize
-   * would look like it had failed.
-   */
+  /** Committed sizes not yet echoed back; saveLayout doesn't refetch, so without this a resize would snap back. */
   const [sizes, setSizes] = React.useState<{
     cols: Record<string, number>
     rows: Record<number, number>
@@ -786,13 +656,8 @@ export function ProjectSheetSection({
   )
   const [historyOpen, setHistoryOpen] = React.useState(false)
   const [importOpen, setImportOpen] = React.useState(false)
-  /** Which dialog sent us to the importer - see SheetImportDialog. */
   const [importIntent, setImportIntent] = React.useState<"new-tab" | "new-sheet" | undefined>()
-  /**
-   * Set when New month handed off to the importer to build a month from a file.
-   * The month is NOT created here - the importer creates it from the file, so
-   * backing out of the file picker leaves no empty October behind.
-   */
+  /** New month handed off to the importer, which creates the month itself - backing out leaves nothing behind. */
   const [monthUpload, setMonthUpload] = React.useState<{
     name: string
     periodMonth: string
@@ -800,8 +665,7 @@ export function ProjectSheetSection({
   } | null>(null)
   const [newTabOpen, setNewTabOpen] = React.useState(false)
   const [newTabName, setNewTabName] = React.useState("")
-  // Find in the open tab. `matchIdx` is unbounded and wrapped at use, so a
-  // changed query never needs an effect to reset it.
+  // `matchIdx` is unbounded and wrapped at use, so a new query needs no reset effect.
   const [search, setSearch] = React.useState("")
   const [matchIdx, setMatchIdx] = React.useState(0)
   const [confirm, setConfirm] = React.useState<{
@@ -809,25 +673,20 @@ export function ProjectSheetSection({
     id: string
     label: string
   } | null>(null)
-  /**
-   * The size being dragged right now.
-   *
-   * Kept apart from the server's copy so the grid follows the pointer at frame
-   * rate without a request per pixel. On mouse-up it is written once and this
-   * clears, and the server's value takes over.
-   */
+  /** The live drag, kept apart from the server copy; written once on mouse-up. */
   const [drag, setDrag] = React.useState<
     | { kind: "col"; columnId: string; startX: number; startW: number; w: number }
     | { kind: "row"; position: number; startY: number; startH: number; h: number }
     | null
   >(null)
 
-  // Fresh server data supersedes every local override. The cell being typed in
-  // keeps its own `draft`, so nothing mid-edit is lost.
-  React.useEffect(() => {
+  // Fresh server data supersedes local overrides; the cell being typed keeps its `draft`.
+  const [prevSheets, setPrevSheets] = React.useState(sheets)
+  if (sheets !== prevSheets) {
+    setPrevSheets(sheets)
     setOverrides({})
     setSizes({ cols: {}, rows: {} })
-  }, [sheets])
+  }
 
   const active = React.useMemo(
     () => sheets?.find((s) => s.id === activeId) ?? sheets?.[0] ?? null,
@@ -836,14 +695,7 @@ export function ProjectSheetSection({
 
   const columns = React.useMemo(() => active?.columns ?? [], [active])
 
-  /**
-   * The COMMITTED sizes - deliberately not the in-flight drag.
-   *
-   * Google Sheets does not reflow the grid while you drag; it paints a guide
-   * line and snaps once on release. Following the pointer here instead would
-   * relayout every column on every pointer move, and would make the guide line
-   * redundant.
-   */
+  /** Committed sizes, not the live drag: like Google Sheets, a guide line shows and the grid snaps on release. */
   const widthOf = (c: SheetColumn) => sizes.cols[c.id] ?? c.width ?? COL_W
 
   const heightOf = React.useCallback(
@@ -851,19 +703,13 @@ export function ProjectSheetSection({
     [active, sizes],
   )
 
-  // The live drag, mirrored into a ref so mouse-up can read the final size
-  // without reaching into a state updater.
+  // Mirrored into a ref so mouse-up reads the final size outside a state updater.
   const dragRef = React.useRef(drag)
   React.useEffect(() => {
     dragRef.current = drag
   }, [drag])
 
-  /**
-   * Finish a drag: write the size once, then clear.
-   *
-   * The final size comes from a ref rather than from inside a setState updater,
-   * because React may run an updater more than once and that would save twice.
-   */
+  /** Reads the final size from a ref: React may run an updater twice, which would save twice. */
   const endDrag = React.useCallback(() => {
     const d = dragRef.current
     if (d && active) {
@@ -879,9 +725,7 @@ export function ProjectSheetSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id])
 
-  // While a drag is live the WHOLE PAGE takes the resize cursor and stops
-  // selecting text - otherwise dragging paints a blue selection across every
-  // cell the pointer crosses.
+  // While dragging, the whole page takes the resize cursor and stops selecting text.
   React.useEffect(() => {
     if (!drag) return
     const prev = document.body.style.cursor
@@ -893,20 +737,13 @@ export function ProjectSheetSection({
     }
   }, [drag?.kind])
 
-  /**
-   * Row position -> the row that exists there.
-   *
-   * Most positions have no entry, and that is the point: the grid draws
-   * TOTAL_ROWS of them and only the typed-in ones are database rows. A missing
-   * entry is an empty row, not a missing one.
-   */
+  /** Most positions have no entry - only typed-in rows exist in the database. */
   const rowByPos = React.useMemo(() => {
     const map = new Map<number, SheetRow>()
     for (const r of active?.rows ?? []) map.set(r.position, r)
     return map
   }, [active])
 
-  /** Everyone on the project, for PERSON columns. */
   const people = React.useMemo(() => {
     const map = new Map<string, string>()
     for (const t of teams?.data ?? []) {
@@ -919,12 +756,7 @@ export function ProjectSheetSection({
     return map
   }, [teams])
 
-  // ── Windowing ──────────────────────────────────────────────────────────────
-  // A thousand rows by twenty-six columns is 26,000 cells. Rendering them all
-  // locks the tab, so only the visible band is in the DOM and two spacer rows
-  // stand in for the rest. The maths runs on each row's MEASURED height: a row
-  // grows past its stored height to fit wrapped text, and sizing the spacers
-  // from the stored 64px made scrolling repeat rows and leap ahead.
+  // Windowing: only the visible band is in the DOM, sized from each row's MEASURED height (rows grow to fit text).
   const scrollerRef = React.useRef<HTMLDivElement>(null)
   const [scroll, setScroll] = React.useState({ top: 0, left: 0, height: 640 })
 
@@ -938,20 +770,10 @@ export function ProjectSheetSection({
     return () => ro.disconnect()
   }, [active?.id])
 
-  /**
-   * How tall each row REALLY is on screen: its stored height, or what it grew
-   * to around wrapped text. heightOf stays the cells' minimum; this drives the
-   * windowing. See useMeasuredRowHeights.
-   */
+  /** Real on-screen row heights (stored, or grown around wrapped text); drives the windowing. */
   const extentOf = useMeasuredRowHeights(scrollerRef, heightOf, active?.id ?? "")
 
-  /**
-   * Cumulative y of every row: offsets[i] is where row i starts.
-   *
-   * Rows have their own heights now, so the visible band cannot be found by
-   * dividing. A thousand-entry prefix sum is cheap, recomputed only when the
-   * heights change, and it also gives the exact spacer sizes below.
-   */
+  /** offsets[i] is where row i starts (a prefix sum, since rows have their own heights). */
   const offsets = React.useMemo(() => {
     const out = new Array<number>(TOTAL_ROWS + 1)
     out[0] = 0
@@ -959,7 +781,6 @@ export function ProjectSheetSection({
     return out
   }, [extentOf])
 
-  /** First row whose bottom edge is past y. Binary search over the prefix sum. */
   const rowAt = React.useCallback(
     (y: number) => {
       let lo = 0
@@ -992,9 +813,7 @@ export function ProjectSheetSection({
     setEditing(null)
     if (!active) return
     void m.saveCells(active.id, pos, { [column.id]: raw })
-    // The row grew to fit the text while it was being typed. Persist that, or
-    // the value would be clipped the moment the editor closes and the row
-    // sprang back to its stored height.
+    // Persist the growth from typing, or the row would spring back when the editor closes.
     const grown = sizes.rows[pos]
     const stored = active.rowHeights?.[String(pos)] ?? ROW_H
     if (grown && grown > stored) {
@@ -1002,13 +821,7 @@ export function ProjectSheetSection({
     }
   }
 
-  /**
-   * Make room for what is being typed.
-   *
-   * Only ever grows, and only up to the ceiling. Shrinking as you delete would
-   * make the whole sheet jump around under the caret, and a row someone
-   * deliberately made tall must not be undone by an edit in one of its cells.
-   */
+  /** Only ever grows (up to the ceiling), so the sheet doesn't jump under the caret. */
   const growRow = React.useCallback((pos: number, px: number) => {
     const wanted = Math.min(MAX_ROW_H, Math.max(MIN_ROW_H, px))
     setSizes((s) => {
@@ -1021,12 +834,10 @@ export function ProjectSheetSection({
   const startEdit = (pos: number, column: SheetColumn, seed?: string) => {
     const v = cellValue(pos, column)
     setEditing({ pos, columnId: column.id })
-    // A seed is the character that started the edit: typing over a selected
-    // cell REPLACES it, exactly as it does in a spreadsheet.
+    // A seed (the key that started the edit) replaces the value, as in a spreadsheet.
     setDraft(seed !== undefined ? seed : v === null ? "" : String(v))
   }
 
-  /** Move the cursor, clamped. Also scrolls it back into view. */
   const move = (dr: number, dc: number) => {
     setSelected((sel) => {
       const cur = sel ?? { r: 0, c: 0 }
@@ -1038,8 +849,7 @@ export function ProjectSheetSection({
       if (el) {
         const top = offsets[next.r]!
         const bottom = offsets[next.r + 1]!
-        // +ROW_H for the sticky header, which would otherwise cover the cell
-        // the cursor just moved onto.
+        // +ROW_H for the sticky header, which would otherwise cover the cell.
         if (top < el.scrollTop + ROW_H) el.scrollTop = Math.max(0, top - ROW_H)
         else if (bottom > el.scrollTop + el.clientHeight)
           el.scrollTop = bottom + ROW_H - el.clientHeight
@@ -1048,10 +858,7 @@ export function ProjectSheetSection({
     })
   }
 
-  /**
-   * Find: every cell in the open tab whose text contains the query, in reading
-   * order. PERSON cells are matched on the name shown, not the id stored.
-   */
+  /** Cells matching the query, in reading order; PERSON cells match on the shown name. */
   const matches = React.useMemo(() => {
     const q = search.trim().toLowerCase()
     const out: { r: number; c: number }[] = []
@@ -1070,7 +877,6 @@ export function ProjectSheetSection({
   const safeMatchIdx = matches.length ? matchIdx % matches.length : 0
   const currentMatch = matches.length ? matches[safeMatchIdx]! : null
 
-  /** Step to the next/previous match: select it and scroll it into view. */
   const jumpToMatch = (dir: 1 | -1) => {
     if (matches.length === 0) return
     const next = (safeMatchIdx + dir + matches.length) % matches.length
@@ -1087,11 +893,7 @@ export function ProjectSheetSection({
     }
   }
 
-  /**
-   * The spreadsheet key map, handled on the grid rather than per cell so it
-   * works while a cell is merely SELECTED - which is most of the time, and the
-   * whole reason arrow keys feel right in a sheet.
-   */
+  /** Key map on the grid, not per cell, so it works on a merely selected cell. */
   const onGridKeyDown = (e: React.KeyboardEvent) => {
     if (editing || !selected) return
     const column = columns[selected.c]
@@ -1133,7 +935,6 @@ export function ProjectSheetSection({
 
   if (isLoading) return <Skeleton className="mt-4 h-72 rounded-sm" />
 
-  // ── No sheets yet ──────────────────────────────────────────────────────────
   if (!index || index.length === 0) {
     return (
       <div className="mt-4">
@@ -1168,10 +969,7 @@ export function ProjectSheetSection({
             )
           }
         />
-        {/* The importer creates the sheet itself when there is none (it falls
-            back to ALL-TABS into a new sheet), so it works from here - which
-            is the whole point: a project with nothing in it is exactly when
-            someone has a spreadsheet to bring in. */}
+        {/* The importer creates the sheet itself when there is none. */}
         <SheetImportDialog
           open={importOpen}
           onOpenChange={setImportOpen}
@@ -1184,19 +982,10 @@ export function ProjectSheetSection({
     )
   }
 
-  // The table MUST carry its own total width. With table-layout:fixed and an
-  // auto width, the browser sizes the table to its container and divides that
-  // between the columns, ignoring every <col> - which is why resizing appeared
-  // to do nothing at all: the width changed, and nothing read it.
+  // The table must carry its total width: with table-layout:fixed and auto width, <col> widths are ignored.
   const totalWidth = GUTTER_W + columns.reduce((sum, c) => sum + widthOf(c), 0)
 
-  /**
-   * Where the guide line is drawn, relative to the scroller.
-   *
-   * Derived from the column/row being dragged plus the size the pointer has
-   * asked for, minus how far the grid is scrolled - so the line tracks the
-   * pointer even when the grid is scrolled away from the origin.
-   */
+  /** Guide line position, minus the scroll offset so it tracks the pointer. */
   const guideLeft =
     drag?.kind === "col"
       ? GUTTER_W +
@@ -1208,11 +997,7 @@ export function ProjectSheetSection({
   const guideTop =
     drag?.kind === "row" ? offsets[drag.position]! + drag.h - scroll.top + HEADER_H : 0
 
-  /**
-   * Double-click on a column edge fits it to its widest value, which is what
-   * Google Sheets does there. Measured off the rendered cells rather than
-   * guessed from character counts, so it is right for any font.
-   */
+  /** Double-click fits the column to its widest rendered value, like Google Sheets. */
   const autofitColumn = (c: SheetColumn, ci: number) => {
     if (!active) return
     const scroller = scrollerRef.current
@@ -1221,7 +1006,6 @@ export function ProjectSheetSection({
     scroller.querySelectorAll<HTMLElement>(`[data-col="${c.id}"] [data-measure]`).forEach((el) => {
       widest = Math.max(widest, el.scrollWidth)
     })
-    // Padding either side, plus a floor so an empty column stays usable.
     const next = Math.min(MAX_COL_W, Math.max(MIN_COL_W, widest + 24))
     setSizes((s) => ({ ...s, cols: { ...s.cols, [c.id]: next } }))
     void m.saveLayout(active.id, { columnWidth: { columnId: c.id, width: next } })
@@ -1232,18 +1016,12 @@ export function ProjectSheetSection({
 
   return (
     <div className="mt-4 space-y-3">
-      {/* Level 1: WHICH calendar, and WHICH month of it. Two controls, because
-          they are two questions - the name used to carry the month
-          ("…(H2S-Sept)") and that is what this replaces. */}
       <div className="border-border flex flex-wrap items-center gap-1 border-b pb-2">
         <CalendarNamePicker
           series={series}
           activeName={activeSeries?.name ?? null}
           onPick={(name) => {
-            // The month is deliberately KEPT: somebody comparing September
-            // across two calendars must not be thrown to December. When the
-            // calendar being opened has no edition for that month, `entry`
-            // falls back to that calendar's newest on its own.
+            // Keep the month when switching calendars; `entry` falls back to the newest if it doesn't exist.
             setSeriesName(name)
             setActiveId(null)
           }}
@@ -1272,9 +1050,7 @@ export function ProjectSheetSection({
                   m.assignWorkbook.mutate({ workbookId: workbook.id, employeeId })
                 }
               />
-              {/* Managers only, unlike renaming beside it: this is the one
-                  control here that decides whether an OUTSIDE party can read
-                  and write the sheet. */}
+              {/* Managers only: this decides whether an outside party can read and write the sheet. */}
               {canManage && (
                 <Button
                   variant={workbook.isClientVisible ? "secondary" : "ghost"}
@@ -1333,9 +1109,6 @@ export function ProjectSheetSection({
         </div>
       </div>
 
-      {/* Level 1b: what each team owes THIS month. Read-only here on purpose -
-          the editor is a side panel, so six teams of form fields never push
-          the spreadsheet below the fold. */}
       {workbook && (
         <TeamPlanStrip
           teams={workbook.teams}
@@ -1349,8 +1122,6 @@ export function ProjectSheetSection({
         />
       )}
 
-      {/* Level 2: the tabs of the open sheet, the way a workbook shows its
-          tabs - plus find, which searches the open tab. */}
       <div className="flex items-center gap-1">
         <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
           {(sheets ?? []).map((s) => (
@@ -1439,33 +1210,18 @@ export function ProjectSheetSection({
         </div>
       </div>
 
-      {/* Stepping to another month fetches a different grid. Showing a
-          skeleton rather than leaving September's rows on screen matters more
-          here than it would for a plain refetch: the toolbar already says
-          October, and a grid that still holds September under an October label
-          is a screen that is lying. */}
+      {/* A skeleton while the next month loads, so the old grid never sits under the new label. */}
       {bookLoading && !active && <Skeleton className="h-72 rounded-sm" />}
 
       {active && (
-        /* The grid.
-         *
-         * Real spreadsheet chrome: a frozen header of column letters, a frozen
-         * gutter of row numbers, hairline rules, and a cursor driven by the
-         * arrow keys. A <table> underneath, because the browser already solves
-         * column alignment; everything visual is here.
-         *
-         * tabIndex makes the grid focusable, which is what lets the key map work
-         * on a SELECTED cell rather than only on one being edited. */
+        /* tabIndex makes the grid focusable, so the key map works on a selected cell. */
         <div className="relative">
           <div
             ref={scrollerRef}
             tabIndex={0}
             onKeyDown={onGridKeyDown}
             onScroll={(e) => {
-              // Read the value NOW, not inside the updater. React nulls a
-              // synthetic event's currentTarget once the handler returns, and a
-              // functional setState runs after that - so touching e in there
-              // throws on every scroll.
+              // Read now: React nulls currentTarget once the handler returns, before the updater runs.
               const top = e.currentTarget.scrollTop
               const left = e.currentTarget.scrollLeft
               setScroll((s) => ({ ...s, top, left }))
@@ -1485,19 +1241,13 @@ export function ProjectSheetSection({
 
               <thead>
                 <tr>
-                  {/* Sticky on BOTH axes so the corner stays put when the grid is
-                    scrolled diagonally. Backgrounds here are deliberately
-                    OPAQUE: a translucent header lets row 1 show through it as
-                    it scrolls under, which reads as the header being broken. */}
+                  {/* Sticky on both axes; opaque so row 1 doesn't show through as it scrolls under. */}
                   <th
                     className="bg-muted border-border sticky top-0 left-0 z-30 border-r border-b"
                     style={{ height: HEADER_H }}
                   />
                   {columns.map((c, ci) => {
-                    // A column still called by its letter is UNNAMED - show just
-                    // the letter, as a spreadsheet does. Once it is renamed, the
-                    // name leads and the letter stays as the small reference
-                    // people say out loud ("what's in C4?").
+                    // A column still named by its letter is unnamed: show just the letter.
                     const unnamed = c.name === columnLetter(ci)
                     return (
                       <th
@@ -1508,10 +1258,6 @@ export function ProjectSheetSection({
                         )}
                         style={{ height: HEADER_H }}
                       >
-                        {/* NORMAL FLOW, no absolute positioning: a table cell is
-                          not a dependable containing block, so an absolutely
-                          positioned grip landed somewhere other than its own
-                          header. A flex child cannot miss. */}
                         <div className="flex w-full items-stretch" style={{ height: HEADER_H }}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -1594,8 +1340,6 @@ export function ProjectSheetSection({
               </thead>
 
               <tbody>
-                {/* Spacers stand in for the rows above and below the window, so
-                  the scrollbar reflects all thousand rows. */}
                 {topPad > 0 && (
                   <tr aria-hidden>
                     <td colSpan={columns.length + 1} style={{ height: topPad, padding: 0 }} />
@@ -1615,9 +1359,6 @@ export function ProjectSheetSection({
                       >
                         <div className="flex w-full flex-col" style={{ height: heightOf(pos) }}>
                           <span className="text-muted-foreground flex min-h-0 flex-1 items-start justify-center gap-1 pt-1 text-[11px] tabular-nums">
-                            {/* The bin only appears where a row actually exists -
-                            there is nothing to delete on a row nobody has
-                            typed into yet. */}
                             <span className={cn(canManage && row && "group-hover:hidden")}>
                               {pos + 1}
                             </span>
@@ -1681,10 +1422,8 @@ export function ProjectSheetSection({
                             onDoubleClick={() => !LIVE_TYPES.has(c.type) && startEdit(pos, c)}
                             className={cn(
                               "border-border relative border-r border-b p-0 align-middle",
-                              // The cursor sits ON TOP of its neighbours, or the
-                              // ring is clipped by the next cell's rule.
+                              // Raised so the next cell's rule doesn't clip the ring.
                               isSelected && !isEditing && "ring-primary z-10 ring-2",
-                              // The find box's current hit, when the cursor is elsewhere.
                               isMatch && !isSelected && "z-10 ring-2 ring-amber-400",
                               isEditing && "z-20",
                             )}
@@ -1728,9 +1467,6 @@ export function ProjectSheetSection({
             </table>
           </div>
 
-          {/* The guide. Sheets shows where the edge will land rather than
-            reflowing 27 columns on every pointer move, and the grid snaps to it
-            once on release. */}
           {drag && (
             <div
               aria-hidden
@@ -1750,7 +1486,6 @@ export function ProjectSheetSection({
         </div>
       )}
 
-      {/* Dialogs */}
       <NewSheetDialog
         kind="sheet"
         open={newSheetOpen}
@@ -1767,8 +1502,7 @@ export function ProjectSheetSection({
           m.createWorkbook.mutate(
             {
               name: newSheetName,
-              // Born in THIS month, so the very first calendar is dated and
-              // the stepper works from the moment it exists.
+              // Dated from birth, so the month stepper works immediately.
               periodMonth: monthISO(currentMonth().year, currentMonth().month0),
             },
             {
@@ -1829,8 +1563,7 @@ export function ProjectSheetSection({
       />
 
       <SheetImportDialog
-        // A month-upload has no active tab of its own yet - the month it is
-        // about to fill does not exist until the file is read.
+        // A month-upload has no active tab yet - its month doesn't exist until the file is read.
         open={importOpen && (importIntent === "new-sheet" || !!monthUpload || !!active)}
         onOpenChange={(o) => {
           setImportOpen(o)
@@ -1866,8 +1599,7 @@ export function ProjectSheetSection({
             m.saveTeamPlan.mutate({ workbookId: workbook.id, teamId, ...rest })
           }
           onRemove={(teamId) => m.removeTeamPlan.mutate({ workbookId: workbook.id, teamId })}
-          // An upload writes a ProjectResource, not a workbook field, so the
-          // usual mutation invalidation never fires for it.
+          // An upload writes a ProjectResource, so the usual mutation invalidation doesn't fire.
           onFilesChanged={() =>
             void qc.invalidateQueries({ queryKey: ["project-workbook", projectId] })
           }
@@ -1887,8 +1619,6 @@ export function ProjectSheetSection({
             },
           })
         }
-        // Hand straight over to the importer, which creates the month from the
-        // file it is given. Nothing is created on the way.
         onUpload={(input) => {
           setNewMonthOpen(false)
           setImportIntent(undefined)
@@ -1953,8 +1683,7 @@ export function ProjectSheetSection({
           if (confirm.kind === "workbook") {
             m.deleteWorkbook.mutate(confirm.id, {
               onSuccess: () => {
-                // Back to whatever edition of this calendar is left, or to the
-                // first calendar there is - the month that was open is gone.
+                // The open month is gone: back to what's left of this calendar, or the first calendar.
                 setRequestedMonth(null)
                 setActiveId(null)
               },
@@ -1973,7 +1702,6 @@ export function ProjectSheetSection({
   )
 }
 
-/** Names a new sheet (a workbook of tabs) or a new tab inside the open one. */
 function NewSheetDialog({
   kind,
   open,
@@ -1991,7 +1719,6 @@ function NewSheetDialog({
   pending: boolean
   onCancel: () => void
   onCreate: () => void
-  /** Offered when the tab can come from a file instead of starting empty. */
   onUpload?: () => void
 }) {
   return (
@@ -2019,9 +1746,6 @@ function NewSheetDialog({
           />
         </div>
         <DialogFooter className={onUpload ? "sm:justify-between" : undefined}>
-          {/* The file route, where somebody who already HAS the sheet is
-              standing - not behind an Import button at the other end of the
-              toolbar, which is what they have to find today. */}
           {onUpload && (
             <Button variant="ghost" className="text-muted-foreground gap-1.5" onClick={onUpload}>
               <Upload className="h-3.5 w-3.5" /> Upload a sheet instead
@@ -2041,24 +1765,7 @@ function NewSheetDialog({
   )
 }
 
-/**
- * One cell.
- *
- * SELECT, PERSON and CHECKBOX are always live controls: picking a value IS the
- * commit, so making people click once to focus and again to choose would be a
- * step with nothing in it. Everything else shows its value until clicked.
- */
-/**
- * Grows the row to fit what is being typed.
- *
- * A textarea that scrolls inside a fixed cell hides the top of your own
- * sentence while you write it, which is the one thing a text cell must never
- * do. Measuring scrollHeight after each keystroke and asking the row to match
- * means the sheet opens up under the caret instead.
- *
- * useLayoutEffect, not useEffect: the measurement has to happen before the
- * browser paints, or the row visibly lags a character behind the text.
- */
+/** Grows the row to fit typed text; a layout effect so it measures before paint. */
 function useAutoGrow(
   ref: React.RefObject<HTMLTextAreaElement | null>,
   value: string,
@@ -2068,8 +1775,7 @@ function useAutoGrow(
   React.useLayoutEffect(() => {
     const el = ref.current
     if (!el || !active) return
-    // Collapse first: scrollHeight never shrinks on its own, so without this
-    // the row could only ever get taller, never recover from a deletion.
+    // Collapse first: scrollHeight never shrinks on its own.
     el.style.height = "0px"
     const needed = el.scrollHeight
     el.style.height = "100%"
@@ -2093,16 +1799,13 @@ function CellEditor({
   column: SheetColumn
   value: CellValue
   people: Map<string, string>
-  /** The find query - its hits are highlighted in the displayed value. */
   highlight?: string
   isEditing: boolean
   draft: string
   setDraft: (v: string) => void
   onCommit: (v: CellValue) => void
   onCancel: () => void
-  /** Commit, then step the cursor - Enter goes down, Tab goes right. */
   onCommitAndMove: (v: CellValue, dr: number, dc: number) => void
-  /** How tall this cell's content needs the row to be, as it is typed. */
   onGrow: (px: number) => void
 }) {
   const areaRef = React.useRef<HTMLTextAreaElement>(null)
@@ -2126,8 +1829,7 @@ function CellEditor({
       column.type === "SELECT"
         ? column.options.map((o) => ({ value: o, label: o }))
         : [...people.entries()].map(([id, label]) => ({ value: id, label }))
-    // A SELECT with no choices yet would render an unopenable dropdown, which
-    // reads as broken rather than as unconfigured.
+    // A SELECT with no choices would be an unopenable dropdown.
     if (choices.length === 0) {
       return (
         <span className="text-muted-foreground/50 flex h-full items-center px-2 text-[11px]">
@@ -2159,10 +1861,6 @@ function CellEditor({
 
   if (!isEditing) {
     return (
-      /* Wraps and clips to the ROW's height, which is what a spreadsheet does:
-         the whole value is stored, you see as much of it as the row is tall,
-         and dragging the row taller shows more. Top-aligned so the first line
-         is always the one you see. */
       <div
         data-measure
         className="h-full overflow-hidden px-2 py-1 leading-snug break-words whitespace-pre-wrap"
@@ -2181,28 +1879,20 @@ function CellEditor({
       return
     }
     if (e.key === "Tab") {
-      // Commit and step sideways, which is how a row gets filled in quickly.
       e.preventDefault()
       onCommitAndMove(value_(), 0, e.shiftKey ? -1 : 1)
       return
     }
-    // Enter commits everywhere EXCEPT a long-text cell, where a newline is the
-    // whole reason that type exists. There, Ctrl/Cmd+Enter commits.
+    // Enter commits, except in LONG_TEXT where Ctrl/Cmd+Enter does.
     if (e.key === "Enter" && (column.type !== "LONG_TEXT" || e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       onCommitAndMove(value_(), 1, 0)
     }
   }
 
-  // Every free-text type edits in a TEXTAREA, not just LONG_TEXT. A single-line
-  // input scrolls sideways as you type and only appears to wrap once the value
-  // is committed and re-rendered - which is exactly the "it wraps afterwards"
-  // problem. A textarea wraps under the caret.
+  // All free-text types edit in a textarea, so text wraps under the caret.
   if (column.type === "TEXT" || column.type === "LONG_TEXT" || column.type === "URL") {
     return (
-      /* Fills the cell rather than floating over its neighbours: rows are
-         draggable now, so the answer to "I cannot see what I am typing" is a
-         taller row, not a popover that hides the rest of the sheet. */
       <Textarea
         ref={areaRef}
         wrap="soft"
@@ -2211,9 +1901,7 @@ function CellEditor({
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commitDraft}
         onKeyDown={keys}
-        // overflow-hidden, not auto: the ROW grows to fit, so an inner
-        // scrollbar would only ever appear at the 400px ceiling - and one that
-        // shows up unpredictably is worse than one that never does.
+        // overflow-hidden: the row grows to fit, so an inner scrollbar would only appear at the ceiling.
         className="ring-primary h-full min-h-0 w-full resize-none overflow-hidden rounded-none border-0 px-2 py-1 text-[13px] leading-snug shadow-none ring-2 focus-visible:ring-2"
       />
     )

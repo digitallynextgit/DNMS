@@ -13,23 +13,8 @@ import {
 import { MAX_VIDEO_SIZE } from "@/lib/constants"
 import { siteConfig } from "@/lib/site"
 
-// =============================================================================
-// Where a content-plan asset is stored, and who can see it.
-//
-// Images and documents keep going to Backblaze behind short-lived signed urls -
-// that is unchanged and is the right default, because those assets are client
-// work product that only portal users should reach.
-//
-// VIDEO is different on both counts. It is too big for the 20 MB portal cap, and
-// the point of a finished video is usually to send it to someone who has no
-// login here - which a signed url that expires in an hour cannot do. So video
-// goes to the project's Drive folder and is published as "anyone with the link".
-//
-// This lives in lib/ rather than inside a feature because BOTH the client portal
-// and the staff resources route upload against the same deliverables and must
-// apply the same rule. Keeping one copy is the whole point: a second, subtly
-// different rule on one side is how an asset ends up public that should not be.
-// =============================================================================
+// Images and documents go to Backblaze behind signed URLs. Video is too big for that and is meant
+// for outsiders, so it goes to the project's Drive folder. Shared by the portal and staff routes.
 
 /** Ensure the project's folder exists (named "<code> · <name>") and return it. */
 export async function ensureProjectDriveFolder(projectId: string): Promise<DriveFile> {
@@ -46,26 +31,17 @@ export interface VideoUploadResult {
   fileName: string
   fileSize: number
   mimeType: string
-  /** Drive's own viewer URL. Internal: an outsider opening it hits a permission wall. */
+  /** Internal only: outsiders hit a permission wall. */
   webViewLink: string | null
   /** The secret behind the public share route. Store it; never log it. */
   shareToken: string
 }
 
-/**
- * A fresh share token.
- *
- * 24 random bytes - 192 bits, base64url so it survives a URL untouched. The
- * token IS the credential, and the route it guards has no second factor and no
- * sign-in, so it has to be wide enough that guessing is not a strategy. A uuid
- * would have done, but a uuid LOOKS like an id and invites being logged or
- * pasted into a ticket the way our other ids are.
- */
+/** 192 random bits, base64url. The token is the only credential for the public route. */
 export function newShareToken(): string {
   return randomBytes(24).toString("base64url")
 }
 
-/** The public URL a token resolves to. The one place this shape is written. */
 export function shareUrlFor(token: string): string {
   return `${siteConfig.url.replace(/\/$/, "")}/api/public/share/${token}`
 }
@@ -82,13 +58,8 @@ export class VideoUploadError extends Error {
 }
 
 /**
- * Put a video in the project's Drive folder and mint its share token.
- *
- * The file itself stays PRIVATE in Drive. Sharing is this app's job: the token
- * returned here is what /api/public/share/<token> exchanges for a stream, which
- * is both what this Workspace allows (it refuses public Drive files outright)
- * and the narrower grant - one video, revocable, rather than a permission handed
- * to the whole internet that we cannot take back.
+ * The Drive file stays private; /api/public/share/<token> streams it. The Workspace refuses public
+ * files, and a token is revocable.
  */
 export async function uploadVideoAsset(projectId: string, file: File): Promise<VideoUploadResult> {
   if (!(await isDriveConfigured())) {
@@ -125,13 +96,7 @@ export async function uploadVideoAsset(projectId: string, file: File): Promise<V
   }
 }
 
-/**
- * Un-publish and trash a Drive-hosted asset.
- *
- * Order matters: revoke first. Trashing alone does NOT stop Drive serving the
- * URL to everyone who already saved it, so dropping our row without revoking
- * would leave a public video behind with nothing in this app pointing at it.
- */
+/** Revoke first: trashing alone doesn't stop Drive serving the URL to people who saved it. */
 export async function deleteVideoAsset(driveFileId: string): Promise<void> {
   await revokeAnyoneAccess(driveFileId).catch(() => {})
   await trashDriveFile(driveFileId)

@@ -5,28 +5,20 @@ import { cn } from "@/lib/utils"
 interface StatusBadgeProps {
   /** Optional leading glyph (e.g. CheckCircle2 for a "Configured" pill). */
   icon?: React.ElementType
-  /** The raw status/enum value, e.g. "APPROVED". */
   status: string
-  /** Map of value -> Tailwind color classes (e.g. LEAVE_STATUS_COLORS from lib/constants). */
+  /** e.g. LEAVE_STATUS_COLORS from lib/constants. */
   colorMap: Record<string, string>
-  /** Optional map of value -> human label (e.g. LEAVE_STATUS_LABELS). Falls back to the raw value. */
+  /** e.g. LEAVE_STATUS_LABELS; falls back to the raw value. */
   labelMap?: Record<string, string>
-  /** Override the displayed text (wins over labelMap/status). */
+  /** Wins over labelMap / status. */
   label?: string
-  /** "sm"/"xs" = the classic pill. "button" = a squared chip the same height
-   *  (36px) and radius as a Button, for sitting in a row of buttons. */
+  /** "button" = a squared chip with a Button's height (36px) and radius. */
   size?: "sm" | "xs" | "button"
   /** Classes used when `status` is not in `colorMap`. */
   fallbackColor?: string
   className?: string
 }
 
-/**
- * One pill renderer for every status/badge in the app. Pass a color map (and
- * usually a label map) from `lib/constants.ts` - e.g.
- *   <StatusBadge status={req.status} colorMap={LEAVE_STATUS_COLORS} labelMap={LEAVE_STATUS_LABELS} />
- * Replaces the ~55 hand-copied `<span className="… rounded-[2px] …">` pills.
- */
 export function StatusBadge({
   status,
   colorMap,

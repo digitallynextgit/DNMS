@@ -7,7 +7,6 @@ import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
 
-// Overview (all employees) is HR/admin-only. Employees use /attendance/me instead.
 export const GET = withAuth(
   PERMISSIONS.ATTENDANCE_WRITE,
   async (req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
@@ -91,8 +90,7 @@ export const POST = withAuth(
         }
       }
 
-      // If the caller doesn't pass an explicit status, derive it from hours worked
-      // (half-day / absent rules). Late-mark detection is not applied yet.
+      // No explicit status: derive it from hours worked (no late-mark yet).
       const resolvedStatus =
         status ??
         computeAttendanceStatus({ checkIn: checkIn ? new Date(checkIn) : null, workHours })
@@ -104,8 +102,7 @@ export const POST = withAuth(
             date: dateObj,
           },
         },
-        // A hand-entered row pins exactly the values HR supplied; anything left
-        // blank stays free for the device sync to fill in later.
+        // A hand-entered row pins only the values HR supplied; blanks stay free for the device sync.
         create: {
           employeeId,
           date: dateObj,

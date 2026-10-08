@@ -7,13 +7,8 @@ import type { Session } from "next-auth"
 
 const STATUSES: RequirementStatus[] = ["OPEN", "IN_PROGRESS", "PROVIDED", "REJECTED", "CLOSED"]
 
-// PATCH /api/projects/[id]/requirements/[requirementId]
-//
-// Who may move it:
-//   • the person it is requested from - they are the one doing the providing,
-//   • the raiser - they can close or cancel their own ask,
-//   • a project admin / Account Manager.
-// A rejection must say why, otherwise the raiser is left guessing.
+// May move it: the person it's requested from, the raiser, or a project admin / Account Manager.
+// A rejection must give a reason.
 export const PATCH = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -70,8 +65,7 @@ export const PATCH = withProjectAccess(
   },
 )
 
-// DELETE - the raiser withdrawing something they should not have asked for, or an
-// admin clearing a duplicate. Linked tasks are unblocked by the SET NULL FK.
+// Linked tasks are unblocked by the SET NULL FK.
 export const DELETE = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {

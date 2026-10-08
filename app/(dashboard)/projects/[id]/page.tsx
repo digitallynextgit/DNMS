@@ -14,9 +14,8 @@ import { InfoRow } from "@/components/shared/info-row"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
-// Concrete modules, never the feature barrel: a static barrel import lands the
-// WHOLE feature in this page's eager chunk, which silently defeats every
-// dynamic() below (they would resolve to already-loaded code).
+// Concrete modules, never the feature barrel: a static barrel import would put the whole
+// feature in this page's eager chunk and defeat every dynamic() below.
 import {
   useProject,
   useProjectTeams,
@@ -63,9 +62,7 @@ import {
   type ProjectTabItem,
 } from "@/features/projects/components/project-tabs-bar"
 
-// The 7 tab bodies are ~4,000 lines combined, but Radix only RENDERS the active
-// one - so statically importing them made every visit download and parse all of
-// them up front. Each now loads on first activation.
+// Radix renders only the active tab, so each tab body loads on first activation.
 const tabFallback = () => <Skeleton className="mt-4 h-64 rounded-sm" />
 const BrandTab = dynamic(
   () => import("@/features/projects/components/brand-tab").then((m) => m.BrandTab),
@@ -73,8 +70,6 @@ const BrandTab = dynamic(
     loading: tabFallback,
   },
 )
-// The content calendar used to sit inside Brand behind a Strategy/Calendar
-// toggle; it is a tab of its own now so both are one click from the bar.
 const ContentCalendarTab = dynamic(
   () => import("@/features/projects/components/project-sheet").then((m) => m.ProjectSheetSection),
   {
@@ -93,11 +88,7 @@ const InsightsTab = dynamic(
     loading: tabFallback,
   },
 )
-// Concrete modules, never the feature barrel (the rule at the top of this
-// block): `import("@/features/projects")` put the ENTIRE barrel - 48 exports,
-// every recharts consumer included - into the "lazy" chunk, and since
-// GoalsOverviewCard renders on the default Overview tab, the whole feature
-// downloaded on first view, silently undoing every dynamic() around it.
+// Concrete module, not the barrel (see the top of the imports).
 const GoalsTab = dynamic(
   () => import("@/features/projects/components/goals-tab").then((m) => m.GoalsTab),
   { loading: tabFallback },
@@ -106,8 +97,7 @@ const DeliverablesTab = dynamic(
   () => import("@/features/projects/components/deliverables-tab").then((m) => m.DeliverablesTab),
   { loading: tabFallback },
 )
-// On Overview, but dynamic all the same: it pulls in recharts, which is far too
-// heavy to sit in this page's eager chunk for the sake of one donut.
+// Dynamic even on Overview: it pulls in recharts, too heavy for the eager chunk.
 const GoalsOverviewCard = dynamic(
   () =>
     import("@/features/projects/components/goals-overview-card").then((m) => m.GoalsOverviewCard),
@@ -116,7 +106,6 @@ const GoalsOverviewCard = dynamic(
 const SeoTab = dynamic(() => import("@/features/seo/components/seo-tab").then((m) => m.SeoTab), {
   loading: tabFallback,
 })
-// Small enough to render inline on Overview; self-hides when there are no sites.
 const ProjectSitesCard = dynamic(
   () => import("@/features/seo/components/project-sites-card").then((m) => m.ProjectSitesCard),
   { loading: () => null },
@@ -164,14 +153,7 @@ const ProjectMonitoringTab = dynamic(
   { loading: tabFallback },
 )
 
-/**
- * Every valid ?tab= value.
- *
- * This is the URL whitelist AND the type the tab bar is checked against, so a
- * tab rendered without an entry here is a compile error rather than a tab that
- * silently bounces the user back to Overview. It did exactly that when "goals"
- * was added to the bar and not to this list.
- */
+/** Every valid ?tab= value. The tab bar is typed against it, so a tab missing here fails the build. */
 const PROJECT_TABS = [
   "overview",
   "brand",
@@ -193,8 +175,7 @@ const PROJECT_TABS = [
 
 export default function ProjectDetailPage() {
   const params = useParams()
-  // What the URL carries: a slug ("rudione-leocym") for anything created or
-  // linked since slugs landed, a uuid for older links. See `projectRef` below.
+  // A slug for newer links, a uuid for older ones. See projectRef below.
   const slugOrId = params.id as string
   const router = useRouter()
   const pathname = usePathname()
@@ -204,13 +185,9 @@ export default function ProjectDetailPage() {
 
   const userId = session?.user?.id ?? ""
 
-  // Keep the active tab in the URL so a reload (or a shared/deep link) lands on
-  // the same tab instead of snapping back to Overview.
-  // "drive" is what this tab was called until it became Repository; links and
-  // bookmarks made under the old name still land on it.
+  // The tab lives in the URL so a reload or shared link lands on the same tab.
   const rawTab = searchParams.get("tab")
-  // Two tabs that moved. "drive" was renamed Repository; "integration" became
-  // the Connections dialog inside Insights, which is where its links now land.
+  // Renamed tabs: "drive" is now Repository; "integration" is the Connections dialog in Insights.
   const tabParam =
     rawTab === "drive" ? "repository" : rawTab === "integration" ? "insights" : rawTab
   const activeTab = PROJECT_TABS.includes(tabParam as (typeof PROJECT_TABS)[number])
@@ -223,26 +200,12 @@ export default function ProjectDetailPage() {
   }
 
   /**
-   * The project reference every request URL and cache key on this page is built
-   * from: the RAW URL segment, i.e. the slug for anything created or linked
-   * since slugs landed, a uuid for older links.
-   *
-   * Every /api/projects/[id]/* route resolves either form - the project guards
-   * (withProjectAccess / withProjectManager / withTeamStaffing) always did, and
-   * the handful behind plain withSession/withAuth now call resolveProjectId
-   * themselves - so the readable form is safe end to end.
-   *
-   * Deliberately the URL segment rather than `project.slug`: it is known before
-   * the project has loaded, so the header hooks below fetch in parallel instead
-   * of waiting on it, and it never changes mid-session. That last part is what
-   * keeps the header and the tabs on ONE cache entry - keyed differently they
-   * would drift, and the header counts would go stale the moment a tab
-   * invalidated its own copy.
+   * The RAW URL segment (slug or uuid) - every /api/projects/[id]/* route resolves either form.
+   * Not project.slug: it's known before the project loads, so the header and tabs fetch in
+   * parallel and share ONE cache entry.
    */
   const projectRef = slugOrId
 
-  // GET /api/projects/[id] is behind `withProjectAccess`, which resolves a slug
-  // or an id.
   const { data, isLoading } = useProject(projectRef)
   const project = data?.data
 
@@ -257,16 +220,12 @@ export default function ProjectDetailPage() {
     (r) => r.status === "OPEN" || r.status === "IN_PROGRESS",
   ).length
 
-  // Admins/PMs with project:write can manage any project; the project's ACCOUNT
-  // MANAGER (owner) can fully manage their own project too.
+  // project:write holders manage any project; the account manager (owner) manages their own.
   const canManage = can(PERMISSIONS.PROJECT_WRITE) || (!!project && project.owner.id === userId)
 
   /**
-   * A bookmarked ?tab=passwords, opened by somebody who may not see it.
-   *
-   * Only meaningful once the project has LOADED: canManage is false while the
-   * fetch is in flight, and acting on that would throw the account manager off
-   * their own bookmark half a second before it became true.
+   * A ?tab=passwords bookmark for someone who may not see it. Judged only once the project has
+   * LOADED - canManage is false mid-fetch and would bounce the account manager off their own.
    */
   const shownTab =
     Boolean(project) && !canManage && activeTab === "passwords" ? "overview" : activeTab
@@ -276,7 +235,6 @@ export default function ProjectDetailPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        {/* Header: logo + name/code + status/priority + Edit */}
         <div className="space-y-4 py-4">
           <Skeleton className="h-3 w-28 rounded-sm" />
           <div className="flex items-center justify-between gap-4">
@@ -294,15 +252,12 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         </div>
-        {/* Tab bar */}
         <div className="flex flex-wrap items-center gap-2 border-b pb-2">
           {Array.from({ length: 8 }).map((_, i) => (
             <Skeleton key={i} className="h-8 w-24 rounded-sm" />
           ))}
         </div>
-        {/* Overview stat strip */}
         <Skeleton className="h-16 w-full rounded-sm" />
-        {/* Overview body */}
         <Skeleton className="h-40 w-full rounded-sm" />
         <Skeleton className="h-64 w-full rounded-sm" />
       </div>
@@ -339,7 +294,6 @@ export default function ProjectDetailPage() {
             <span className="bg-muted/50 text-muted-foreground shrink-0 rounded-sm border px-2 py-0.5 font-mono text-xs">
               {project.code}
             </span>
-            {/* Who it is for, one click from the client's page. */}
             {project.client && (
               <Link
                 href={clientHref(project.client)}
@@ -351,11 +305,7 @@ export default function ProjectDetailPage() {
             )}
           </>
         }
-        /* The description is NOT passed here: PageHeader's subtitle truncates to one
-           line, but a project description is a full paragraph, so it is rendered in
-           full below the header instead. */
-        /* Phase + status + priority are sized to match the Edit button: same
-           height, same corner radius, so the row reads as one control group. */
+        /* No description here: the subtitle truncates to one line, so it's shown in full below. */
         actions={
           <>
             {project.stage && (
@@ -395,9 +345,7 @@ export default function ProjectDetailPage() {
       )}
 
       <Tabs value={shownTab} onValueChange={handleTabChange}>
-        {/* Tabs are DATA now, not markup: ProjectTabsBar measures them to decide
-            where the bar runs out of room, and renders whatever doesn't fit on a
-            second strip. Order here is the order on screen. */}
+        {/* Tabs are data: ProjectTabsBar measures them and moves what doesn't fit to a second strip. */}
         <ProjectTabsBar
           items={
             [
@@ -425,21 +373,14 @@ export default function ProjectDetailPage() {
                 badge: unreadMessages,
               },
               { value: "activity", label: "Activity", icon: Activity },
-              // A client's live logins: Account Manager and project admins only,
-              // matching the guard on every /passwords route. Spread rather than a
-              // falsy entry because the bar takes a plain array.
+              // Account Manager and project admins only, matching the guard on every /passwords route.
               ...(canManage
                 ? [{ value: "passwords" as const, label: "Passwords", icon: KeyRound }]
                 : []),
-              // Open to the whole project team. The people who need to know a site
-              // is down, or who write the campaigns, are the ones working on it -
-              // not only whoever happens to own the project.
+              // Open to the whole project team, not only the owner.
               { value: "monitoring", label: "Monitoring", icon: Activity },
               { value: "mailer", label: "Mailer", icon: Mail },
-              // Portal access is managed from the client's page (Clients →
-              // Contacts), not per project.
-              // Typed against PROJECT_TABS: adding a tab here without adding its
-              // value there stops the build instead of shipping a dead tab.
+              // Portal access lives on the client's page (Clients -> Contacts), not here.
             ] satisfies {
               value: (typeof PROJECT_TABS)[number]
               label: string
@@ -456,8 +397,6 @@ export default function ProjectDetailPage() {
               { label: "Teams", value: teams.length },
               { label: "Members", value: totalMembers },
               { label: "Tasks", value: totalTasks },
-              // Budget is manager-only, so the strip is 4-up for them and 3-up
-              // for everyone else.
               ...(canManage
                 ? [
                     {
@@ -472,7 +411,6 @@ export default function ProjectDetailPage() {
 
           <Card>
             <CardContent className="space-y-4 p-5">
-              {/* Account Manager - featured card */}
               <div>
                 <p className="text-muted-foreground mb-2 text-[10px] font-medium tracking-widest uppercase">
                   Account Manager
@@ -504,11 +442,9 @@ export default function ProjectDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Goals, summarised. Shares its query with the Goals tab, so this
-              costs one request for both. */}
+          {/* Shares its query with the Goals tab. */}
           <GoalsOverviewCard projectId={projectRef} onOpen={() => handleTabChange("goals")} />
 
-          {/* Renders only when the project actually tracks sites. */}
           <ProjectSitesCard projectId={projectRef} onOpenSeo={() => handleTabChange("seo")} />
         </TabsContent>
 
@@ -567,12 +503,7 @@ export default function ProjectDetailPage() {
           </TabsContent>
         )}
 
-        {/* `canManage` is hardcoded true for these two because reaching this page
-            at all already means project access (every read behind it is wrapped
-            in withProjectAccess), and both APIs now authorise on exactly that.
-            Passing the manager flag instead would render the tab and then hit
-            each component's non-manager early return - a tab that opens onto
-            nothing. */}
+        {/* Always true: reaching this page means project access, which is what both APIs check. */}
         <TabsContent value="monitoring" className="mt-4">
           <ProjectMonitoringTab projectRef={projectRef} canManage />
         </TabsContent>
@@ -582,7 +513,6 @@ export default function ProjectDetailPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Edit dialog */}
       <ProjectFormDialog
         open={editOpen}
         onClose={() => setEditOpen(false)}

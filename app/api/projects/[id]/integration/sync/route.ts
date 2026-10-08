@@ -3,8 +3,6 @@ import { withProjectManager } from "@/features/projects/server/project-access"
 import { syncMetaProject } from "@/features/projects/server/meta-sync.service"
 import type { Session } from "next-auth"
 
-// POST /api/projects/[id]/integration/sync - pull latest Meta data (managers).
-// Optional body { lookbackDays } (default 30).
 export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {

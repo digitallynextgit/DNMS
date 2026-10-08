@@ -3,29 +3,19 @@ import "server-only"
 import { google } from "googleapis"
 import { readGoogleCredentials, googleServiceAccountEmail } from "@/lib/google-credentials"
 
-// =============================================================================
-// Google Search Console client (read-only).
-//
-// Credentials come from lib/google-credentials (GSC_* -> Drive fallback).
-//
-// SETUP (once per website):
-//   Search Console -> Settings -> Users and permissions -> Add user
-//   -> paste the service account's client_email -> permission "Full" or
-//      "Restricted" (read is enough).
-// Without that step every call returns 403 for that property.
-// =============================================================================
+// Google Search Console (read-only). Credentials via lib/google-credentials.
+// Setup per site: Search Console > Settings > Users and permissions > add the service account's
+// client_email (Restricted is enough), or every call returns 403.
 
 const SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 
-// GSC data is finalised on a lag; anything newer than this is incomplete and
-// would make week-over-week growth look like a crash.
+// GSC data lags; newer days are incomplete and would make growth look like a crash.
 export const GSC_LAG_DAYS = 3
 
 export async function isGscConfigured(): Promise<boolean> {
   return !!(await readGoogleCredentials("GSC"))
 }
 
-/** The service account email to add as a user in Search Console (null if unset). */
 export async function gscServiceAccountEmail(): Promise<string | null> {
   return googleServiceAccountEmail("GSC")
 }
@@ -45,7 +35,6 @@ async function getClient() {
   return google.searchconsole({ version: "v1", auth })
 }
 
-/** Turn a Google API error into something a user can act on. */
 function describeError(err: unknown, siteUrl?: string): string {
   const e = err as {
     code?: number
@@ -56,8 +45,7 @@ function describeError(err: unknown, siteUrl?: string): string {
   const code = e?.code ?? e?.status
   const msg = e?.message ?? ""
 
-  // 403 has two very different causes and two very different fixes, so tell
-  // them apart instead of always blaming permissions.
+  // 403 has two causes with different fixes, so tell them apart.
   if (
     code === 403 &&
     /has not been used in project|SERVICE_DISABLED|accessNotConfigured/i.test(msg)
@@ -74,7 +62,6 @@ function describeError(err: unknown, siteUrl?: string): string {
   return e?.message || "Search Console request failed"
 }
 
-/** Every property this service account can read - used to help pick `siteUrl`. */
 export async function listGscSites(): Promise<{ siteUrl: string; permissionLevel: string }[]> {
   try {
     const sc = await getClient()
@@ -98,10 +85,7 @@ export interface GscRow {
   position: number
 }
 
-/**
- * Raw Search Analytics query. `dimensions: []` returns a single totals row.
- * Dates are inclusive, "YYYY-MM-DD".
- */
+/** `dimensions: []` returns one totals row. Dates are inclusive "YYYY-MM-DD". */
 export async function searchAnalytics(input: {
   siteUrl: string
   startDate: string
@@ -119,8 +103,7 @@ export async function searchAnalytics(input: {
         endDate,
         dimensions,
         rowLimit: Math.min(rowLimit, 25000),
-        // "web" only: Discover/News have different semantics and would muddy
-        // the organic-search numbers the report is about.
+        // "web" only: Discover/News would muddy the organic numbers.
         type: "web",
       },
     })
@@ -136,16 +119,11 @@ export async function searchAnalytics(input: {
   }
 }
 
-// --- date helpers -----------------------------------------------------------
-
 export function toDateKey(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
-/**
- * The most recent COMPLETE reporting window of `days` length, ending far enough
- * back that Search Console has finalised the data.
- */
+/** Latest complete window, far enough back that GSC has finalised the data. */
 export function lastCompleteWindow(
   days = 7,
   endingBefore = new Date(),
@@ -157,7 +135,6 @@ export function lastCompleteWindow(
   return { start: toDateKey(start), end: toDateKey(end) }
 }
 
-/** The window of the same length immediately before `start` (for growth deltas). */
 export function previousWindow(start: string, days = 7): { start: string; end: string } {
   const prevEnd = new Date(`${start}T00:00:00Z`)
   prevEnd.setUTCDate(prevEnd.getUTCDate() - 1)

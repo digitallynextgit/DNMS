@@ -66,7 +66,6 @@ function SettingsGroupCard({
   const configured = fields.some((f) => byKey.get(f.key)?.isSet)
   // "Complete" = every non-boolean field has a value (booleans default to off).
   const complete = fields.filter((f) => f.type !== "boolean").every((f) => byKey.get(f.key)?.isSet)
-  // A group is required when any of its fields are - the notifications mailer.
   const groupRequired = fields.some((f) => f.required)
   // Unconfigured groups open straight into editing; configured ones are locked.
   const [editing, setEditing] = useState(!configured)
@@ -246,8 +245,7 @@ function FieldInput({
   }
 
   const isPassword = field.type === "password"
-  // A set secret may be left blank (keeps the existing value), so it isn't
-  // natively required; everything else required must carry a value.
+  // A set secret may stay blank (keeps the stored value), so it isn't natively required.
   const nativeRequired = field.required && !(field.secret && meta?.isSet)
   return (
     <div>

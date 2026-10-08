@@ -15,7 +15,6 @@ import { guideMatches, tr } from "../lib/text"
 import type { HelpGuide, HelpLang } from "../types"
 import { HelpLangSwitch } from "./help-lang-switch"
 
-/** /help - every guide the reader can use, grouped like the sidebar. */
 export function HelpCenter() {
   const [lang] = useHelpLang()
   const [query, setQuery] = useState("")

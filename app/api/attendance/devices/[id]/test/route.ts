@@ -19,7 +19,6 @@ export const POST = withAuth(
 
       const resolved = await resolveDevice(device)
       if (resolved.error) {
-        // A plain "404" told nobody anything. Say what was actually wrong.
         return NextResponse.json({ success: false, message: resolved.error })
       }
 

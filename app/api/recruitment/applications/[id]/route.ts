@@ -10,11 +10,8 @@ import type { Session } from "next-auth"
 const STATUSES = ["RECEIVED", "IN_REVIEW", "SHORTLISTED", "REJECTED", "HIRED"] as const
 type AppStatus = (typeof STATUSES)[number]
 
-/**
- * Deleting an application destroys a real person's submission, so it is NOT
- * granted by `recruitment:write` (which hr_employee also holds - they triage,
- * they don't purge). Only an admin or the HR manager may delete.
- */
+// Deleting destroys a real submission, so recruitment:write (which hr_employee holds) isn't enough -
+// admin or HR manager only.
 function canDelete(session: Session): boolean {
   const roles = session.user.roles ?? []
   return (
@@ -24,7 +21,6 @@ function canDelete(session: Session): boolean {
   )
 }
 
-// GET /api/recruitment/applications/[id] - one application (HR detail view).
 export const GET = withAuth(
   PERMISSIONS.RECRUITMENT_READ,
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
@@ -40,7 +36,7 @@ export const GET = withAuth(
       if (!application) {
         return NextResponse.json({ error: "Application not found" }, { status: 404 })
       }
-      // Prefer our stored CV copy over the external link (see the list route).
+      // Prefer our stored CV copy over the external link.
       const data = application.resumeKey
         ? {
             ...application,
@@ -57,7 +53,6 @@ export const GET = withAuth(
   },
 )
 
-// PATCH /api/recruitment/applications/[id] - move it through the pipeline / add notes.
 export const PATCH = withAuth(
   PERMISSIONS.RECRUITMENT_WRITE,
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
@@ -81,9 +76,7 @@ export const PATCH = withAuth(
         return NextResponse.json({ error: "Nothing to update" }, { status: 400 })
       }
 
-      // Read the prior status so the referrer is notified only on a real
-      // TRANSITION (API-10) - editing hrNotes while re-sending the same status
-      // must not fire a duplicate "was shortlisted" notification.
+      // Read the prior status so the referrer is notified only on a real transition.
       const prior = await db.careerApplication.findUnique({
         where: { id: ctx.params.id },
         select: { status: true },
@@ -92,8 +85,6 @@ export const PATCH = withAuth(
 
       const updated = await db.careerApplication.update({ where: { id: ctx.params.id }, data })
 
-      // If somebody referred this candidate, tell them the moment HR records the
-      // decision - but only when the stage actually changed.
       if (data.status !== undefined && data.status !== prior.status) {
         await notifyReferrerOfStage(ctx.params.id)
       }
@@ -115,7 +106,6 @@ export const PATCH = withAuth(
   },
 )
 
-// DELETE /api/recruitment/applications/[id] - admin / HR manager only.
 export const DELETE = withAuth(
   PERMISSIONS.RECRUITMENT_WRITE,
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
@@ -137,7 +127,6 @@ export const DELETE = withAuth(
 
       await db.careerApplication.delete({ where: { id: ctx.params.id } })
 
-      // Audited by reference only - never the applicant's PII.
       await createAuditLog(session, {
         action: "DELETE",
         module: "recruitment",

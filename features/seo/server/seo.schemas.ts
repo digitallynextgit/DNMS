@@ -1,9 +1,6 @@
 import { z } from "zod"
 
-// Shared validation for the SEO property routes (create + update).
-
-/** Strip protocol/path/trailing slash so "https://blog.kyg.com/posts" stores as
- *  "blog.kyg.com" - the domain is what builds the sc-domain: property id. */
+/** "https://blog.kyg.com/posts" -> "blog.kyg.com"; the domain builds the sc-domain: property id. */
 export const domainSchema = z
   .string()
   .trim()
@@ -17,12 +14,8 @@ export const domainSchema = z
   .refine((v) => /^[a-z0-9.-]+\.[a-z]{2,}$/.test(v), "Enter a valid domain, e.g. blog.example.com")
 
 /**
- * Normalise whatever someone typed into a property id Search Console actually
- * accepts. Google only recognises two forms, and rejects anything else:
- *   - "sc-domain:example.com"   (domain property, covers every subdomain)
- *   - "https://example.com/"    (URL-prefix property, trailing slash required)
- * A bare "example.com" is the natural thing to type and is silently invalid, so
- * treat it as a domain property rather than sending it through to a 404.
+ * Normalise input to a property id Search Console accepts: "sc-domain:example.com" or
+ * "https://example.com/". A bare host becomes a domain property.
  */
 export function normalizeGscProperty(raw: string | null | undefined): string | null {
   const v = (raw ?? "").trim()

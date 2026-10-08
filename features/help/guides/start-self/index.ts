@@ -8,7 +8,6 @@ import { myReferralsGuide } from "./my-referrals"
 import { notificationsGuide } from "./notifications"
 import { waitingOnYouGuide } from "./waiting-on-you"
 
-/** Getting started + the employee self-service pages (My Attendance, My Leave, ...). In the order they are listed. */
 export const startSelfGuides: HelpGuide[] = [
   gettingStartedGuide,
   dashboardGuide,

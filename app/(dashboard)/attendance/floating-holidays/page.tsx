@@ -65,7 +65,6 @@ export default function FloatingHolidaysPage() {
   const [year, setYear] = useState(CURRENT_YEAR)
   const [page, setPage] = useUrlPage()
 
-  // Reset to the first page whenever the year filter changes.
   function changeYear(next: number) {
     setYear(next)
     setPage(1)
@@ -96,7 +95,6 @@ export default function FloatingHolidaysPage() {
   const usedCount = fd?.selectedHolidayIds.length ?? 0
   const atLimit = usedCount >= limit
 
-  // Client-side pagination of the per-year optional-holiday list.
   const PAGE_SIZE = 10
   const optionalHolidays = fd?.optionalHolidays ?? []
   const totalPages = Math.max(1, Math.ceil(optionalHolidays.length / PAGE_SIZE))

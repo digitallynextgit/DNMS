@@ -1,9 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
-/**
- * One deliverable: a back link and title, the tracker card, the team tabs,
- * then the lines. Reserves that shape so the page does not jump as it arrives.
- */
 export default function Loading() {
   return (
     <div className="space-y-4">
@@ -13,7 +9,6 @@ export default function Loading() {
         <Skeleton className="bg-muted h-3 w-96 animate-pulse" />
       </div>
 
-      {/* Tracker: donut and legend, then the tiles, bar and team rows. */}
       <div className="border-border bg-card space-y-4 rounded-sm border p-5">
         <Skeleton className="bg-muted h-4 w-40 animate-pulse" />
         <div className="grid gap-5 lg:grid-cols-[auto_1fr] lg:gap-6">
@@ -41,13 +36,11 @@ export default function Loading() {
         </div>
       </div>
 
-      {/* Team tabs */}
       <div className="flex gap-2">
         <Skeleton className="bg-muted h-8 w-24 animate-pulse rounded-sm" />
         <Skeleton className="bg-muted h-8 w-24 animate-pulse rounded-sm" />
       </div>
 
-      {/* The lines */}
       <div className="border-border bg-card rounded-sm border">
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="border-border flex items-center gap-4 border-b px-4 py-3">

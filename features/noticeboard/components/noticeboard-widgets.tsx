@@ -1,12 +1,6 @@
 "use client"
 
-/**
- * The three dashboard cards: announcements, gallery, birthdays.
- *
- * Each is self-contained and fetches its own slice, so one empty or failing
- * section cannot blank the dashboard around it - the reason these live here
- * rather than in one combined "noticeboard" payload.
- */
+/** The three dashboard cards; each fetches its own data so one failing can't blank the others. */
 
 import * as React from "react"
 import { Link } from "@/components/tenant-link"
@@ -56,8 +50,6 @@ function excerpt(text: string, max = 120): string {
   if (clean.length <= max) return clean
   return clean.slice(0, clean.lastIndexOf(" ", max)).trimEnd() + "…"
 }
-
-// ─── Announcements ──────────────────────────────────────────────────────────
 
 export function AnnouncementsCard({ limit = 4 }: { limit?: number }) {
   const { data, isPending } = useQuery({
@@ -129,8 +121,6 @@ export function AnnouncementsCard({ limit = 4 }: { limit?: number }) {
   )
 }
 
-// ─── Photo gallery ──────────────────────────────────────────────────────────
-
 interface AlbumSummary {
   id: string
   slug: string
@@ -148,8 +138,6 @@ export function PhotoGalleryCard({ limit = 8 }: { limit?: number }) {
         .data,
   })
 
-  // Cover tiles from the most recent albums - the dashboard shows a taste of the
-  // gallery, not the gallery itself.
   const tiles = (data?.albums ?? []).filter((a) => a.coverPhotoId).slice(0, limit)
 
   return (
@@ -205,8 +193,6 @@ export function PhotoGalleryCard({ limit = 8 }: { limit?: number }) {
   )
 }
 
-// ─── Birthdays ──────────────────────────────────────────────────────────────
-
 export function BirthdaysCard({ days = 30 }: { days?: number }) {
   const { data, isPending, refetch } = useQuery({
     queryKey: ["birthdays", days],
@@ -252,7 +238,6 @@ export function BirthdaysCard({ days = 30 }: { days?: number }) {
           </p>
         ) : (
           <>
-            {/* Today gets the hero treatment; everyone else is a list row. */}
             {today.map((p) => (
               <div
                 key={p.id}

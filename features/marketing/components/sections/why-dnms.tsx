@@ -4,8 +4,7 @@ import { WHY_REASONS } from "../../marketing.constants"
 import { Reveal } from "../fx"
 import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
-// Mirrors WHY_REASONS one-for-one: the "bad" counterpart of each DNMS win, so
-// both columns carry the same number of points with the same title + copy shape.
+// Mirrors WHY_REASONS one-for-one, so both columns have the same shape.
 const PATCHWORK: { title: string; text: string }[] = [
   {
     title: "A tool for every job",
@@ -25,7 +24,6 @@ const PATCHWORK: { title: string; text: string }[] = [
   },
 ]
 
-/** Side-by-side contrast: the usual patchwork (red) vs. one connected platform (green). */
 export function WhyDnms() {
   return (
     <section
@@ -33,7 +31,6 @@ export function WhyDnms() {
       className="border-border/60 bg-muted/20 relative scroll-mt-20 border-y py-20 sm:py-24"
     >
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6">
-        {/* Hero-style pill */}
         <Reveal>
           <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
@@ -47,7 +44,6 @@ export function WhyDnms() {
           </span>
         </Reveal>
 
-        {/* Two columns: title (left) + supporting copy (right) */}
         <div className="mt-6 grid items-start gap-8 lg:grid-cols-2 lg:gap-16">
           <Reveal>
             <h2 className="text-4xl font-bold tracking-tight text-balance sm:text-5xl">
@@ -63,7 +59,6 @@ export function WhyDnms() {
         </div>
 
         <div className="mt-14 grid items-stretch gap-6 lg:grid-cols-2">
-          {/* The usual patchwork: red / error */}
           <Reveal>
             <div className="h-full rounded-sm border border-red-500/25 bg-red-500/[0.03] p-7">
               <h3 className="text-muted-foreground text-lg font-semibold tracking-tight">
@@ -85,7 +80,6 @@ export function WhyDnms() {
             </div>
           </Reveal>
 
-          {/* With DNMS: green / ok */}
           <Reveal delay={120}>
             <div className="h-full rounded-sm border border-emerald-500/30 bg-emerald-500/[0.03] p-7 shadow-xl ring-1 ring-emerald-500/10">
               <h3 className="text-lg font-semibold tracking-tight">

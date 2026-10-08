@@ -15,16 +15,7 @@ import {
 import type { WorkbookTeam } from "../../lib/sheet-types"
 import { MemberAvatars } from "./person-bits"
 
-// =============================================================================
-// What each team owes this month, at a glance.
-//
-// ── WHY A READ-ONLY STRIP AND NOT AN EXPANDING PANEL ─────────────────────────
-// Six teams, each with people, a date, a quantity, links and files, is 400px of
-// form. Above a 70vh grid that pushes the spreadsheet - the thing this tab is
-// for - entirely below the fold. So the strip READS and the side panel EDITS:
-// somebody on the video team can see what video owes without a single click,
-// and nobody's grid gets squeezed to let them.
-// =============================================================================
+// Read-only on purpose: an editing panel would push the grid below the fold; the side panel edits.
 
 const STATUS_CLASS: Record<WorkbookTeamStatus, string> = {
   TODO: "text-muted-foreground",
@@ -65,9 +56,7 @@ export function TeamPlanStrip({
   const today = React.useMemo(() => localToday(), [])
 
   const ordered = React.useMemo(() => {
-    // The viewer's own team first - it is the row they came to read. Only when
-    // they are on exactly one team, though: reordering for a manager who owns
-    // all of it just makes the list move about for no reason.
+    // The viewer's own team first, but only when they are on exactly one.
     if (!myTeamId) return teams
     const mine = teams.filter((t) => t.teamId === myTeamId)
     return mine.length === 1 ? [...mine, ...teams.filter((t) => t.teamId !== myTeamId)] : teams
@@ -103,8 +92,7 @@ export function TeamPlanStrip({
     <div className="border-border space-y-1.5 border-b pb-2">
       <div className="flex items-center gap-2 text-xs">
         <span className="font-medium">Team plan</span>
-        {/* Conditional, never a standing "0 overdue": a counter that always
-            reads zero is one people stop seeing. */}
+        {/* Hidden at zero: a counter that always reads zero stops being seen. */}
         {overdue > 0 && (
           <span className="text-destructive flex items-center gap-1">
             <TriangleAlert className="h-3.5 w-3.5" />
@@ -122,8 +110,6 @@ export function TeamPlanStrip({
         </Button>
       </div>
 
-      {/* Horizontal scroll rather than wrapping, the same container the tab
-          strip below uses - six chips must not cost a second line. */}
       <div className="no-scrollbar flex items-stretch gap-2 overflow-x-auto">
         {ordered.map((t) => {
           const tone = dueTone(t.dueOn, periodMonth, today)
@@ -134,8 +120,6 @@ export function TeamPlanStrip({
               key={t.id}
               type="button"
               onClick={() => onOpen(t.teamId)}
-              // One label for the whole chip: three lines of visual shorthand
-              // read badly node by node.
               aria-label={[
                 t.teamName,
                 STATUS_LABEL[t.status],
@@ -156,9 +140,6 @@ export function TeamPlanStrip({
               <span className="flex items-baseline gap-1.5">
                 <span className="truncate text-xs font-medium">{t.teamName}</span>
                 {isMine && <span className="text-primary text-[10px] font-medium">· You ·</span>}
-                {/* Handed in / promised, not the bare promise: on a strip meant
-                    to be read at a glance, "2/4" answers the question the
-                    number is actually there for. */}
                 <span className="ml-auto text-sm leading-none font-semibold tabular-nums">
                   {progress.quantity > 0 ? (
                     <>
@@ -179,9 +160,7 @@ export function TeamPlanStrip({
                 </span>
               </span>
 
-              {/* Colour is never the only signal: the words say it too, so the
-                  state survives a monochrome screen. A finished or dropped row
-                  shows its status instead of a deadline it no longer owes. */}
+              {/* Words as well as colour; a finished or dropped row shows its status instead of a deadline. */}
               {isOutstanding(t.status) ? (
                 <span className={cn("mt-1 flex items-center gap-1 text-[11px]", TONE_CLASS[tone])}>
                   {(tone === "overdue" || tone === "today" || tone === "soon") && (
@@ -202,7 +181,6 @@ export function TeamPlanStrip({
               <span className="mt-1.5 flex items-center gap-2">
                 <MemberAvatars people={t.members} max={3} />
                 <span className="text-muted-foreground ml-auto flex items-center gap-1.5 text-[11px]">
-                  {/* Hidden at zero, for the same reason as the overdue count. */}
                   {t.attachments.length > 0 && (
                     <span className="flex items-center gap-0.5">
                       <Paperclip className="h-3 w-3" />

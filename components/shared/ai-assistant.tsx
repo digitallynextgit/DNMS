@@ -21,13 +21,8 @@ const SUGGESTIONS = [
 ]
 
 /**
- * The assistant panel, pinned bottom-right. Answers come from /api/ai/chat,
- * which is grounded in a permission-scoped snapshot of the caller's data - it
- * can't see anything they can't.
- *
- * The launcher is NOT here: as a floating bubble it sat on top of whatever was
- * in the bottom-right corner of the page (the chat Send button, most visibly).
- * It lives in the Topbar now and drives this through `useAiAssistantStore`.
+ * The assistant panel. /api/ai/chat only sees a permission-scoped snapshot of the caller's data.
+ * Opened from the Topbar via useAiAssistantStore.
  */
 export function AiAssistant() {
   const open = useAiAssistantStore((s) => s.open)
@@ -76,11 +71,7 @@ export function AiAssistant() {
 
   return (
     <>
-      {/* Panel - opened from the Topbar launcher.
-          Sits ABOVE the mobile tab bar rather than on top of it: the bar is a
-          real layout row (~4.5rem incl. its safe-area padding), and a fixed
-          panel at bottom-5 covered it along with whatever tab you were on.
-          dvh so iOS Safari's collapsing chrome is excluded from the height. */}
+      {/* Sits above the mobile tab bar (a real layout row); dvh excludes iOS Safari's collapsing chrome. */}
       {open && (
         <div className="bg-card fixed right-5 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 flex h-[min(560px,calc(100dvh-12rem))] w-[min(400px,calc(100vw-2.5rem))] flex-col rounded-sm border shadow-2xl md:bottom-5 md:h-[min(560px,calc(100dvh-6rem))]">
           <div className="flex items-center justify-between border-b px-4 py-2.5">

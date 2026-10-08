@@ -1,12 +1,8 @@
 "use client"
 
 /**
- * Interactive/animation primitives for the marketing landing page. All client
- * components (they use IntersectionObserver / pointer events), but their content
- * is still server-rendered into the initial HTML, so SEO is unaffected.
- *
- * Everything degrades gracefully with prefers-reduced-motion (handled in
- * globals.css) and touch devices (the cursor glow is pointer:fine only).
+ * Animation primitives for the marketing page. Client components, but still server-rendered, so
+ * SEO is unaffected. Reduced motion is handled in globals.css; the cursor glow needs pointer:fine.
  */
 
 import * as React from "react"
@@ -66,8 +62,7 @@ export function SpotlightCursor() {
       y = e.clientY
       if (!raf)
         raf = requestAnimationFrame(() => {
-          // Transform, not left/top: compositor-only, no layout per frame.
-          // The -50% pair re-centres the glow on the pointer (was in the CSS).
+          // Transform, not left/top: compositor-only. -50% re-centres the glow on the pointer.
           el.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`
           raf = 0
         })
@@ -187,7 +182,6 @@ export function Aurora({ className }: { className?: string }) {
       aria-hidden
       className={cn("pointer-events-none absolute inset-0 overflow-hidden", className)}
     >
-      {/* Minimalist: two soft, low-opacity blobs (red + blue) - not a wall of glow. */}
       <div className="animate-dnms-aurora absolute -top-32 -left-24 h-[26rem] w-[26rem] rounded-full bg-red-500/12 blur-[120px]" />
       <div
         className="animate-dnms-aurora absolute -right-24 -bottom-32 h-[26rem] w-[26rem] rounded-full bg-blue-500/10 blur-[120px]"
@@ -197,8 +191,7 @@ export function Aurora({ className }: { className?: string }) {
   )
 }
 
-/** Rotating red/blue border beam (Magic UI-style). Drop inside a `relative`,
- *  rounded-[6px], overflow-hidden container. CSS-driven via .dnms-border-beam. */
+/** Rotating red/blue border beam. Put it inside a relative, rounded, overflow-hidden box. */
 export function BorderBeam({ className }: { className?: string }) {
   return <span aria-hidden className={cn("dnms-border-beam", className)} />
 }

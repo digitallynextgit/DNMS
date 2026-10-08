@@ -5,7 +5,6 @@ import { PERMISSIONS } from "@/lib/constants"
 import { withClient } from "@/features/clients/server/client-access"
 import { createClientContact } from "@/features/client-portal/server/client-contacts.service"
 
-// POST /api/clients/[id]/contacts - give someone at this client a portal login
 export const POST = withClient(
   PERMISSIONS.CLIENT_WRITE,
   async (req: NextRequest, { params }, session: Session) =>

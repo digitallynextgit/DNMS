@@ -6,9 +6,6 @@ import { deleteStorageObject, getStorageOverview } from "@/features/storage/serv
 import { getSignedUrl } from "@/lib/storage"
 import type { Session } from "next-auth"
 
-// DELETE /api/admin/storage/object
-//   body { key }            -> delete one object (and clear its DB reference)
-//   body { orphansOnly:true }-> delete every orphaned object in one go
 export const DELETE = withAuth(
   PERMISSIONS.SETTINGS_WRITE,
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
@@ -35,11 +32,7 @@ export const DELETE = withAuth(
   },
 )
 
-// GET /api/admin/storage/object?key=...&download=1
-//
-// One signed URL, minted when somebody actually clicks View or Download. The
-// overview used to embed two per row for every file in the bucket; almost all of
-// them were never followed.
+// Mints one signed URL on demand, only when someone clicks View or Download.
 export const GET = withAuth(
   PERMISSIONS.SETTINGS_WRITE,
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
@@ -51,8 +44,7 @@ export const GET = withAuth(
     const name = key.split("/").pop() ?? "file"
     try {
       const url = await getSignedUrl(key, 3600, download ? { downloadFileName: name } : undefined)
-      // Redirect rather than return JSON, so the link can be a plain href and the
-      // browser handles the download exactly as it did before.
+      // Redirect (not JSON) so the link can be a plain href.
       return NextResponse.redirect(url, { status: 302 })
     } catch (error) {
       console.error("[ADMIN_STORAGE_OBJECT_GET]", error)

@@ -1,6 +1,4 @@
-// Single source of truth for admin-editable runtime settings (Integrations
-// page). Shared by the client form (labels/groups/types) and the server
-// (which keys exist, which are secret). NO server-only imports here.
+// Admin-editable runtime settings, shared by the client form and the server. NO server-only imports.
 
 export type SettingType = "text" | "email" | "url" | "number" | "boolean" | "password"
 
@@ -12,16 +10,11 @@ export interface SettingField {
   placeholder?: string
   /** Stored encrypted; the value is never sent back to the client. */
   secret?: boolean
-  /** Must always have a value - cannot be saved blank or cleared. */
   required?: boolean
   help?: string
 }
 
 export const SETTING_FIELDS: SettingField[] = [
-  // ── Company (email signature) ──────────────────────────────────────────────
-  // Used to build the signature block on staff-authored emails (e.g. a leave
-  // application). Settings rather than constants so they can be corrected without
-  // a redeploy. A blank social simply hides that link.
   {
     key: "COMPANY_WEBSITE",
     label: "Website",
@@ -60,7 +53,6 @@ export const SETTING_FIELDS: SettingField[] = [
     placeholder: "https://www.youtube.com/@...",
   },
 
-  // ── General ────────────────────────────────────────────────────────────────
   { key: "APP_NAME", label: "App name", type: "text", group: "General", placeholder: "DNMS" },
   {
     key: "APP_URL",
@@ -79,7 +71,6 @@ export const SETTING_FIELDS: SettingField[] = [
     help: "Public PNG/WEBP shown at the top of every email.",
   },
 
-  // ── HR ───────────────────────────────────────────────────────────────────
   {
     key: "HR_EMAIL",
     label: "HR inbox",
@@ -89,7 +80,6 @@ export const SETTING_FIELDS: SettingField[] = [
     help: "Resignation requests are sent here.",
   },
 
-  // ── Default mailer ─────────────────────────────────────────────────────────
   {
     key: "SMTP_FROM",
     label: "From",
@@ -109,9 +99,6 @@ export const SETTING_FIELDS: SettingField[] = [
   { key: "SMTP_USER", label: "Username", type: "text", group: "Default mailer" },
   { key: "SMTP_PASS", label: "Password", type: "password", group: "Default mailer", secret: true },
 
-  // ── Notifications mailer (REQUIRED fallback) ─────────────────────────────────
-  // This profile must always be fully configured: it is the guaranteed fallback
-  // used to send mail whenever the Default or HR mailer isn't set up.
   {
     key: "SMTP_NOTIFICATIONS_FROM",
     label: "From",
@@ -159,7 +146,6 @@ export const SETTING_FIELDS: SettingField[] = [
     required: true,
   },
 
-  // ── HR mailer ──────────────────────────────────────────────────────────────
   {
     key: "SMTP_HR_FROM",
     label: "From",
@@ -179,16 +165,7 @@ export const SETTING_FIELDS: SettingField[] = [
   { key: "SMTP_HR_USER", label: "Username", type: "text", group: "HR mailer" },
   { key: "SMTP_HR_PASS", label: "Password", type: "password", group: "HR mailer", secret: true },
 
-  // Storage credentials USED to live here as a single B2_EMPLOYEE_DOCS_* block.
-  // They moved to Admin -> Storage, which manages several buckets as rows in
-  // storage_accounts. One set of fields in Integrations could only ever describe
-  // one bucket, and leaving it here would give two places to edit the same thing
-  // with no way to tell which one the app was actually using.
-
-  // ── Google Drive (service account -> company Shared Drive) ───────────────────
-  // Stored here so the DEPLOYED server can read them (the local key FILE is
-  // gitignored and never deployed). Config resolves DB -> env, so pasting these on
-  // the Integrations page makes project Drive files work in production.
+  // Stored here because the local key FILE is gitignored and never deployed.
   {
     key: "GOOGLE_DRIVE_SHARED_DRIVE_ID",
     label: "Shared Drive ID",
@@ -206,10 +183,6 @@ export const SETTING_FIELDS: SettingField[] = [
     help: "Paste the whole service-account key JSON on ONE line (minified). Stored encrypted.",
   },
 
-  // ── Google Search Console (SEO reporting) ───────────────────────────────────
-  // Optional: leave blank and SEO reuses the Google Drive service account above,
-  // which is the simplest setup. Set this only when Search Console lives in a
-  // DIFFERENT Cloud project from Drive.
   {
     key: "GSC_CREDENTIALS",
     label: "Search Console service account JSON",
@@ -243,7 +216,6 @@ export const SETTING_FIELDS: SettingField[] = [
     help: "Optional. A hex key (8-128 chars) for instant recrawl pings to Bing/Yandex/Seznam/Naver. Each tracked site must host it at https://<host>/<key>.txt containing exactly the key.",
   },
 
-  // ── Referrals ───────────────────────────────────────────────────────────────
   {
     key: "REFERRAL_REWARD_PERCENT",
     label: "Referral reward (% of monthly salary)",
@@ -258,5 +230,5 @@ export const SETTING_KEYS = SETTING_FIELDS.map((f) => f.key)
 export const SECRET_KEYS = new Set(SETTING_FIELDS.filter((f) => f.secret).map((f) => f.key))
 export const REQUIRED_KEYS = new Set(SETTING_FIELDS.filter((f) => f.required).map((f) => f.key))
 
-/** Group order as they should appear in the UI (insertion order of the array). */
+/** UI group order = first appearance in SETTING_FIELDS. */
 export const SETTING_GROUPS = [...new Set(SETTING_FIELDS.map((f) => f.group))]

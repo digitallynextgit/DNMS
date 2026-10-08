@@ -10,15 +10,7 @@ import { Button } from "@/components/ui/button"
 const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
 const MAX_BYTES = 5 * 1024 * 1024
 
-/**
- * Logo control for the project form.
- *
- * Works in both modes, which is the whole reason it holds a File rather than
- * uploading on pick: while CREATING there is no project id to upload against
- * yet, so the chosen file is kept here, previewed from a local object URL, and
- * handed to the parent to POST once the project exists. While EDITING there is
- * an id, so it uploads immediately and the parent does nothing.
- */
+/** Holds the File while creating (the parent uploads it after create); uploads at once when editing. */
 export function ProjectLogoPicker({
   projectId,
   value,
@@ -26,7 +18,6 @@ export function ProjectLogoPicker({
 }: {
   /** Undefined while creating - upload is deferred to the parent. */
   projectId?: string
-  /** Current logo URL, if the project already has one. */
   value?: string | null
   /** Create mode only: hands the chosen file up so it can be sent after create. */
   onPendingFileChange?: (file: File | null) => void
@@ -35,8 +26,7 @@ export function ProjectLogoPicker({
   const [preview, setPreview] = React.useState<string | null>(value ?? null)
   const [busy, setBusy] = React.useState(false)
 
-  // Revoke the object URL when it is replaced or the component goes away -
-  // otherwise every re-pick leaks a blob for the life of the page.
+  // Revoked when replaced or unmounted, so re-picks don't leak blobs.
   const objectUrlRef = React.useRef<string | null>(null)
   React.useEffect(() => {
     return () => {
@@ -61,7 +51,6 @@ export function ProjectLogoPicker({
       return
     }
 
-    // Create mode: keep it locally, the parent uploads after the project exists.
     if (!projectId) {
       setLocalPreview(file)
       onPendingFileChange?.(file)
@@ -108,8 +97,7 @@ export function ProjectLogoPicker({
       <div
         className={cn(
           "flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden",
-          // Only the empty/loading states get a tile. Once a logo is chosen the
-          // preview shows it bare, matching how it renders on the cards.
+          // Only the empty/loading states get a tile; a chosen logo shows bare, as on the cards.
           !preview && "bg-muted rounded-sm border border-dashed",
           busy && "bg-muted rounded-sm border",
         )}
@@ -117,8 +105,7 @@ export function ProjectLogoPicker({
         {busy ? (
           <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
         ) : preview ? (
-          // Local blob previews and the signed-redirect route both resolve at
-          // runtime, so a plain <img> rather than next/image.
+          // Blob previews and the signed-redirect route resolve at runtime, so a plain <img>.
           // eslint-disable-next-line @next/next/no-img-element
           <img src={preview} alt="Project logo" className="h-full w-full object-contain" />
         ) : (

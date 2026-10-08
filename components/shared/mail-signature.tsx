@@ -13,12 +13,11 @@ export interface MailSignatureData {
   socials: { label: string; url: string }[]
 }
 
-/** Brand accent colours (theme-independent). Text/surfaces use theme tokens so
- *  the block sits on the default background, not a white card. */
+/** Brand colours (theme-independent); text and surfaces use theme tokens. */
 const SIG_RED = "#e5231b"
 const SIG_TEAL = "#25c1c1"
 
-/** Brand glyphs as inline SVG (lucide dropped its social icons over trademark). */
+/** Inline SVG: lucide dropped its brand icons. */
 function YouTubeGlyph({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
@@ -57,9 +56,7 @@ const SIG_SOCIALS = [
   { label: "LinkedIn", Icon: LinkedInGlyph },
 ] as const
 
-/** The signature block, mirroring renderSignature() in the email template so the
- *  preview matches what's actually sent. Shared by the apply preview and the
- *  approve/reject dialog. */
+/** Mirrors renderSignature() in lib/email-layout.ts so the preview matches what's sent. */
 export function MailSignature({ sig }: { sig: MailSignatureData }) {
   const hrefFor = (label: string) =>
     sig.socials.find((s) => s.label.toLowerCase() === label.toLowerCase())?.url

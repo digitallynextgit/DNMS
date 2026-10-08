@@ -1,6 +1,5 @@
-// One palette for every format. Each person gets a colour that follows them
-// through the report: a badge, their bars, their project names in the tables.
-// `ink` is the same hue darkened for small text on white (contrast >= 4.5:1).
+// One palette for every format; each person keeps their colour throughout the report. `ink` is
+// the same hue darkened for small text on white (contrast >= 4.5:1).
 
 export const INK = "161B33"
 export const TEXT = "1F2433"

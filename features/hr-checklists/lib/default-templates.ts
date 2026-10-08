@@ -1,22 +1,6 @@
-// =============================================================================
-// The checklists a company starts with. Editable from day one.
-// =============================================================================
-// Transcribed from "Onboarding and Exit Checklist.docx" - HR's own process
-// document. The wording is deliberately theirs, not a paraphrase: people
-// recognise their own checklist, and a reworded step reads as a different step.
-//
-// PURE DATA. No imports, no server-only, no Prisma - this is read by
-// provision.service.ts (new companies), prisma/seed.ts (fresh databases) and
-// prisma/backfill-hr-checklists.ts (existing companies), one of which runs as a
-// standalone tsx script outside Next entirely.
-//
-// ── OFFSETS ─────────────────────────────────────────────────────────────────
-// `offsetDays` is relative to the instance's ANCHOR DATE:
-//   onboarding -> dateOfJoining, so 0 = day one and 21 = start of week four;
-//   exit       -> lastWorkingDate, so NEGATIVE means "before they go" and
-//                 positive means "after" (a settlement lands after the last day).
-// `null` means "no date" - do it when the process reaches it.
-// =============================================================================
+// Default checklists for a new company, worded as in HR's own process document. Pure data.
+// `offsetDays` counts from the anchor: joining date for onboarding, last working day for exit
+// (negative = before). null = no date.
 
 export type DefaultAssigneeRole = "HR" | "MANAGER" | "EMPLOYEE" | "DEPARTMENT_HEAD"
 export type DefaultItemKind = "TASK" | "CLEARANCE"
@@ -43,10 +27,6 @@ export interface DefaultChecklistTemplate {
   description: string
   sections: DefaultChecklistSection[]
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Onboarding
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const DEFAULT_ONBOARDING_TEMPLATE: DefaultChecklistTemplate = {
   kind: "ONBOARDING",
@@ -187,24 +167,8 @@ export const DEFAULT_ONBOARDING_TEMPLATE: DefaultChecklistTemplate = {
   ],
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Exit clearance
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// Step 3 is the reason this is software rather than a spreadsheet. Its four
-// entries are CLEARANCE items: each names a person who must personally sign,
-// and while a required one is unsigned the exit cannot be completed - so no
-// relieving letter and no final settlement. The document states that rule twice;
-// here it is enforced rather than remembered.
-//
-// The document's line "Employee must collect sign-offs from all relevant
-// departments before HR clearance" is deliberately NOT an item. It described the
-// process the four items below now ARE, and a checkbox saying "collect the
-// checkboxes" is noise.
-//
-// Finance and IT/Admin have no dedicated structure anywhere in this schema, so
-// they seed with no department attached. HR points each at the right Department
-// in the template editor, once, and every exit afterwards routes itself.
+// Step 3's CLEARANCE items each need a named signer; while a required one is unsigned the exit
+// can't complete. Finance and IT/Admin seed with no department - HR sets it once in the editor.
 
 export const DEFAULT_EXIT_TEMPLATE: DefaultChecklistTemplate = {
   kind: "EXIT",

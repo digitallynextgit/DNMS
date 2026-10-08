@@ -1,9 +1,4 @@
-// =============================================================================
-// Standard application error classes (CLAUDE.md §3)
-// =============================================================================
-// Throw these from services / route handlers; `withErrorHandler`
-// (server/api-handler.ts) maps them to the standard `fail()` response shape.
-// =============================================================================
+// Throw these from services/routes; withErrorHandler (server/api-handler.ts) maps them to fail().
 
 export class AppError extends Error {
   constructor(

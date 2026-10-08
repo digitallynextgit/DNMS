@@ -67,8 +67,7 @@ export default function SalaryStructuresPage() {
 
   const structures = data?.data ?? []
 
-  // Client-side pagination (the underlying list is also used as a lookup
-  // elsewhere, so the API stays unpaginated and we slice the full list here).
+  // Paginated locally: the list is also a lookup elsewhere, so the API stays unpaginated.
   const PAGE_SIZE = 10
   const total = structures.length
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -192,9 +191,6 @@ export default function SalaryStructuresPage() {
         }
       />
 
-      {/* The table renders from the first paint: while `isLoading` it draws
-          skeleton rows inside its own real <thead>, derived from `columns`, so
-          the placeholder always has the right column count and alignment. */}
       {isLoading || structures.length > 0 ? (
         <DataTable
           columns={columns}
@@ -223,10 +219,8 @@ export default function SalaryStructuresPage() {
         />
       )}
 
-      {/* Form dialog */}
       <SalaryStructureForm open={formOpen} onOpenChange={setFormOpen} editData={editData} />
 
-      {/* Delete confirmation */}
       <ConfirmDialog
         open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}

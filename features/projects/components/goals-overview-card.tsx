@@ -20,30 +20,8 @@ import {
   type GoalNode,
 } from "./goal-status"
 
-// =============================================================================
-// Goals at a glance, on the project Overview.
-//
-// The Goals tab is the place you WORK on goals; this is the place you find out
-// whether you need to. So it answers three questions and stops: how much is
-// done, how the goals are spread across the five states, and what is due next.
-// Everything that edits anything lives one click away, behind "Open goals".
-//
-// MAIN GOALS ONLY. A sub-goal is part of its parent, and the parent's state
-// already reflects it (the server rolls status and progress up), so the card
-// neither counts nor lists sub-goals. They are the tab's business.
-//
-// It shares its query with the tab (see use-goals.ts), so opening Overview and
-// then Goals is one request, and marking a goal done on the tab updates this
-// card without a refetch.
-//
-// Charts follow the house data-viz rules: colour comes from the shared status
-// record rather than a local palette, every slice is in the legend WITH its
-// count (a donut nobody can read numbers off is decoration), and the tooltip
-// uses the shared theme so it is legible on the dark ground that is the app's
-// default.
-// =============================================================================
+// Main goals only: the server already rolls sub-goal status and progress into their parents.
 
-/** A stat tile. Deliberately flat - the card is already a surface. */
 function Tile({
   label,
   value,
@@ -68,13 +46,7 @@ function Tile({
   )
 }
 
-/**
- * One main goal, its state and its bar.
- *
- * Capped at four with a "+N more" rather than scrolled: a card on Overview that
- * scrolls internally hides its own overflow, and the honest answer to "there
- * are twelve goals" is to send the reader to the tab that shows twelve.
- */
+// Capped with "+N more" rather than scrolling; the Goals tab shows the rest.
 const MAX_ROWS = 4
 
 function GoalRow({ goal }: { goal: GoalNode }) {
@@ -108,8 +80,6 @@ export function GoalsOverviewCard({
   const summary = data ?? EMPTY_SUMMARY
   const b = breakdown(summary)
 
-  // Nothing to summarise. An empty donut with five zeroes is worse than a
-  // sentence, so the card becomes the invitation to create the first goal.
   if (b.total === 0) {
     return (
       <Card>
@@ -150,9 +120,6 @@ export function GoalsOverviewCard({
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[auto_1fr] lg:gap-6">
-          {/* Donut + legend. The percentage sits in the hole because that is the
-              one number people came for, and a ring reads as "share of a whole"
-              in a way a bar does not. */}
           <div className="flex items-center gap-4">
             <div className="relative h-32 w-32 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
@@ -180,8 +147,7 @@ export function GoalsOverviewCard({
                   />
                 </PieChart>
               </ResponsiveContainer>
-              {/* aria-hidden: the same numbers are in the legend as text, and a
-                  screen reader reading the ring would say them twice. */}
+              {/* aria-hidden: the legend has the same numbers as text. */}
               <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"
@@ -235,8 +201,7 @@ export function GoalsOverviewCard({
               <ProgressBar value={summary.overallProgress} className="h-2" />
             </div>
 
-            {/* The two facts that make someone act. Both are conditional: an
-                empty "0 overdue" row trains people to stop reading the strip. */}
+            {/* Both conditional: an empty "0 overdue" row stops being read. */}
             {(summary.overdueGoals > 0 || summary.nextTargetDate) && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                 {summary.overdueGoals > 0 && (
@@ -256,9 +221,6 @@ export function GoalsOverviewCard({
           </div>
         </div>
 
-        {/* The goals themselves, so the card names them rather than only
-            counting them. A number tells you there is work; a title tells you
-            which work. */}
         <div className="space-y-2 border-t pt-3">
           {shown.map((goal) => (
             <GoalRow key={goal.id} goal={goal} />

@@ -6,8 +6,6 @@ import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 import type { BrandAssetKind, ProjectBrandData } from "@/features/projects/brand"
 
-// ─── Brand workspace ──────────────────────────────────────────────────────────
-
 export function useProjectBrand(projectId: string) {
   return useQuery({
     queryKey: ["project-brand", projectId],

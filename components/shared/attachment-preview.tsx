@@ -1,32 +1,10 @@
 "use client"
 
-/* eslint-disable react-hooks/static-components --
- * False positive, file-wide. `const Icon = iconFor(file)` does not CREATE a
- * component during render: iconFor() returns one of three module-level lucide
- * components (FileSpreadsheet | FileText | File), so the reference is stable per
- * file type and nothing ever remounts. The rule only sees a capitalised binding
- * assigned inside a component body and cannot follow the lookup. Scoped to this
- * file so a genuine violation elsewhere is still caught.
- */
+/* eslint-disable react-hooks/static-components -- false positive: iconFor() returns module-level icons */
 
 /**
- * The send screen you get after picking files, the way every messenger does it:
- * see what you are about to send, caption it, add or drop items, then send.
- *
- * Before this, picking a file uploaded it immediately. There was no way to check
- * you had grabbed the right screenshot, no way to caption it, and no way back
- * except deleting the message afterwards.
- *
- * It covers the THREAD PANE, not the viewport: `absolute inset-0` inside a
- * relatively-positioned thread, so the sidebar and the conversation list stay
- * put and you can still see which chat you are about to send into. A full-screen
- * takeover hid all of that for a step that is only "is this the right file?".
- *
- * Previews are object URLs over the local File - nothing is uploaded until Send,
- * so backing out costs no bandwidth and leaves nothing on the server. Those URLs
- * are revoked when the list changes or the screen closes; leaking them pins the
- * whole file in memory for the life of the tab, which for a 200 MB video is the
- * difference between a preview and a crash.
+ * Send screen after picking files: preview, caption, add or drop, then send. Covers the thread pane,
+ * not the viewport. Previews are local object URLs (nothing uploads until Send), revoked on change.
  */
 
 import * as React from "react"
@@ -77,11 +55,7 @@ const isImage = (f: File) => f.type.startsWith("image/")
 const isVideo = (f: File) => f.type.startsWith("video/")
 const isAudio = (f: File) => f.type.startsWith("audio/")
 
-/**
- * One object URL per file, rebuilt only when the list identity changes and
- * revoked on the way out. Keyed by File object, so re-rendering for a keystroke
- * in the caption does not churn them.
- */
+/** Keyed by File and rebuilt only when the list changes, so typing a caption doesn't churn them. */
 function useObjectUrls(files: File[]): Map<File, string> {
   const [urls, setUrls] = React.useState<Map<File, string>>(new Map())
 
@@ -90,6 +64,7 @@ function useObjectUrls(files: File[]): Map<File, string> {
     for (const f of files) {
       if (isImage(f) || isVideo(f) || isAudio(f)) next.set(f, URL.createObjectURL(f))
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the URLs are created and revoked here, so they can't be derived during render
     setUrls(next)
     return () => {
       for (const url of next.values()) URL.revokeObjectURL(url)
@@ -107,7 +82,7 @@ export function AttachmentPreview({
   /** Filter for the "+" button, so adding more matches what was picked first. */
   accept,
 }: {
-  /** The staged files. Empty = the screen is closed. */
+  /** Empty = closed. */
   files: File[]
   onClose: () => void
   onSend: (files: File[], caption: string) => Promise<void> | void
@@ -118,19 +93,19 @@ export function AttachmentPreview({
   const [active, setActive] = React.useState(0)
   const [caption, setCaption] = React.useState("")
   const addRef = React.useRef<HTMLInputElement>(null)
-  /** Index being edited, or null. Images only - there is nothing to crop on a PDF. */
+  /** Index being edited (images only), or null. */
   const [editing, setEditing] = React.useState<number | null>(null)
   const urls = useObjectUrls(list)
 
-  // A fresh pick replaces the screen's contents rather than appending - the
-  // caller opens it with exactly what was chosen.
-  React.useEffect(() => {
+  // A fresh pick replaces the contents rather than appending.
+  const [prevFiles, setPrevFiles] = React.useState(files)
+  if (files !== prevFiles) {
+    setPrevFiles(files)
     setList(files)
     setActive(0)
     setCaption("")
-  }, [files])
+  }
 
-  // Escape closes, like every other overlay in the app.
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !sending) onClose()
@@ -153,15 +128,13 @@ export function AttachmentPreview({
 
   return (
     <div
-      // z-30 clears the thread's own sticky bits without covering the app's
-      // dialogs and popovers, which sit at z-50.
+      // z-30: above the thread's sticky bits, below dialogs and popovers (z-50).
       className="bg-background absolute inset-0 z-30 flex flex-col"
       role="dialog"
       aria-modal="true"
       aria-label="Review attachments before sending"
     >
-      {/* The editor takes over the pane while it is open; everything below
-          stays mounted so the caption and the rest of the filmstrip survive. */}
+      {/* Everything below stays mounted so the caption and filmstrip survive editing. */}
       {editing !== null && list[editing] && (
         <ImageEditor
           file={list[editing]!}
@@ -173,9 +146,6 @@ export function AttachmentPreview({
         />
       )}
 
-      {/* Header: ONE close, the current file's name, and Edit for images.
-          Dropping a single file lives on its thumbnail below - two X's up here
-          read as the same action and it was never clear which was which. */}
       <div className="flex h-14 shrink-0 items-center gap-2 px-3">
         <Button
           variant="ghost"
@@ -201,7 +171,6 @@ export function AttachmentPreview({
         )}
       </div>
 
-      {/* The preview itself. */}
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-4">
         {isImage(current) && url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -215,8 +184,7 @@ export function AttachmentPreview({
         )}
       </div>
 
-      {/* Caption. The text becomes the message body the files hang off, which is
-          why it is a caption here and not a second message afterwards. */}
+      {/* The caption becomes the message body the files hang off. */}
       <div className="shrink-0 px-4 pb-3">
         <div className="border-input bg-card focus-within:ring-ring/50 mx-auto flex max-w-2xl items-center gap-1 rounded-sm border px-2 transition-shadow focus-within:ring-2">
           <Input
@@ -242,7 +210,6 @@ export function AttachmentPreview({
         </div>
       </div>
 
-      {/* Filmstrip + send. */}
       <div className="flex shrink-0 items-center gap-3 px-4 pb-4">
         <div className="flex min-w-0 flex-1 items-center justify-center gap-2 overflow-x-auto">
           {list.map((f, i) => (
@@ -313,13 +280,7 @@ export function AttachmentPreview({
   )
 }
 
-/** A document has nothing to show, so say what it IS rather than nothing at all. */
 function NoPreview({ file }: { file: File }) {
-  // Not a component created during render: iconFor() picks one of three
-  // module-level lucide components (FileSpreadsheet | FileText | File), so the
-  // reference is stable for a given file type and nothing remounts. The rule
-  // cannot see through the lookup and reads the capitalised binding as a fresh
-  // component.
   const Icon = iconFor(file)
   return (
     <div className="bg-card flex w-full max-w-sm flex-col items-center gap-3 rounded-sm px-6 py-12">
@@ -332,7 +293,6 @@ function NoPreview({ file }: { file: File }) {
   )
 }
 
-/** Filmstrip cell: the picture itself where there is one, else the file's icon. */
 function Thumb({ file, url }: { file: File; url?: string }) {
   if (isImage(file) && url) {
     // eslint-disable-next-line @next/next/no-img-element
@@ -349,11 +309,6 @@ function Thumb({ file, url }: { file: File; url?: string }) {
       />
     )
   }
-  // Not a component created during render: iconFor() picks one of three
-  // module-level lucide components (FileSpreadsheet | FileText | File), so the
-  // reference is stable for a given file type and nothing remounts. The rule
-  // cannot see through the lookup and reads the capitalised binding as a fresh
-  // component.
   const Icon = iconFor(file)
   return <Icon className="text-muted-foreground h-5 w-5" />
 }

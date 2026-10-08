@@ -1,8 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Mirrors the AuthShell two-column layout: a dark brand panel on the left
-// (desktop only) and a centered max-w-md form column on the right, so the real
-// "Choose a password" form lands where this placeholder sits.
 export default function SetPasswordLoading() {
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">

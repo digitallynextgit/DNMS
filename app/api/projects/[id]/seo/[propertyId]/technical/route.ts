@@ -14,7 +14,6 @@ async function owned(projectId: string, propertyId: string) {
   return db.seoProperty.findFirst({ where: { id: propertyId, projectId }, select: { id: true } })
 }
 
-// GET - the latest technical audit for this site.
 export const GET = withAuth(
   PERMISSIONS.PROJECT_READ,
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
@@ -25,7 +24,6 @@ export const GET = withAuth(
   },
 )
 
-// POST - run a fresh audit now.
 export const POST = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _s: Session) => {
     const { id, propertyId } = ctx.params

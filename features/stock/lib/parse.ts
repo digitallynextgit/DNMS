@@ -1,6 +1,4 @@
-// Pure parsing helpers shared by the client import dialog and the one-off
-// prisma/import-stock.ts script. No server-only import: nothing here touches
-// the database.
+// Pure parsing helpers for the stock import dialog (no DB access).
 
 /** Collapse whitespace and case for name comparison ("  Deepak  Goel " → "deepak goel"). */
 export function normalizeName(raw: string): string {
@@ -9,11 +7,7 @@ export function normalizeName(raw: string): string {
 
 const pad = (n: number) => String(n).padStart(2, "0")
 
-/**
- * The dates HR sheets actually contain: Date cells (xlsx cellDates), ISO
- * strings, en-GB "22/12/2025", and prose like "22nd December, 2025" (the
- * ordinal suffix is what defeats a bare Date.parse).
- */
+/** Accepts Date cells, ISO, en-GB "22/12/2025" and "22nd December, 2025" (the ordinal defeats Date.parse). */
 export function toIsoDateLoose(v: unknown): string | null {
   if (v instanceof Date) {
     return Number.isNaN(v.getTime())
@@ -46,8 +40,7 @@ export function toQty(v: unknown): number | null {
   return Math.round(n)
 }
 
-/** Rows like "Stock left" / "Stock Given" / "Total Stock" are the sheet's own
- *  running summaries, not people - never import them (the app computes them). */
+/** Sheet summary rows ("Stock left", "Total"...) - the app computes these, so never import them. */
 export function isSummaryHolder(name: string): boolean {
   return /^(stock\s*(left|given|remaining)|total|balance|remaining|grand\s*total)\b/i.test(
     name.trim(),
@@ -57,7 +50,6 @@ export function isSummaryHolder(name: string): boolean {
 export interface ParsedImport {
   /** Catalogue rows (from a Sheet2-style "Item | Price | Quantity" sheet). */
   items: { name: string; pricePerPiece: number | null; purchasedQty: number | null }[]
-  /** One row per (person × item) cell with a quantity > 0. */
   issues: { holderName: string; itemName: string; quantity: number; issuedOn: string | null }[]
   /** Anything skipped, with the reason - shown in the preview so nothing vanishes silently. */
   skipped: string[]
@@ -65,14 +57,8 @@ export interface ParsedImport {
 
 type Cell = string | number | boolean | Date | null
 
-/**
- * Parse the workbook shapes HR uses (see stock.xlsx):
- *  - ISSUANCE MATRIX: header `Given to | On date | <item> | <item> | ...`,
- *    one row per person, quantities under each item column.
- *  - CATALOGUE: header starting with `Item` and containing a quantity and/or
- *    price column.
- * A sheet matching neither shape is reported in `skipped`, not guessed at.
- */
+/** Two layouts: an ISSUANCE matrix (`Given to | On date | <item>...`) and a CATALOGUE
+ *  (`Item | Price | Quantity`). Anything else is reported in `skipped`, never guessed. */
 export function parseStockWorkbook(sheets: { name: string; rows: Cell[][] }[]): ParsedImport {
   const out: ParsedImport = { items: [], issues: [], skipped: [] }
 
@@ -82,7 +68,6 @@ export function parseStockWorkbook(sheets: { name: string; rows: Cell[][] }[]): 
     const heads = header.map((h) => String(h ?? "").trim())
     const lower = heads.map((h) => h.toLowerCase())
 
-    // ── Issuance matrix ────────────────────────────────────────────────────
     if (lower[0]?.startsWith("given")) {
       const dateCol = lower.findIndex((h) => h.includes("date"))
       const itemCols = heads
@@ -98,14 +83,13 @@ export function parseStockWorkbook(sheets: { name: string; rows: Cell[][] }[]): 
         const issuedOn = dateCol >= 0 ? toIsoDateLoose(row[dateCol]) : null
         for (const { name, index } of itemCols) {
           const qty = toQty(row[index])
-          if (!qty) continue // blank or zero cell = nothing issued
+          if (!qty) continue
           out.issues.push({ holderName: holder, itemName: name, quantity: qty, issuedOn })
         }
       }
       continue
     }
 
-    // ── Catalogue ──────────────────────────────────────────────────────────
     if (lower[0]?.startsWith("item")) {
       const priceCol = lower.findIndex((h) => h.includes("price"))
       const qtyCol = lower.findIndex((h) => h.includes("quantity") || h === "qty")

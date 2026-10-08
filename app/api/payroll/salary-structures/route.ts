@@ -10,7 +10,6 @@ export const GET = withAuth(
   PERMISSIONS.PAYROLL_READ,
   async (_req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
-      // HR (payroll:write) sees all structures; employees only their own.
       const canViewAll = hasPermission(session, PERMISSIONS.PAYROLL_WRITE)
       const structures = await db.salaryStructure.findMany({
         where: canViewAll ? {} : { employeeId: session.user.id },
@@ -68,7 +67,6 @@ export const POST = withAuth(
         return NextResponse.json({ error: "Employee not found" }, { status: 404 })
       }
 
-      // ── Slab cap: total monthly must not exceed the designation's cap ──
       const total = totalMonthlyEarnings({
         basicSalary: Number(basicSalary),
         hra: Number(hra ?? 0),
@@ -87,7 +85,6 @@ export const POST = withAuth(
         )
       }
 
-      // Check if salary structure already exists for this employee
       const existing = await db.salaryStructure.findUnique({ where: { employeeId } })
       if (existing) {
         return NextResponse.json(

@@ -1,22 +1,10 @@
 import "server-only"
 
-// =============================================================================
-// A tiny, dependency-free page auditor. Fetches one URL's HTML and runs the
-// on-page SEO checks from the plan's step 6 (titles, single H1, meta, canonical,
-// robots directives, JSON-LD schema, image alt text, internal links).
-//
-// Why hand-rolled instead of Screaming Frog / cheerio:
-//   - Screaming Frog free is GUI-only (no CLI/scheduling without the paid
-//     licence), so it can't run in a cron - the plan's "Rs 0" claim only holds
-//     with a custom crawler.
-//   - The checks we actually gate on are simple enough that a few regexes beat
-//     pulling in a parser dependency.
-// Regex HTML parsing is normally a smell, but here we only extract a handful of
-// well-defined tags from <head> and count a few things - not general parsing.
-// =============================================================================
+// Tiny dependency-free on-page SEO auditor. Regexes, not a parser: it only pulls a few well-defined
+// tags from <head> and counts a few things.
 
 const TIMEOUT_MS = 20_000
-const MAX_BYTES = 3 * 1024 * 1024 // don't slurp a huge page into memory
+const MAX_BYTES = 3 * 1024 * 1024
 const UA = "DNMS-SEO-Bot/1.0 (+https://dnms.digitallynext.com)"
 
 export type IssueLevel = "critical" | "warning" | "info"
@@ -60,9 +48,7 @@ function decode(s: string): string {
     .trim()
 }
 
-/** Extract the JSON-LD @type values present in the served HTML. Server-rendered
- *  schema is the ONLY schema Google and AI crawlers see, which is exactly what
- *  the DigitallyNext baseline flagged as missing. */
+/** JSON-LD @type values in the served HTML - the only schema crawlers see. */
 function extractSchemaTypes(html: string): string[] {
   const types = new Set<string>()
   const blocks = html.matchAll(
@@ -82,14 +68,13 @@ function extractSchemaTypes(html: string): string[] {
       if (Array.isArray(json)) json.forEach(collect)
       else collect(json)
     } catch {
-      /* malformed JSON-LD - itself worth flagging, handled by caller via empty set */
+      /* malformed JSON-LD - the caller flags the empty set */
     }
   }
   return [...types]
 }
 
-/** Audit one URL. Never throws - a fetch failure becomes a critical issue on the
- *  returned object so one bad page can't abort a whole run. */
+/** Never throws: a fetch failure becomes a critical issue, so one bad page can't abort a run. */
 export async function auditPage(url: string, siteHost: string): Promise<PageAudit> {
   const base: PageAudit = {
     url,
@@ -125,7 +110,6 @@ export async function auditPage(url: string, siteHost: string): Promise<PageAudi
       })
       return base
     }
-    // Read at most MAX_BYTES.
     const reader = res.body?.getReader()
     if (reader) {
       const chunks: Uint8Array[] = []
@@ -154,39 +138,31 @@ export async function auditPage(url: string, siteHost: string): Promise<PageAudi
 
   const head = html.slice(0, html.search(/<\/head>/i) + 7) || html
 
-  // Title
   const rawTitle = between(head, /<title[^>]*>([\s\S]*?)<\/title>/i)
   base.title = rawTitle ? decode(rawTitle) : null
   base.titleLength = base.title?.length ?? 0
 
-  // H1s
   base.h1Count = (html.match(/<h1[\s>]/gi) ?? []).length
 
-  // Meta description
   const md =
     between(head, /<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i) ??
     between(head, /<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']/i)
   base.metaDescription = md ? decode(md) : null
   base.metaDescriptionLength = base.metaDescription?.length ?? 0
 
-  // Canonical
   base.canonical = between(head, /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']*)["']/i)
 
-  // Robots meta noindex (also check googlebot-specific)
   const robotsMeta =
     between(head, /<meta[^>]+name=["'](?:robots|googlebot)["'][^>]+content=["']([^"']*)["']/i) ?? ""
   base.noindex = /noindex/i.test(robotsMeta)
 
-  // Schema
   base.schemaTypes = extractSchemaTypes(html)
 
-  // Images missing alt (alt absent OR empty)
   const imgs = html.match(/<img\b[^>]*>/gi) ?? []
   base.imagesMissingAlt = imgs.filter(
     (tag) => !/\balt\s*=\s*["'][^"']*\S[^"']*["']/i.test(tag),
   ).length
 
-  // Internal links (same host)
   const hrefs = html.matchAll(/<a\b[^>]+href=["']([^"']+)["']/gi)
   let internal = 0
   for (const h of hrefs) {
@@ -273,11 +249,7 @@ function evaluate(p: PageAudit, siteHost: string): PageIssue[] {
   return issues
 }
 
-/** A page's "topic surface": its title, H1/H2 headings, and same-site links.
- *  Used by the competitor gap analysis (plan step 5) - a page's titles and
- *  headings ARE its keyword map, and the links let us discover more of its
- *  pages without a sitemap. `ok` is false on any fetch failure so a dead
- *  competitor URL never aborts a whole crawl. */
+/** Title, H1/H2s and same-site links, for competitor gap analysis. `ok` is false on any fetch failure. */
 export interface PageOutline {
   url: string
   ok: boolean
@@ -288,8 +260,7 @@ export interface PageOutline {
 
 const stripTags = (s: string): string => s.replace(/<[^>]+>/g, " ")
 
-/** Fetch one page and pull its title, H1/H2 text, and same-host links. Never
- *  throws. Reuses the same byte cap and UA as {@link auditPage}. */
+/** Never throws. Same byte cap and UA as auditPage. */
 export async function fetchOutline(url: string, siteHost: string): Promise<PageOutline> {
   const out: PageOutline = { url, ok: false, title: null, headings: [], links: [] }
 
@@ -359,7 +330,6 @@ export interface SitemapResult {
   issue: PageIssue | null
 }
 
-/** Fetch and lightly validate sitemap.xml. */
 export async function checkSitemap(origin: string): Promise<SitemapResult> {
   const url = `${origin.replace(/\/$/, "")}/sitemap.xml`
   try {
@@ -410,8 +380,7 @@ export interface RobotsResult {
   issue: PageIssue | null
 }
 
-/** Fetch robots.txt and flag the dangerous case: a blanket disallow of the whole
- *  site, which silently deindexes everything. */
+/** Flags a blanket disallow of the whole site, which silently deindexes everything. */
 export async function checkRobots(origin: string): Promise<RobotsResult> {
   const url = `${origin.replace(/\/$/, "")}/robots.txt`
   try {

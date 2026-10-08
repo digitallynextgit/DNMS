@@ -21,11 +21,7 @@ export interface PreviewItem {
   subtitle?: string
 }
 
-/**
- * In-page viewer for PDFs and images, so "have a look" does not mean leaving
- * the project. Everything else (docs, sheets, archives) still opens in a new
- * tab because the browser cannot render it inline anyway.
- */
+/** In-page viewer for PDFs and images. */
 export function FilePreviewSheet({
   item,
   onClose,
@@ -66,8 +62,7 @@ export function FilePreviewSheet({
           )}
           {item?.kind === "image" && (
             <div className="flex h-full w-full items-center justify-center overflow-auto p-4">
-              {/* Signed storage URLs change per request, so next/image's host
-                  allow-list cannot apply; a plain img is the honest choice. */}
+              {/* Signed URLs change per request, so next/image's host allow-list can't apply. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={item.url}

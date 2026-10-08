@@ -2,23 +2,17 @@ import { NextRequest } from "next/server"
 import { auth } from "@/server/auth"
 import { subscribeNotifications } from "@/server/notification-stream"
 
-// Long-lived SSE connection - must run on the Node runtime and never be cached
-// or statically optimized.
+// Long-lived SSE - Node runtime, never cached.
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-// GET /api/notifications/stream
-// Server-Sent Events: pushes this user's new notifications the instant they're
-// created (via Postgres LISTEN/NOTIFY), so the bell/toasts update in <1s with no
-// polling. The browser's EventSource auto-reconnects if the stream drops.
+// Pushes new notifications via Postgres LISTEN/NOTIFY; EventSource auto-reconnects.
 export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session?.user?.id) {
     return new Response("Unauthorized", { status: 401 })
   }
-  // Staff-only stream. Client-portal accounts hold a valid JWT, so this handler
-  // rejects them itself rather than relying solely on the proxy fence - the same
-  // defense-in-depth the chat SSE stream applies.
+  // Client-portal accounts hold a valid JWT, so reject them here too, not only in the proxy.
   if (session.user.kind === "client") {
     return new Response("Forbidden", { status: 403 })
   }

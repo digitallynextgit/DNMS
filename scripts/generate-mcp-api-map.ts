@@ -1,23 +1,11 @@
 /**
- * Generates features/mcp/server/api-routes.generated.ts - the catalogue of DNMS
- * API routes the AI connector can call on a person's behalf.
+ * Generates features/mcp/server/api-routes.generated.ts - the catalogue of API routes the AI
+ * connector can call: path, methods, doc comments, query params, body fields and permission.
  *
  *   pnpm mcp:api-map        (also runs before `pnpm dev` and `pnpm build`)
  *
- * For each app/api/** /route.ts it records the path, exported methods, the
- * route's own doc comments ("// GET /api/leave/requests?status=&..."), query
- * parameters it reads, body fields (from an inline `as {...}` type or the zod
- * schema its service validates with) and the permission withAuth requires.
- * That metadata is what lets Claude/ChatGPT find the right endpoint.
- *
- * Routes excluded by features/mcp/server/api-policy.ts never make it into the
- * catalogue (machine/public endpoints, the client portal, credential changes,
- * streams, the platform/superadmin surface, secret-revealing methods). The
- * dispatcher re-checks the same policy at runtime.
- *
- * Best-effort static analysis: when it can't work something out it leaves the
- * field empty - the route's own validation still tells the AI what is wrong.
- * It never fails the build: on error it keeps the previous file.
+ * Best-effort static analysis: what it can't work out is left empty. Routes excluded by
+ * api-policy.ts never get in. It never fails the build - on error it keeps the previous file.
  */
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve, sep } from "node:path"
@@ -33,8 +21,6 @@ type Method = (typeof HTTP_METHODS)[number]
 
 // What is never reachable lives in ONE place, shared with the runtime check.
 import { exclusionReason } from "../features/mcp/server/api-policy"
-
-// ---------------------------------------------------------------------------
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -91,7 +77,6 @@ function read(file: string): string {
   return src
 }
 
-/** Index of the bracket matching the opener at `open`. */
 function matchBracket(src: string, open: number): number {
   const pairs: Record<string, string> = { "{": "}", "(": ")", "[": "]" }
   const stack: string[] = []
@@ -116,7 +101,6 @@ function matchBracket(src: string, open: number): number {
   return -1
 }
 
-/** Split an object-literal body into its top-level `key: value` entries. */
 function topLevelEntries(body: string): Array<[string, string]> {
   const entries: Array<[string, string]> = []
   let depth = 0
@@ -219,7 +203,6 @@ function makeOptional(field: string): string {
   return k!.endsWith("?") ? field : `${k}?:${v.join(":")}`
 }
 
-/** Body hint for one method's code segment. */
 function bodyHint(segment: string, routeFile: string): string | null {
   // 1. Inline: (await req.json()) as { ... }
   const inline = /req\.json\(\)\s*\)?\s*as\s*\{/.exec(segment)
@@ -294,7 +277,6 @@ function analyse(file: string, scopes: Map<string, string>) {
   const src = read(file)
   const path = routePath(file)
 
-  // Exported methods and where each one's code starts.
   const starts: Array<{ method: Method; index: number }> = []
   for (const m of src.matchAll(
     /export\s+(?:const|async\s+function|function)\s+(GET|POST|PUT|PATCH|DELETE)\b/g,
@@ -317,16 +299,14 @@ function analyse(file: string, scopes: Map<string, string>) {
 
   // Doc comments of the form "// GET /api/x ..." (plus continuation lines).
   const docs = new Map<Method, string>()
-  // CRLF-safe: most files in this repo are checked out with \r\n, and a
-  // trailing \r defeats the `(.*)$` below.
+  // CRLF-safe: a trailing \r would defeat the `(.*)$` below.
   const lines = src.split(/\r?\n/)
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i]!.match(/^\s*(?:\/\/|\*)\s*(GET|POST|PUT|PATCH|DELETE)\s+(\/api\/\S*)?(.*)$/)
     if (!m) continue
     const method = m[1] as Method
     if (docs.has(method)) continue
-    // Drop the route's own path (it is already the entry's key) but keep any
-    // "?a=&b=" query hint that follows it.
+    // Drop the route's own path (already the key) but keep any "?a=&b=" query hint after it.
     const shown = (m[2] ?? "").startsWith(path) ? (m[2] ?? "").slice(path.length) : (m[2] ?? "")
     let text = `${shown}${m[3] ?? ""}`.replace(/^\s*[-:–]\s*/, "").trim()
     for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
@@ -379,10 +359,8 @@ function analyse(file: string, scopes: Map<string, string>) {
       if (body) info.body = body.slice(0, 900)
     }
     if (/\.formData\(\)/.test(segment)) info.upload = true
-    // A route that hands back a file: bytes with a download header or a document
-    // MIME type, or (GET only) a signed storage link / redirect to one. POST
-    // routes only count when they generate the bytes themselves, because a POST
-    // that merely RETURNS a signed link is an upload.
+    // A file route: download bytes or a document MIME, or (GET only) a signed link. A POST that
+    // merely returns a signed link is an upload, so it doesn't count.
     const makesFile =
       /Content-Disposition|content-disposition|application\/pdf|spreadsheetml|presentationml|wordprocessingml|text\/csv|octet-stream/.test(
         segment,
@@ -434,10 +412,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
 ${body}
 ]
 `
-  // Format exactly as the pre-commit hook would, and write only on a real
-  // change. The raw output differs from the committed (Prettier-formatted)
-  // file, so every dev/build used to leave it modified - which then blocked
-  // `git pull` on the server.
+  // Format as the pre-commit hook would and write only on a real change, so dev/build never
+  // leave the committed file modified.
   const formatted = await format(out, {
     ...(await resolveConfig(OUT)),
     filepath: OUT,

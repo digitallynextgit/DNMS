@@ -1,11 +1,4 @@
-// =============================================================================
-// The 15-day new-joinee scorecard, as a pure definition: the six criteria from
-// HR's sheet, the scoring guide, the recommendation options and every average.
-//
-// No imports. The service, the API and the page all score with these, so a
-// number on screen is always the number the rules give - nothing is stored but
-// the raw 1-5 scores.
-// =============================================================================
+// 15-day joinee scorecard rules. Only raw 1-5 scores are stored; every average is computed here.
 
 /** How many working days a joinee is scored for. */
 export const SCORECARD_DAYS = 15
@@ -29,7 +22,6 @@ export const SCORE_KEYS = SCORECARD_CRITERIA.map((c) => c.key) as ScoreKey[]
 /** One day's scores; null = not given yet. */
 export type DayScores = Record<ScoreKey, number | null>
 
-/** The sheet's scoring guide, best first. */
 export const SCORING_GUIDE = [
   { score: 5, label: "Excellent", description: "Consistently exceeds expectations" },
   { score: 4, label: "Good", description: "Meets expectations well" },
@@ -38,7 +30,6 @@ export const SCORING_GUIDE = [
   { score: 1, label: "Unsatisfactory", description: "Significant concern" },
 ] as const
 
-/** HR's 15-day recommendation. */
 export const RECOMMENDATIONS = [
   { value: "CONTINUE", label: "Continue as planned" },
   { value: "CONTINUE_WITH_IMPROVEMENTS", label: "Continue with specific improvement areas" },
@@ -51,7 +42,6 @@ export function isRecommendation(v: unknown): v is Recommendation {
   return RECOMMENDATIONS.some((r) => r.value === v)
 }
 
-/** A valid score: a whole number 1-5. */
 export function isScore(v: unknown): v is number {
   return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 5
 }
@@ -66,22 +56,13 @@ function mean(values: Array<number | null | undefined>): number | null {
 const keysFor = (side: ScorecardSide) =>
   SCORECARD_CRITERIA.filter((c) => c.side === side).map((c) => c.key)
 
-/**
- * One day's three averages, as the sheet's "Manager Avg.", "HR Avg." and
- * "Daily Overall" columns. A side's average uses the scores it has, so a day
- * half-filled still shows something; the overall is the mean of whichever side
- * averages exist, so manager and HR weigh the same whatever was filled.
- */
+/** A side's average uses whatever scores it has; overall = mean of the side averages (equal weight). */
 export function dayAverages(day: DayScores) {
   const manager = mean(keysFor("MANAGER").map((k) => day[k]))
   const hr = mean(keysFor("HR").map((k) => day[k]))
   return { manager, hr, overall: mean([manager, hr]) }
 }
 
-/**
- * The 15-day summary: each side's average over the days it scored, the
- * overall score (the two sides weighted equally) and its rating.
- */
 export function scorecardSummary(days: DayScores[]) {
   const daily = days.map(dayAverages)
   const manager = mean(daily.map((d) => d.manager))

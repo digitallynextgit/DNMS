@@ -35,15 +35,7 @@ import { useSession } from "next-auth/react"
 
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"]
 
-/**
- * Create a task from anywhere (e.g. My Tasks): pick the project, then a team in
- * it, then optionally an assignee from that team - plus title/description/
- * priority/due-date/estimate. New tasks start in "To-do"; a task you assign to
- * yourself goes to your manager for approval (server rule).
- *
- * Opened from INSIDE a project (`lockProject`), the project is already decided,
- * so the picker is hidden rather than shown pre-filled and un-changeable.
- */
+/** Self-assigned tasks go to your manager for approval (server rule). `lockProject` hides the project picker. */
 export function TaskCreateDialog({
   open,
   onOpenChange,
@@ -68,26 +60,20 @@ export function TaskCreateDialog({
   const [description, setDescription] = React.useState("")
   const [priority, setPriority] = React.useState("MEDIUM")
   const [dueDate, setDueDate] = React.useState("")
-  // Estimate is captured as hours + minutes but stored as decimal hours, which
-  // is what ProjectTask.estimatedHours (Float) and every report already expect.
+  // Captured as hours + minutes, stored as decimal hours.
   const [estHours, setEstHours] = React.useState("")
   const [estMinutes, setEstMinutes] = React.useState("")
   const [seoPropertyId, setSeoPropertyId] = React.useState("")
-  // WHY this work exists. Optional: forcing a goal here produces junk goals to
-  // satisfy the form; an unlinked task is shown to the manager instead.
+  // Optional on purpose: forcing a goal produces junk goals.
   const [goalId, setGoalId] = React.useState("")
-  // Is there supposed to be a THING at the end of this? Default yes, because a
-  // wrong yes costs one nudge somebody skips and a wrong no costs output that
-  // never gets counted.
+  // Default yes: a wrong yes costs one skipped nudge, a wrong no loses output.
   const [producesOutput, setProducesOutput] = React.useState(true)
 
-  // Adhoc is a sentinel, not a real project id - every project-scoped fetch
-  // below has to be told so, or each one fires a request for "__adhoc__".
+  // Adhoc is a sentinel, not a real project id - project-scoped fetches must skip it.
   const isAdhoc = projectId === ADHOC_ROW_ID
   const realProjectId = isAdhoc ? "" : projectId
 
-  // The project's goals, flattened to "Goal › Milestone" so a task can be filed
-  // under either. Fetched only once a real project is picked.
+  // Flattened to "Goal › Milestone" so a task can be filed under either.
   const { data: goalsData } = useProjectGoals(realProjectId)
   const goalOptions = React.useMemo(
     () =>
@@ -98,21 +84,14 @@ export function TaskCreateDialog({
     [goalsData],
   )
 
-  // Sites tracked under this project. Only offered when the project actually has
-  // more than the implicit "whole project" scope.
+  // Only offered when the project has more than the implicit "whole project" scope.
   const { data: seoData } = useSeoSites(realProjectId)
   const sites = realProjectId ? (seoData?.properties ?? []) : []
 
   const { data: teamsData } = useProjectTeams(realProjectId || undefined)
   const teams = React.useMemo(() => teamsData?.data ?? [], [teamsData])
 
-  // ── Who may this person allocate work to? ────────────────────────────────
-  // Mirrors the rules the API enforces on POST .../teams/[teamId]/tasks:
-  //   • a project admin / Account Manager may post to any team,
-  //   • a team MANAGER may post to their team and assign anyone in it,
-  //   • a plain member may only raise a task on themselves (which then goes for
-  //     manager approval).
-  // Offering more than that just produced a 403 after the form was filled in.
+  // Mirrors the API: admins / AMs post to any team, a team manager to their team, a member only on themselves.
   const { data: session } = useSession()
   const userId = session?.user?.id ?? ""
   const { can } = usePermissions()
@@ -133,17 +112,28 @@ export function TaskCreateDialog({
     ? (team?.members ?? [])
     : (team?.members ?? []).filter((m) => m.employeeId === userId)
 
-  // One team to choose from is not a choice - pick it so the form is usable in
-  // one less click (a team manager's normal case).
-  React.useEffect(() => {
-    if (open && !teamId && selectableTeams.length === 1) setTeamId(selectableTeams[0]!.id)
-  }, [open, teamId, selectableTeams])
-
-  // Reset on open, and clear dependent selects when the parent changes.
-  React.useEffect(() => {
-    if (open) {
+  // Each step runs when its inputs change; the order matters when several change at once.
+  const [seen, setSeen] = React.useState({
+    open: false,
+    defaultProjectId,
+    projectId,
+    teamId,
+    selectableTeams,
+  })
+  const openChanged = open !== seen.open
+  const projectChanged = projectId !== seen.projectId
+  const teamChanged = teamId !== seen.teamId
+  const autoPickDue = openChanged || teamChanged || selectableTeams !== seen.selectableTeams
+  const resetDue = openChanged || defaultProjectId !== seen.defaultProjectId
+  if (autoPickDue || resetDue || projectChanged) {
+    setSeen({ open, defaultProjectId, projectId, teamId, selectableTeams })
+    let nextTeamId = teamId
+    // Reset on open, and clear dependent selects when the parent changes.
+    const resetting = resetDue && open
+    if (resetting) {
       setProjectId(defaultProjectId ?? "")
       setTeamId("")
+      nextTeamId = ""
       setAssigneeId("")
       setTitle("")
       setDescription("")
@@ -154,18 +144,22 @@ export function TaskCreateDialog({
       setSeoPropertyId("")
       setProducesOutput(true)
     }
-  }, [open, defaultProjectId])
-  React.useEffect(() => {
-    setTeamId("")
-    setAssigneeId("")
-    setSeoPropertyId("")
-  }, [projectId])
-  React.useEffect(() => {
-    setAssigneeId("")
-  }, [teamId])
+    if (projectChanged) {
+      setTeamId("")
+      setAssigneeId("")
+      setSeoPropertyId("")
+      nextTeamId = ""
+    }
+    if (teamChanged) setAssigneeId("")
+    // A single team is picked automatically - last, so the resets above can't undo it. After a reset
+    // to another project, that project's teams arrive on a later render and are picked then.
+    const sameProject = !resetting || (defaultProjectId ?? "") === projectId
+    if (open && !nextTeamId && sameProject && selectableTeams.length === 1) {
+      setTeamId(selectableTeams[0]!.id)
+    }
+  }
 
-  // Adhoc work belongs to no client, so it has no project and no team to file
-  // under - it goes to the plain task endpoint instead of a team's.
+  // Adhoc work has no project or team, so it goes to the plain task endpoint.
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       apiFetch(isAdhoc ? `/api/tasks` : `/api/projects/${projectId}/teams/${teamId}/tasks`, {
@@ -175,7 +169,6 @@ export function TaskCreateDialog({
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-tasks"] })
-      // Adhoc work is on no project board, so there is nothing else to refresh.
       if (realProjectId) {
         qc.invalidateQueries({ queryKey: ["team-tasks", realProjectId, teamId] })
         qc.invalidateQueries({ queryKey: ["project-all-tasks", realProjectId] })
@@ -196,11 +189,9 @@ export function TaskCreateDialog({
       dueDate: dueDate || undefined,
       estimatedHours: estimateInHours,
       seoPropertyId: seoPropertyId || undefined,
-      // Only a goal from the project currently picked - a stale choice after
-      // switching project would 404.
+      // A stale goal from another project would 404.
       goalId: goalOptions.some((g) => g.id === goalId) ? goalId : undefined,
-      // Adhoc work produces nothing to log by definition - a meeting is not a
-      // deliverable - and the endpoint it goes to says so itself.
+      // Adhoc work produces nothing to log.
       ...(isAdhoc ? {} : { producesOutput }),
     })
   }
@@ -231,7 +222,6 @@ export function TaskCreateDialog({
                 <SelectValue placeholder="Select a project" />
               </SelectTrigger>
               <SelectContent>
-                {/* Not a client, so it sits apart from the account list. */}
                 <SelectItem value={ADHOC_ROW_ID}>{ADHOC_LABEL} · no client</SelectItem>
                 {projects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
@@ -244,8 +234,7 @@ export function TaskCreateDialog({
           </div>
         )}
 
-        {/* Adhoc work has no team - there is nothing to pick, and the line
-            manager stands in for the team manager on approval. */}
+        {/* Adhoc work has no team; the line manager approves instead. */}
         {!isAdhoc && (
           <div className="space-y-2">
             <Label required>Team</Label>
@@ -316,8 +305,6 @@ export function TaskCreateDialog({
           </div>
         )}
 
-        {/* Adhoc work has no team to pick an assignee from, so it is raised on
-            yourself - which is what a meeting or an interview is. */}
         {isAdhoc ? (
           <p className="text-muted-foreground text-xs">
             Raised on you. It goes to your line manager for approval.
@@ -434,8 +421,6 @@ export function TaskCreateDialog({
           </p>
         </div>
 
-        {/* Adhoc work is a meeting or an interview - there is nothing at the end
-            of it to point at, so the question is not asked. */}
         {!isAdhoc && (
           <div className="flex items-center justify-between gap-3 rounded-sm border px-3 py-2.5">
             <div className="space-y-0.5">

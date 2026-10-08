@@ -15,8 +15,7 @@ import { HolidaysCalendarView } from "./holidays-calendar-view"
 import { HolidaysAdminView } from "./holidays-admin-view"
 import { BirthdaysCalendarView } from "./birthdays-calendar-view"
 
-// The Calendar page: pick a calendar (?view=<id>), see it. Which calendars exist
-// is ../calendars.ts; this map only says what draws each one.
+// Which calendars exist lives in ../calendars.ts; this map only says what draws each one.
 const VIEWS: Record<CalendarId, ComponentType> = {
   holidays: HolidaysCalendarView,
   birthdays: BirthdaysCalendarView,
@@ -67,11 +66,7 @@ const HR_OVERRIDES: ViewOverrides = {
   },
 }
 
-/**
- * HRMS → Calendar: the same calendars, with the Holiday Calendar in its
- * manageable form (add, edit, delete, approve). Every other calendar is the
- * one employees see.
- */
+/** HR version: the Holiday Calendar in its manageable form; every other calendar as employees see it. */
 export function HrCalendar() {
   return <CompanyCalendar overrides={HR_OVERRIDES} />
 }

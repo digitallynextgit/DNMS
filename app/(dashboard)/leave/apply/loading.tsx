@@ -1,15 +1,12 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 
-// Apply for Leave: a two-pane form (fields on the left, live mail preview on
-// the right) laid out in `lg:grid-cols-2`, matching ApplyLeaveForm.
 export default function ApplyLeaveLoading() {
   return (
     <div className="space-y-6">
       <PageHeaderSkeleton />
 
       <div className="grid w-full gap-6 lg:grid-cols-2">
-        {/* Left: form fields */}
         <div className="space-y-6">
           <div className="space-y-2">
             <Skeleton className="bg-muted h-3.5 w-24 animate-pulse" />
@@ -39,7 +36,6 @@ export default function ApplyLeaveLoading() {
           </div>
         </div>
 
-        {/* Right: mail preview card */}
         <div className="border-border bg-card space-y-4 rounded-sm border p-5">
           <Skeleton className="bg-muted h-4 w-40 animate-pulse" />
           <div className="space-y-2">

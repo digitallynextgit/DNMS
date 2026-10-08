@@ -5,8 +5,7 @@ import { isWithinEditWindow } from "@/lib/edit-window"
 import { resolveProjectMemberIds } from "../../../route"
 import type { Session } from "next-auth"
 
-// PATCH /api/projects/[id]/messages/[messageId]/replies/[replyId] - edit own reply,
-// within the 15 minute window.
+// Own replies only, within the 15-minute window (PATCH and DELETE).
 export const PATCH = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -31,8 +30,7 @@ export const PATCH = withProjectAccess(
       if (!content) return NextResponse.json({ error: "Message cannot be empty" }, { status: 422 })
 
       const data: Record<string, unknown> = { content }
-      // Mentions are re-resolved against project membership, exactly as on create,
-      // so an edit cannot smuggle in someone who is not on the project.
+      // Re-resolve mentions against project membership, as on create.
       if (Array.isArray(body.mentionedIds)) {
         data.mentionedIds = await resolveProjectMemberIds(projectId, body.mentionedIds)
       }
@@ -52,8 +50,6 @@ export const PATCH = withProjectAccess(
   },
 )
 
-// DELETE /api/projects/[id]/messages/[messageId]/replies/[replyId] - delete own reply,
-// within the 15 minute window.
 export const DELETE = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {

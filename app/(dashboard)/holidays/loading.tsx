@@ -5,9 +5,6 @@ import {
 } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-// HRMS → Calendar (default view: Holiday Calendar): header with the calendar
-// picker, the toolbar (tabs | year + add), a 3-up stat strip, then the default
-// (table) tab's list. Mirrors the view's isLoading branch (ListSkeleton).
 export default function HolidaysLoading() {
   return (
     <div className="space-y-6">

@@ -24,11 +24,7 @@ const AUTHOR_SELECT = {
 
 type Kind = "IMAGE" | "VIDEO" | "AUDIO" | "FILE" | "STICKER"
 
-/**
- * A sticker is an image by content type; only the sender's intent separates the
- * two, so that intent travels as a form field rather than being guessed from the
- * file. Everything else follows the MIME type.
- */
+/** Stickers are images too, so the sender's intent (a form field) decides; the rest follows the MIME type. */
 function kindOf(contentType: string, asSticker: boolean): Kind {
   if (contentType.startsWith("image/")) return asSticker ? "STICKER" : "IMAGE"
   if (contentType.startsWith("video/")) return "VIDEO"
@@ -36,24 +32,13 @@ function kindOf(contentType: string, asSticker: boolean): Kind {
   return "FILE"
 }
 
-/**
- * POST /api/projects/:id/messages/:messageId/attachments
- *
- * Creates a REPLY carrying the files, rather than attaching to a reply that
- * already exists. One request, so a picture can never end up in the thread
- * without a reply to hang from, and a failed upload leaves nothing behind.
- *
- * Body: multipart with `files`, an optional `body` caption, and `durationSec` /
- * `waveform` for a voice note.
- */
+// Creates a reply carrying the files in one request, so a failed upload leaves nothing behind.
 export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId, messageId } = await ctx.params
 
-      // Scope by projectId - messageId is client-supplied, so uploading into
-      // another project's thread must be impossible (withProjectAccess only
-      // validated the URL project id).
+      // messageId is client-supplied, so scope by projectId (withProjectAccess only checked the URL project).
       const parent = await db.projectMessage.findFirst({
         where: { id: messageId, projectId },
         select: { id: true, title: true, authorId: true, replies: { select: { authorId: true } } },
@@ -75,8 +60,7 @@ export const POST = withProjectAccess(
         .slice(0, 4000)
       const durationSec = Number(form.get("durationSec")) || null
       const asSticker = String(form.get("sticker") ?? "") === "1"
-      // Clamped and capped: it arrives from the browser, so a hostile client
-      // should not get to store an unbounded array.
+      // Comes from the browser, so clamp and cap it.
       const waveform = String(form.get("waveform") ?? "")
         .split(",")
         .map((n) => Number(n.trim()))
@@ -103,8 +87,7 @@ export const POST = withProjectAccess(
         const kind = kindOf(file.type, asSticker)
         const original = Buffer.from(await file.arrayBuffer())
 
-        // Only pictures are re-encoded. Audio must stay byte-for-byte or the
-        // voice note stops playing, and an arbitrary file is not ours to rewrite.
+        // Only pictures are re-encoded; audio must stay byte-for-byte or voice notes stop playing.
         const out =
           kind === "IMAGE"
             ? await resizeImage(original, file.type, { maxDim: MAX_DIM, quality: 82 })
@@ -149,8 +132,7 @@ export const POST = withProjectAccess(
         data: {
           messageId,
           authorId: session.user.id,
-          // The caption IS the reply text; with no caption the thread still needs
-          // something readable where the words would be.
+          // With no caption the thread still needs something readable.
           content: caption || label,
           mentionedIds: [],
           attachments: { create: prepared },

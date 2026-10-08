@@ -1,29 +1,7 @@
 import { addDays, todayUtc } from "@/lib/dates"
 
-// =============================================================================
-// The window a commitment covers.
-//
-// "Three reels a week" is not owed on a DAY, it is owed across a WEEK, and a
-// single `dueOn` could only ever say when the week ran out. A period says what
-// was actually agreed - and it is what the account manager picks first, before
-// deciding which team owes what inside it.
-//
-// A week here is the WORKING week, Monday to Friday. Work is planned against
-// the days the team is actually in, and a Mon-Sun window quietly implied two
-// days nobody was going to work. The weekend therefore falls in no period at
-// all - that is the intent, not an oversight.
-//
-// The working week is the DEFAULT shape, not the only one. It used to be the
-// only one: the server refused anything else outright. That held while the
-// only thing being planned was a retainer's weekly output, and broke the first
-// time a campaign ran "these twenty assets between the 8th and the 23rd" - a
-// real commitment with no way to write it down. Any range is accepted now;
-// `periodProblem` says what still is not one, and the presets still offer
-// weeks first so nothing about the habitual path changed.
-//
-// Pure and client-safe: the wizard uses it to preview a range, the server uses
-// it to store one, and the tests use it to prove they agree.
-// =============================================================================
+// The window a commitment covers. Weeks are WORKING weeks (Mon-Fri) - the weekend falls in no
+// period on purpose. Any range is accepted; `periodProblem` says what isn't one.
 
 export type PeriodKind = "day" | "week" | "month" | "range"
 
@@ -34,7 +12,6 @@ export interface DeliveryPeriod {
   end: Date
 }
 
-/** yyyy-MM-dd, the shape both the API and the date inputs speak. */
 export const ymd = (d: Date): string => d.toISOString().slice(0, 10)
 
 /** Parse a yyyy-MM-dd into UTC midnight. Null for anything that is not one. */
@@ -51,33 +28,16 @@ export function startOfWeek(d: Date): Date {
   return addDays(d, -((dow + 6) % 7))
 }
 
-/**
- * The working week (Mon-Fri) containing `d`.
- *
- * A weekend date reads back as the week that has just finished, since that is
- * the week it sits in even though no work was planned for those two days.
- */
+/** The working week (Mon-Fri) containing `d`; a weekend date reads as the week just finished. */
 export function weekOf(d: Date): DeliveryPeriod {
   const start = startOfWeek(d)
   return { start, end: addDays(start, 4) }
 }
 
-/**
- * The longest window one plan may cover.
- *
- * A year is past any real commitment and well short of a typo: it is there to
- * catch a mis-keyed year (2026 -> 2062), which would otherwise plant rows
- * decades out where nobody will ever look at them again.
- */
+/** A year: past any real commitment, short of a mis-keyed year (2026 -> 2062). */
 export const MAX_PERIOD_DAYS = 366
 
-/**
- * What is wrong with this period, in the words the person should read - or
- * null when nothing is.
- *
- * One function for the wizard, the staff server and the portal, so a range the
- * form lets somebody build is never one the server then refuses.
- */
+/** User-facing reason this period is invalid, or null. Shared by the wizard, server and portal. */
 export function periodProblem(start: Date, end: Date): string | null {
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     return "That is not a date."
@@ -89,7 +49,6 @@ export function periodProblem(start: Date, end: Date): string | null {
   return null
 }
 
-/** First-to-last day of the calendar month containing `d`. */
 export function monthOf(d: Date): DeliveryPeriod {
   const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))
   const end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))
@@ -106,8 +65,7 @@ export function periodFor(kind: PeriodKind, anchor: Date, until?: Date | null): 
     case "month":
       return monthOf(anchor)
     case "range": {
-      // A backwards range is a slip of the picker, not an intent - read it the
-      // way round it was obviously meant.
+      // A backwards range is a picker slip; read it the way round it was meant.
       const other = until ?? anchor
       return other < anchor ? { start: other, end: anchor } : { start: anchor, end: other }
     }
@@ -121,15 +79,7 @@ export function daysIn(p: DeliveryPeriod): number {
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
-/**
- * A period in the fewest words that still say it exactly.
- *
- *   1 Sep 2026                a single day
- *   1-7 Sep 2026              inside one month
- *   28 Sep - 4 Oct 2026       across two
- *   Sep 2026                  a whole calendar month, named rather than spanned
- *   28 Dec 2026 - 3 Jan 2027  across a year
- */
+/** Shortest exact label: "1 Sep 2026", "1-7 Sep 2026", "28 Sep - 4 Oct 2026", "Sep 2026". */
 export function formatPeriod(start: Date, end: Date): string {
   const sameYear = start.getUTCFullYear() === end.getUTCFullYear()
   const sameMonth = sameYear && start.getUTCMonth() === end.getUTCMonth()

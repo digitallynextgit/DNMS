@@ -22,13 +22,7 @@ import {
   type RegisterRowInput,
 } from "../schemas/stock.schema"
 
-// =============================================================================
-// HRMS stock register.
-//
-// Read = employee:read (it lists who holds what, HR-facing), write =
-// employee:write. "Stock left" is computed here (purchased - issued) so the
-// number can never drift from the ledger.
-// =============================================================================
+// "Stock left" = purchased - issued, computed here so it never drifts from the ledger.
 
 const ISSUE_SELECT = {
   id: true,
@@ -80,15 +74,8 @@ export type StockItemRow = {
   notes: string | null
 }
 
-// ---------------------------------------------------------------------------
-// Employee matching for uploaded names.
-//
-// Sheets say "Deepak Goel" or just "Ayushi". Match against EVERY employee -
-// active AND deactivated ("even deactivated" is a requirement: the person who
-// held the item may have left since). Full-name equality wins; a bare first
-// name links only when exactly ONE employee carries it - an ambiguous name is
-// left unlinked for HR to resolve by hand, never guessed.
-// ---------------------------------------------------------------------------
+// Matches every employee, deactivated too (the holder may have left). Full name wins; a bare
+// first name links only when exactly one employee has it - ambiguous names stay unlinked.
 async function buildEmployeeMatcher(): Promise<(holderName: string) => string | null> {
   const employees = await db.employee.findMany({
     select: { id: true, firstName: true, lastName: true },
@@ -111,15 +98,10 @@ async function buildEmployeeMatcher(): Promise<(holderName: string) => string | 
   }
 }
 
-// ---------------------------------------------------------------------------
-// Items (catalogue)
-// ---------------------------------------------------------------------------
-
 export async function getStockItems(): Promise<ActionResult<StockItemRow[]>> {
   return runAction(async () => {
     await requirePermission(PERMISSIONS.EMPLOYEE_READ)
     const [items, issued] = await Promise.all([
-      // Sheet column order first (position), name as the tie-breaker.
       db.stockItem.findMany({ orderBy: [{ position: "asc" }, { name: "asc" }] }),
       db.stockIssue.groupBy({ by: ["itemId"], _sum: { quantity: true } }),
     ])
@@ -185,9 +167,7 @@ export async function updateStockItem(
           ...(parsed.data.pricePerPiece !== undefined
             ? { pricePerPiece: parsed.data.pricePerPiece }
             : {}),
-          // A restock ADDS pieces (a purchase is an event); an absolute
-          // purchasedQty is a correction of the total. Restock wins when both
-          // arrive, so a stale dialog cannot silently rewrite the total.
+          // restockBy adds pieces; purchasedQty corrects the total. Restock wins if both arrive.
           ...(parsed.data.restockBy
             ? { purchasedQty: { increment: parsed.data.restockBy } }
             : parsed.data.purchasedQty !== undefined
@@ -204,10 +184,6 @@ export async function updateStockItem(
     }
   })
 }
-
-// ---------------------------------------------------------------------------
-// Issues (the register)
-// ---------------------------------------------------------------------------
 
 export async function getStockIssues(filters: {
   q?: string
@@ -250,12 +226,7 @@ export async function getStockIssues(filters: {
   })
 }
 
-/**
- * Bulk action on selected register entries: link them all to one employee,
- * unlink them, or delete them. One request instead of N PATCHes from the
- * selection bar, and the whole batch is scoped to ids that actually exist
- * here (the tenant guard scopes the reads and writes).
- */
+/** Link, unlink or delete the selected register entries in one request. */
 export async function bulkStockIssues(input: {
   ids: string[]
   action: "link" | "unlink" | "delete"
@@ -308,7 +279,6 @@ export async function createStockIssue(
     })
     if (!item) return fail("Item not found")
     if (parsed.data.employeeId) {
-      // Any status, INCLUDING deactivated - but it must be this tenant's employee.
       const emp = await db.employee.findFirst({
         where: { id: parsed.data.employeeId },
         select: { id: true },
@@ -378,12 +348,7 @@ export async function deleteStockIssue(id: string): Promise<ActionResult<{ id: s
   })
 }
 
-// ---------------------------------------------------------------------------
-// Bulk import (the upload dialog's POST). Additive by design: it is a ledger,
-// so uploading appends issues and adds purchases. Re-uploading the same file
-// therefore double-counts - the dialog says so before HR confirms.
-// ---------------------------------------------------------------------------
-
+// Import is additive (a ledger): re-uploading the same file double-counts; the dialog warns.
 export interface ImportResult {
   itemsCreated: number
   itemsRestocked: number
@@ -408,11 +373,8 @@ export async function importStock(input: ImportInput): Promise<ActionResult<Impo
       unlinked: 0,
     }
 
-    // Item names arrive from two places (catalogue rows + issuance columns);
-    // resolve them all to ids, creating what does not exist yet.
     const existing = await db.stockItem.findMany({ select: { id: true, name: true } })
     const itemIdByName = new Map(existing.map((i) => [normalizeName(i.name), i.id]))
-    // New items append after the current columns, keeping the sheet's order.
     let nextPosition =
       (await db.stockItem.aggregate({ _max: { position: true } }))._max.position ?? 0
 
@@ -420,8 +382,7 @@ export async function importStock(input: ImportInput): Promise<ActionResult<Impo
       const key = normalizeName(item.name)
       const known = itemIdByName.get(key)
       if (known) {
-        // A catalogue row for a known item is a RESTOCK: quantities add, and a
-        // price on the sheet becomes the current price.
+        // A known item is a RESTOCK: quantities add and the sheet's price becomes current.
         await db.stockItem.update({
           where: { id: known },
           data: {
@@ -448,10 +409,7 @@ export async function importStock(input: ImportInput): Promise<ActionResult<Impo
     for (const issue of issues) {
       const key = normalizeName(issue.itemName)
       if (!itemIdByName.has(key)) {
-        // An issuance column with no catalogue row: the item plainly exists,
-        // HR just never recorded the purchase. Create it with zero purchased
-        // so the register is complete; "left" goes negative until HR fills
-        // the purchase in, which is the honest state of the books.
+        // Issued but never purchased: create it with 0 purchased; "left" stays negative until HR fixes it.
         const created = await db.stockItem.create({
           data: { name: issue.itemName, position: ++nextPosition, purchasedQty: 0 },
           select: { id: true },
@@ -483,11 +441,7 @@ export async function importStock(input: ImportInput): Promise<ActionResult<Impo
   })
 }
 
-// ---------------------------------------------------------------------------
-// Employee search for the link dialog. INCLUDES deactivated employees - the
-// person a sheet names may have left; linking their history is the point.
-// ---------------------------------------------------------------------------
-
+// Includes deactivated employees - the person a sheet names may have left.
 export type LinkableEmployee = {
   id: string
   firstName: string
@@ -528,20 +482,13 @@ export async function searchLinkableEmployees(
   })
 }
 
-// ---------------------------------------------------------------------------
-// The MATRIX view: the register pivoted to mirror the uploaded sheet - one
-// row per (holder, employee link, date), one column per item, quantities in
-// the cells. The flat per-issue ledger stays the source of truth; this only
-// changes how it is read and how a row-edit is written back.
-// ---------------------------------------------------------------------------
-
+// Matrix view: the ledger pivoted like the uploaded sheet - one row per (holder, employee, date),
+// one column per item. The flat ledger stays the source of truth.
 export type StockMatrixRow = {
-  /** Stable client key for the group (holder + employee + date). */
   key: string
   holderName: string
   issuedOn: Date | null
   employee: StockIssueRow["employee"]
-  /** Every underlying ledger entry in this row (for bulk link/unlink/delete). */
   issueIds: string[]
   /** itemId → summed quantity + the ledger entries behind it. */
   cells: Record<string, { quantity: number; issueIds: string[] }>
@@ -596,9 +543,7 @@ export async function getStockMatrix(filters: {
       return ok({ rows: [], meta: paginationMeta(allGroups.length, page, limit) })
     }
 
-    // All ledger entries behind this page's groups, in one query. NOTE: this
-    // deliberately drops the item filter - a row filtered BY an item still
-    // shows its other columns, like reading the sheet.
+    // No item filter here: a row filtered BY an item still shows its other columns.
     const entries = await db.stockIssue.findMany({
       where: {
         OR: pageGroups.map((g) => ({
@@ -639,12 +584,7 @@ export async function getStockMatrix(filters: {
   })
 }
 
-/**
- * Write ONE matrix row back: holder, date, link, and a quantity per item.
- * Reconciled against the ledger entries the client saw - per cell: 0 deletes
- * them, a quantity updates the first (and drops accidental duplicates), a
- * quantity with no entries creates one.
- */
+/** Per cell: 0 deletes the entries, a quantity updates the first (dropping duplicates) or creates one. */
 export async function updateStockRegisterRow(
   input: RegisterRowInput,
 ): Promise<ActionResult<{ ok: true }>> {
@@ -655,13 +595,11 @@ export async function updateStockRegisterRow(
     const { holderName, employeeId, issuedOn, cells } = parsed.data
 
     if (employeeId) {
-      // Any status, INCLUDING deactivated - but it must be this tenant's employee.
       const emp = await db.employee.findFirst({ where: { id: employeeId }, select: { id: true } })
       if (!emp) return fail("That employee does not exist here")
     }
 
-    // Everything the client claims to be editing must still exist HERE (the
-    // tenant guard scopes this read) - a stale dialog fails loudly, not partially.
+    // Every claimed entry must still exist, so a stale dialog fails loudly rather than partially.
     const claimedIds = cells.flatMap((c) => c.issueIds)
     if (new Set(claimedIds).size !== claimedIds.length) return fail("Duplicate entries in the row")
     const [foundIssues, foundItems] = await Promise.all([

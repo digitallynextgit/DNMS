@@ -1,22 +1,8 @@
-// =============================================================================
-// HR processes: onboarding checklists, 15-day joinee scorecards, resignations
-// and exit clearance, document requests, and the stock register.
-//
-// Checklists are built by the app's own instantiateChecklist() - it is
-// script-safe (no session, no notifications) and snapshots the tenant's
-// template exactly as a real joiner/leaver gets it. The joinee scorecard is
-// mirrored from startScorecardFor(), whose module imports the session guards
-// and so cannot be loaded from a script.
-//
-// ── POOJA'S RESIGNATION IS APPROVED, NOT PENDING ─────────────────────────────
-// The Exit Clearance page lists only APPROVED resignations of people still
-// serving notice, and the exit checklist (the clearances Meera and Karthik sign
-// from "Waiting on you") is created at approval. So Pooja is mid-notice: her
-// resignation was accepted, her last day is a few weeks out, clearances are
-// open. A separate PENDING resignation (Arjun) keeps the Resignations queue -
-// HR's and Rohan's - from being empty. Flip POOJA_STATUS to PENDING to change
-// that story (her exit checklist is then not created).
-// =============================================================================
+// Demo HR processes: onboarding checklists, joinee scorecards, resignations and exit clearance, document
+// requests and the stock register. Checklists use the app's own instantiateChecklist(); the scorecard mirrors
+// startScorecardFor(), whose module imports session guards and cannot load in a script.
+// Pooja's resignation is APPROVED (mid-notice) so the Exit Clearance page and her clearances exist; Arjun's
+// PENDING one keeps the Resignations queue non-empty. Flip POOJA_STATUS to change that.
 
 import { db } from "@/server/db"
 import { instantiateChecklist } from "@/features/hr-checklists/server/instantiate"
@@ -98,7 +84,7 @@ export async function seedHrProcesses(ctx: DemoContext): Promise<void> {
   const kavya = idOf(ctx, "kavya")
   const rohan = idOf(ctx, "rohan")
 
-  // ── onboarding: Rahul (joined days ago) - about half done ──────────────────
+  // Onboarding: Rahul (joined days ago), about half done.
   const rahulId = idOf(ctx, "rahul")
   const onboarding = await instantiateChecklist({
     employeeId: rahulId,
@@ -116,9 +102,7 @@ export async function seedHrProcesses(ctx: DemoContext): Promise<void> {
   const doneRahul = await markItems(
     ctx,
     onboarding.id,
-    // HR's items due by today, bar one left overdue. Every MANAGER item stays
-    // open, so they sit on Rohan's "Waiting on you" (e.g. "Role-specific
-    // process training").
+    // HR's items due by today, bar one overdue. MANAGER items stay open for Rohan's "Waiting on you".
     (i) =>
       i.assigneeRole === "HR" &&
       (i.dueDate === null ? i.displayOrder < 3 : i.dueDate <= ctx.today) &&
@@ -133,7 +117,7 @@ export async function seedHrProcesses(ctx: DemoContext): Promise<void> {
   })
   ctx.summary.add(M, `Rahul's onboarding checklist (${doneRahul}/${total} done)`, 1)
 
-  // ── onboarding: Ishaan - completed months ago (history on the COMPLETED tab)
+  // Onboarding: Ishaan, completed months ago (history on the COMPLETED tab).
   const ishaanId = idOf(ctx, "ishaan")
   const ishaanJoined = (await db.employee.findUnique({
     where: { id: ishaanId },
@@ -164,7 +148,6 @@ export async function seedHrProcesses(ctx: DemoContext): Promise<void> {
     ctx.summary.add(M, "completed onboarding checklist (Ishaan)", 1)
   }
 
-  // ── joinee scorecards ──────────────────────────────────────────────────────
   const r = ctx.rand
   const scorecard = async (employeeId: string, joined: Date, opts: { complete: boolean }) => {
     const card = await make(ctx, "joineeScorecard", {
@@ -208,10 +191,8 @@ export async function seedHrProcesses(ctx: DemoContext): Promise<void> {
   await scorecard(ishaanId, ishaanJoined, { complete: true })
   ctx.summary.add(M, "joinee scorecards (Rahul in progress, Ishaan complete)", 2)
 
-  // ── exit clearance: route Finance + IT/Admin sign-offs to their heads ───────
-  // The default template seeds these DEPARTMENT_HEAD items with no department;
-  // pointing them at Finance (head: Meera) and Technology (head: Karthik) is
-  // what puts the exit on their "Waiting on you" page.
+  // Point the template's Finance + IT/Admin DEPARTMENT_HEAD items at Finance (Meera) and Technology (Karthik),
+  // which puts the exit on their "Waiting on you" page.
   const exitTemplate = await db.checklistTemplate.findFirst({
     where: { kind: "EXIT" },
     select: { id: true },
@@ -233,7 +214,6 @@ export async function seedHrProcesses(ctx: DemoContext): Promise<void> {
     }
   }
 
-  // ── resignations ───────────────────────────────────────────────────────────
   const R = "Resignations"
   const poojaId = idOf(ctx, "pooja")
   const applied = shiftWorkingDays(ctx, ctx.today, -12)
@@ -359,7 +339,7 @@ export async function seedHrProcesses(ctx: DemoContext): Promise<void> {
   })
   ctx.summary.add(R, "Arjun's resignation (PENDING - for the review queue)", 1)
 
-  // ── document requests (no file needed until the employee uploads) ──────────
+  // Document requests (no file needed until the employee uploads).
   const D = "Documents"
   const docRequests = [
     {
@@ -415,7 +395,6 @@ export async function seedHrProcesses(ctx: DemoContext): Promise<void> {
   )
   ctx.summary.add(D, "document requests (HR asking for uploads)", docRequests.length)
 
-  // ── stock register ─────────────────────────────────────────────────────────
   const S = "Stock register"
   const stock: [string, number, number, string | null][] = [
     ["Diary", 180, 40, "A5, company logo on the cover"],

@@ -11,19 +11,7 @@ import type { ProjectTeam } from "../../hooks/use-projects"
 import type { WorkbookTeam } from "../../lib/sheet-types"
 import { PersonAvatar } from "./person-bits"
 
-// =============================================================================
-// Who, from this team, is on this month's calendar.
-//
-// ── WHY THIS IS NOT AddMembersDialog FROM teams-tab.tsx ──────────────────────
-// That one searches every assignable employee on the PROJECT, which is right
-// for staffing a team and wrong here. A calendar row belongs to a team, so
-// putting somebody on it who is not on that team would leave the Teams tab and
-// the calendar disagreeing about who is on Design. The server refuses it too;
-// this is the half that stops it being offered.
-//
-// The roster comes from the team list the Calendars tab already holds, so this
-// costs no request.
-// =============================================================================
+// Offers only this team's members (not the whole project); the server refuses anyone else too.
 
 export function TeamPeopleDialog({
   open,
@@ -49,14 +37,16 @@ export function TeamPeopleDialog({
   const [search, setSearch] = React.useState("")
   const [selected, setSelected] = React.useState<string[]>([])
 
-  React.useEffect(() => {
+  const [prevOpen, setPrevOpen] = React.useState(false)
+  const [prevMembers, setPrevMembers] = React.useState(team.members)
+  if (open !== prevOpen || team.members !== prevMembers) {
+    setPrevOpen(open)
+    setPrevMembers(team.members)
     if (open) {
-      // Opens on what is already true, so the dialog is "change who is on it",
-      // not "start again".
       setSelected(team.members.map((m) => m.employeeId))
       setSearch("")
     }
-  }, [open, team.members])
+  }
 
   const people = React.useMemo(() => {
     const q = search.trim().toLowerCase()

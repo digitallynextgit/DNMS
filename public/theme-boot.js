@@ -1,15 +1,5 @@
-/* Runs before paint (render-blocking <script src> in <head>) to apply the saved
-   theme palette and prevent a flash of the wrong colours. Kept as a static file
-   so it's a plain external script - React 19 only warns about INLINE scripts.
-
-   MARKETING PAGES ARE SKIPPED. They are dark-only and ignore the dashboard's
-   custom palettes; without this check, someone signed in with, say, the Aurora
-   palette would see it flash across the public homepage before React mounted
-   and stripped it.
-
-   The path list MIRRORS lib/marketing-routes.ts. This file cannot import - it
-   is plain static JS served straight to the browser - so the two are kept in
-   step by scripts/verify-tenant-urls.ts, which fails if they drift. */
+/* Applies the saved palette before first paint (no flash). Marketing pages are dark-only, so
+   they're skipped. The path list MIRRORS lib/marketing-routes.ts - this static file can't import. */
 (function () {
   try {
     var MARKETING_EXACT = ["/"]
@@ -30,16 +20,13 @@
     var root = document.documentElement
 
     if (onMarketing) {
-      // Pin dark and leave the saved palette untouched in storage - the user
-      // still has it the moment they go back to the dashboard.
+      // Pin dark but leave the saved palette in storage for the dashboard.
       root.classList.remove("light")
       root.classList.add("dark")
       root.style.colorScheme = "dark"
 
-      // Signed in? proxy.ts keeps the "dnms-auth" cookie (lib/auth-hint.ts -
-      // MIRRORED here, this file cannot import) in step on this very response,
-      // so it is already set. Stamping it on <html> lets globals.css show
-      // Dashboard instead of Log in / Start free on the first paint.
+      // proxy.ts keeps the "dnms-auth" cookie in step (lib/auth-hint.ts, mirrored here), so
+      // globals.css can show Dashboard instead of Log in on first paint.
       var hint = document.cookie.match(/(?:^|;\s*)dnms-auth=(employee|client)(?:;|$)/)
       if (hint) root.setAttribute("data-auth", hint[1])
       else root.removeAttribute("data-auth")

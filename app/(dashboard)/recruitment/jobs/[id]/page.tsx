@@ -199,10 +199,7 @@ function ApplicantCard({
         {applicant.resumeUrl && (
           <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
             <FileText className="h-3 w-3 flex-shrink-0" />
-            {/* The stable API route, not the stored presigned url (API-07):
-                B2 caps a signature at 7 days, so linking to the stored value
-                meant every CV 403'd a week after upload. The route mints a
-                fresh signature per click and redirects. */}
+            {/* The API route, not the stored presigned URL - B2 signatures expire after 7 days. */}
             <a
               href={`/api/recruitment/applicants/${applicant.id}/resume`}
               target="_blank"
@@ -314,8 +311,7 @@ export default function JobPipelinePage() {
     dragApplicantId.current = null
   }
 
-  // "Not found" (loaded, but no job) still bails out - only the LOADING state now
-  // paints the shell instead of blanking the page.
+  // Only a loaded-but-missing job bails out; while loading, the shell paints.
   if (!isLoading && !job) return null
 
   const grouped = STAGES.reduce(
@@ -329,7 +325,6 @@ export default function JobPipelinePage() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header - painted immediately; only the job's own text is placeheld. */}
       <div className="bg-background border-b px-6">
         <PageHeader
           backHref="/recruitment"
@@ -354,7 +349,6 @@ export default function JobPipelinePage() {
         />
       </div>
 
-      {/* Kanban Board */}
       <div className="flex-1 overflow-x-auto overflow-y-hidden">
         <div className="flex h-full min-w-max gap-4 p-6">
           {STAGES.map((stage) => {
@@ -370,7 +364,6 @@ export default function JobPipelinePage() {
                 onDrop={(e) => handleDrop(e, stage)}
                 onDragLeave={() => setDragOverStage(null)}
               >
-                {/* Column header */}
                 <div className="mb-3 flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
                     <span className={cn("h-2 w-2 flex-shrink-0 rounded-sm", cfg.dot)} />
@@ -385,7 +378,6 @@ export default function JobPipelinePage() {
                   )}
                 </div>
 
-                {/* Drop zone */}
                 <div
                   className={cn(
                     "min-h-[200px] flex-1 rounded-sm border-2 border-dashed p-2 transition-all duration-150",
@@ -395,8 +387,6 @@ export default function JobPipelinePage() {
                   )}
                 >
                   {isLoading ? (
-                    // Two card-shaped placeholders per column (an ApplicantCard is
-                    // ~8rem tall), so the board keeps its real geometry while loading.
                     <div className="space-y-2">
                       {Array.from({ length: 2 }).map((_, i) => (
                         <Skeleton key={i} className="h-32 w-full rounded-sm" />
@@ -441,7 +431,6 @@ export default function JobPipelinePage() {
         </div>
       </div>
 
-      {/* Add Applicant Dialog */}
       {job && (
         <FormDialog
           open={addOpen}
@@ -518,7 +507,6 @@ export default function JobPipelinePage() {
         </FormDialog>
       )}
 
-      {/* Schedule Interview Dialog */}
       {selectedApplicant && (
         <FormDialog
           open={interviewOpen}

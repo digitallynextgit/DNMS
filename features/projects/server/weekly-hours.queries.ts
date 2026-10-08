@@ -8,19 +8,8 @@ import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import { addDays, toDayKey, utilisation, weekCapacity } from "@/features/projects/lib/work-week"
 import type { Session } from "next-auth"
 
-// =============================================================================
-// One week of logged hours, per person, against what they had available.
-//
-// Everything here is DERIVED - nobody types it. Hours come from the task clock,
-// days off from approved leave and the holiday calendar, capacity from the
-// attendance policy. A roll-up that is maintained by hand stops being true the
-// month after anyone last cared about it.
-//
-// Hours are attributed to a task's DUE DATE, which is how the allocation sheet
-// places them. Attributing by when the clock actually ran would be more precise
-// but would disagree with the grid people already read, and a summary that
-// contradicts the sheet is worse than one approximate in a known way.
-// =============================================================================
+// One week of logged hours per person vs. availability, all derived. Hours count on the task's
+// DUE DATE (as the allocation sheet places them), not when the clock ran.
 
 export type HoursScope = "self" | "team" | "all"
 
@@ -51,17 +40,8 @@ export interface WeeklyHours {
 }
 
 /**
- * Whose hours this session may see.
- *
- *   plain employee   -> their own
- *   team manager     -> their own, plus everyone on the teams they manage
- *   Account Manager  -> everyone on the teams of the projects they OWN
- *   project:write    -> everyone
- *
- * The same shape as the rest of the progress page's scoping, expressed per
- * model because each has its own path back to the user. This is derived, never
- * taken from the request, so it IS the authorisation - there is no id to
- * tamper with.
+ * Whose hours this session may see: self; + teams they manage; + teams on projects they own (AM);
+ * everyone with project:write. Derived from the session, never the request.
  */
 export async function visiblePeople(
   session: Session,
@@ -77,9 +57,7 @@ export async function visiblePeople(
     return { memberIds: all.map((e) => e.id), scope: "all" }
   }
 
-  // ProjectTeamMember carries `projectId` as a denormalised column but has NO
-  // `project` relation (there is no foreign key on it either), so "projects I
-  // own" has to be resolved first and matched on the id.
+  // ProjectTeamMember.projectId has no relation/FK, so resolve owned projects first and match on id.
   const ownedProjects = await db.project.findMany({
     where: { ownerId: me },
     select: { id: true },
@@ -105,7 +83,6 @@ export async function visiblePeople(
   return { memberIds, scope: memberIds.length > 1 ? "team" : "self" }
 }
 
-/** Every day from `start` to `end` inclusive, as day keys. */
 function dayKeysBetween(start: Date, end: Date): string[] {
   const out: string[] = []
   for (let d = new Date(start); d <= end; d = addDays(d, 1)) out.push(toDayKey(d))
@@ -117,8 +94,7 @@ export async function getWeeklyHours(
   monday: Date,
   scope: HoursScope,
 ): Promise<WeeklyHours> {
-  // Sunday, so a task due at the weekend still counts in the week's total even
-  // though it has no column of its own.
+  // Through Sunday, so a weekend due date still counts in the week's total.
   const rangeEnd = addDays(monday, 6)
 
   const [people, tasks, leaves, holidays, policy] = await Promise.all([
@@ -143,8 +119,7 @@ export async function getWeeklyHours(
       where: {
         employeeId: { in: memberIds },
         status: "APPROVED",
-        // Any overlap with the week, not just requests starting inside it - a
-        // fortnight of leave beginning last month still covers this week.
+        // Any overlap with the week, e.g. leave that began last month.
         startDate: { lte: rangeEnd },
         endDate: { gte: monday },
       },
@@ -170,15 +145,8 @@ export async function getWeeklyHours(
     leaveByPerson.set(l.employeeId, set)
   }
 
-  /**
-   * Banked time plus the whole stretch running - the sheet's "spent".
-   *
-   * Undivided, matching what settleRunningTasks banks: clocks running side by
-   * side each earn the full stretch (task-clock.service.ts). A person with two
-   * tasks open across one hour therefore shows two hours here, and a week's
-   * total CAN exceed the capacity beside it. That is the intended reading -
-   * this column is time-on-tasks, not hours-at-desk.
-   */
+  // Banked + running time, undivided (parallel clocks each earn the full stretch), so a week CAN
+  // exceed capacity: this is time-on-tasks, not hours-at-desk.
   const spent = (t: (typeof tasks)[number]) => {
     const live = t.inProgressSince
       ? Math.max(0, Date.now() - t.inProgressSince.getTime()) / 3_600_000
@@ -202,8 +170,7 @@ export async function getWeeklyHours(
       byDay.set(k, (byDay.get(k) ?? 0) + spent(t))
     }
 
-    // Per client, biggest first - "where did the hours go" is the question, and
-    // an alphabetical list does not answer it.
+    // Per client, biggest first.
     const byClient = new Map<string, { hours: number; tasks: string[] }>()
     for (const t of mine) {
       const client = t.project?.name ?? ADHOC_LABEL

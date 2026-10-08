@@ -60,17 +60,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { formatPeriod, parseDay } from "@/features/projects/lib/delivery-period"
 
-// =============================================================================
-// The client's view of the content plan.
-// =============================================================================
-// Same rows the team works from, read as one table: what was promised, what has
-// landed, and what is still waiting on somebody.
-//
-// Which buttons a row gets is NOT decided here. `nextActions(status, "client")`
-// is the same function the server checks the request against, so the portal
-// cannot offer a move that would then be refused - and when the rules change,
-// they change in one place.
-// =============================================================================
+// The client's view of the content plan. Row buttons come from nextActions(status, "client"),
+// the same table the server checks.
 
 /** What the file picker offers, kept in step with what the server accepts. */
 const UPLOAD_ACCEPT = [
@@ -117,10 +108,7 @@ interface PlanItem {
   attached: number
   /** The brief, but only on items the client wrote. Null on the team's own. */
   yourBrief: string | null
-  /**
-   * May this client withdraw it? Decided on the SERVER, by the same predicate
-   * the delete itself uses - the browser never re-derives the rule.
-   */
+  /** Decided on the server by the same predicate the delete uses. */
   canWithdraw: boolean
 }
 
@@ -141,20 +129,11 @@ interface DraftLine {
 
 const emptyLine = (): DraftLine => ({ type: "", title: "", quantity: "1", description: "" })
 
-/** One shared empty list, so "no items yet" is a stable reference. See its use. */
 const NO_ITEMS: PlanItem[] = []
 
 /**
- * The export, in one place - all three formats write the same columns.
- *
- * "Files" is a COUNT and "File names" is the list, because a spreadsheet cell
- * holding eight filenames cannot be summed and a column of 8s cannot tell you
- * what was delivered. Both, and each does one job.
- *
- * "Links" carries every URL on the row that will STILL WORK tomorrow: whatever
- * was pasted on the item, plus one url per file. The raw Backblaze url is never
- * among them - it is signed and dies within the hour, so a file full of them
- * would break overnight. See `fileUrl` for which url each file gets instead.
+ * Export columns, shared by all three formats. "Links" holds only URLs that keep working - never
+ * signed storage URLs, which expire within the hour (see fileUrl).
  */
 const EXPORT_COLUMNS = [
   "Item",
@@ -172,12 +151,7 @@ const EXPORT_COLUMNS = [
 
 const todayYmd = () => new Date().toISOString().slice(0, 10)
 
-/**
- * Does this move need a reason before it can be sent?
- *
- * Asked of the shared transition table rather than hard-coded as "stuck or
- * discarded", so the dialog and the server can never disagree about it.
- */
+/** Asked of the shared transition table, so the dialog and the server always agree. */
 const transitionNeedsReason = (from: DeliverableStatus, to: DeliverableStatus): boolean => {
   const check = allowedTransition(from, to, "client")
   return check.ok && check.needs.includes("reason")
@@ -193,8 +167,7 @@ function periodLabel(start: string | null, end: string | null): string {
 export function PortalPlan({ projectRef }: { projectRef: string }) {
   const qc = useQueryClient()
   const base = `/api/portal/projects/${projectRef}/plan`
-  // Absolute urls for the export - a relative path in a spreadsheet is not a
-  // link. Guarded for the server pass, where `window` does not exist.
+  // Absolute urls for the export; `window` doesn't exist on the server pass.
   const origin = typeof window === "undefined" ? "" : window.location.origin
 
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -219,7 +192,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
   const [withdrawing, setWithdrawing] = React.useState<PlanItem | null>(null)
   const [revoking, setRevoking] = React.useState<PlanFile | null>(null)
   const [deletingAsset, setDeletingAsset] = React.useState<PlanFile | null>(null)
-  /** The item whose files are open in the dialog. */
   const [viewingAssets, setViewingAssets] = React.useState<PlanItem | null>(null)
   const [deletingMany, setDeletingMany] = React.useState(false)
   /** Covers the dynamic import of the Excel/Word libraries, which is not instant. */
@@ -227,9 +199,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
 
   const uploadFor = React.useRef<string | null>(null)
   const fileInput = React.useRef<HTMLInputElement>(null)
-
-  // `move()` clears the note when it opens the dialog, so there is no stale
-  // value to reset here.
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["portal-plan", projectRef] })
 
@@ -264,13 +233,7 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
     onError: (e: Error) => toast.error(e.message),
   })
 
-  /**
-   * Apply a move, stopping off for a reason when the transition needs one.
-   *
-   * Which ones need it is read from the SAME table the server checks, so the
-   * dialog cannot appear for a move that would not want it, or be skipped for
-   * one that would then 422.
-   */
+  /** Apply a move, asking for a reason first when the transition needs one. */
   const move = (item: PlanItem, to: DeliverableStatus) => {
     if (transitionNeedsReason(item.status, to)) {
       setStopping({ item, to })
@@ -300,9 +263,7 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
     mutationFn: async (vars: { id: string; file: File }) => {
       const form = new FormData()
       form.append("file", vars.file)
-      // A video can be hundreds of MB and take minutes. Without a pending toast
-      // the only feedback is one disabled button, which reads as "nothing
-      // happened" and invites a second upload of the same file.
+      // Big videos take minutes; a loading toast stops people uploading twice.
       const toastId = toast.loading(
         vars.file.size > 25 * 1024 * 1024
           ? `Uploading ${vars.file.name} - large files can take a few minutes`
@@ -319,9 +280,7 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
     onSuccess: (res) => {
       const d = res.data.data
       if (d.isVideo && d.shareUrl) {
-        // Offer the link immediately - copying it is the reason the video was
-        // uploaded, and making them find the row again to do it is friction for
-        // nothing.
+        // Offer the link right away - sharing it is why the video was uploaded.
         toast.success("Video attached and shareable", {
           duration: 12_000,
           action: { label: "Copy link", onClick: () => copyShareLink(d.shareUrl!) },
@@ -355,23 +314,7 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
     onError: (e: Error) => toast.error(e.message),
   })
 
-  /**
-   * Export the selected rows as CSV, in the browser.
-   *
-   * No server round trip - everything on screen is already here, and a download
-   * endpoint would need its own auth, its own shape and its own drift.
-   */
-  /**
-   * A url for one file that is still good next week.
-   *
-   * Prefers the PUBLIC share link when the file has one, because that opens for
-   * anybody the spreadsheet is forwarded to. Otherwise the portal permalink,
-   * which is permanent but asks the reader to sign in - the right default for
-   * work that was never published.
-   *
-   * Never a signed Backblaze url: those expire in an hour, and a file full of
-   * links that break overnight is worse than a file with none.
-   */
+  /** A lasting url: the public share link, else the portal permalink (needs sign-in). */
   const fileUrl = (f: PlanFile): string => f.shareUrl ?? `${origin}${base}/assets/${f.id}/open`
 
   const exportRows = () =>
@@ -379,19 +322,15 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
       i.title,
       i.type,
       periodLabel(i.periodStart, i.periodEnd),
-      // yyyy-MM-dd rather than "14 Sep 2026": a spreadsheet sorts the first and
-      // treats the second as text.
+      // yyyy-MM-dd so spreadsheets sort it as a date.
       i.dueOn ?? "",
       i.quantity,
       i.deliveredQuantity,
       DELIVERABLE_STATUS_LABELS[i.status],
       i.statusReason ?? "",
       i.files.length,
-      // NEWLINES, not "; ": eight urls on one line runs off the page in every
-      // format. All three writers handle a line break inside a cell - CSV quotes
-      // it, Excel wraps it, Word makes it its own paragraph.
+      // Newlines, not "; " - every writer handles a line break inside a cell.
       i.files.map((f) => f.fileName).join("\n"),
-      // One working url per file, plus whatever links were pasted on the row.
       [...i.links, ...i.files.map(fileUrl)].join("\n"),
     ])
 
@@ -413,8 +352,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
         )
       toast.success(`Exported ${rows.length} row${rows.length === 1 ? "" : "s"}`)
     } catch (e) {
-      // A dynamic import can fail on a flaky connection, and a silent no-op
-      // looks exactly like a button that does not work.
       toast.error(e instanceof Error ? e.message : "Export failed")
     } finally {
       setExporting(false)
@@ -423,9 +360,7 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
 
   const removeMany = useMutation({
     mutationFn: async (ids: string[]) => {
-      // Sequential on purpose: these are deletes, and a half-applied burst is
-      // harder to explain than a slightly slower one. The list is small - it is
-      // whatever somebody ticked by hand.
+      // Sequential on purpose: a half-applied burst of deletes is harder to explain.
       const failed: string[] = []
       for (const id of ids) {
         try {
@@ -456,14 +391,12 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
     onError: (e: Error) => toast.error(e.message),
   })
 
-  /** Put a public Drive link on the clipboard. */
   async function copyShareLink(url: string) {
     try {
       await navigator.clipboard.writeText(url)
       toast.success("Link copied - anyone with it can watch, no sign-in needed")
     } catch {
-      // Clipboard access is denied outside a secure context and in some
-      // embedded browsers. Showing the URL still lets them copy it by hand.
+      // Clipboard is blocked outside secure contexts; showing the URL lets them copy it by hand.
       toast.error(`Could not copy. The link is: ${url}`, { duration: 15_000 })
     }
   }
@@ -480,25 +413,17 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
     }
   }
 
-  // `?? NO_ITEMS` rather than `?? []`: the selection hook keys its callbacks off
-  // the id list, and a fresh [] on every render would rebuild them each time.
-  // This way `items` is always a stable reference - the query's array, or the
-  // one module-level empty - and needs no memo of its own.
+  // NO_ITEMS, not [] - a fresh array each render would rebuild the selection hook's callbacks.
   const items = data?.items ?? NO_ITEMS
   const canPlan = data?.canPlan ?? false
 
-  // Selection: for exporting and removing rows. Deliberately NOT wired to
-  // status - a status change is a statement about one piece of work, and the
-  // reason Stuck and Discarded demand is rarely the same for several at once.
+  // Selection is for export and removal only - status changes stay one row at a time.
   const itemIds = React.useMemo(() => (data?.items ?? NO_ITEMS).map((i) => i.id), [data])
   const selection = useRowSelection(itemIds)
   const selectedItems = items.filter((i) => selection.isSelected(i.id))
-  // The same rule the single-row button obeys, asked of every selected row.
   const removable = selectedItems.filter((i) => i.canWithdraw)
 
-  // Units, not rows, for planned/made - "10 posters" is one row and ten things.
-  // "Waiting on you" and "Finalised" went with the approval loop; in its place
-  // the two states somebody has to do something about.
+  // Units, not rows - "10 posters" is one row and ten things.
   const counts = {
     planned: items.reduce((n, i) => n + i.quantity, 0),
     made: items.reduce((n, i) => n + Math.min(i.deliveredQuantity, i.quantity), 0),
@@ -516,12 +441,7 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
     lines.length > 0 &&
     lines.every((l) => l.type.trim() && l.title.trim() && Number(l.quantity) >= 1)
 
-  // ── The files and links hanging off one item ───────────────────────────────
-  //
-  // The CELL is only ever one line: a count that opens a dialog. Expanding the
-  // list in place made a row nine lines tall, which moved every column below it
-  // and pushed the rest of the plan off the screen - the table stopped being a
-  // table the moment anybody looked at their files.
+  // The cell is one line - a count that opens a dialog - so rows never grow tall.
   function Assets({ item }: { item: PlanItem }) {
     const total = item.files.length + item.links.length
     if (total === 0) return <span className="text-muted-foreground text-xs">—</span>
@@ -550,7 +470,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
     )
   }
 
-  /** The same files and links, with room to read them, in a dialog. */
   function AssetsBody({ item }: { item: PlanItem }) {
     return (
       <div className="space-y-4">
@@ -565,8 +484,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
                   className="hover:bg-accent/40 flex items-center gap-2 rounded-sm px-1 py-1"
                 >
                   <Icon className="text-muted-foreground h-4 w-4 shrink-0" />
-                  {/* A dialog has the width the cell never did, so the name gets
-                      to be readable instead of "WhatsApp Image 2026-09-1...". */}
                   <span className="min-w-0 flex-1 truncate text-sm" title={f.fileName}>
                     {f.fileName}
                   </span>
@@ -605,8 +522,7 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
                       >
                         <Copy className="h-3 w-3" />
                       </Button>
-                      {/* The link is only defensible because it can be taken back,
-                      so the way to take it back has to be right here. */}
+                      {/* The link can be taken back, so revoking lives right here. */}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -620,8 +536,7 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
                       </Button>
                     </>
                   )}
-                  {/* Only on their own uploads - the same question the server asks,
-                  so this button can never produce a 404. */}
+                  {/* Only their own uploads - the same check the server makes. */}
                   {f.isMine && (
                     <Button
                       variant="ghost"
@@ -664,13 +579,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
     )
   }
 
-  /**
-   * The status, and the way to change it.
-   *
-   * The moves offered come from `nextActions(status, "client")` - the same table
-   * the server checks the request against - so a button here can never be one
-   * the server then refuses.
-   */
   function StatusCell({ item }: { item: PlanItem }) {
     const moves = nextActions(item.status, "client")
     const badge = (
@@ -703,8 +611,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
             <DropdownMenuContent align="start">
               {moves.map((to) => (
                 <DropdownMenuItem key={to} onSelect={() => move(item, to)} className="gap-2">
-                  {/* The same colour the badge will wear once it is chosen, so
-                      picking a status and reading it back are the same act. */}
                   <span
                     aria-hidden
                     className={`h-2 w-2 shrink-0 rounded-full ${DELIVERABLE_STATUS_DOTS[to]}`}
@@ -720,8 +626,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-        {/* The reason is the whole point of those two states - a row that says
-            "Stuck" without saying on what is no more useful than "To do". */}
         {item.statusReason && (
           <p
             className="text-muted-foreground max-w-[12rem] text-[11px] leading-snug"
@@ -734,15 +638,10 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
     )
   }
 
-  // ── Row actions: attaching work, and withdrawing a request ────────────────
-  // Moving the row between states lives in the Status column now, not here.
   function Actions({ item }: { item: PlanItem }) {
-    // A finalised row is the staff side's to re-open; a discarded one is not
-    // collecting attachments either.
+    // Finalised rows are the staff side's to re-open; discarded ones take no attachments.
     const canAttach = item.status !== "ACCEPTED" && item.status !== "DISCARDED"
-    // The same budget the server enforces: an item planned for N takes N
-    // attachments, files and links together. Disabling here means nobody sits
-    // through a 200 MB upload that was always going to be refused.
+    // Same budget the server enforces (files + links together), so no doomed 200 MB uploads.
     const full = item.attached >= item.quantity
     const capacityNote = `${item.attached} of ${item.quantity} attached`
     return (
@@ -790,10 +689,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
             </Button>
           </>
         )}
-        {/* Finalise / Changes used to live here. The portal tracks where work
-            has got to rather than passing a verdict on it, so the status
-            dropdown in the Status column is now the whole flow - and the two
-            verdict moves went back to the staff side. */}
         {item.canWithdraw && (
           <Button
             variant="ghost"
@@ -846,8 +741,7 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
     {
       header: "Due",
       cell: (r) => (
-        // Same shape as "Planned for" beside it. These read as two different
-        // kinds of date when one says "14 Sep 2026" and the next "14/09/2026".
+        // Same date format as "Planned for" beside it.
         <span className="text-xs whitespace-nowrap">
           {r.dueOn ? formatDate(r.dueOn, "d MMM yyyy") : "—"}
         </span>
@@ -879,9 +773,7 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
     )
   }
 
-  // A failed load must not look like an empty plan: without this the query
-  // error was swallowed, and the page said "Nothing planned yet" over a
-  // disabled button - two wrong statements, and nothing pointing at the cause.
+  // A failed load must not look like an empty plan.
   if (isError) {
     return (
       <div className="space-y-5">
@@ -975,9 +867,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
                   A table to read and annotate
                 </span>
               </DropdownMenuItem>
-              {/* Says what is in the file BEFORE it is opened - the difference
-                  between a selection and the whole plan is the kind of thing
-                  people notice after they have sent it on. */}
               <p className="text-muted-foreground border-t px-2 py-1.5 text-[11px]">
                 {selection.count > 0
                   ? `${selection.count} selected row${selection.count === 1 ? "" : "s"}`
@@ -988,8 +877,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
           <Button
             variant="destructive"
             className="gap-1.5"
-            // Withdrawing is only ever allowed on your OWN untouched requests,
-            // so a selection containing none of those has nothing to do.
             disabled={removable.length === 0 || removeMany.isPending}
             title={
               removable.length === 0
@@ -1056,9 +943,7 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
         ref={fileInput}
         type="file"
         className="hidden"
-        // Named types rather than a bare "video/*": the picker should offer
-        // exactly what the server will take, so a rejection happens before a
-        // 200 MB upload rather than after it.
+        // Named types rather than "video/*", so a rejection happens before the upload.
         accept={UPLOAD_ACCEPT}
         onChange={(e) => {
           const file = e.target.files?.[0]
@@ -1069,7 +954,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
         }}
       />
 
-      {/* ── Planning ──────────────────────────────────────────────────────── */}
       <FormDialog
         open={planning}
         onOpenChange={setPlanning}
@@ -1095,8 +979,7 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label>Start date</Label>
-            {/* modal: the picker lives inside a dialog, and without it the
-                popover closes the dialog behind it on the first click. */}
+            {/* modal: otherwise the popover closes the dialog behind it on the first click. */}
             <DateField value={from} onChange={setFrom} placeholder="First day" modal />
           </div>
           <div className="space-y-1.5">
@@ -1187,7 +1070,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
         </div>
       </FormDialog>
 
-      {/* ── Attaching a link ──────────────────────────────────────────────── */}
       <FormDialog
         open={!!linking}
         onOpenChange={(o) => !o && setLinking(null)}
@@ -1247,7 +1129,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
         onConfirm={() => revoking && revokeShare.mutate(revoking.id)}
       />
 
-      {/* ── The files, with room to read them ─────────────────────────────── */}
       <FormDialog
         open={!!viewingAssets}
         onOpenChange={(o) => !o && setViewingAssets(null)}
@@ -1258,15 +1139,13 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
             : undefined
         }
         submitLabel="Done"
-        // Nothing to submit - everything here acts immediately. The footer
-        // button is just the way out.
+        // Nothing to submit - everything here acts immediately.
         onSubmit={(e) => {
           e.preventDefault()
           setViewingAssets(null)
         }}
       >
-        {/* Read from `items` rather than the captured item, so deleting a file
-            updates the open dialog instead of leaving a row that 404s. */}
+        {/* Read from `items`, so deleting a file updates the open dialog. */}
         {viewingAssets &&
           (() => {
             const live = items.find((i) => i.id === viewingAssets.id)
@@ -1309,7 +1188,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
         onConfirm={() => deletingAsset && deleteAsset.mutate(deletingAsset.id)}
       />
 
-      {/* ── Stopping work: why ────────────────────────────────────────────── */}
       <FormDialog
         open={!!stopping}
         onOpenChange={(o) => !o && setStopping(null)}

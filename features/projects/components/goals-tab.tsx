@@ -81,18 +81,7 @@ import { GoalTargets } from "./goal-targets"
 /** Radix Select cannot carry "" as a value; this stands in for "no owner". */
 const NO_OWNER = "__none__"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Dialogs
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Asks for the reason that AT_RISK and DISCARDED require.
- *
- * The server rejects those statuses without one, so collecting it here is not
- * politeness - it is the difference between the change landing and a 422. The
- * status is applied only once the reason exists, so the dropdown can never show
- * a state the database refused.
- */
+/** AT_RISK and DISCARDED need a reason (the server 422s without one); the status applies only once given. */
 function ReasonDialog({
   open,
   status,
@@ -109,9 +98,11 @@ function ReasonDialog({
   pending: boolean
 }) {
   const [reason, setReason] = React.useState("")
-  React.useEffect(() => {
+  const [prevOpen, setPrevOpen] = React.useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
     if (open) setReason("")
-  }, [open])
+  }
 
   const isRisk = status === "AT_RISK"
   return (
@@ -149,25 +140,7 @@ function ReasonDialog({
   )
 }
 
-/**
- * Change what a goal IS: its title, the date it is meant to be met by, and who
- * is accountable for it landing.
- *
- * The gap this fills: until now a goal was write-once. A typo in a title, or a
- * date the client moved, could only be fixed by deleting the goal and retyping
- * it - which threw away its entire history to correct a word. The server has
- * always accepted both edits (updateGoal) and has always logged them; only the
- * button was missing.
- *
- * ONE EDITOR PER FIELD, deliberately. Status has its dropdown, tags have their
- * popover, and this dialog owns the title, the date and the owner. A second way
- * to set a field is a second thing to keep in step with the first.
- *
- * Mounted fresh per goal by the caller (`key={editing.id}`) so the fields seed
- * straight from props. The alternative - one long-lived dialog reset by an
- * effect - is what the two dialogs below do, and it costs a render and a lint
- * suppression for nothing.
- */
+/** Edits title, target date and owner. Keyed per goal by the caller, so the fields seed from props. */
 function EditDialog({
   goal,
   onCancel,
@@ -184,9 +157,7 @@ function EditDialog({
     ownerId: string | null
     tags: string[]
   }) => void
-  /** Who can own it: everyone assignable on the project. */
   people: { id: string; firstName: string; lastName: string }[]
-  /** Every tag already in use on the project, for the type-ahead. */
   allTags: string[]
   pending: boolean
 }) {
@@ -199,8 +170,7 @@ function EditDialog({
   const tagsChanged =
     tags.length !== goal.tags.length ||
     tags.some((t, i) => t.toLowerCase() !== goal.tags[i]?.toLowerCase())
-  // Nothing to send is not an error, it just is not a save - the server would
-  // no-op anyway, and a disabled button says so before the click.
+  // Nothing changed means nothing to save; the button stays disabled.
   const changed =
     trimmed !== goal.title ||
     (date || null) !== goal.targetDate ||
@@ -252,9 +222,7 @@ function EditDialog({
           </div>
           <div className="space-y-1.5">
             <Label className="text-muted-foreground text-[11px]">Owner</Label>
-            {/* Accountable for it landing - not who typed it, not who does the
-                tasks. Left blank it reads as the account manager, which is the
-                honest default rather than a name picked to fill a box. */}
+            {/* Accountable for it landing; blank reads as the account manager. */}
             <Select
               value={owner || NO_OWNER}
               onValueChange={(v) => setOwner(v === NO_OWNER ? "" : v)}
@@ -294,15 +262,7 @@ function EditDialog({
   )
 }
 
-/**
- * The delete dialog.
- *
- * DEACTIVATE IS THE DEFAULT and permanent deletion is behind a checkbox, because
- * the two are not the same act. Deactivating removes a goal from the board and
- * from the maths while keeping it and its history recoverable; deleting destroys
- * a record of what a team decided and when. A trash icon is a reflex, and only
- * one of those two outcomes should be reachable by reflex.
- */
+/** Deactivate is the default; permanent delete sits behind a checkbox. */
 function DeleteDialog({
   goal,
   onCancel,
@@ -315,9 +275,11 @@ function DeleteDialog({
   pending: boolean
 }) {
   const [permanent, setPermanent] = React.useState(false)
-  React.useEffect(() => {
+  const [prevGoal, setPrevGoal] = React.useState(goal)
+  if (goal !== prevGoal) {
+    setPrevGoal(goal)
     if (goal) setPermanent(false)
-  }, [goal])
+  }
 
   const subCount = goal?.children.length ?? 0
   return (
@@ -369,14 +331,6 @@ function DeleteDialog({
   )
 }
 
-/**
- * One goal's audit trail, in a dialog.
- *
- * A dialog rather than an inline panel: expanding history in place pushed every
- * goal below it down the page, so reading why ONE goal slipped rearranged the
- * board you were reading it against. A modal keeps the board still and gives the
- * trail room to be legible.
- */
 function HistoryDialog({ goal, onClose }: { goal: GoalNode | null; onClose: () => void }) {
   return (
     <Dialog open={Boolean(goal)} onOpenChange={(o) => !o && onClose()}>
@@ -391,8 +345,7 @@ function HistoryDialog({ goal, onClose }: { goal: GoalNode | null; onClose: () =
             Every status change, edit and removal, with the reason given at the time.
           </DialogDescription>
         </DialogHeader>
-        {/* Capped and scrollable: a long-running goal can accumulate a lot, and
-            a dialog that grows past the viewport cannot be dismissed. */}
+        {/* Capped: a dialog taller than the viewport can't be dismissed. */}
         <div className="max-h-[55vh] overflow-y-auto pr-1">
           <HistoryPanel events={goal?.events ?? []} />
         </div>
@@ -401,7 +354,6 @@ function HistoryDialog({ goal, onClose }: { goal: GoalNode | null; onClose: () =
   )
 }
 
-/** One goal's audit trail, including the reason attached to each change. */
 function HistoryPanel({ events }: { events: GoalEvent[] }) {
   if (events.length === 0) {
     return <p className="text-muted-foreground px-1 py-2 text-xs">No history yet.</p>
@@ -457,16 +409,7 @@ function HistoryPanel({ events }: { events: GoalEvent[] }) {
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Goals for a project: a main goal, its sub-goals, target dates and progress.
- *
- * PROGRESS IS NOT TYPED IN ANYWHERE. A goal is done or it is not, and a parent
- * bar fills with the share of its countable sub-goals that are. Discarded and
- * deactivated goals leave the sum rather than counting as zero, so dropping
- * scope does not read as failure.
- */
+/** Progress is never typed: a parent fills with the share of its countable sub-goals that are done. */
 export function GoalsTab({
   projectId,
   canManage,
@@ -481,11 +424,7 @@ export function GoalsTab({
   const [showInactive, setShowInactive] = React.useState(false)
   const { data, isLoading } = useProjectGoals(projectId, showInactive)
 
-  // ── Who may break a goal into work ──────────────────────────────────────
-  // Two different permissions live on this board and used to be one. WHAT was
-  // promised is the account manager's (canManage); HOW it gets done is also
-  // the team manager's, because they are the ones who know what it takes and
-  // they were previously reduced to asking someone else to press Add task.
+  // What was promised is the account manager's (canManage); staffing it is also the team manager's (canStaff).
   const teams = useProjectTeams(projectId)
   const teamRows = React.useMemo(() => teams.data?.data ?? [], [teams.data])
   const myTeams = React.useMemo(
@@ -502,8 +441,7 @@ export function GoalsTab({
   const invalidate = () => qc.invalidateQueries({ queryKey: ["project-goals", projectId] })
   const json = { "Content-Type": "application/json" }
 
-  // Owner candidates for the edit dialog. Only fetched for managers - nobody
-  // else can open it.
+  // Owner candidates for the edit dialog; only managers can open it.
   const people = useAssignableEmployees(projectId, canManage)
 
   const create = useMutation({
@@ -543,12 +481,7 @@ export function GoalsTab({
   /** Same for work: the card offers these once, not once per row. */
   const [taskFor, setTaskFor] = React.useState<string | null>(null)
   const [linkFor, setLinkFor] = React.useState<string | null>(null)
-  /**
-   * Which goals are open. Collapsed by DEFAULT: the first question anybody has
-   * on this tab is "what are we tracking and how is it going", and that is a
-   * list you should be able to read in one screen. Opening a goal is the
-   * second question, asked one goal at a time.
-   */
+  /** Collapsed by default so the whole list reads in one screen. */
   const [openGoals, setOpenGoals] = React.useState<Set<string>>(new Set())
   const toggleGoal = (id: string) =>
     setOpenGoals((cur) => {
@@ -578,19 +511,14 @@ export function GoalsTab({
 
   const full: GoalsSummary = data ?? EMPTY_SUMMARY
 
-  // The whole board runs off the FILTERED view, summary strip included, so the
-  // numbers at the top always describe the goals underneath them. `full` is kept
-  // for the two things that must not narrow: the tag vocabulary, and the "N of M"
-  // readout that tells you a filter is on.
+  // The board (summary included) uses the filtered view; `full` keeps the tag vocabulary and "N of M" readout.
   const view = filterGoals(full, filters)
   const summary = view.summary
   const filtering = goalFiltersActive(filters)
 
-  // How many sub-goals each main goal really has, so a card can say what the
-  // filter is holding back from it.
+  // Real sub-goal counts, so a card can say what the filter is holding back.
   const fullChildCount = new Map(full.goals.map((g) => [g.id, g.children.length]))
 
-  /** Clicking a tag anywhere on the board filters by it, and again clears it. */
   const toggleTag = (tag: string) =>
     setFilters((f) => ({
       ...f,
@@ -605,8 +533,6 @@ export function GoalsTab({
     setNewGoal("")
     setNewDate("")
     setNewTags([])
-    // Closed on success: adding a goal is usually one goal, and leaving the
-    // form open put the board back below the fold again.
     setAdding(false)
   }
   const addSub = (parentId: string) => {
@@ -618,7 +544,6 @@ export function GoalsTab({
     setSubFor(null)
   }
 
-  /** A status needing a reason opens the dialog; anything else applies at once. */
   const changeStatus = (goal: GoalNode, status: Status) => {
     if (NEEDS_REASON.has(status)) {
       setReasonFor({ id: goal.id, title: goal.title, status })
@@ -627,13 +552,10 @@ export function GoalsTab({
     update.mutate({ id: goal.id, status })
   }
 
-  // A goal whose status is DERIVED - from sub-goals or from linked tasks - has
-  // no dropdown: whatever was picked would be overwritten on the next read.
+  // Derived statuses (from sub-goals or tasks) get no dropdown - a pick would be overwritten.
   const statusControl = (goal: GoalNode) =>
     canManage && goal.isActive && !goal.progressIsDerived ? (
       <Select value={goal.status} onValueChange={(v) => changeStatus(goal, v as Status)}>
-        {/* The control carries its own state's colour, so a row reads as
-            "at risk" without anyone parsing the words in it. */}
         <SelectTrigger
           className={cn("h-8 w-36 shrink-0 text-xs font-medium", STATUS_STYLE[goal.status].trigger)}
           aria-label={`Status for ${goal.title}`}
@@ -655,15 +577,7 @@ export function GoalsTab({
       <StatusBadge status={goal.status} />
     )
 
-  /**
-   * One menu, not four icons.
-   *
-   * Edit / tag / history / remove used to be four unlabelled buttons on EVERY
-   * goal and sub-goal - on a board of four rows that is sixteen icons competing
-   * with the titles, which is most of why the tab read as cluttered. Tags moved
-   * into Edit (a goal should have one place that changes it), so what is left
-   * fits behind a single control that names its actions in words.
-   */
+  /** One menu, not four icons per row. */
   const rowActions = (goal: GoalNode) => {
     const canEdit = canManage && goal.isActive
     return (
@@ -685,14 +599,12 @@ export function GoalsTab({
               <Pencil className="mr-2 h-3.5 w-3.5" /> Edit goal
             </DropdownMenuItem>
           )}
-          {/* A sub-goal has no footer of its own, so its way to a target is
-              here. The parent goal offers the same thing in its footer. */}
+          {/* Sub-goals have no footer, so their way to a target is here. */}
           {canEdit && (
             <DropdownMenuItem onClick={() => setTargetFor(goal.id)}>
               <Target className="mr-2 h-3.5 w-3.5" /> Add target
             </DropdownMenuItem>
           )}
-          {/* A sub-goal has no footer of its own, so its ways in are here. */}
           {canStaff && goal.isActive && (
             <>
               <DropdownMenuItem onClick={() => setTaskFor(goal.id)}>
@@ -711,10 +623,7 @@ export function GoalsTab({
             (goal.isActive ? (
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
-                // The UNFILTERED node: the dialog warns how many sub-goals go
-                // with it, and a filtered card carries only the sub-goals on
-                // screen. A destructive confirmation that under-counts what it
-                // destroys is worse than no confirmation at all.
+                // The unfiltered node, so the confirm counts every sub-goal that goes with it.
                 onClick={() => setDeleting(full.goals.find((g) => g.id === goal.id) ?? goal)}
               >
                 <Trash2 className="mr-2 h-3.5 w-3.5" /> Remove
@@ -731,7 +640,6 @@ export function GoalsTab({
 
   return (
     <div className="space-y-4">
-      {/* ── Summary ───────────────────────────────────────────────────── */}
       <Card>
         <CardContent className="p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -758,9 +666,7 @@ export function GoalsTab({
                 value={`${summary.overdueGoals}`}
                 tone={summary.overdueGoals > 0 ? "bad" : "muted"}
               />
-              {/* Only when there is something to say. A permanent "Slipping 0"
-                  is a tile people learn to skip, and then miss the day it
-                  turns 3. */}
+              {/* Only when non-zero, so it doesn't become a tile people skip. */}
               {summary.slippingGoals > 0 && (
                 <Stat label="Slipping" value={`${summary.slippingGoals}`} tone="warn" />
               )}
@@ -769,11 +675,7 @@ export function GoalsTab({
           </div>
           <ProgressBar value={summary.overallProgress} className="mt-4" />
 
-          {/* Visibility off the UNFILTERED project, counts off the filtered
-              view. The toggle is a property of the project, not of the current
-              filter - keying its visibility to the filtered set made it vanish
-              the moment a date range excluded every deactivated goal, stranding
-              anyone who filtered first and wanted to widen second. */}
+          {/* Visibility comes from the unfiltered project, so a filter can't strand the toggle. */}
           {(full.discardedGoals > 0 || full.inactiveGoals > 0 || showInactive) && (
             <div className="text-muted-foreground mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
               {summary.discardedGoals > 0 && (
@@ -793,16 +695,9 @@ export function GoalsTab({
         </CardContent>
       </Card>
 
-      {/* ── The board's own bar ──────────────────────────────────────────
-          Everything that acts on the board, in one line: what it holds and
-          whether it is open on the left, how to narrow it and how to add to it
-          on the right. The filters used to sit on a line of their own above,
-          which made a bar of two buttons floating over a bar of three. */}
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-semibold">
           Goals
-          {/* Just the count. When a filter is on, the filter bar itself says
-              "Showing 3 of 5" beside its Clear button. */}
           <span className="text-muted-foreground ml-2 text-xs font-normal tabular-nums">
             {summary.goals.length}
           </span>
@@ -867,9 +762,6 @@ export function GoalsTab({
                 <Label className="text-muted-foreground text-[11px]">Target date</Label>
                 <DateField value={newDate} onChange={setNewDate} placeholder="Target date" modal />
               </div>
-              {/* Tagged at creation, not afterwards: a tag added on the way past
-                  is a tag that exists, and the filter above is only as good as
-                  the tags people actually bothered to set. */}
               <div className="space-y-1.5">
                 <Label className="text-muted-foreground text-[11px]">Tags</Label>
                 <GoalTagInput value={newTags} onChange={setNewTags} suggestions={full.allTags} />
@@ -888,9 +780,7 @@ export function GoalsTab({
         </Dialog>
       )}
 
-      {/* ── Work that serves no goal ──────────────────────────────────────
-          Allowed, on purpose - forcing a goal at creation produces junk goals.
-          But it is the manager's list to sort, so it is said out loud. */}
+      {/* Unlinked work is allowed (forcing a goal makes junk goals), but the manager should sort it. */}
       {canManage && full.unlinkedOpenTasks > 0 && (
         <p className="text-muted-foreground border-border/60 flex items-center gap-2 rounded-sm border border-dashed px-4 py-2.5 text-xs">
           <ListChecks className="h-3.5 w-3.5 shrink-0" />
@@ -905,14 +795,11 @@ export function GoalsTab({
         </p>
       )}
 
-      {/* ── Goals ─────────────────────────────────────────────────────── */}
       {summary.goals.length === 0 ? (
         <Card>
           <CardContent className="p-10 text-center">
             <Target className="text-muted-foreground/40 mx-auto h-8 w-8" />
-            {/* An empty board and a board emptied BY A FILTER are different
-                problems with different fixes, so they get different words and
-                the filtered one gets the button that undoes it. */}
+            {/* An empty board and a filtered-empty board get different words; the filtered one can be cleared. */}
             {filtering ? (
               <>
                 <p className="mt-3 text-sm font-medium">No goals match these filters</p>
@@ -944,10 +831,7 @@ export function GoalsTab({
       ) : (
         <div className="space-y-3">
           {summary.goals.map((goal, gi) => {
-            // A parent stripped of every visible sub-goal by the filter IS STILL
-            // A PARENT. Reading leaf-ness off `children.length` would hand it a
-            // status dropdown, and the server derives a parent's status from its
-            // sub-goals - so whatever was picked would be silently overwritten.
+            // A parent emptied by the filter is still a parent: its status stays server-derived.
             const isLeaf = !goal.progressIsDerived
             const hiddenHere =
               (fullChildCount.get(goal.id) ?? goal.children.length) - goal.children.length
@@ -956,9 +840,6 @@ export function GoalsTab({
             return (
               <Card key={goal.id} className={cn("overflow-hidden", !goal.isActive && "opacity-60")}>
                 <div className="flex flex-wrap items-start gap-x-4 gap-y-3 p-4 sm:p-5">
-                  {/* The whole title block toggles: a bigger target than the
-                      chevron alone, and it is the thing you were already
-                      looking at when you decided to open it. */}
                   <button
                     type="button"
                     onClick={() => toggleGoal(goal.id)}
@@ -995,14 +876,9 @@ export function GoalsTab({
                           <TriangleAlert className="h-3 w-3" /> Past target
                         </span>
                       )}
-                      {/* Beside "Past target", never instead of it: overdue is
-                          a fact about the date, slipping is a reading of the
-                          pace, and a goal can be both. */}
+                      {/* Beside "Past target", not instead: a goal can be both overdue and slipping. */}
                       {goal.slipping && <SlippingChip />}
                     </div>
-                    {/* The gist, always on: how much is under this goal and
-                        how far along it is, so a collapsed board still answers
-                        the question people open this tab with. */}
                     <p className="text-muted-foreground mt-1 text-xs tabular-nums">
                       {[
                         goal.children.length > 0 &&
@@ -1018,9 +894,6 @@ export function GoalsTab({
                     {isOpen && (
                       <>
                         <p className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs empty:hidden">
-                          {/* Only when set. "No date" printed on every row is an
-                          empty value dressed up as information, and it was on
-                          four rows of the screenshot that started this. */}
                           {goal.targetDate && (
                             <span className="inline-flex items-center gap-1">
                               <CalendarDays className="h-3 w-3" />
@@ -1038,10 +911,6 @@ export function GoalsTab({
                             </span>
                           )}
                         </p>
-                        {/* Under the meta line, not up beside the status badge: tags
-                        are how you FIND this goal again, not part of how it is
-                        doing, and putting them next to the status chip makes a
-                        row of coloured pills that all look like states. */}
                         <GoalTagList
                           tags={goal.tags}
                           activeTags={filters.tags}
@@ -1053,9 +922,6 @@ export function GoalsTab({
                             {goal.statusReason}
                           </p>
                         )}
-                        {/* What was promised, under what it is called and above the
-                        work meant to produce it - the order somebody reads a
-                        goal in. */}
                         <GoalTargets
                           projectId={projectId}
                           goal={goal}
@@ -1079,11 +945,7 @@ export function GoalsTab({
                         <span className="text-sm font-semibold tabular-nums">{goal.progress}%</span>
                       </div>
                       <ProgressBar value={goal.progress} className="mt-1.5" />
-                      {/* When a goal has targets the bar is the OUTPUT, because
-                          output is what was bought. The work is still worth
-                          saying - "tasks 100%, delivered 40%" is the whole
-                          story in six words - so it goes underneath rather
-                          than fighting the bar for the same space. */}
+                      {/* With targets the bar shows output; task progress goes underneath. */}
                       {goal.targets.length > 0 && goal.taskProgress !== null && (
                         <p
                           className="text-muted-foreground mt-1 text-[10px] tabular-nums"
@@ -1098,10 +960,6 @@ export function GoalsTab({
                   {rowActions(goal)}
                 </div>
 
-                {/* A left rail, not just an indent. Three sub-goals under one
-                    parent used to be told apart by a 6px offset and a 1.5px
-                    dot, which is not enough to read as "these belong to that"
-                    once a card is taller than the screen. */}
                 {isOpen && goal.children.length > 0 && (
                   <div className="border-border/60 bg-muted/30 divide-border/60 divide-y border-t">
                     {goal.children.map((sub, si) => (
@@ -1122,8 +980,6 @@ export function GoalsTab({
                                 STATUS_STYLE[sub.status].title,
                               )}
                             >
-                              {/* 1.1, 1.2 - the rung reads as a position in the
-                                  ladder rather than just a bullet. */}
                               <Rung sub n={`${gi + 1}.${si + 1}`} />
                               {sub.title}
                             </p>
@@ -1177,8 +1033,7 @@ export function GoalsTab({
                   </div>
                 )}
 
-                {/* The work behind the goal - and where the manager breaks it
-                    into work. Progress derives from these once any exist. */}
+                {/* Progress derives from these tasks once any exist. */}
                 {isOpen && (
                   <GoalTasks
                     projectId={projectId}
@@ -1207,9 +1062,6 @@ export function GoalsTab({
                       >
                         <Plus className="h-3.5 w-3.5" /> Sub-goal
                       </Button>
-                      {/* ONE footer per goal holding everything you can add
-                            to it, instead of the same two task buttons under
-                            every sub-goal and again at the bottom. */}
                       <Button
                         variant="ghost"
                         className="text-muted-foreground"
@@ -1240,9 +1092,6 @@ export function GoalsTab({
         </div>
       )}
 
-      {/* Sub-goal, in a dialog like everything else you can add to a goal. It
-          used to unfold as a row of three inputs inside the card footer, which
-          both widened the card and buried the goal you were adding it to. */}
       <Dialog open={subFor !== null} onOpenChange={(o) => !o && setSubFor(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1299,8 +1148,7 @@ export function GoalsTab({
           setDeleting(null)
         }}
       />
-      {/* Keyed by the goal so each one opens a fresh form seeded from its own
-          values - no effect, and no stale title from the last goal edited. */}
+      {/* Keyed by goal so each opens a fresh form seeded from its own values. */}
       {editing && (
         <EditDialog
           key={editing.id}
@@ -1331,13 +1179,7 @@ export function GoalsTab({
   )
 }
 
-/**
- * The rung number - "1", or "1.2" for a sub-goal.
- *
- * A board of untitled-looking cards gives you no sense of HOW MANY things are
- * being tracked, or where you are in the list. A number does both, and it also
- * gives people something to say out loud in a stand-up: "where are we on 2.3".
- */
+/** "1", or "1.2" for a sub-goal. */
 function Rung({ n, sub }: { n: string; sub?: boolean }) {
   return (
     <span

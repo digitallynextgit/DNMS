@@ -1,12 +1,6 @@
 "use client"
 
-/**
- * /admin/roles - Role Management page.
- *
- * Displays all roles in a data table.  Users with the ROLE_WRITE permission
- * can create, edit, and delete roles.  System roles are protected from
- * deletion and name-slug changes.
- */
+// System roles can't be deleted or have their slug changed.
 
 import { useEffect, useMemo, useState, useCallback } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
@@ -24,9 +18,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { RoleForm } from "@/features/admin/components/role-form"
 import { PERMISSIONS } from "@/lib/constants"
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 interface RoleRow {
   id: string
   name: string
@@ -42,9 +33,6 @@ interface RoleRow {
 
 const PAGE_SIZE = 10
 
-// ---------------------------------------------------------------------------
-// Page component
-// ---------------------------------------------------------------------------
 export default function RolesPage() {
   const { data: session } = useSession()
   const canWrite =
@@ -67,38 +55,32 @@ export default function RolesPage() {
     if (!loading && page > totalPages) setPage(totalPages)
   }, [page, totalPages, loading])
 
-  // Sheet (create/edit) state
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<RoleRow | null>(null)
 
-  // Delete confirmation state
   const [deleteTarget, setDeleteTarget] = useState<RoleRow | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  // -----------------------------------------------------------------------
-  // Fetch roles
-  // -----------------------------------------------------------------------
-  const fetchRoles = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await fetch("/api/roles")
-      if (!res.ok) throw new Error("Failed to fetch roles")
-      const json = await res.json()
-      setRoles(json.data)
-    } catch {
-      toast.error("Could not load roles")
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  // Sets state only in the promise callbacks; `loading` starts true and refetches set it first.
+  const fetchRoles = useCallback(
+    () =>
+      fetch("/api/roles")
+        .then(async (res) => {
+          if (!res.ok) throw new Error("Failed to fetch roles")
+          const json = await res.json()
+          setRoles(json.data)
+        })
+        .catch(() => {
+          toast.error("Could not load roles")
+        })
+        .finally(() => setLoading(false)),
+    [],
+  )
 
   useEffect(() => {
     fetchRoles()
   }, [fetchRoles])
 
-  // -----------------------------------------------------------------------
-  // Handlers
-  // -----------------------------------------------------------------------
   function openCreate() {
     setEditingRole(null)
     setSheetOpen(true)
@@ -111,6 +93,7 @@ export default function RolesPage() {
 
   function handleFormSuccess() {
     setSheetOpen(false)
+    setLoading(true)
     fetchRoles()
   }
 
@@ -127,6 +110,7 @@ export default function RolesPage() {
       }
       toast.success(`Role "${deleteTarget.displayName}" deleted`)
       setDeleteTarget(null)
+      setLoading(true)
       fetchRoles()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed")
@@ -135,9 +119,6 @@ export default function RolesPage() {
     }
   }
 
-  // -----------------------------------------------------------------------
-  // Columns
-  // -----------------------------------------------------------------------
   const columns: DataTableColumn<RoleRow>[] = [
     {
       header: "Name",
@@ -217,9 +198,6 @@ export default function RolesPage() {
       : []),
   ]
 
-  // -----------------------------------------------------------------------
-  // Render
-  // -----------------------------------------------------------------------
   return (
     <div className="space-y-6">
       <PageHeader
@@ -235,9 +213,6 @@ export default function RolesPage() {
         }
       />
 
-      {/* Roles table - rendered while loading too. The skeleton rows are derived
-          from `columns`, so the column count follows `canWrite` automatically
-          instead of being hand-counted. */}
       {loading || roles.length > 0 ? (
         <DataTable
           columns={columns}
@@ -247,8 +222,6 @@ export default function RolesPage() {
           serialOffset={(page - 1) * PAGE_SIZE}
           loading={loading}
           skeletonRows={PAGE_SIZE}
-          // Phone card: role identity, then the two counts as labelled chips and
-          // the edit/delete actions as real buttons.
           mobileCard={(role) => (
             <div className="space-y-2.5">
               <div className="flex items-start justify-between gap-3">
@@ -315,7 +288,6 @@ export default function RolesPage() {
         <EmptyState variant="card" title="No roles found." />
       )}
 
-      {/* Create / Edit Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           <SheetHeader>
@@ -334,7 +306,6 @@ export default function RolesPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Delete confirmation dialog */}
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => {

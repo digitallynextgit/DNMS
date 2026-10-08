@@ -7,7 +7,6 @@ import { performanceAdminGuide } from "./performance-admin"
 import { recruitmentGuide } from "./recruitment"
 import { analyticsGuide } from "./analytics"
 
-/** HR: leave, WFH, stock, payroll, performance, recruitment, analytics. In the order they are listed. */
 export const hrOperationsGuides: HelpGuide[] = [
   leaveAdminGuide,
   wfhApprovalsGuide,

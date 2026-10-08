@@ -69,10 +69,8 @@ export function LeaveDirectoryClient() {
   const requests = data?.data ?? []
   const pagination = data?.pagination
 
-  // Balances tab: every employee's leave balances by type for the selected year.
   const [balanceYear, setBalanceYear] = useState(() => new Date().getFullYear())
-  // Year range: from 2026 (system launch - no leave data before it) through next
-  // year. e.g. in 2026 → [2026, 2027]; in 2029 → [2026, 2027, 2028, 2029, 2030].
+  // From 2026 (system launch - no leave data before it) through next year.
   const LEAVE_START_YEAR = 2026
   const balanceYearEnd = Math.max(LEAVE_START_YEAR, new Date().getFullYear() + 1)
   const balanceYearOptions = Array.from(
@@ -203,7 +201,6 @@ export function LeaveDirectoryClient() {
           }
         />
 
-        {/* Filters (shared; the status filter only applies to the Requests tab) */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[180px] flex-1">
             <SearchInput

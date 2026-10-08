@@ -113,17 +113,9 @@ function toMentionPairs(ids: string[], members: ProjectMember[]) {
 
 const shortName = (full: string) => full.split(" ")[0] || full
 
-/**
- * Project attachments are served from their own membership-checked route, not
- * the chat one - the shared renderer takes the resolver rather than hard-coding
- * either.
- */
+/** Project attachments use their own membership-checked route, not the chat one. */
 const projectAttachmentUrl = (id: string) => `/api/projects/message-attachments/${id}/file`
 
-// ════════════════════════════════════════════════════════════════════════════
-// Chat shell: a WhatsApp-style two-pane layout - the list of "chats" (each
-// subject is a conversation) on the left, the open conversation on the right.
-// ════════════════════════════════════════════════════════════════════════════
 export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
   const { data, isLoading } = useProjectMessages(projectId)
   const { data: membersData } = useProjectMembers(projectId)
@@ -136,11 +128,7 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
-  /**
-   * Which bubble to scroll to and flash when a chat is opened from a search hit.
-   * "root" is the opening post; anything else is a reply id. Cleared once the
-   * user picks a chat normally, so an old hit can't keep re-highlighting.
-   */
+  /** Bubble to jump to from a search hit ("root" or a reply id); cleared on a normal chat pick. */
   const [jumpTo, setJumpTo] = useState<string | null>(null)
 
   const query = search.trim()
@@ -150,7 +138,6 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
   const [newChatOpen, setNewChatOpen] = useState(false)
   const [newChatInitial, setNewChatInitial] = useState<ComposeDraft | null>(null)
 
-  // Clear the unread badge when the tab opens.
   const markSeen = useMarkMessagesSeen(projectId)
   useEffect(() => {
     markSeen.mutate()
@@ -158,11 +145,9 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
   }, [projectId])
 
   // Drop the selection if that chat was deleted out from under us.
-  useEffect(() => {
-    if (selectedId && threads.length && !threads.some((t) => t.id === selectedId)) {
-      setSelectedId(null)
-    }
-  }, [threads, selectedId])
+  if (selectedId && threads.length && !threads.some((t) => t.id === selectedId)) {
+    setSelectedId(null)
+  }
 
   const selected = threads.find((t) => t.id === selectedId) ?? null
 
@@ -172,12 +157,8 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
 
   return (
     <>
-      {/* dvh, and a smaller min-height below md. The bottom tab bar is a real
-          layout row, so `main` is shorter than the viewport on phones: a
-          `min-h-120` (480px) pane inside a ~440px row pushed the composer out of
-          reach. chat-view.tsx:207 documents the same fix; this was missed. */}
+      {/* dvh, and a smaller min-height below md: the phone tab bar makes `main` shorter than the viewport. */}
       <div className="bg-card flex h-[68dvh] min-h-80 overflow-hidden rounded-sm border md:min-h-120">
-        {/* LEFT: chat list */}
         <div
           className={cn(
             "flex w-full flex-col border-r md:w-80 lg:w-96",
@@ -232,7 +213,6 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
           )}
         </div>
 
-        {/* RIGHT: conversation */}
         <div className={cn("min-w-0 flex-1", !selected && "hidden md:flex")}>
           {selected ? (
             <ChatView
@@ -279,7 +259,6 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
   )
 }
 
-// ─── Chat list (left pane) ──────────────────────────────────────────────────
 function ChatList({
   threads,
   selectedId,
@@ -342,12 +321,7 @@ function ChatList({
   )
 }
 
-// ─── Search results (left pane, while a query is typed) ─────────────────────
-/**
- * One row per MATCH, not per chat: a subject hit, the opening post, and each
- * matching reply are separate rows, because "which message was that in" is the
- * question being asked. Clicking a row opens the chat and jumps to that bubble.
- */
+/** One row per match (subject, opening post, each reply), not per chat; clicking jumps to that bubble. */
 function SearchResults({
   hits,
   query,
@@ -435,7 +409,6 @@ function SearchResults({
             </p>
           </div>
           <p className="text-muted-foreground text-[10px]">{row.where}</p>
-          {/* The matched line itself, with the query marked. */}
           <p className="line-clamp-3 text-xs break-words">
             <HighlightedText text={row.text} query={query} />
           </p>
@@ -445,7 +418,6 @@ function SearchResults({
   )
 }
 
-// ─── Conversation (right pane) ──────────────────────────────────────────────
 function ChatView({
   thread,
   projectId,
@@ -464,7 +436,6 @@ function ChatView({
   canManage: boolean
   members: ProjectMember[]
   memberNames: Set<string>
-  /** Bubble to scroll to when opened from a search hit: "root" or a reply id. */
   jumpTo: string | null
   onJumped: () => void
   onBack: () => void
@@ -474,8 +445,7 @@ function ChatView({
   const replies = useMemo(() => data?.data ?? [], [data])
   const readers = useMemo(() => data?.readers ?? [], [data])
 
-  // Assembled HERE rather than in a bubble: only the thread knows what else was
-  // posted, which is what makes next/previous and the filmstrip possible.
+  // Built here, not in a bubble: only the thread knows the other media (for next/previous).
   const gallery = useMemo<MediaItem[]>(
     () =>
       replies.flatMap((r) =>
@@ -493,15 +463,6 @@ function ChatView({
     [replies],
   )
 
-  /**
-   * Everyone this message went to, with when they last opened the chat. Excludes
-   * the author (you cannot un-read your own message) and anyone with no mark at
-   * all is carried through with `seenAt: null` so the info panel can list them
-   * under "not read by" rather than silently dropping them.
-   */
-  // Indexed once per readers change. This was `readers.find(...)` INSIDE the
-  // map below, so building one message's audience was O(members x readers) -
-  // and it ran per bubble, on every render, on a 1s tick.
   const seenAtById = useMemo(() => new Map(readers.map((r) => [r.id, r.lastSeenAt])), [readers])
 
   const audienceFor = useCallback(
@@ -518,12 +479,7 @@ function ChatView({
     [members, seenAtById],
   )
 
-  /**
-   * Group-chat ticks, WhatsApp's rule: one tick until somebody has opened it,
-   * two once some have, two blue once everyone has. There is no separate
-   * "delivered" signal for a project chat, so "delivered" here means "seen by
-   * some" rather than pretending to a network receipt we never collected.
-   */
+  /** WhatsApp's group rule: one tick, two once some have opened it, blue once all have. */
   const deliveryFor = useCallback(
     (authorId: string, createdAt: string): Delivery => {
       const audience = audienceFor(authorId)
@@ -537,15 +493,11 @@ function ChatView({
   )
 
   const [infoFor, setInfoFor] = useState<{ authorId: string; createdAt: string } | null>(null)
-  /** Files picked but not yet sent - the review screen is open while this is
-   *  non-empty. Nothing is uploaded until Send, so backing out is free. */
-  /** Which attachment the viewer is on, by id. Null = closed. */
   const [viewing, setViewing] = useState<string | null>(null)
   const [staged, setStaged] = useState<File[]>([])
   const viewingIndex = viewing ? gallery.findIndex((g) => g.id === viewing) : -1
   const [forwarding, setForwarding] = useState<string | null>(null)
-  /** The bubble the composer is answering: its id ("root" = the opening post),
-   *  who wrote it and a snippet, so the banner needs no second lookup. */
+  /** The bubble being answered ("root" = the opening post), with author and snippet for the banner. */
   const [replyTo, setReplyTo] = useState<{
     id: string
     authorName: string
@@ -575,7 +527,6 @@ function ChatView({
   const [mentionIds, setMentionIds] = useState<string[]>([])
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [editChatOpen, setEditChatOpen] = useState(false)
-  /** Reply queued for deletion, held until the confirm dialog is answered. */
   const [confirmDeleteReply, setConfirmDeleteReply] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [recording, setRecording] = useState(false)
@@ -588,8 +539,7 @@ function ChatView({
     durationSec?: number,
     waveform?: number[],
     asSticker?: boolean,
-    /** Caption from the preview screen. Falls back to whatever is in the
-     *  composer, which is how a voice note or sticker carries typed text. */
+    /** Falls back to the composer text, which is how a voice note or sticker carries typed text. */
     caption?: string,
   ) {
     if (files.length === 0) return
@@ -622,9 +572,7 @@ function ChatView({
     }
   }
 
-  // Replies used to arrive only on the 15s poll. One stream per person already
-  // exists for personal chat, so project replies ride the same connection
-  // rather than opening a second one.
+  // Project replies ride the existing per-person chat stream rather than a second connection.
   useEffect(() => {
     const es = new EventSource("/api/chat/stream")
     es.addEventListener("chat", (e) => {
@@ -641,14 +589,7 @@ function ChatView({
     return () => es.close()
   }, [qc, projectId, thread.id])
 
-  // A message stops being editable 15 minutes after it was posted, and that has
-  // to happen while the user is looking at it - not at the next re-render. One
-  // interval for the whole conversation re-evaluates every window each second.
-  //
-  // GATED, though: it used to tick forever on every open thread, re-rendering
-  // the entire message list once a second for the life of the tab. The clock is
-  // only worth running while something is actually still inside its window, so
-  // the interval starts when one is and stops as soon as the last one closes.
+  // Edit windows expire live: a 1s interval runs only while some message is still inside its 15-minute window.
   const newestPostedAt = useMemo(() => {
     let newest = new Date(thread.createdAt).getTime()
     for (const r of replies) {
@@ -680,29 +621,19 @@ function ChatView({
     ],
   }
 
-  // Editing and deleting are the AUTHOR'S, inside the window - not a management
-  // power. The server enforces exactly this (author + window, no admin override),
-  // so showing these to an admin would just produce a 403.
+  // Edit/delete are the author's, inside the window - no admin override (the server enforces the same).
   const isAuthor = thread.authorId === currentUserId
   const chatWindowMs = editWindowRemaining(thread.createdAt, now)
   const canEditChat = isAuthor && chatWindowMs > 0
 
-  // Keep the view pinned to the newest message - UNLESS we were sent here by a
-  // search hit, in which case the jump below owns the scroll position.
+  // Pin to the newest message, unless a search hit owns the scroll position.
   useEffect(() => {
     if (jumpTo) return
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
   }, [replies.length, thread.id, isLoading, jumpTo])
 
-  // Scroll the matched bubble into view once its replies have rendered. The
-  // Search WITHIN the open chat, the same affordance personal Chat has in its
-  // header. The left pane already searches across every chat in the project;
-  // this is the half that finds what somebody actually said in this one.
-  //
-  // No endpoint: the opening post and every reply are already loaded, so this
-  // filters what is in hand. A round trip to re-fetch text the page is holding
-  // would be slower AND capable of disagreeing with what is on screen.
+  // Search within the open chat filters what's already loaded - no endpoint.
   const [searching, setSearching] = useState(false)
   const [searchQ, setSearchQ] = useState("")
   const trimmedQ = searchQ.trim()
@@ -721,11 +652,9 @@ function ChatView({
     return all.filter((m) => m.content.toLowerCase().includes(needle))
   }, [trimmedQ, thread.author, thread.content, thread.createdAt, replies])
 
-  // flash lives in `flashId` rather than staying on forever, so the highlight
-  // reads as "here it is" and then gets out of the way.
+  // Cleared after a moment, so the highlight says "here it is" then gets out of the way.
   const [flashId, setFlashId] = useState<string | null>(null)
 
-  /** Scroll to a message in THIS chat and flash it - what a search hit does. */
   const jumpToLocal = (id: string) => {
     document.getElementById(`msg-${thread.id}-${id}`)?.scrollIntoView({
       block: "center",
@@ -734,11 +663,16 @@ function ChatView({
     setFlashId(id)
     setTimeout(() => setFlashId(null), 2500)
   }
+  // A search hit lights up once its chat has loaded; the effect below scrolls to it.
+  const [flashedJump, setFlashedJump] = useState<string | null>(null)
+  if (!isLoading && jumpTo !== flashedJump) {
+    setFlashedJump(jumpTo)
+    if (jumpTo) setFlashId(jumpTo)
+  }
   useEffect(() => {
     if (!jumpTo || isLoading) return
     const el = document.getElementById(`msg-${thread.id}-${jumpTo}`)
     el?.scrollIntoView({ block: "center", behavior: "smooth" })
-    setFlashId(jumpTo)
     onJumped()
     const t = setTimeout(() => setFlashId(null), 2500)
     return () => clearTimeout(t)
@@ -775,7 +709,6 @@ function ChatView({
   return (
     // relative: the attachment review screen covers THIS pane, not the viewport.
     <div className="relative flex h-full w-full flex-col">
-      {/* Header */}
       <div className={cn(SPLIT_PANE_HEADER, "gap-2 px-3")}>
         <Button variant="ghost" size="icon" className="md:hidden" onClick={onBack} title="Back">
           <ArrowLeft className="h-4 w-4" />
@@ -811,8 +744,7 @@ function ChatView({
           {searching ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
         </Button>
 
-        {/* Pinning is organising the chat list, not rewriting it, so it has no
-            time limit and stays with the author / project managers. */}
+        {/* Pinning has no time limit and stays with the author / project managers. */}
         {(isAuthor || canManage) && (
           <Button
             variant="ghost"
@@ -887,12 +819,9 @@ function ChatView({
         </div>
       )}
 
-      {/* Messages */}
       <div ref={scrollRef} className="bg-background flex-1 overflow-y-auto px-3 py-3">
-        {/* Every conversation opens under the day it started on. */}
         <DaySeparator date={thread.createdAt} />
 
-        {/* The subject's opening message is the first bubble. */}
         <Bubble
           domId={`msg-${thread.id}-root`}
           flash={flashId === "root"}
@@ -931,14 +860,12 @@ function ChatView({
           <p className="text-muted-foreground py-2 text-center text-xs">Loading messages…</p>
         ) : (
           replies.map((r, i) => {
-            // The opening post is the message before the first reply, so both
-            // the day break and the run break compare against the thread itself.
+            // The opening post precedes the first reply, so both breaks compare against the thread.
             const prev = i === 0 ? null : replies[i - 1]!
             const prevAuthor = prev ? prev.authorId : thread.authorId
             const prevDay = dayKey(prev ? prev.createdAt : thread.createdAt)
             const newDay = dayKey(r.createdAt) !== prevDay
-            // A run is consecutive replies from ONE author on ONE day: the first
-            // carries the tail, avatar, name and gap; the rest sit tight beneath.
+            // A run is consecutive replies from one author on one day; the first carries the tail, avatar and name.
             const startsRun = newDay || r.authorId !== prevAuthor
             return (
               <Fragment key={r.id}>
@@ -981,8 +908,7 @@ function ChatView({
                   onJumpToQuote={jumpToLocal}
                   edited={r.updatedAt !== r.createdAt}
                   windowLeft={formatWindowLeft(editWindowRemaining(r.createdAt, now))}
-                  // Own reply, still inside the window. Once it closes these go
-                  // undefined and both controls vanish from the bubble.
+                  // Undefined once the edit window closes, so both controls vanish.
                   onEdit={
                     r.authorId === currentUserId && isWithinEditWindow(r.createdAt, now)
                       ? (next) =>
@@ -1113,8 +1039,7 @@ function ChatView({
         isPending={update.isPending}
       />
 
-      {/* Deleting a message is not undoable, so the button holds for 3 seconds
-          before it will take the click. */}
+      {/* Not undoable, so the button holds for 3 seconds before it takes the click. */}
       <ConfirmDialog
         open={!!confirmDeleteReply}
         onOpenChange={(o) => !o && setConfirmDeleteReply(null)}
@@ -1152,7 +1077,6 @@ function ChatView({
   )
 }
 
-// ─── One chat bubble ────────────────────────────────────────────────────────
 function Bubble({
   own,
   authorName,
@@ -1204,26 +1128,18 @@ function Bubble({
   windowLeft?: string
   edited?: boolean
   opener?: boolean
-  /** Scroll target for a search jump. */
   domId?: string
-  /** Briefly ringed after being jumped to, so the eye lands on the right bubble. */
   flash?: boolean
-  /** First bubble of a run by one author: it carries the tail, the avatar,
-   *  the name and the gap above. The rest sit tight beneath it. */
   startsRun?: boolean
   /** Read state of YOUR message; omitted on other people's. */
   delivery?: Delivery
   onInfo?: () => void
   reactions?: ReactionGroup[]
   onReact?: (emoji: string) => void
-  /** Opens the forward picker with this message's text. */
   onForward?: () => void
-  /** Point the composer at this bubble. */
   onReply?: () => void
-  /** The line THIS bubble quotes, if any. */
   quote?: { id: string; content: string; authorName: string; fromMe: boolean } | null
   onJumpToQuote?: (id: string) => void
-  /** Hands a tapped picture to the thread's conversation-wide viewer. */
   onOpenMedia?: (attachmentId: string) => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -1250,8 +1166,7 @@ function Bubble({
         startsRun ? "mt-2" : "mt-0.5",
       )}
     >
-      {/* One avatar per run, but the gutter is always reserved - without the
-          spacer every follow-up bubble would slide left under the avatar. */}
+      {/* One avatar per run, but the gutter is always reserved so follow-ups don't slide left. */}
       {!own &&
         (startsRun ? (
           <AvatarDisplay
@@ -1268,16 +1183,12 @@ function Bubble({
         className={cn(
           "relative max-w-[78%] min-w-0 rounded-sm px-2.5 py-1.5 text-sm shadow-sm",
           own ? BUBBLE_OUT : BUBBLE_IN,
-          // Square off the corner the tail grows out of, so the two shapes
-          // read as one bubble rather than a blob beside a box.
           startsRun && (own ? "rounded-tr-none" : "rounded-tl-none"),
           flash && "ring-2 ring-amber-400 ring-offset-1",
         )}
       >
         {startsRun && <BubbleTail side={own ? "right" : "left"} />}
 
-        {/* What this answers. Clicking it walks back up the thread - a quote
-            you cannot follow is just decoration. */}
         {quote && (
           <button
             type="button"
@@ -1289,8 +1200,6 @@ function Bubble({
           </button>
         )}
 
-        {/* Only on the first of a run: repeating the name under every line of
-            somebody talking to themselves is noise. */}
         {!own && startsRun && (
           <p className="text-primary mb-0.5 text-[11px] font-semibold">{authorName}</p>
         )}
@@ -1304,8 +1213,6 @@ function Bubble({
           </p>
         )}
         {editing ? (
-          // Inline editor: same bubble, so the message keeps its place in the
-          // conversation instead of jumping into a modal.
           <div className="space-y-1.5">
             <Textarea
               value={draft}
@@ -1365,9 +1272,7 @@ function Bubble({
                 />
               </div>
             )}
-            {/* A file or card sent with no words of its own gets an auto caption
-                so the thread list reads properly - but repeating it under the
-                thing it describes is noise. */}
+            {/* Hide the auto caption under the attachment it describes. */}
             {!(attachments?.length && AUTO_CAPTIONS.has(content)) &&
               !poll &&
               !event &&
@@ -1387,8 +1292,7 @@ function Bubble({
           {edited && <span className="italic">edited</span>}
           {/* Time only - the day is on the separator above this run of messages. */}
           <span>{formatClockTime(createdAt)}</span>
-          {/* Ticks on your own only: there is nothing to report about whether YOU
-              have read somebody else's message. Clicking opens the full list. */}
+          {/* Ticks on your own messages only. */}
           {own && delivery && (
             <button
               type="button"
@@ -1405,10 +1309,7 @@ function Bubble({
         {reactions && onReact && <MessageReactions reactions={reactions} onToggle={onReact} />}
       </div>
 
-      {/* The same control column personal Chat has: react above, ⋮ below. Edit
-          and Delete live INSIDE the menu because they expire - the parent stops
-          passing their handlers when the 15 minute window closes, and re-renders
-          on a timer so they vanish on their own rather than at the next click. */}
+      {/* Edit and Delete live in the menu because they expire; the parent stops passing them after 15 minutes. */}
       {!editing && (onReact || onInfo || onReply || onForward || onEdit || onDelete) && (
         <div className="mb-4 flex shrink-0 flex-col items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 has-[[data-state=open]]:opacity-100">
           {onReact && <ReactionButton align={own ? "end" : "start"} onPick={onReact} />}
@@ -1425,8 +1326,6 @@ function Bubble({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align={own ? "end" : "start"}>
-              {/* Own messages only: there is nothing to report about whether YOU
-                  have read somebody else's. */}
               {own && onInfo && (
                 <DropdownMenuItem onClick={onInfo}>
                   <Info className="mr-2 h-3.5 w-3.5" />
@@ -1485,22 +1384,11 @@ function Bubble({
 /** Captions the server writes when a file is sent with nothing typed. */
 const AUTO_CAPTIONS = new Set(["Photo", "Voice message", "File"])
 
-// ─── Day separator ──────────────────────────────────────────────────────────
-/**
- * The centred "Today / Yesterday / Saturday / 5 Aug" chip between days. This is
- * what lets the bubbles carry a bare clock time: the day is stated once for the
- * run of messages beneath it instead of being repeated on every bubble.
- */
 function DaySeparator({ date }: { date: string }) {
   return <DayChip label={formatDaySeparator(date)} />
 }
 
-// ─── Edit chat dialog (subject + opening message) ───────────────────────────
-/**
- * The chat's subject line and its opening post are one record, so they are
- * edited together. Only reachable inside the 15 minute window - the header stops
- * rendering the button after that, and the API refuses regardless.
- */
+/** Subject and opening post are one record, edited together inside the 15-minute window. */
 function EditChatDialog({
   open,
   onClose,
@@ -1518,12 +1406,14 @@ function EditChatDialog({
   const [content, setContent] = useState(thread.content)
 
   // Re-seed each time it opens, so a cancelled edit is genuinely discarded.
-  useEffect(() => {
+  const [seeded, setSeeded] = useState({ open, title: thread.title, content: thread.content })
+  if (open !== seeded.open || thread.title !== seeded.title || thread.content !== seeded.content) {
+    setSeeded({ open, title: thread.title, content: thread.content })
     if (open) {
       setTitle(thread.title)
       setContent(thread.content)
     }
-  }, [open, thread.title, thread.content])
+  }
 
   const dirty = title.trim() !== thread.title || content.trim() !== thread.content
 
@@ -1569,7 +1459,6 @@ function EditChatDialog({
   )
 }
 
-// ─── New chat dialog (subject + first message) ──────────────────────────────
 function NewChatDialog({
   open,
   onClose,
@@ -1593,14 +1482,15 @@ function NewChatDialog({
   const create = useCreateMessage(projectId)
   const del = useDeleteMessage(projectId)
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
     if (open) {
       setTitle(initial?.title ?? "")
       setContent(initial?.content ?? "")
       setMentionIds(initial?.mentionIds ?? [])
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }
 
   const initialMentions = useMemo(
     () => toMentionPairs(initial?.mentionIds ?? [], members),

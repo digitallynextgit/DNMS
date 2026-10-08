@@ -1,10 +1,7 @@
 import { HardDrive } from "lucide-react"
 import type { HelpGuide } from "../../types"
 
-// One screenshot only - the Add storage form, which is empty until typed in.
-// Storage accounts are PLATFORM-wide (storage_accounts has no company), so the
-// list and the files only load in the main DNMS company, never in the demo
-// workspace the screenshots are taken in.
+// One screenshot only: storage accounts are platform-wide, so they don't load in the demo workspace.
 
 export const storageGuide: HelpGuide = {
   slug: "storage",

@@ -26,7 +26,7 @@ const UI = {
   next: { en: "Next", hi: "अगली गाइड" },
 }
 
-/** /help/[slug] - one guide, in the reader's language, only the parts they can use. */
+/** One guide, in the reader's language, showing only the parts they can use. */
 export function GuideView({ slug }: { slug: string }) {
   const [lang] = useHelpLang()
   const { permissions, roles, isLoading } = usePermissions()

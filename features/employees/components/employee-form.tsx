@@ -60,10 +60,7 @@ import {
 import { useJobRoles } from "@/features/employees/hooks/use-job-roles"
 import { EmployeeCombobox } from "@/features/employees/components/employee-combobox"
 
-// ─── Schema ──────────────────────────────────────────────────────────────────
-
 const formSchema = z.object({
-  // Step 1 - Personal (all required)
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   email: z.string().min(1, "Work email is required").email("Valid work email is required"),
@@ -71,13 +68,11 @@ const formSchema = z.object({
   phone: z.string().min(1, "Work phone is required"),
   personalPhone: z.string().min(1, "Personal phone is required"),
   dateOfBirth: z.string().min(1, "Date of birth is required"),
-  // Kept as a constrained string (the Select only offers the four valid values)
-  // so the required check is a simple non-empty rule that plays well with RHF.
+  // A string (not an enum) so the required check stays simple with RHF.
   gender: z.string().min(1, "Gender is required"),
   nationality: z.string().min(1, "Nationality is required"),
   bloodGroup: z.string().optional(),
 
-  // Step 2 - Employment (required core fields)
   departmentId: z.string().min(1, "Department is required"),
   designationId: z.string().min(1, "Designation is required"),
   jobRoleId: z.string().optional(),
@@ -89,20 +84,17 @@ const formSchema = z.object({
   probationMonths: z.enum(["0", "1", "2", "3", "4", "5", "6"]).optional(),
   workLocation: z.string().min(1, "Work location is required"),
   deviceId: z.string().optional(),
-  // Required employee code (HR-system code, e.g. 132). Must be unique.
+  // HR-system code (e.g. 132); must be unique.
   employeeNo: z.string().min(1, "Employee code is required").max(32, "Max 32 characters"),
-  // Login password (create only). Auto-filled with a generated value; editable.
-  // Required-on-create is enforced in goNext().
+  // Create only; required-on-create is enforced in goNext().
   password: z
     .string()
     .optional()
     .refine((s) => s == null || s === "" || s.length >= 8, {
       message: "Password must be at least 8 characters",
     }),
-  // Force the new hire to set their own password on first login.
   mustChangePassword: z.boolean().optional(),
-  // Format check only - required-on-create is enforced in goNext() so edit mode
-  // can leave the field blank to mean "leave unchanged".
+  // Format only; required-on-create is enforced in goNext() (blank on edit = unchanged).
   gmailAppPassword: z
     .string()
     .optional()
@@ -110,7 +102,6 @@ const formSchema = z.object({
       message: "Gmail App Password must be 16 characters",
     }),
 
-  // Step 3 - Address
   currentLine1: z.string().optional(),
   currentLine2: z.string().optional(),
   currentCity: z.string().optional(),
@@ -123,15 +114,12 @@ const formSchema = z.object({
   permanentState: z.string().optional(),
   permanentZip: z.string().optional(),
 
-  // Emergency
   emergencyName: z.string().optional(),
   emergencyRelation: z.string().optional(),
   emergencyPhone: z.string().optional(),
 })
 
 type FormData = z.infer<typeof formSchema>
-
-// ─── Nationality options (Indian first / default) ─────────────────────────────
 
 const NATIONALITIES = [
   "Indian",
@@ -157,15 +145,9 @@ const NATIONALITIES = [
   "Other",
 ] as const
 
-// ─── Work location options ─────────────────────────────────────────────────────
-
 const WORK_LOCATIONS = ["Remote", "Office", "Hybrid"] as const
 
-// Convert between the form's "yyyy-MM-dd" string and a Date for the calendar,
-// staying in local time so the day never shifts across timezones.
-
-// Generate a readable, reasonably strong password for a new hire. Avoids
-// ambiguous characters (0/O, 1/l/I) and guarantees a mix of classes.
+// Readable password with a mix of classes and no ambiguous 0/O, 1/l/I.
 function generatePassword(length = 12): string {
   const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"
   const lower = "abcdefghijkmnpqrstuvwxyz"
@@ -183,8 +165,7 @@ function generatePassword(length = 12): string {
   return out.join("")
 }
 
-// Smallest positive integer not already used as a (purely numeric) employee code,
-// e.g. codes 1,2,3 → "4"; codes 1,3 → "2".
+// Smallest unused positive numeric code, e.g. 1,3 -> "2".
 function nextEmployeeCode(codes: string[]): string {
   const used = new Set<number>()
   for (const c of codes) {
@@ -197,8 +178,6 @@ function nextEmployeeCode(codes: string[]): string {
   return String(n)
 }
 
-// ─── Step config ──────────────────────────────────────────────────────────────
-
 const STEPS = [
   { number: 1, label: "Personal Info" },
   { number: 2, label: "Employment" },
@@ -207,9 +186,7 @@ const STEPS = [
   { number: 5, label: "Review & Submit" },
 ]
 
-// Which wizard step each field lives on, so a validation error can jump the
-// user straight to the step that needs fixing (used by the submit onInvalid
-// handler). Anything not listed defaults to step 1.
+// Which step each field is on, so a validation error can jump there (default: step 1).
 const FIELD_TO_STEP: Partial<Record<keyof FormData, number>> = {
   firstName: 1,
   lastName: 1,
@@ -252,12 +229,9 @@ const FIELD_TO_STEP: Partial<Record<keyof FormData, number>> = {
   emergencyPhone: 4,
 }
 
-// ─── Document step state ──────────────────────────────────────────────────────
-
 type DocCategory = keyof typeof DOCUMENT_CATEGORY_LABELS
 
 interface PendingDoc {
-  /** Local-only id for keying. */
   uid: string
   file: File
   title: string
@@ -282,14 +256,10 @@ async function fetchEmployeeDocs(employeeId: string): Promise<{ data: ExistingDo
   return body.data
 }
 
-// ─── Props ───────────────────────────────────────────────────────────────────
-
 interface EmployeeFormProps {
   mode: "create" | "edit"
   employeeId?: string
 }
-
-// ─── Step indicator ───────────────────────────────────────────────────────────
 
 function StepIndicator({ steps, currentStep }: { steps: typeof STEPS; currentStep: number }) {
   return (
@@ -336,8 +306,6 @@ function StepIndicator({ steps, currentStep }: { steps: typeof STEPS; currentSte
   )
 }
 
-// ─── Field wrapper ────────────────────────────────────────────────────────────
-
 function FormField({
   label,
   error,
@@ -360,7 +328,6 @@ function FormField({
   )
 }
 
-// Live "is this email free?" hint shown under the email inputs.
 function EmailStatusHint({ status }: { status: EmailAvailability }) {
   if (status === "checking")
     return (
@@ -386,8 +353,6 @@ function EmailStatusHint({ status }: { status: EmailAvailability }) {
   return null
 }
 
-// ─── Review section ───────────────────────────────────────────────────────────
-
 function ReviewRow({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="flex gap-2">
@@ -397,18 +362,13 @@ function ReviewRow({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
 export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [currentStep, setCurrentStep] = useState(1)
-  // Stays true from a successful save until the route actually swaps in, so the
-  // submit button keeps a spinner during the (dev-only) page compile + fetch
-  // instead of snapping back to "Create Employee" and looking stuck.
+  // Keeps the submit spinner on from a successful save until the route swaps in.
   const [redirecting, setRedirecting] = useState(false)
 
-  // Documents step state
   const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([])
   const [docsBusy, setDocsBusy] = useState(false)
 
@@ -420,7 +380,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   const { data: codesData } = useEmployeeCodes()
   const employeeCodes = codesData?.data ?? []
 
-  // Existing documents (edit mode only).
   const { data: existingDocsData, refetch: refetchDocs } = useQuery({
     queryKey: ["employee-documents", employeeId],
     queryFn: () => fetchEmployeeDocs(employeeId!),
@@ -435,7 +394,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   const createEmployee = useCreateEmployee()
   const updateEmployee = useUpdateEmployee()
 
-  // Add files chosen via the file picker as pending uploads.
   function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
     const added: PendingDoc[] = []
@@ -478,8 +436,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
       fd.append("category", doc.category)
       if (doc.expiresAt) fd.append("expiresAt", doc.expiresAt)
       try {
-        // Route Handler (not the Server Action) so files >1MB aren't rejected by
-        // the default Server-Action body limit.
+        // Route Handler, not a Server Action, so files >1MB pass the body limit.
         const res = await fetch(`/api/employees/${targetEmployeeId}/documents`, {
           method: "POST",
           body: fd,
@@ -513,11 +470,9 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
     }
   }
 
-  // Gmail App Password is optional: HR chooses to add one now or skip it. In edit
-  // mode we default to "add" so the (leave-blank-to-keep) field stays visible.
+  // App Password is optional on create; edit defaults to "add" so the keep-blank field shows.
   const [gmailMode, setGmailMode] = useState<"add" | "skip">(mode === "edit" ? "add" : "skip")
 
-  // Login password (create only): always shown, pre-filled with a generated value.
   const [showPassword, setShowPassword] = useState(false)
 
   const {
@@ -539,7 +494,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
       onProbation: true,
       probationMonths: "6",
       sameAsCurrent: false,
-      // Create mode: prefill a strong password and require change on first login.
       password: mode === "create" ? generatePassword() : "",
       mustChangePassword: mode === "create",
     },
@@ -548,21 +502,17 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   const sameAsCurrent = watch("sameAsCurrent")
   const watchedValues = watch()
 
-  // Job roles for the currently-selected department (the dropdown is filtered;
-  // empty until a department is picked).
   const { data: jobRolesData } = useJobRoles({
     departmentId: watchedValues.departmentId || undefined,
   })
   const jobRoleList = watchedValues.departmentId ? (jobRolesData ?? []) : []
 
-  // Real-time, debounced duplicate-email checks (skip the edited employee's own
-  // record). Both fields are checked against work AND personal emails.
+  // Debounced duplicate-email checks (skipping the edited employee's own record).
   const excludeForCheck = mode === "edit" ? employeeId : undefined
   const emailStatus = useEmailAvailability(watchedValues.email, excludeForCheck)
   const personalEmailStatus = useEmailAvailability(watchedValues.personalEmail, excludeForCheck)
 
-  // On create, pre-fill the next free employee code once the existing codes load.
-  // Runs once and never clobbers a value the user has already typed.
+  // On create, pre-fill the next free code once - never over a typed value.
   const autoFilledCodeRef = useRef(false)
   useEffect(() => {
     if (mode !== "create" || autoFilledCodeRef.current || !codesData) return
@@ -577,7 +527,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   const { isAdmin_, roles } = usePermissions()
   const isProbationAdmin = isAdmin_ || roles.includes("admin") || roles.includes("hr_manager")
 
-  // Live preview of when probation ends, from the joining date + selected period.
   const probationPreview = getProbationStatus({
     onProbation: watchedValues.onProbation ?? true,
     probationMonths: watchedValues.probationMonths ? Number(watchedValues.probationMonths) : 6,
@@ -593,7 +542,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         }`
       : "-"
 
-  // Populate form when editing
   useEffect(() => {
     if (mode === "edit" && employeeData?.data) {
       const emp = employeeData.data
@@ -629,8 +577,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         currentCity: ca.city ?? "",
         currentState: ca.state ?? "",
         currentZip: ca.zip ?? "",
-        // Required boolean in the schema - must be present or handleSubmit() fails
-        // validation silently (the checkbox lives on a later step, so no visible error).
+        // Required by the schema; missing, it fails validation silently (field is on a later step).
         sameAsCurrent: false,
         permanentLine1: pa.line1 ?? "",
         permanentLine2: pa.line2 ?? "",
@@ -640,7 +587,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         emergencyName: ec.name ?? "",
         emergencyRelation: ec.relation ?? "",
         emergencyPhone: ec.phone ?? "",
-        // Never repopulated - API never returns the stored value. Blank = unchanged.
+        // The API never returns the stored value; blank = unchanged.
         gmailAppPassword: "",
       })
     }
@@ -658,8 +605,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
       "gender",
       "nationality",
     ],
-    // Core employment fields are required; gmail format is checked here, and its
-    // "required on create" rule is enforced in goNext() (only when "Add" is chosen).
+    // Gmail's required-on-create rule lives in goNext() (only when "Add" is chosen).
     2: [
       "employeeNo",
       "departmentId",
@@ -679,15 +625,13 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
     const fieldsToValidate = stepFields[currentStep]
     const valid = fieldsToValidate.length > 0 ? await trigger(fieldsToValidate) : true
 
-    // Don't leave step 1 while a duplicate email is flagged. The red EmailStatusHint
-    // under the field already explains why; the server re-checks on submit too.
+    // Don't leave step 1 while a duplicate email is flagged (the server re-checks on submit).
     if (currentStep === 1 && (emailStatus === "taken" || personalEmailStatus === "taken")) {
       toast.error("This email is already used by another employee")
       return
     }
 
-    // When the user chose to add an App Password on create, it's required here.
-    // (Skip mode leaves it blank; edit mode treats blank as "leave unchanged".)
+    // Required on create only when "Add" is chosen.
     if (currentStep === 2 && mode === "create" && gmailMode === "add") {
       const raw = (watchedValues.gmailAppPassword ?? "").replace(/\s+/g, "")
       if (raw === "") {
@@ -700,7 +644,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
       }
     }
 
-    // Login password is always required on create (auto-filled, but HR may edit it).
     if (currentStep === 2 && mode === "create") {
       const pw = watchedValues.password ?? ""
       if (pw.length < 8) {
@@ -713,9 +656,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
       }
     }
 
-    // Address is required on create. The permanent address is only required when
-    // it differs from the current one. (Edit mode leaves these optional - the
-    // per-section edit modals handle editing later.)
+    // Address is required on create; permanent only when it differs from current.
     if (currentStep === 4 && mode === "create") {
       const requiredAddr: [keyof FormData, string][] = [
         ["currentLine1", "Address line 1 is required"],
@@ -749,8 +690,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
     if (valid) {
       setCurrentStep((s) => Math.min(s + 1, STEPS.length))
     } else {
-      // trigger() has already painted the red inline messages; nudge the user
-      // so an empty required field off-screen doesn't look like a dead button.
+      // Inline errors may be off-screen, so say why Next did nothing.
       toast.error("Please fill in all required fields on this step")
     }
   }
@@ -761,8 +701,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
   async function onSubmit(data: FormData) {
     try {
-      // Only the final step may actually create/save. Guards against any stray
-      // submit before review (e.g. Enter pressed in a field) - treat it as "Next".
+      // Only the last step saves; an early submit (e.g. Enter in a field) acts as "Next".
       if (currentStep < STEPS.length) {
         await goNext()
         return
@@ -825,10 +764,8 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               phone: data.emergencyPhone,
             }
           : undefined,
-        // Send only when the user typed something. Empty on edit = "leave unchanged".
+        // Empty on edit = leave unchanged.
         gmailAppPassword: data.gmailAppPassword?.replace(/\s+/g, "") || undefined,
-        // Login password (create only). The form always supplies one (auto-filled),
-        // so the server uses it instead of generating its own.
         password: mode === "create" ? data.password || undefined : undefined,
         mustChangePassword: mode === "create" ? (data.mustChangePassword ?? true) : undefined,
       }
@@ -837,7 +774,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         const result = await createEmployee.mutateAsync(payload as Record<string, unknown>)
         const created = result?.data
         if (created?.id) {
-          // Upload any staged documents before redirecting.
           if (pendingDocs.length > 0) await uploadPendingDocs(created.id)
           const slug = employeeSlug(created.employeeNo, created.firstName, created.lastName)
           goToProfile(slug, created)
@@ -855,15 +791,11 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
     }
   }
 
-  // Warm the destination route + seed its detail cache so the profile paints
-  // immediately, and hold the submit button in a busy state until the route
-  // swaps in (the component unmounts on navigation, so this never resets here).
+  // Prefetch the profile and seed its cache; the busy state holds until the route swaps in.
   function goToProfile(slug: string, seed?: { id: string }) {
     const url = `/employees/${slug}`
     if (seed) {
-      // Show the header straight away from what we already have, then refetch
-      // the full detail (invalidate marks it stale so the page still loads the
-      // address / roles / tabs the create result doesn't include).
+      // Show the header from what we have; invalidate so the full detail still loads.
       queryClient.setQueryData(["employee", slug], { data: seed })
       queryClient.invalidateQueries({ queryKey: ["employee", slug] })
     }
@@ -872,9 +804,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
     router.push(url)
   }
 
-  // Final-submit validation failed. Without this, handleSubmit() silently does
-  // nothing and the "Create Employee" button looks broken. Jump to the earliest
-  // step with an error and name the first problem so it's clear what to fix.
+  // Otherwise handleSubmit() fails silently - jump to the first step with an error and name it.
   function onInvalid(formErrors: FieldErrors<FormData>) {
     const errored = (Object.keys(formErrors) as (keyof FormData)[]).filter((f) => formErrors[f])
     if (errored.length === 0) {
@@ -914,7 +844,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
     <form onSubmit={handleSubmit(onSubmit, onInvalid)}>
       <StepIndicator steps={STEPS} currentStep={currentStep} />
 
-      {/* ── Step 1: Personal Info ──────────────────────────────────────────── */}
       {currentStep === 1 && (
         <Card>
           <CardHeader>
@@ -977,8 +906,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
             <FormField label="Gender" required error={errors.gender?.message}>
               <Select
-                // key forces a remount when the value resolves after reset() -
-                // Radix Select won't reflect a controlled value that changes post-mount.
+                // key remounts the Select: Radix ignores a value that changes after mount.
                 key={`gender-${watchedValues.gender || "none"}`}
                 value={watchedValues.gender || ""}
                 onValueChange={(v) =>
@@ -1038,14 +966,12 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         </Card>
       )}
 
-      {/* ── Step 2: Employment ────────────────────────────────────────────── */}
       {currentStep === 2 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Employment Details</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            {/* Probation (admin only) - kept at the top of the step. */}
             {isProbationAdmin && (
               <div className="border-border bg-muted/30 space-y-3 rounded-sm border p-4 sm:col-span-2">
                 <div className="flex items-center justify-between gap-4">
@@ -1284,8 +1210,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               />
             </FormField>
 
-            {/* Login password (create only). Auto-filled with a generated value; HR
-                can edit it or regenerate. It is emailed to the employee either way. */}
+            {/* Create only: auto-filled password, editable; emailed to the employee either way. */}
             {mode === "create" && (
               <div className="border-border bg-muted/30 space-y-3 rounded-sm border p-4 sm:col-span-2">
                 <FormField label="Login Password" required error={errors.password?.message}>
@@ -1350,8 +1275,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               </div>
             )}
 
-            {/* Gmail App Password - encrypted at rest, used to send emails as this
-                employee. HR toggles whether to add one now or skip it. */}
+            {/* Gmail App Password: encrypted at rest, used to send email as this employee. */}
             <div className="border-border bg-muted/30 space-y-3 rounded-sm border p-4 sm:col-span-2">
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -1406,7 +1330,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         </Card>
       )}
 
-      {/* ── Step 3: Documents ─────────────────────────────────────────────── */}
       {currentStep === 3 && (
         <div className="space-y-6">
           {/* Hidden file input shared by every "Add Document" trigger on this step. */}
@@ -1422,7 +1345,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
             }}
           />
 
-          {/* Existing documents (edit mode only) */}
           {mode === "edit" && existingDocs.length > 0 && (
             <Card>
               <CardHeader>
@@ -1465,7 +1387,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
             </Card>
           )}
 
-          {/* New documents to upload */}
           <Card>
             <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
               <div>
@@ -1503,7 +1424,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                 <div className="space-y-3">
                   {pendingDocs.map((doc) => (
                     <div key={doc.uid} className="bg-muted/20 space-y-4 rounded-sm border p-4">
-                      {/* Filename header - prominent so it's clear which doc you're editing */}
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-3">
                           <div className="bg-background flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border">
@@ -1529,7 +1449,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                         </Button>
                       </div>
 
-                      {/* Metadata grid */}
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         <FormField label="Document Title" required>
                           <Input
@@ -1570,7 +1489,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                     </div>
                   ))}
 
-                  {/* Trailing "Add Another" button beneath the list */}
                   <Button
                     type="button"
                     variant="outline"
@@ -1587,7 +1505,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         </div>
       )}
 
-      {/* ── Step 4: Address & Emergency ───────────────────────────────────── */}
       {currentStep === 4 && (
         <div className="space-y-6">
           <Card>
@@ -1742,7 +1659,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         </div>
       )}
 
-      {/* ── Step 5: Review ────────────────────────────────────────────────── */}
       {currentStep === 5 && (
         <div className="space-y-6">
           <Card>
@@ -1901,7 +1817,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         </div>
       )}
 
-      {/* ── Navigation ────────────────────────────────────────────────────── */}
       <div className="mt-8 flex items-center justify-between">
         <Button
           className="gap-1.5"
@@ -1916,12 +1831,8 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
         <div className="flex items-center gap-3">
           {currentStep < STEPS.length ? (
-            // Distinct `key` from the submit button below: without it React reuses
-            // the same <button> DOM node and merely flips its `type` from "button"
-            // to "submit" when goNext() advances to the last step. The flip happens
-            // *during* the click event, so the browser's default action then sees
-            // type="submit" and submits the form - auto-saving without a second
-            // click. Separate keys force a fresh node, so the click can't submit.
+            // Separate key from the submit button: otherwise React reuses the node, flips its type
+            // to "submit" mid-click, and the form auto-submits.
             <Button className="gap-1.5" key="nav-next" type="button" onClick={goNext}>
               Next
               <ChevronRight className="h-4 w-4" />

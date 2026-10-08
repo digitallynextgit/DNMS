@@ -3,10 +3,7 @@ import type { Metadata } from "next"
 import { LegalPage } from "@/features/marketing"
 import { LEGAL_DOCS } from "@/features/marketing/legal.content"
 
-// A real route per document rather than one [slug] segment. The dynamic version
-// rendered the not-found BODY with a 200 status for an unknown slug - a soft
-// 404, which invites crawlers to index garbage URLs. Four static routes let
-// Next's own router answer that case correctly, and they prerender.
+// A static route per document, not one [slug] segment, so an unknown slug gets a real 404.
 const doc = LEGAL_DOCS.cookies
 
 export const metadata: Metadata = {

@@ -8,12 +8,7 @@ import {
   resolveReportScope,
 } from "@/features/projects/server/deliverables-report"
 
-// GET /api/projects/deliverables/progress?from&to&projectIds&teamIds&employeeIds
-//
-// The numbers behind the "My Progress" page. Same scope rules and the same
-// arithmetic as the slide deck, so the page and the slides always agree.
-// Leaving from/to out means "all time"; the id lists are comma-separated and
-// must sit inside what the caller is allowed to see.
+// Same scope rules and arithmetic as the slide deck, so the page and the slides agree. No from/to = all time.
 export const dynamic = "force-dynamic"
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/

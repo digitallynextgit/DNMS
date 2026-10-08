@@ -1,12 +1,8 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Payroll record detail: back + title/description + download, a status row, the
-// printed payslip document, then a 2-up grid of HR breakdown cards (Attendance,
-// Earnings, Deductions, Net Pay).
 export default function Loading() {
   return (
     <div className="space-y-6">
-      {/* Header: back link, title + description (left), download (right). */}
       <div className="space-y-2 py-4">
         <Skeleton className="bg-muted h-8 w-32 animate-pulse rounded-sm" />
         <div className="flex items-center justify-between gap-4">
@@ -18,17 +14,14 @@ export default function Loading() {
         </div>
       </div>
 
-      {/* Status row */}
       <div className="flex items-center gap-3">
         <Skeleton className="bg-muted h-5 w-20 animate-pulse rounded-sm" />
       </div>
 
-      {/* Payslip document */}
       <div className="bg-card rounded-sm border p-2 sm:p-4">
         <PayslipDocSkeleton />
       </div>
 
-      {/* HR breakdown cards */}
       <div className="grid gap-4 md:grid-cols-2">
         <BreakdownCard rows={4} />
         <BreakdownCard rows={7} />
@@ -64,7 +57,6 @@ function NetPayCard() {
   )
 }
 
-/** Placeholder shaped like the printed payslip document. */
 function PayslipDocSkeleton() {
   return (
     <div className="mx-auto max-w-3xl">

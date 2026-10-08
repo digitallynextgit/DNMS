@@ -10,33 +10,19 @@ import { useAppPathname } from "@/components/tenant-link"
 import { FOUNDING_TENANT_SLUG } from "@/lib/tenant-url"
 
 /**
- * Sidebar for the platform console.
- *
- * A SEPARATE component from the dashboard sidebar on purpose. That one is built
- * from the signed-in tenant's permissions - Employees, Payroll, Projects - and
- * every item in it means "in this company". Rendering it beside a page that
- * lists every company invited exactly the misreading you would expect: does
- * "Employees" mean this workspace, or all of them?
- *
- * So the console gets its own nav, listing only what the console can actually
- * do, plus one route back into the operator's own workspace.
- *
- * ── ADDING TO THIS ───────────────────────────────────────────────────────────
- * Only add an item once the page behind it exists. A greyed-out "Billing" that
- * goes nowhere teaches people the nav is unreliable, and they stop reading it.
+ * The platform console's own nav, separate from the tenant sidebar so nothing reads as "this
+ * company". Only add an item once its page exists.
  */
 
 const PLATFORM_ITEMS = [{ href: "/platform", label: "Companies", icon: Building2 }]
 
 export function PlatformSidebar() {
   const { isCollapsed } = useSidebarStore()
-  // Tenant-stripped, so the comparison works on both halves of the render.
   const pathname = useAppPathname()
 
   return (
     <aside
       className={cn(
-        // Scoped to width - see components/layout/sidebar.tsx.
         "bg-background border-border flex h-full min-h-0 shrink-0 flex-col border-r transition-[width] duration-200 motion-reduce:transition-none",
         isCollapsed ? "w-14" : "w-56",
       )}
@@ -94,8 +80,7 @@ export function PlatformSidebar() {
         })}
       </nav>
 
-      {/* The way back. Platform staff are employees of Digitally Next too, and
-          without this the console is a room with no door. */}
+      {/* The way back into the operator's own workspace. */}
       <div className="border-border shrink-0 border-t p-2">
         <Link
           href={`/${FOUNDING_TENANT_SLUG}/dashboard`}

@@ -4,11 +4,8 @@ export interface ReportingRow {
   dottedManagerId: string | null
 }
 
-/**
- * Everyone under `me`: solid-line reports at any depth (a manager of managers
- * sees the whole branch), plus people who have `me` as their dotted-line
- * manager. Never includes `me`, and survives a cycle in bad org data.
- */
+/** Everyone under `me`: solid-line reports at any depth plus dotted-line reports; never `me`,
+ *  and safe against cycles in bad org data. */
 export function reportingLine(me: string, employees: ReportingRow[]): string[] {
   const byManager = new Map<string, string[]>()
   for (const e of employees) {

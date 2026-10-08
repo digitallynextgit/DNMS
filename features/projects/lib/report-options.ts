@@ -1,10 +1,4 @@
-/**
- * The vocabulary of the AI briefing builder.
- *
- * Shared by the options dialog and the route that writes the prompt, so a report
- * type or section can never exist on screen without the prompt knowing how to
- * render it. Plain data - no "use client", no "server-only", imported by both.
- */
+// AI briefing builder vocabulary, shared by the options dialog and the prompt route.
 
 export type ReportType = "portfolio" | "project" | "team" | "individual"
 
@@ -18,7 +12,7 @@ export interface ReportTypeDef {
   scopes: ScopeKind[]
   /** The angle the model is told to analyse from. */
   lens: string
-  /** How the data block is grouped. The route switches on this. */
+  /** How the data block is grouped. */
   groupBy: "none" | "project" | "team" | "employee"
 }
 
@@ -142,7 +136,6 @@ export function reportSection(key: ReportSection): ReportSectionDef | undefined 
   return REPORT_SECTIONS.find((s) => s.key === key)
 }
 
-/** Sections offered for a given report type, in canonical order. */
 export function sectionsFor(type: ReportType): ReportSectionDef[] {
   return REPORT_SECTIONS.filter((s) => !s.only || s.only.includes(type))
 }
@@ -172,9 +165,8 @@ export const DEFAULT_REPORT_CONFIG: ReportConfig = {
 }
 
 /**
- * Keep a config coherent after the type changes: drop scopes the new type has no
- * picker for (otherwise an invisible team filter silently narrows the report)
- * and sections it does not offer.
+ * After a type change, drop scopes the new type has no picker for (an invisible filter would
+ * still narrow the report) and sections it does not offer.
  */
 export function reconcileConfig(config: ReportConfig): ReportConfig {
   const def = reportType(config.type)

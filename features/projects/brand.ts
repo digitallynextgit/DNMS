@@ -1,8 +1,3 @@
-// =============================================================================
-// Brand / Strategy workspace - shared types & constants (client-safe).
-// Mirrors the ProjectBrand / ContentCalendarEntry Prisma models.
-// =============================================================================
-
 export const PLATFORMS = ["Instagram", "Meta", "LinkedIn", "YouTube", "Website", "Other"] as const
 
 export const CONTENT_FORMATS = [
@@ -16,15 +11,10 @@ export const CONTENT_FORMATS = [
   "Other",
 ] as const
 
-/**
- * Colours + labels for these live in `lib/constants.ts` as
- * CONTENT_CALENDAR_STATUS_COLORS / _LABELS (built from the shared TONE palette),
- * and are rendered through the shared <StatusBadge>.
- */
+// Colours and labels: CONTENT_CALENDAR_STATUS_COLORS / _LABELS in lib/constants.ts.
 export const CALENDAR_STATUSES = ["PLANNED", "IN_PROGRESS", "READY", "POSTED"] as const
 export type CalendarStatus = (typeof CALENDAR_STATUSES)[number]
 
-// ── Digital objectives (targets) ──
 export interface DigitalObjective {
   id: string
   platform: string
@@ -34,7 +24,6 @@ export interface DigitalObjective {
   deadline: string
 }
 
-// ── Manifestation plan: 4 fixed themes, each with social + website notes ──
 export const MANIFESTATION_THEMES = [
   { key: "AWARENESS", title: "Brand Awareness", hint: "Knowledge & information" },
   { key: "DEMAND", title: "Demand Generation", hint: "Paid ads" },
@@ -44,7 +33,6 @@ export const MANIFESTATION_THEMES = [
 export type ManifestationKey = (typeof MANIFESTATION_THEMES)[number]["key"]
 export type Manifestation = Record<string, { social: string; website: string }>
 
-// ── Brand guidelines ──
 export interface BrandColor {
   name: string
   hex: string
@@ -56,18 +44,7 @@ export interface BrandGuidelines {
   uiux: string
 }
 
-/**
- * Which section of the Strategy page a file was attached to.
- *
- * ONE FLAT LIST, not a nested "section owns its files" model. An asset row is
- * just a file plus the section it belongs to, so adding a new attachable
- * section is this array plus an <AssetRow> - no migration, no new table.
- *
- * The strings are stored verbatim in BrandAsset.kind, so they are append-only:
- * renaming one orphans every file already filed under the old name. The server
- * validates uploads against this list (see the assets route) - without that, a
- * typo'd kind writes a row that no section on the page will ever render.
- */
+// Stored verbatim in BrandAsset.kind, so append-only: a rename orphans existing files.
 export const BRAND_ASSET_KINDS = [
   "BRIEF",
   "OBJECTIVES",

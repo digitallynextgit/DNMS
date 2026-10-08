@@ -11,7 +11,6 @@ type WfhFilters = {
   limit?: number
 }
 
-// GET /api/wfh/requests - list WFH requests (scoped to the caller unless they can approve).
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const sp = req.nextUrl.searchParams
   const filters: WfhFilters = {}
@@ -24,7 +23,6 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   return respond(await getWfhRequests(filters))
 })
 
-// POST /api/wfh/requests - apply for a WFH day.
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const body = (await req.json()) as {
     date: string

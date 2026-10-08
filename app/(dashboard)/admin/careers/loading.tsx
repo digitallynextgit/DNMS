@@ -1,26 +1,21 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 
-// Careers: header (no actions) + a two-tab strip + a toolbar row (breadcrumb +
-// add button) + a grid of large navigational tiles (groups / sub-depts / roles).
 export default function Loading() {
   return (
     <div className="space-y-4">
       <PageHeaderSkeleton />
 
-      {/* Tabs: Full-time / Internships. */}
       <div className="flex gap-2">
         <Skeleton className="bg-muted h-9 w-32 animate-pulse rounded-sm" />
         <Skeleton className="bg-muted h-9 w-32 animate-pulse rounded-sm" />
       </div>
 
-      {/* Toolbar: breadcrumb on the left, "Add group" on the right. */}
       <div className="flex items-center justify-between gap-3">
         <Skeleton className="bg-muted h-5 w-28 animate-pulse" />
         <Skeleton className="bg-muted h-9 w-28 animate-pulse" />
       </div>
 
-      {/* Large tile grid. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="bg-card flex min-h-47.5 flex-col rounded-sm border p-6 shadow-sm">

@@ -24,7 +24,6 @@ const importSchema = z.object({
   fullSnapshot: z.boolean().default(false),
 })
 
-// GET - referring-domain rollup + headline counts.
 export const GET = withAuth(
   PERMISSIONS.PROJECT_READ,
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
@@ -35,7 +34,6 @@ export const GET = withAuth(
   },
 )
 
-// POST - import (paste) a backlink export and diff it against what we had.
 export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _s: Session) => {
     const { id, propertyId } = ctx.params

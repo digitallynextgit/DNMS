@@ -2,15 +2,7 @@ import { toast } from "sonner"
 
 import type { ApiError } from "@/lib/api-fetch"
 
-/**
- * One place that turns "whatever was thrown" into the sentence the user reads.
- *
- * `apiFetch` already throws an Error carrying the server's message, so most of
- * the time this is just `err.message`. The cases it papers over: a bare
- * `Request failed (500)` (server crashed without a message), a non-Error throw,
- * and an expired session / missing permission where the status says more than
- * the prose.
- */
+/** Turns anything thrown into the sentence the user reads (covers bare 500s, non-Errors, 401/403). */
 export function errorMessage(err: unknown, fallback = "Something went wrong"): string {
   if (err instanceof Error) {
     const message = err.message?.trim()
@@ -26,11 +18,7 @@ export function errorMessage(err: unknown, fallback = "Something went wrong"): s
   return fallback
 }
 
-/**
- * Toast a failure. With a `title` ("Couldn't save the task") the server's
- * reason becomes the description line, so the user gets both the action that
- * failed and why; without one, the reason is the toast itself.
- */
+/** With a `title`, the server's reason becomes the description line; without one, it's the toast. */
 export function toastError(err: unknown, title?: string): void {
   const reason = errorMessage(err, title ?? "Something went wrong")
   if (title && reason !== title) toast.error(title, { description: reason })

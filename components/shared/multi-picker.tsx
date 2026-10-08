@@ -14,11 +14,7 @@ export interface MultiPickerOption {
   hint?: string
 }
 
-/**
- * Checkbox list in a popover. Empty selection means "everything", which is why
- * the trigger says "All …" rather than "None" - selecting nothing is the widest
- * report, not the narrowest one.
- */
+/** Checkbox list in a popover. Empty selection means "All" (the widest report), not "None". */
 export function MultiPicker({
   label,
   options,

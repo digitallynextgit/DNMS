@@ -4,12 +4,23 @@ import { announcementsGuide } from "./announcements"
 import { photoGalleryGuide } from "./photo-gallery"
 import { documentsGuide } from "./documents"
 import { orgChartGuide } from "./org-chart"
+import { toolsGuide } from "./tools"
+import { toolsImagesGuide } from "./tools-images"
+import { toolsMarketingGuide } from "./tools-marketing"
+import { toolsOfficeGuide } from "./tools-office"
+import { toolsPdfGuide } from "./tools-pdf"
+import { toolsVideoGuide } from "./tools-video"
 
-/** Company-wide pages: Chat, Announcements, Photo Gallery, Documents, Organisation Chart. In the order they are listed. */
 export const companyGuides: HelpGuide[] = [
   chatGuide,
   announcementsGuide,
   photoGalleryGuide,
   documentsGuide,
   orgChartGuide,
+  toolsGuide,
+  toolsImagesGuide,
+  toolsPdfGuide,
+  toolsVideoGuide,
+  toolsMarketingGuide,
+  toolsOfficeGuide,
 ]

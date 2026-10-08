@@ -1,5 +1,3 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
 /.pnp
@@ -12,6 +10,8 @@
 # next.js
 /.next/
 /out/
+# throwaway build dirs (NEXT_DIST_DIR), e.g. .next-verify
+.next-*
 
 # production
 /build
@@ -25,7 +25,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
+# env files
 .env*.local
 .env
 .env.development
@@ -39,33 +39,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# generated script output - can contain real employee attendance data (PII)
-/scripts/output/
-
-# Database snapshot written by `pnpm db:snapshot`. It is a dump of the LIVE
-# database - employee names, emails, personal phone numbers, dates of birth,
-# salary structures and payroll records - so it must never be committed. It was,
-# until 2026-09-14; `git rm --cached` took it out of the index, but it is still
-# in the history of every existing clone (see docs/codebase-audit-2026-09-14.md).
-/prisma/snapshot.json
-
 # Claude Code
 .claude/
 completed_tasks.txt
 
-# credential workbooks - plaintext passwords, never commit
+# secrets and credential workbooks - never commit
 /sheets
-
-# secrets - service-account keys, never commit
 /secrets
 *-sa.json
 *.iam.gserviceaccount.json
-
-# Throwaway build dirs for verification/audit runs (see distDir in
-# next.config.mjs), kept out of .next so they cannot corrupt a running dev
-# server. The glob covers .next-verify, .next-audit, .next-test and any future
-# NEXT_DIST_DIR value on the same pattern.
-.next-*
-
-# HR stock-register source workbook (imported into the DB via prisma/import-stock.ts; data, not code)
-/stock.xlsx

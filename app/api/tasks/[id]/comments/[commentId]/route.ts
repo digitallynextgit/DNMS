@@ -3,7 +3,6 @@ import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import type { Session } from "next-auth"
 
-// DELETE /api/tasks/[id]/comments/[commentId]
 export const DELETE = withSession(
   async (
     _req: NextRequest,

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Link } from "@/components/tenant-link"
@@ -69,7 +69,6 @@ interface MyTask {
   dueDate: string | null
   loggedHours: number
   estimatedHours: number | null
-  /** The sheet's Resources column: brief, doc, published page. */
   links: string[]
   /** Non-null while the task sits In Progress and its clock is running. */
   inProgressSince: string | null
@@ -78,14 +77,12 @@ interface MyTask {
   /** Who raised it, and when - together these decide the 15-minute edit window. */
   creatorId: string
   createdAt: string
-  /** Null for ADHOC work - meetings, interviews, anything with no client. */
+  /** Null for ADHOC work (meetings, interviews - no client). */
   project: { id: string; name: string; code: string; slug: string | null } | null
   team?: { id: string; name: string; managerId: string | null } | null
-  /** Set while this task waits on a requirement; drives the Blocked badge. */
   requirement?: { id: string; title: string; status: string } | null
   /** managerId is the authority on adhoc work, which has no team manager. */
   assignee?: { id: string; firstName: string; lastName: string; managerId?: string | null } | null
-  /** The goal this work serves - shown on the row so the WHY is visible. */
   goal?: { id: string; title: string } | null
   producesOutput?: boolean
   /** Set when someone answered "nothing came out of this" - the nudge stops. */
@@ -93,52 +90,53 @@ interface MyTask {
   _count?: { deliverables: number }
 }
 
-/** "me" | "user:<id>" - see GET /api/tasks, which also still accepts "all". */
+/** "me" | "user:<id>" */
 type TaskScope = string
 
-/**
- * Only the people list is read here. The response also carries the teams the
- * caller manages; this page has no team view, so it ignores them.
- */
 interface ScopeMeta {
-  /** isReport = a direct subordinate. False = on a team you manage, nothing more. */
+  /** isReport = a direct subordinate; false = only on a team you manage. */
   people: { id: string; name: string; isReport: boolean; former?: boolean }[]
-  /**
-   * The caller is a project admin, so `people` is the whole company rather than
-   * their reporting line - every name on it is theirs to open, not just the
-   * subordinates. Decided by the server, which is also what authorises it.
-   */
+  /** Project admin: `people` is the whole company. Decided (and authorised) by the server. */
   seesEveryone?: boolean
 }
 
-/** "Me" - kept distinct from a user id so the query key stays the plain one. */
 const MYSELF = "me"
 
 const PERSON_KEY = "my-tasks:person"
 
+const subscribeNever = () => () => {}
+
+function readStoredPerson(): string | null {
+  try {
+    return localStorage.getItem(PERSON_KEY)
+  } catch {
+    return null
+  }
+}
+
 /**
- * Whose sheet you were last looking at, remembered across reloads.
- *
- * Read in an effect rather than a lazy initialiser on purpose: localStorage does
- * not exist while this renders on the server, and seeding state from it on the
- * client only would make the first client render disagree with the server's and
- * trip a hydration mismatch. One extra render is the cost of not doing that.
+ * Last-viewed person, kept across reloads. Read through useSyncExternalStore, not a lazy
+ * initialiser: there is no localStorage on the server, so that would cause a hydration mismatch.
  */
 function usePersistedPerson(): [string, (v: string) => void] {
   const [person, setPersonState] = useState<string>(MYSELF)
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(PERSON_KEY)
-      if (stored) setPersonState(stored)
-    } catch {}
-  }, [])
+  // Undefined on the server and while hydrating; restored once, like a mount effect.
+  const stored = useSyncExternalStore<string | null | undefined>(
+    subscribeNever,
+    readStoredPerson,
+    () => undefined,
+  )
+  const [restored, setRestored] = useState(false)
+  if (stored !== undefined && !restored) {
+    setRestored(true)
+    if (stored) setPersonState(stored)
+  }
 
   const setPerson = useCallback((v: string) => {
     setPersonState(v)
     try {
-      // Yourself is the default, so it is stored as the ABSENCE of a value -
-      // nothing to clean up later, and no stale id outliving a reporting change.
+      // Yourself is stored as no value, so no stale id outlives a reporting change.
       if (v === MYSELF) localStorage.removeItem(PERSON_KEY)
       else localStorage.setItem(PERSON_KEY, v)
     } catch {}
@@ -153,8 +151,7 @@ async function fetchMyTasks(scope: TaskScope): Promise<{ data: MyTask[]; meta?: 
   return res.json()
 }
 
-// Goes through apiFetch rather than a bare fetch so the server's error CODE and
-// DETAILS survive - the follow-up question below is unanswerable without them.
+// apiFetch keeps the server's error code and details - the follow-up question needs them.
 async function updateTask(id: string, body: Record<string, unknown>) {
   return apiFetch(`/api/tasks/${id}`, {
     method: "PATCH",
@@ -172,11 +169,6 @@ function dayKey(iso: string | null): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
-/**
- * Where a task's client goes. Adhoc work has no project, so there is nothing to
- * link to - it says "ADHOC" in muted text rather than rendering a dead link or,
- * worse, an empty gap where every other row names an account.
- */
 function ProjectLink({ task, className }: { task: MyTask; className?: string }) {
   if (!task.project) {
     return <span className={cn("text-muted-foreground", className)}>{ADHOC_LABEL}</span>
@@ -188,17 +180,12 @@ function ProjectLink({ task, className }: { task: MyTask; className?: string }) 
   )
 }
 
-/**
- * The shape the edit rules read. Same resolution the API uses - the team's
- * manager for project work, the assignee's line manager for adhoc - so the card
- * shows the same lock the server would enforce.
- */
+/** Same resolution as the API, so the card shows the lock the server would enforce. */
 function taskSubject(task: MyTask) {
   return {
     creatorId: task.creatorId,
     createdAt: task.createdAt,
-    // Null project = adhoc, which is what lets someone keep editing work they
-    // raised for themselves. Must be the real value, never a fallback.
+    // Must be the real value (null = adhoc) - it decides who may keep editing.
     projectId: task.project?.id ?? null,
     assigneeId: task.assignee?.id ?? null,
     teamManagerId: resolveTaskManagerId({
@@ -233,10 +220,7 @@ export default function MyTasksPage() {
   const [projectFilter, setProjectFilter] = useState("all")
   /** "" means every date; otherwise a "yyyy-MM-dd" due date. */
   const [dateFilter, setDateFilter] = useState("")
-  // The sheet (the week's plan) is the default. The key is new so everyone
-  // starts there once, including people whose old "my-tasks" key remembered
-  // cards; a switch to cards after that is remembered as usual. Anything else
-  // stored (the retired table and board views) folds back to the sheet.
+  // Sheet is the default; anything else stored (retired table/board views) folds back to it.
   const [storedView, setViewMode] = useViewMode("my-tasks:view", "sheet")
   const viewMode = storedView === "card" ? "card" : "sheet"
   const qc = useQueryClient()
@@ -248,55 +232,38 @@ export default function MyTasksPage() {
     ? `${session.user.firstName} ${session.user.lastName}`.trim()
     : "My tasks"
 
-  // Every project this person is on (owned or staffed) - the same list the
-  // projects board shows them, so the filter can never offer a project they
-  // cannot open.
+  // Same list the projects board shows, so the filter never offers a project they can't open.
   const { data: projectsData } = useProjects()
   const myProjects = useMemo(() => projectsData?.data ?? [], [projectsData])
 
-  // ── Whose tasks ────────────────────────────────────────────────────────────
-  // One dropdown, one question: whose sheet am I looking at. You, one of your
-  // subordinates, or - for a project admin - anyone in the company. Never a team
-  // and never a merged "everyone" list, because the sheet reads as ONE person's
-  // week and a mixed list is not that.
+  // One person's sheet at a time: you, a subordinate, or (project admins) anyone. Never merged.
   const [person, setPerson] = usePersistedPerson()
   const isMine = person === MYSELF
 
   const scope: TaskScope = isMine ? MYSELF : `user:${person}`
 
-  // "me" keeps the bare ["my-tasks"] key: MyProgress shares that entry and the
-  // drag handler patches it in place. Every other scope is a different result
-  // set, so it gets its own entry rather than overwriting theirs.
+  // "me" keeps the bare ["my-tasks"] key: MyProgress shares it and drag patches it in place.
   const queryKey = useMemo(() => (isMine ? ["my-tasks"] : ["my-tasks", scope]), [isMine, scope])
   const { data, isLoading, isError } = useQuery({ queryKey, queryFn: () => fetchMyTasks(scope) })
 
-  // The pickers are built from what the server says this person manages, so they
-  // can never offer a team or a colleague they have no business seeing. Held
-  // across refetches: switching scope briefly clears `data`, and rebuilding the
-  // list from an empty response would collapse the menu mid-selection.
+  // Built from the server's list and held across refetches: a scope switch briefly clears
+  // `data`, and rebuilding from that would collapse the menu mid-selection.
   const [scopeMeta, setScopeMeta] = useState<ScopeMeta>({ people: [], seesEveryone: false })
-  // Distinct from "the list is empty": before the first response arrives nobody
-  // is selectable, and the guard below must not read that as "your selection is
-  // invalid" - that is what reset a restored person straight back to you.
+  // Not the same as an empty list: until the first response, the guard below must not reset
+  // a restored selection.
   const [metaLoaded, setMetaLoaded] = useState(false)
-  useEffect(() => {
-    if (!data?.meta) return
-    setScopeMeta(data.meta)
-    setMetaLoaded(true)
-  }, [data])
+  const [metaFrom, setMetaFrom] = useState<typeof data>(undefined)
+  if (data !== metaFrom) {
+    setMetaFrom(data)
+    if (data?.meta) {
+      setScopeMeta(data.meta)
+      setMetaLoaded(true)
+    }
+  }
 
   /**
-   * Whose sheets this person may open.
-   *
-   * A manager gets their SUBORDINATES - direct reports only. Managing a team
-   * does not make everyone on it your report, and the old flat list mixed the
-   * two so you could not tell which was which.
-   *
-   * A project admin gets the whole company: they already read every project and
-   * so every task in it, and `seesEveryone` says the server sent the roster
-   * rather than a reporting line. Not decided from the client's own permission -
-   * the list IS the authorisation, and asking for a name that is not on it falls
-   * back to your own tasks.
+   * Managers get direct reports only; project admins get the whole company (`seesEveryone`).
+   * The server's list IS the authorisation - an unlisted name falls back to your own tasks.
    */
   const selectablePeople = useMemo(
     () =>
@@ -306,22 +273,17 @@ export default function MyTasksPage() {
     [scopeMeta],
   )
   const canPickPerson = selectablePeople.length > 0
-  // Current colleagues, then the archive: people who have left but whose tasks
-  // are kept. Offered separately so the live list stays the live list.
   const currentPeople = useMemo(() => selectablePeople.filter((p) => !p.former), [selectablePeople])
   const formerPeople = useMemo(() => selectablePeople.filter((p) => p.former), [selectablePeople])
   const viewingFormer = !isMine && formerPeople.some((p) => p.id === person)
 
-  // A report who moves away stops being selectable; falling back to yourself
-  // beats a picker displaying a value that is no longer in its own list. Only
-  // once the list has actually loaded, or a restored selection is thrown away
-  // before the server has had a chance to confirm it.
+  // A report who moves away falls back to you - but only once the list has loaded.
   useEffect(() => {
     if (!metaLoaded || person === MYSELF) return
     if (!selectablePeople.some((p) => p.id === person)) setPerson(MYSELF)
   }, [metaLoaded, selectablePeople, person, setPerson])
 
-  /** What the header should call the current selection. Real names, never "me". */
+  /** Real names, never "me". */
   const scopeLabel = useMemo(
     () =>
       person === MYSELF
@@ -335,14 +297,10 @@ export default function MyTasksPage() {
     mutationFn: ({ id, ...body }: { id: string } & Record<string, unknown>) => updateTask(id, body),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["my-tasks"] })
-      // Shared clock, the toast, and the output prompt - marked done with an
-      // output expected and nothing logged asks now, while the answer is still
-      // in their head. See features/projects/lib/after-task-patch.ts.
       afterTaskPatch(data, { successMessage: "Task updated" })
     },
     onError: (error: Error, variables) => {
-      // A hold follow-up whose original is already underway: ask rather than
-      // fail, and re-send confirmed if they choose to keep it.
+      // A hold follow-up whose original is already underway: ask rather than fail.
       const conflict = followUpConflictFrom(error)
       if (conflict) {
         const { id, ...body } = variables
@@ -351,7 +309,6 @@ export default function MyTasksPage() {
           keep: async () => {
             const kept = await updateTask(id, { ...body, keepFollowUp: true })
             qc.invalidateQueries({ queryKey: ["my-tasks"] })
-            // Same status change, confirmed - so it raises the same questions.
             afterTaskPatch(kept, { successMessage: "Task updated" })
           },
         })
@@ -361,31 +318,22 @@ export default function MyTasksPage() {
     },
   })
 
-  // Full filtered list - drives the summary strip, the pending-approval callout
-  // and the day groups. Nothing is paginated: both non-board views collapse by
-  // day instead, which is what makes a full week fit on one screen.
   const tasks = useMemo(() => {
-    // Array.isArray, not just `?? []`. This ["my-tasks"] entry is shared with
-    // MyProgress and is patched in place on drag, so a shape mismatch from
-    // either side used to reach `.filter` and take the whole route down with
-    // "a.filter is not a function". An unexpected shape should render empty,
-    // not crash the page.
+    // Array.isArray, not `?? []`: this cache entry is shared with MyProgress and patched on
+    // drag, so an unexpected shape must render empty rather than crash the page.
     const rows = Array.isArray(data?.data) ? data.data : []
     return rows.filter((t) => {
       if (statusFilter !== "all" && t.status !== statusFilter) return false
       // Adhoc work has no project, so it filters on the sentinel rather than an id.
       if (projectFilter !== "all" && (t.project?.id ?? ADHOC_ROW_ID) !== projectFilter) return false
-      // Compared as a local calendar day, so a task due "today" matches today
-      // regardless of the time-of-day stored on it. The sheet view is scoped by
-      // its own week stepper, so a single-day filter would empty the grid.
+      // Local calendar day, so "today" matches whatever time is stored. The sheet has its own
+      // week stepper, so a single-day filter would empty it.
       if (viewMode !== "sheet" && dateFilter && dayKey(t.dueDate) !== dateFilter) return false
       return true
     })
   }, [data, statusFilter, projectFilter, dateFilter, viewMode])
 
-  // A week of allocation is 20+ rows, which is unreadable as one flat list. The
-  // card view groups by DAY (the unit the allocation sheet is written in) and
-  // collapses each day, so you open the day you are working on.
+  // Grouped by day (the unit the allocation sheet uses) and collapsed - a week is 20+ rows.
   const dayGroups = useMemo(() => {
     const now = new Date()
     const map = new Map<string, MyTask[]>()
@@ -408,9 +356,8 @@ export default function MyTasksPage() {
       }))
   }, [tasks])
 
-  // Undefined means "not touched by the user", so the default (today and
-  // anything overdue open, the rest shut) applies without an effect that would
-  // fight the user's own clicks.
+  // Undefined = not touched yet, so the default (today and overdue open) applies without an
+  // effect that would fight the user's clicks.
   const [openDays, setOpenDays] = useState<Record<string, boolean>>({})
   const todayKey = dayKey(new Date().toISOString())
   const isDayOpen = (g: (typeof dayGroups)[number]) =>
@@ -423,17 +370,8 @@ export default function MyTasksPage() {
     (t) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "DONE",
   ).length
 
-  // ── Sheet view inputs ──────────────────────────────────────────────────────
-  // Rows are clients, so the grid needs the project list itself, not just the
-  // projects that happen to have work this week - a blank row is where next
-  // week's plan gets typed. The project filter narrows the rows the same way it
-  // narrows every other view.
-  //
-  // Looking at someone else, the rows are THEIR accounts: the ones they are on a
-  // team of, which is exactly the set a new task can be filed under. An admin's
-  // project list is every account in the company, and forty blank rows is not a
-  // sheet. Rows are still added back for any project their week already has work
-  // on, so nothing they have been given can go missing from the grid.
+  // Rows are clients, so the grid needs the full project list - a blank row is where next
+  // week's plan gets typed. For someone else, rows are THEIR accounts plus any with work this week.
   const sheetProjects = useMemo(
     () =>
       myProjects
@@ -443,9 +381,7 @@ export default function MyTasksPage() {
     [myProjects, projectFilter, isMine, person],
   )
 
-  /** Hide the Adhoc row only when the filter has narrowed to a single client. */
   const showAdhocRow = projectFilter === "all" || projectFilter === ADHOC_ROW_ID
-  /** Whose plan is being written - you, or the report whose sheet is open. */
   const sheetAssigneeId = isMine ? (session?.user?.id ?? "") : person
 
   const isAdmin = can(PERMISSIONS.PROJECT_WRITE)
@@ -467,32 +403,19 @@ export default function MyTasksPage() {
         }
         actions={
           <>
-            {/* Exports the FILTERED list, so the file matches the screen it
-                was taken from. */}
             <TasksExportMenu tasks={tasks} scope={isMine ? "my-tasks" : scopeLabel} />
-            {/* Only rendered for someone with anyone to look at - reports, or
-                the whole company if they administer projects. The options come
-                from the server, so the list is also the authorisation: you
-                cannot pick a person who isn't yours to see. */}
             {canPickPerson && (
               <Select value={person} onValueChange={setPerson}>
                 <SelectTrigger className="w-48" aria-label="Whose tasks">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* Named, not "Me" - the list reads as people, so the person
-                      you are reads the same way as everyone else on it. */}
                   <SelectItem value={MYSELF}>{myName}</SelectItem>
-                  {/* No group heading: one flat list of people, sorted by name.
-                      Type to jump to a name - the reason a long company roster
-                      is still workable here without a search box. */}
                   {currentPeople.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
                     </SelectItem>
                   ))}
-                  {/* People who have left, kept apart from the live list so
-                      their old tasks stay reachable without looking current. */}
                   {formerPeople.length > 0 && (
                     <SelectGroup>
                       <SelectLabel className="text-muted-foreground text-xs font-normal">
@@ -519,7 +442,6 @@ export default function MyTasksPage() {
       />
       <TaskCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
 
-      {/* Summary strip */}
       <StatStrip
         loading={isLoading}
         items={[
@@ -537,7 +459,6 @@ export default function MyTasksPage() {
         ]}
       />
 
-      {/* Filter + view toggle */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-muted-foreground text-xs">Project:</span>
@@ -547,7 +468,6 @@ export default function MyTasksPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All projects</SelectItem>
-              {/* Work with no client is still work you may want to look at alone. */}
               <SelectItem value={ADHOC_ROW_ID}>{ADHOC_LABEL}</SelectItem>
               {myProjects.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
@@ -572,10 +492,7 @@ export default function MyTasksPage() {
             </SelectContent>
           </Select>
 
-          {/* Due date. Empty = every date, which is the default; the X clears
-              back to it rather than making you hunt for an "All" row inside a
-              calendar that has no such day. Hidden in the sheet view, which
-              steps a whole week at a time instead. */}
+          {/* Empty = every date. Hidden in the sheet view, which steps a whole week. */}
           {viewMode !== "sheet" && (
             <>
               <span className="text-muted-foreground ml-1 text-xs">Due:</span>
@@ -621,23 +538,16 @@ export default function MyTasksPage() {
               </button>
             </div>
           )}
-          {/* Two views only: the sheet is the week's plan, the cards are the
-              day-by-day list. A table of the same rows and a board that only
-              moved status both said less than either. */}
           <ViewToggle value={viewMode} onChange={setViewMode} showTable={false} showSheet />
         </div>
       </div>
 
-      {/* Sheet or day cards */}
       {isLoading ? (
         <MyTasksSheetSkeleton />
       ) : viewMode === "sheet" ? (
-        // Before the empty check: an empty week is exactly when you need the
-        // grid, because the blank cells are what you type the plan into.
+        // Before the empty check: an empty week still needs the grid to type the plan into.
         <TasksSheetView
           tasks={tasks}
-          // Rows are the CLIENTS of one person's week - the project tab reads
-          // the same grid down the other axis, a row per person.
           axis={{
             by: "client",
             projects: sheetProjects,
@@ -648,8 +558,6 @@ export default function MyTasksPage() {
           isAdmin={isAdmin}
         />
       ) : isError ? (
-        // A fetch failure is not "no tasks" - saying so sent people hunting
-        // through filters for tasks that never loaded.
         <EmptyState icon={Inbox} variant="card" title="Couldn't load your tasks. Try reloading." />
       ) : tasks.length === 0 ? (
         <EmptyState icon={Inbox} variant="card" title="No tasks match the filter." />
@@ -673,17 +581,14 @@ export default function MyTasksPage() {
                         new Date(task.dueDate) < new Date() &&
                         task.status !== "DONE"
                       const isRejected = task.approvalStatus === "REJECTED"
-                      // Same rule the sheet and the API use, so a card never
-                      // offers an edit the server is going to refuse.
+                      // Same rule as the sheet and the API.
                       const editable = canEditTaskDetails(taskSubject(task), actor)
 
                       return (
                         <div
                           key={task.id}
                           className={cn(
-                            // Phones stack: a 128px status select beside the
-                            // title leaves too little room for it on 390px, so
-                            // the select drops onto its own line there.
+                            // Phones stack: the 128px status select is too wide beside the title.
                             "flex flex-col items-stretch gap-2 rounded-sm border p-2.5 sm:flex-row sm:items-center sm:gap-3",
                             isOverdue &&
                               "border-red-200 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20",
@@ -701,8 +606,6 @@ export default function MyTasksPage() {
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="truncate text-sm font-medium">{task.title}</p>
-                              {/* The wording is settled - say so here rather
-                                  than after someone tries to change it. */}
                               {!editable && (
                                 <span
                                   title={taskEditLockReason(taskSubject(task), actor) ?? undefined}
@@ -730,7 +633,6 @@ export default function MyTasksPage() {
                                 </Badge>
                               )}
                             </div>
-                            {/* The WHY, under the what. */}
                             {task.goal && (
                               <p className="text-muted-foreground mt-0.5 flex items-center gap-1 text-[11px]">
                                 <Target className="h-3 w-3 shrink-0" />
@@ -742,9 +644,7 @@ export default function MyTasksPage() {
                                 Reason: {task.rejectionReason}
                               </p>
                             )}
-                            {/* What actually happened - the sheet's Actual
-                                column. Read-only here: the card is a list you
-                                scan, and the sheet is where a week gets written. */}
+                            {/* Read-only here; the sheet is where the Actual column is written. */}
                             {task.description && (
                               <p className="text-muted-foreground mt-0.5 text-[11px] whitespace-pre-wrap">
                                 {task.description}
@@ -766,10 +666,7 @@ export default function MyTasksPage() {
                               />
                               <TaskHistoryDialog taskId={task.id} taskTitle={task.title} />
                             </div>
-                            {/* Resources are editable here, unlike the rest:
-                                attaching the published URL is what you do when
-                                the work goes out, and that is as likely to be
-                                from this list as from the sheet. */}
+                            {/* Editable here: the published URL is often added from this list. */}
                             <TaskResources
                               links={task.links ?? []}
                               canEdit={!isRejected}
@@ -800,11 +697,7 @@ interface DayGroup {
   overdue: number
 }
 
-/**
- * Accordion header for one day: the FAQ pattern, so a week of allocation reads
- * as five closed rows rather than one 22-row wall. Carries the day's totals so
- * a collapsed day still tells you whether it needs opening.
- */
+/** Accordion header for one day, with totals so a collapsed day shows if it needs opening. */
 function DayHeader({
   group,
   expanded,

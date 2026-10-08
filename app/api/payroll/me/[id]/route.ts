@@ -41,7 +41,6 @@ export const GET = withSession(
         return NextResponse.json({ error: "Payslip not found" }, { status: 404 })
       }
 
-      // Employees can only access their own payslips
       if (record.employeeId !== employeeId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
       }

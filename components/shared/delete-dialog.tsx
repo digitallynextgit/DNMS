@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Spinner } from "@/components/shared/spinner"
 
 import { buttonVariants } from "@/components/ui/button"
@@ -22,29 +22,17 @@ interface DeleteDialogProps {
   onOpenChange: (open: boolean) => void
   title: string
   description?: string
-  /**
-   * Fired on confirm. `permanent` is whether the "delete permanently" box was
-   * ticked: true → caller should hard-delete, false → deactivate/soft-delete.
-   */
+  /** `permanent`: true = hard-delete, false = deactivate / soft-delete. */
   onConfirm: (permanent: boolean) => void
   isLoading?: boolean
-  /** When false, the "delete permanently" option is hidden (deactivate only) -
-   *  e.g. the current user isn't allowed to hard-delete. Default true. */
+  /** False hides the "delete permanently" option (deactivate only). Default true. */
   canPermanent?: boolean
-  /** Checkbox caption. */
   permanentLabel?: string
-  /** Confirm-button text per mode. */
   deactivateLabel?: string
   permanentButtonLabel?: string
   cancelLabel?: string
 }
 
-/**
- * Shared delete confirmation with a "permanent" toggle. Unchecked = deactivate
- * (recoverable); checked = permanent delete. The confirm button's label reflects
- * the current choice. Reusable anywhere a soft/hard delete choice is needed - the
- * parent decides what each mode does via `onConfirm(permanent)`.
- */
 export function DeleteDialog({
   open,
   onOpenChange,
@@ -61,9 +49,11 @@ export function DeleteDialog({
   const [permanent, setPermanent] = useState(false)
 
   // Always start unchecked each time the dialog opens.
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
     if (open) setPermanent(false)
-  }, [open])
+  }
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>

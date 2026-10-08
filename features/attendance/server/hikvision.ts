@@ -1,17 +1,7 @@
-/**
- * Hikvision ISAPI client using HTTP Digest Authentication.
- *
- * No external packages needed - uses Node.js built-in `crypto` and `fetch`.
- *
- * Relevant ISAPI endpoints used:
- *   GET  /ISAPI/System/deviceInfo          - ping / device info
- *   POST /ISAPI/AccessControl/AcsEvent?format=json - fetch access-control events
- */
+// Hikvision ISAPI client (HTTP Digest auth, built-in crypto + fetch).
 
 import { createHash } from "crypto"
 import { networkInterfaces } from "os"
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface HikvisionDeviceConfig {
   ipAddress: string
@@ -48,11 +38,8 @@ interface HikvisionAcsEvent {
 export interface AttendanceEvent {
   employeeNo: string
   timestamp: Date
-  /** "check-in" | "check-out" | "unknown" */
   direction: "check-in" | "check-out" | "unknown"
 }
-
-// ─── Digest Auth helpers ───────────────────────────────────────────────────────
 
 function md5(s: string): string {
   return createHash("md5").update(s).digest("hex")
@@ -100,8 +87,6 @@ function buildDigestHeader(
   return header
 }
 
-// ─── Core request function ─────────────────────────────────────────────────────
-
 /** The IPv4 networks this server is actually attached to, e.g. ["192.168.1.38/24"]. */
 function localIPv4s(): string[] {
   const out: string[] = []
@@ -124,16 +109,8 @@ function looksOffSubnet(ip: string): boolean {
 }
 
 /**
- * Is this host on a mesh VPN (Tailscale / headscale)?
- *
- * Matters because a subnet ROUTE reaches a LAN without holding an address on
- * it: with `--advertise-routes` on an office machine and `--accept-routes`
- * here, this server can talk to 192.168.29.x while owning no 192.168.29.*
- * interface. Without this check `looksOffSubnet` would be technically true and
- * the message would confidently blame "no route" when the real fault is a
- * powered-off device or an unapproved route.
- *
- * 100.64.0.0/10 is the CGNAT range Tailscale assigns.
+ * On a mesh VPN (Tailscale, CGNAT 100.64.0.0/10)? A subnet route can reach a LAN we hold no
+ * address on, so looksOffSubnet alone would wrongly blame "no route".
  */
 function hasMeshVpn(): boolean {
   return localIPv4s().some((a) => {
@@ -142,16 +119,8 @@ function hasMeshVpn(): boolean {
   })
 }
 
-/**
- * Turn a raw fetch failure into something that says what actually went wrong.
- *
- * The old message was `Connection refused or unreachable: This operation was
- * aborted`, which is wrong twice over: nothing refused anything, and "this
- * operation was aborted" is undici's word for "your AbortSignal fired", i.e. a
- * TIMEOUT. Those are completely different faults - a refusal means the host is
- * up and the port is shut, a silent timeout usually means the packets are not
- * being routed at all - and the message pointed at neither.
- */
+/** Turn a fetch failure into a clear cause: undici's "operation was aborted" means our timeout
+ *  fired (usually no route), which is not the same as a refused connection. */
 function describeFetchFailure(err: unknown, ip: string, port: number, timeoutMs: number): string {
   const raw = err instanceof Error ? err.message : String(err)
   const name = err instanceof Error ? err.name : ""
@@ -163,8 +132,6 @@ function describeFetchFailure(err: unknown, ip: string, port: number, timeoutMs:
     if (!looksOffSubnet(ip)) {
       hint = ` The server is on the same /24, so check the device is powered on and that no firewall is dropping port ${port}.`
     } else if (hasMeshVpn()) {
-      // A subnet route can carry us to a LAN we hold no address on, so "off
-      // subnet" is not evidence of "no route" here.
       hint = ` This server reaches ${ip} over a VPN subnet route rather than a local interface, so check: the route for that subnet is advertised AND approved in the VPN admin, this host was brought up with --accept-routes, and the device is powered on.`
     } else {
       hint = ` This server is on ${locals.join(", ") || "no LAN address"}, which is a different network from ${ip} - it has no route to the device. Sync has to run from a machine on the device's LAN, or from a host with a VPN subnet route into it.`
@@ -183,10 +150,7 @@ function describeFetchFailure(err: unknown, ip: string, port: number, timeoutMs:
   return `${ip}:${port}: ${raw}`
 }
 
-/**
- * Makes an authenticated request to a Hikvision device using HTTP Digest Auth.
- * Performs the standard two-request flow (challenge → authenticated request).
- */
+/** Authenticated request using the Digest two-step flow (401 challenge, then the real call). */
 async function hikvisionRequest(
   device: HikvisionDeviceConfig,
   method: "GET" | "POST",
@@ -204,13 +168,7 @@ async function hikvisionRequest(
 
   const bodyStr = body ? JSON.stringify(body) : undefined
 
-  // One timer PER round trip, not one shared across both.
-  //
-  // Digest auth is two requests, and a single AbortController started before the
-  // challenge meant they shared one budget: if the 401 probe took 6 of the 8
-  // seconds, the authenticated request - the one that actually does the work -
-  // got 2. On a slow device that produced a spurious "aborted" on a link that
-  // was working, and the timeout value no longer meant what it says.
+  // One timeout per round trip, so a slow 401 probe can't eat the real request's budget.
   const withTimeout = async <T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> => {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -222,7 +180,7 @@ async function hikvisionRequest(
   }
 
   {
-    // ── Step 1: probe - expect 401 with Digest challenge ──────────────────────
+    // Step 1: probe - expect 401 with a Digest challenge.
     let probe: Response
     try {
       probe = await withTimeout((signal) => fetch(url, { method, headers, body: bodyStr, signal }))
@@ -248,7 +206,7 @@ async function hikvisionRequest(
     const challenge = parseDigestChallenge(wwwAuth)
     const authHeader = buildDigestHeader(method, path, device.username, device.password, challenge)
 
-    // ── Step 2: authenticated request ─────────────────────────────────────────
+    // Step 2: authenticated request.
     let authRes: Response
     try {
       authRes = await withTimeout((signal) =>
@@ -272,12 +230,6 @@ async function hikvisionRequest(
   }
 }
 
-// ─── Public API ────────────────────────────────────────────────────────────────
-
-/**
- * Tests connectivity to a Hikvision device by fetching device info.
- * Returns success flag and a human-readable message.
- */
 export async function testDeviceConnection(
   device: HikvisionDeviceConfig,
 ): Promise<{ success: boolean; message: string; info?: DeviceInfo }> {
@@ -310,20 +262,14 @@ export async function testDeviceConnection(
   }
 }
 
-/**
- * Fetches access-control events (check-in / check-out) from a Hikvision device
- * for a given date range.
- *
- * Hikvision returns events in pages of up to 50; this function handles pagination
- * transparently and returns all events in the range.
- */
+/** Fetches access-control events for a date range, following the device's pagination. */
 export async function fetchAttendanceEvents(
   device: HikvisionDeviceConfig,
   startDate: Date,
   endDate: Date,
   major = 0, // 0 = all events, 5 = Access Control only
   minor = 0, // 0 = all sub-types, 75 = access granted (person punches only)
-  employeeNo?: string, // when set, ask the device for just this person's events
+  employeeNo?: string,
 ): Promise<{ events: AttendanceEvent[]; error?: string }> {
   const formatISOLocal = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, "+00:00")
 
@@ -336,17 +282,15 @@ export async function fetchAttendanceEvents(
       minor,
       startTime: formatISOLocal(startDate),
       endTime: formatISOLocal(endDate),
-      // Server-side person filter. Honored by most firmware; when it isn't, the
-      // caller still filters client-side, so results stay correct either way.
+      // Server-side person filter; some firmware ignores it, so callers also filter client-side.
       ...(employeeNo ? { employeeNoString: employeeNo } : {}),
     },
   }
 
   const allEvents: AttendanceEvent[] = []
   let position = 0
-  // Device returns ~30/page; a single busy day can exceed 500 events. With
-  // per-day fetching this caps one day at 50*~30 ≈ 1500 events.
-  const maxPages = 50 // safety limit
+  // ~30 events per page, so 50 pages caps one call at ~1500 events.
+  const maxPages = 50
 
   for (let page = 0; page < maxPages; page++) {
     searchCondition.AcsEventCond.searchResultPosition = position
@@ -390,26 +334,19 @@ export async function fetchAttendanceEvents(
     const rawList: HikvisionAcsEvent[] = acsEvent.InfoList ?? []
 
     for (const raw of rawList) {
-      // Keep only person-identified punches (those carrying employeeNoString +
-      // time); door/alarm/system events lack these and are skipped. This holds
-      // for any auth method (face/card/fingerprint), so we don't filter by minor.
+      // Keep only person punches (employeeNoString + time); any auth method, so no minor filter.
       if (!raw.employeeNoString || !raw.time) continue
 
-      // The device sends an offset (e.g. "...+05:30"), so this resolves to the
-      // correct instant; the app then renders it back in local time.
+      // The device sends an offset (e.g. +05:30), so this is the correct instant.
       const timestamp = new Date(raw.time)
       if (isNaN(timestamp.getTime())) continue
 
-      // This single-reader device doesn't encode entry/exit direction, so the
-      // caller derives the day's first punch = check-in, last = check-out.
+      // No direction from this single-reader device; the caller uses first = in, last = out.
       allEvents.push({ employeeNo: raw.employeeNoString, timestamp, direction: "unknown" })
     }
 
-    // The device pages results in chunks SMALLER than maxResults (e.g. 30/page)
-    // and signals that more remain via responseStatusStrg="MORE" and/or
-    // totalMatches. Keep paging while either says so - a `rawList.length <
-    // maxResults` check would stop after the first short page and silently drop
-    // later punches (heavy punchers have many events per range).
+    // Pages are smaller than maxResults, so keep paging while "MORE" or totalMatches says so -
+    // a short-page check would silently drop later punches.
     const numThisPage = acsEvent.numOfMatches ?? rawList.length
     position += numThisPage
     const hasMore =
@@ -420,8 +357,6 @@ export async function fetchAttendanceEvents(
 
   return { events: allEvents }
 }
-
-// ─── Finding the device after DHCP moves it ───────────────────────────────────
 
 export interface DeviceIdentity {
   serialNumber: string
@@ -460,16 +395,8 @@ export async function getDeviceIdentity(
   }
 }
 
-/**
- * Does this address look like a Hikvision terminal?
- *
- * Deliberately UNAUTHENTICATED. A scan has to touch every address on the subnet,
- * most of which are laptops, phones and printers, and sending the admin digest
- * response to all of them would hand a hash to anything listening. ISAPI answers
- * 401 with its Digest challenge before any credential is offered, so the cheap
- * unauthenticated probe is enough to narrow the field to the real candidates -
- * and only those get authenticated.
- */
+/** Unauthenticated probe (401 Digest challenge), so a scan never sends credentials to every
+ *  host on the subnet - only real candidates get an authenticated read. */
 async function looksLikeHikvision(ip: string, port: number, timeoutMs: number): Promise<boolean> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -515,13 +442,8 @@ export interface DiscoveryTarget {
   port: number
 }
 
-/**
- * Sweep a /24 for the device, matching on identity rather than address.
- *
- * Two passes on purpose: an unauthenticated probe of all 254 addresses (fast,
- * credential-free), then an authenticated identity read of only the handful that
- * answered like a Hikvision. On a normal office LAN that is one or two hosts.
- */
+/** Sweep a /24 for the device by identity: an unauthenticated probe of all hosts, then an
+ *  authenticated identity read of only those that look like a Hikvision. */
 export async function discoverOnLan(
   subnetPrefix: string,
   target: DiscoveryTarget,

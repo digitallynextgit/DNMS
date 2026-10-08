@@ -15,12 +15,7 @@ export interface ReferableRole {
   department: string
 }
 
-/**
- * Roles an employee can refer somebody to.
- *
- * Its own endpoint rather than the admin careers tree: that one requires
- * recruitment:read, so it returned nothing for everyone except HR.
- */
+/** Roles an employee can refer to (the admin careers tree needs recruitment:read). */
 export function useReferableRoles(enabled = true) {
   return useQuery({
     queryKey: ["referrals", "roles"],

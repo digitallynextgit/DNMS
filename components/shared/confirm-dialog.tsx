@@ -27,12 +27,7 @@ interface ConfirmDialogProps {
   variant?: "default" | "destructive"
   onConfirm: () => void
   isLoading?: boolean
-  /**
-   * Hold the confirm button disabled for this many seconds after the dialog
-   * opens, counting down on the label. For irreversible actions where the muscle
-   * memory of click-then-click-again would otherwise fire before the sentence
-   * has been read. Omit for ordinary confirms - a needless delay is just friction.
-   */
+  /** Seconds to keep confirm disabled after opening (counting down), for irreversible actions. */
   confirmDelaySeconds?: number
 }
 
@@ -48,15 +43,20 @@ export function ConfirmDialog({
   isLoading = false,
   confirmDelaySeconds = 0,
 }: ConfirmDialogProps) {
-  const [secondsLeft, setSecondsLeft] = useState(0)
+  const countdownFrom = open && confirmDelaySeconds > 0 ? confirmDelaySeconds : 0
+  const [secondsLeft, setSecondsLeft] = useState(countdownFrom)
 
   // Restart on every open, so reopening never inherits a spent countdown.
+  const [prevOpen, setPrevOpen] = useState(open)
+  const [prevDelay, setPrevDelay] = useState(confirmDelaySeconds)
+  if (open !== prevOpen || confirmDelaySeconds !== prevDelay) {
+    setPrevOpen(open)
+    setPrevDelay(confirmDelaySeconds)
+    setSecondsLeft(countdownFrom)
+  }
+
   useEffect(() => {
-    if (!open || confirmDelaySeconds <= 0) {
-      setSecondsLeft(0)
-      return
-    }
-    setSecondsLeft(confirmDelaySeconds)
+    if (!open || confirmDelaySeconds <= 0) return
     const timer = setInterval(() => {
       setSecondsLeft((s) => {
         if (s <= 1) {

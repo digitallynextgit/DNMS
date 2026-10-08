@@ -10,8 +10,7 @@ import {
 import { AiError, AiNotConfiguredError, isAiConfigured } from "@/lib/ai"
 import type { Session } from "next-auth"
 
-// AI assistance for SEO config. Suggestions only - nothing is saved here; the
-// human picks what to keep and saves via the normal site-settings route.
+// Suggestions only - nothing is saved here.
 export const runtime = "nodejs"
 export const maxDuration = 60
 

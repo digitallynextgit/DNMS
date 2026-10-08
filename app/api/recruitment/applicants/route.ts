@@ -15,10 +15,7 @@ export const GET = withAuth(
       const jobId = searchParams.get("jobId") ?? undefined
       const stage = searchParams.get("stage") ?? undefined
 
-      // Bounded: this was every applicant ever, each with every interview
-      // nested - thousands of PII rows in one response. `createdAt desc` was
-      // already the order, so the cap keeps the NEWEST, which is what the
-      // pipeline view wants.
+      // Bounded; `createdAt desc` keeps the newest, which the pipeline view wants.
       const rows = await db.applicant.findMany({
         where: {
           ...(jobId && { jobPostingId: jobId }),

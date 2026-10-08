@@ -32,28 +32,7 @@ import {
   ymd,
 } from "../lib/delivery-period"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Planning a week, in the order the decision is actually made.
-//
-//   1. WHEN  - this week, next week, or any other week. One question, big buttons.
-//   2. WHO   - which teams are on the hook.
-//   3. WHAT  - per team, what they owe and how many.
-//
-// The working week is the DEFAULT shape and the first two buttons, because a
-// retainer's output is weekly and boards that share a window compare cleanly.
-// It is no longer the ONLY shape: a campaign running twenty assets between the
-// 8th and the 23rd is a real commitment that had nowhere to live, so a date
-// range is the third option. Reach for it when the work genuinely is not
-// weekly, not to avoid picking a week.
-//
-// A period that already has items can be planned again: what is added joins
-// what is there, and nothing already planned changes.
-//
-// The old dialog asked all of it at once, one deliverable at a time, which is
-// why a week of work across three teams meant opening it a dozen times. Here
-// the week is chosen once and every item inherits it, so the whole week lands
-// in one write - or none of it does.
-// ─────────────────────────────────────────────────────────────────────────────
+// Plan a period in three steps (when, who, what); every item inherits the window and lands in one write.
 
 type Step = "when" | "who" | "what"
 
@@ -86,7 +65,6 @@ const newLine = (teamId: string): Line => ({
   quantity: "1",
 })
 
-/** The weeks somebody reaches for first. Any other week is "Another week". */
 const PRESETS: { label: string; offset: number }[] = [
   { label: "This week", offset: 0 },
   { label: "Next week", offset: 1 },
@@ -133,15 +111,9 @@ export function PlanPeriodDialog({
   projectId: string
   open: boolean
   onOpenChange: (open: boolean) => void
-  /**
-   * Add items to a deliverable that already exists. The window is fixed, step
-   * one is skipped, and what is created joins what is already there.
-   */
+  /** Add items to an existing deliverable: the window is fixed and step one is skipped. */
   period?: FixedPeriod
-  /**
-   * What is already on the board, so a week that has items says so before it
-   * is picked again. Planning it again is allowed - the new items join it.
-   */
+  /** Lets a week that already has items say so; planning it again adds to it. */
   existing?: readonly ExistingPeriod[]
 }) {
   return (
@@ -176,10 +148,8 @@ function Body({
   const teams = useProjectTeams(projectId)
   const teamList = React.useMemo(() => teams.data?.data ?? [], [teams.data])
 
-  // With the window already chosen there is no step one to stand on.
   const [step, setStep] = React.useState<Step>(fixed ? "who" : "when")
 
-  // ── Step 1: when ───────────────────────────────────────────────────────────
   const [presetIdx, setPresetIdx] = React.useState(0)
   /** "preset" = this/next week, "week" = another week, "range" = two dates. */
   const [mode, setMode] = React.useState<"preset" | "week" | "range">("preset")
@@ -199,16 +169,13 @@ function Body({
     if (mode === "range") {
       const a = parseDay(rangeFrom)
       const b = parseDay(rangeTo)
-      // periodFor("range") reads a backwards pair the way round it was meant,
-      // so a mis-ordered picker is not an error the person has to fix.
+      // periodFor("range") accepts a backwards pair.
       return a && b ? periodFor("range", a, b) : null
     }
     const d = parseDay(anyDay)
     return d ? weekOf(d) : null
   }, [fixed, mode, preset, anyDay, rangeFrom, rangeTo])
 
-  // Items already planned, by the week's Monday - so a week can say "6 items
-  // already planned" before it is picked again.
   const alreadyPlanned = React.useMemo(() => {
     const m = new Map<string, number>()
     for (const p of existing ?? []) {
@@ -218,7 +185,6 @@ function Body({
   }, [existing])
   const already = period ? (alreadyPlanned.get(ymd(period.start)) ?? 0) : 0
 
-  // ── Step 2: who ────────────────────────────────────────────────────────────
   const [chosenTeams, setChosenTeams] = React.useState<Set<string>>(new Set())
   const toggleTeam = (id: string) =>
     setChosenTeams((cur) => {
@@ -228,8 +194,7 @@ function Body({
         setLines((ls) => ls.filter((l) => l.teamId !== id))
       } else {
         next.add(id)
-        // A team with nothing under it is a team you forgot to fill in, so it
-        // arrives with one empty item already waiting.
+        // A newly ticked team arrives with one empty item.
         setLines((ls) => [...ls, newLine(id)])
       }
       return next
@@ -237,13 +202,7 @@ function Body({
 
   const allTeamsChosen = teamList.length > 0 && teamList.every((t) => chosenTeams.has(t.id))
 
-  /**
-   * All or nothing, keeping the step-3 items in step.
-   *
-   * Selecting has to ADD a starter item for each team that did not have one,
-   * and must not disturb items already typed for teams that were ticked - so
-   * this cannot just replace the set and leave `lines` behind.
-   */
+  /** All or nothing, adding a starter item per newly ticked team without touching typed ones. */
   const toggleAllTeams = () => {
     if (allTeamsChosen) {
       setChosenTeams(new Set())
@@ -255,7 +214,6 @@ function Body({
     setLines((ls) => [...ls, ...missing.map((t) => newLine(t.id))])
   }
 
-  // ── Step 3: what ───────────────────────────────────────────────────────────
   const [lines, setLines] = React.useState<Line[]>([])
   const setLine = (key: string, patch: Partial<Line>) =>
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)))
@@ -330,7 +288,6 @@ function Body({
         </DialogDescription>
       </DialogHeader>
 
-      {/* A plain progress line, so it is obvious this has three parts. */}
       <div className="flex items-center gap-1.5 text-[11px]">
         {((fixed ? ["who", "what"] : ["when", "who", "what"]) as Step[]).map((s, i) => (
           <React.Fragment key={s}>
@@ -372,7 +329,6 @@ function Body({
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
-              {/* Any day will do - it is read as that working week. */}
               <PresetCard
                 label="Another week"
                 detail={
@@ -383,8 +339,6 @@ function Body({
                 active={mode === "week"}
                 onClick={() => setMode("week")}
               />
-              {/* For work that genuinely is not weekly - a campaign window, a
-                  launch run-up. The week above stays the habitual choice. */}
               <PresetCard
                 label="A date range"
                 detail={

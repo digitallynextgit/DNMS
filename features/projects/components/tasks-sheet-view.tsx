@@ -66,35 +66,15 @@ import { isWithinEditWindow, TASK_EDIT_WINDOW_MS } from "@/lib/edit-window"
 import { useCommitOnOutsidePointer } from "@/hooks/use-commit-on-outside-pointer"
 import { TaskResources } from "@/features/projects/components/task-resources"
 import { dedupeLinks, isSafeHttpUrl, linkLabel } from "@/features/projects/lib/task-links"
-// From the module, not the leave barrel: the barrel re-exports every leave
-// COMPONENT, and this sheet needs two hooks.
+// The module, not the leave barrel (which re-exports every leave component).
 import { useAwayDays, useTeamAwayDays, type AwayDay } from "@/features/leave/hooks/use-away-days"
 import { followUpConflictFrom } from "@/features/projects/lib/follow-up-conflict"
 import { afterTaskPatch } from "@/features/projects/lib/after-task-patch"
 import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
 import type { ProjectTeam } from "@/features/projects/hooks/use-projects"
 
-// =============================================================================
-// The allocation sheet: the weekly Excel the team already plans in, as a live
-// grid. Each day is a group of four columns, the same ones the spreadsheet has:
-//
-//   PLAN    what you intend to do   -> task titles, one per line, with the
-//                                      allocation written inline as "@2h"
-//   ACTUAL  what you actually did   -> a note per task
-//   HRS     allocated vs spent      -> allocated is yours to set; spent is
-//                                      measured off the task clock, never typed
-//   RESOURCES  where the work lives -> the brief, the doc, the published page
-//
-// Tasks are NUMBERED, not bulleted, and the numbers are what tie the three
-// columns together: "3." in Hrs is the time for "3." in Plan, whether or not
-// the lines happen to wrap to the same height. Every line is coloured by its
-// status, so the sheet reads as a progress report as well as a plan.
-//
-// ROWS are one of two things - see SheetAxis. My Tasks reads down one person's
-// CLIENTS; a project's Tasks tab reads down that account's PEOPLE. It is the
-// same week, the same cells and the same rules either way, which is why there
-// is one component and not two that would have drifted apart immediately.
-// =============================================================================
+// The weekly allocation sheet: per day, PLAN / ACTUAL / HRS / RESOURCES columns. Numbered lines tie the
+// columns together; rows are clients (My Tasks) or people (a project's Tasks tab) - see SheetAxis.
 
 export interface SheetTask {
   id: string
@@ -104,7 +84,6 @@ export interface SheetTask {
   dueDate: string | null
   estimatedHours: number | null
   loggedHours: number
-  /** The Resources column: brief, doc, published page. Stored as URLs. */
   links: string[]
   /** Non-null while the task sits In Progress and its clock is running. */
   inProgressSince: string | null
@@ -115,11 +94,7 @@ export interface SheetTask {
   /** Null for ADHOC work: it belongs to no client and lands in the Adhoc row. */
   project: { id: string; name: string; code: string; slug: string | null } | null
   team?: { id: string; name: string; managerId: string | null } | null
-  /**
-   * managerId is the authority on adhoc work, which has no team manager. The
-   * name is read only on the person axis, and only to label a row for someone
-   * who has left the team but still has work sitting on the board.
-   */
+  /** managerId is the authority on adhoc work; the name labels rows for people who left the team. */
   assignee?: {
     id: string
     managerId?: string | null
@@ -134,32 +109,18 @@ export interface SheetProject {
   code: string
 }
 
-/**
- * The row a task belongs to.
- *
- * On the CLIENT axis that is its project - adhoc work has none, so it collects
- * under a sentinel row instead. On the PERSON axis it is whoever the work is
- * assigned to, with a sentinel again for work nobody owns: an unassigned task is
- * exactly what a manager goes looking for, so it gets a row rather than being
- * quietly dropped off the sheet.
- */
+/** The project (or the Adhoc row) on the client axis; the assignee (or the Unassigned row) on the person axis. */
 function rowIdOf(task: SheetTask, by: SheetAxis["by"]): string {
   return by === "client"
     ? (task.project?.id ?? ADHOC_ROW_ID)
     : (task.assignee?.id ?? UNASSIGNED_ROW_ID)
 }
 
-/** The person axis's counterpart to ADHOC_ROW_ID: work with no owner. */
 const UNASSIGNED_ROW_ID = "__unassigned__"
 
-/**
- * The frozen-pane edge on the pinned Client column: a double-weight border plus
- * a soft shadow, so it reads as a column the rest of the sheet scrolls UNDER
- * rather than as just another cell boundary.
- */
+/** Frozen-pane edge on the pinned column, so the sheet reads as scrolling under it. */
 const STICKY_EDGE = "sticky left-0 border-r-2 shadow-[4px_0_6px_-4px_rgb(0_0_0/0.45)]"
 
-/** Status is carried by the colour of the whole line, number included. */
 const STATUS_TEXT: Record<string, string> = {
   TODO: "text-foreground",
   IN_PROGRESS: "text-blue-600 dark:text-blue-400",
@@ -170,21 +131,14 @@ const STATUS_TEXT: Record<string, string> = {
   DISCARDED: "text-red-600 dark:text-red-400",
 }
 
-/** Struck through because the work is over, one way or the other. */
 const STATUS_CLOSED = new Set(["DONE", "DISCARDED", "CANCELLED"])
 
-/**
- * The shape the edit/delete rules read, pulled off a sheet row. The manager is
- * resolved the same way the API resolves it - the team's for project work, the
- * assignee's line manager for adhoc - so the controls shown here match what the
- * server will actually allow.
- */
+/** Resolves the manager as the API does (the team's for project work, the line manager for adhoc). */
 function subjectOf(task: SheetTask) {
   return {
     creatorId: task.creatorId,
     createdAt: task.createdAt,
-    // Null project = adhoc, which is what lets someone keep editing work they
-    // raised for themselves. Must be the real value, never a fallback.
+    // Null project = adhoc; must be the real value, never a fallback.
     projectId: task.project?.id ?? null,
     assigneeId: task.assignee?.id ?? null,
     teamManagerId: resolveTaskManagerId({
@@ -196,8 +150,6 @@ function subjectOf(task: SheetTask) {
 }
 
 const NO_DATE = "none"
-
-// ── Dates ────────────────────────────────────────────────────────────────────
 
 /** Local calendar day of an ISO date, e.g. "2026-08-03". */
 function dayKey(iso: string | null): string {
@@ -220,7 +172,6 @@ function addDays(d: Date, n: number): Date {
   return x
 }
 
-/** The Monday of the week `d` falls in. Weeks are planned Monday-first. */
 export function mondayOf(d: Date): Date {
   const x = new Date(d)
   x.setHours(0, 0, 0, 0)
@@ -229,15 +180,7 @@ export function mondayOf(d: Date): Date {
   return x
 }
 
-// ── Time ─────────────────────────────────────────────────────────────────────
-
-/**
- * Banked time plus the whole stretch currently running, in hours.
- *
- * Undivided, matching what settleRunningTasks banks: clocks running side by
- * side each earn the full stretch (task-clock.service.ts), so this figure does
- * not change when one of them stops.
- */
+/** Banked time plus the whole running stretch, undivided - matching what settleRunningTasks banks. */
 function spentHours(task: SheetTask): number {
   const live = task.inProgressSince
     ? Math.max(0, Date.now() - new Date(task.inProgressSince).getTime()) / 3_600_000
@@ -248,11 +191,7 @@ function spentHours(task: SheetTask): number {
 const DURATION =
   /^([0-9]*\.?[0-9]+)\s*(h|hr|hrs|m|min|mins)?(?:\s*([0-9]{1,2})\s*(?:m|min|mins))?$/i
 
-/**
- * "2h", "2", "90m", "1h30m", "1.5h" -> decimal hours. A bare number is HOURS,
- * which is how the allocation sheet has always been written. Anything that is
- * not a duration returns null rather than a guess.
- */
+/** "2h", "2", "90m", "1h30m", "1.5h" -> decimal hours; a bare number is hours. Null if not a duration. */
 export function parseDuration(text: string): number | null {
   const m = text.trim().match(DURATION)
   if (!m) return null
@@ -275,31 +214,16 @@ function formatToken(h: number): string {
   return `${hrs}h${mins}m`
 }
 
-// ── Plan text <-> tasks ──────────────────────────────────────────────────────
-
-/**
- * A leading "1. " / "12) ". The lookahead is what keeps "1.5h review" and
- * "2026 audit plan" intact - a number is only numbering when whitespace (or the
- * end of the line) follows the dot.
- */
+/** A leading "1. " / "12) "; the lookahead keeps "1.5h review" and "2026 audit plan" intact. */
 const NUMBERING = /^\s*\d{1,3}[.)](?=$|\s)\s*/
 
-/**
- * Strip the numbering the cell prints back off, so typing "1. Fix cart" the way
- * you would in Excel does not store a task literally called "1. Fix cart".
- */
+/** So typing "1. Fix cart" as in Excel doesn't store that literal title. */
 function stripNumbering(line: string): string {
   return line.replace(NUMBERING, "").trim()
 }
 
-// ── Live numbering inside the editor ─────────────────────────────────────────
-//
-// The numbers are part of the text while you type, not a gutter drawn beside
-// it: cells are narrow, lines wrap, and a gutter would drift out of alignment
-// on the first wrapped line. Everything below keeps that text canonical -
-// renumbered on every keystroke - without the caret jumping around.
+// Numbering is part of the editor text (a gutter would misalign on wrapped lines), renumbered per keystroke.
 
-/** The lines with any numbering removed. The text the user is really editing. */
 function toBareLines(value: string): string[] {
   return value.split("\n").map((l) => l.replace(NUMBERING, ""))
 }
@@ -308,7 +232,6 @@ function numberLines(bare: string[]): string {
   return bare.map((l, i) => `${i + 1}. ${l}`).join("\n")
 }
 
-/** Where a caret offset lands, as a line index and a column inside it. */
 function locate(value: string, caret: number): { line: number; col: number } {
   const lines = value.split("\n")
   let col = caret
@@ -320,7 +243,6 @@ function locate(value: string, caret: number): { line: number; col: number } {
   return { line: last, col: lines[last]!.length }
 }
 
-/** The inverse: a (line, col) on bare text back to an offset in numbered text. */
 function caretFor(bare: string[], line: number, col: number): number {
   let n = 0
   for (let i = 0; i < line; i++) n += `${i + 1}. `.length + bare[i]!.length + 1
@@ -329,18 +251,12 @@ function caretFor(bare: string[], line: number, col: number): number {
 
 interface PlanLine {
   title: string
-  /** Hours allocated on this line, or null when no "@…" was written. */
   hours: number | null
 }
 
 const AT_SUFFIX = /\s+@\s*(\S[^@]*)$/
 
-/**
- * One typed line -> a task and its allocation. The allocation is written where
- * the work is written - "Fix cart @2h" - so planning is one keystroke run, not
- * a trip through a dialog. A trailing "@…" that is not a duration ("email
- * @vendor") is left alone as part of the title.
- */
+/** "Fix cart @2h" -> title + allocation; a trailing "@vendor" that isn't a duration stays in the title. */
 function parsePlanLine(raw: string): PlanLine {
   const line = stripNumbering(raw)
   const m = line.match(AT_SUFFIX)
@@ -352,38 +268,27 @@ function parsePlanLine(raw: string): PlanLine {
   return { title: line, hours: null }
 }
 
-/** The one spelling of a line: "title" or "title @2h". */
 function canonicalLine(line: PlanLine): string {
   return line.hours ? `${line.title} @${formatToken(line.hours)}` : line.title
 }
 
-/** How a task reads back in the editable cell - the exact inverse of the parse. */
 function planLineOf(task: SheetTask): string {
   return canonicalLine({ title: task.title, hours: task.estimatedHours ?? null })
 }
 
-/** A change to one existing task. Absent keys are left as they are. */
 interface TaskUpdate {
   task: SheetTask
   title?: string
   estimatedHours?: number | null
 }
 
-/**
- * What a single Plan cell edit turns into. Titles are matched to existing tasks
- * before anything is written, so re-ordering lines or deleting one from the
- * middle does not silently re-label somebody else's work.
- */
+/** Titles are matched to existing tasks first, so reordering or deleting a line doesn't relabel other work. */
 interface CellPlan {
   projectId: string
   projectName: string
-  /** Who the new tasks are raised on - the row's person. */
   assigneeId: string
-  /** The row's heading, for the message when nothing can be filed there. */
   rowName: string
-  /** Which cell is busy while this runs, and which to unblock when it is done. */
   cellKey: string
-  /** The day the new tasks are due, or null for the undated column. */
   dueDate: string | null
   creates: PlanLine[]
   updates: TaskUpdate[]
@@ -403,8 +308,7 @@ function diffCell(lines: PlanLine[], existing: SheetTask[]) {
     return { estimatedHours: hours }
   }
 
-  // Pass 1 - a line that still reads exactly like a task IS that task, wherever
-  // it now sits in the cell. This is what makes re-ordering a no-op.
+  // Pass 1: a line that still reads exactly like a task IS that task, so reordering is a no-op.
   for (const line of lines) {
     const i = pool.findIndex((t) => t.title === line.title)
     if (i < 0) {
@@ -415,8 +319,7 @@ function diffCell(lines: PlanLine[], existing: SheetTask[]) {
     const hours = hoursChange(task!, line.hours)
     if (hours) updates.push({ task: task!, ...hours })
   }
-  // Pass 2 - leftovers pair up in order: an edited line keeps its task (and so
-  // its status, spent time and history) instead of being deleted and recreated.
+  // Pass 2: leftovers pair up in order, so an edited line keeps its task (status, time, history).
   for (const line of unmatched) {
     const task = pool.shift()
     if (!task) {
@@ -428,34 +331,20 @@ function diffCell(lines: PlanLine[], existing: SheetTask[]) {
   return { creates, updates, deletes: pool }
 }
 
-// ── Hooks ────────────────────────────────────────────────────────────────────
-
-/**
- * Re-render on a beat while any clock is running, so the Hrs column does not
- * sit frozen at the value it had when the page loaded. 30s is under the
- * smallest unit displayed (a minute), so the number is never visibly stale.
- */
-function useTick(active: boolean, everyMs = 30_000): number {
-  const [tick, setTick] = useState(0)
+/** Re-renders every 30s while `isLive(lastTick)` holds (under the 1-minute display unit). */
+function useTick(isLive: (now: number) => boolean, everyMs = 30_000): number {
+  const [tickedAt, setTickedAt] = useState(() => Date.now())
+  const active = isLive(tickedAt)
   useEffect(() => {
     if (!active) return
-    const id = setInterval(() => setTick((n) => n + 1), everyMs)
+    const id = setInterval(() => setTickedAt(Date.now()), everyMs)
     return () => clearInterval(id)
   }, [active, everyMs])
-  // Returned so a derived value that depends on elapsed time can list it as a
-  // dependency, instead of being recomputed on EVERY render to stay live.
-  return tick
+  // Returned so time-dependent memos can list it as a dependency.
+  return tickedAt
 }
 
-/**
- * Size the box to what is in it - and, when it is a cell editor, to the cell.
- *
- * Two things are being avoided. A fixed-height textarea starts scrolling the
- * moment the plan runs past its rows, hiding the very lines you are writing.
- * And a purely content-sized one leaves the editor floating inside a taller
- * row, so only part of the cell is actually the text box. Taking the larger of
- * the two means the editor always IS the cell, and the row grows with it.
- */
+/** Sizes to the larger of content and cell, so the editor always IS the cell and never scrolls. */
 function useAutoGrow(
   ref: RefObject<HTMLTextAreaElement | null>,
   value: string,
@@ -466,103 +355,61 @@ function useAutoGrow(
   useEffect(() => {
     const el = ref.current
     if (!el || !active) return
-    // Collapse first: reading scrollHeight then flushes layout, so the parent
-    // measurement below is the row's real height rather than a stale one held
-    // open by this very element.
+    // Collapse first, so the parent measurement below is the row's real height.
     el.style.height = "auto"
-    // +2 covers the outline/rounding, so the last line never sits half-clipped
-    // and re-introduces the scrollbar we are removing.
+    // +2 covers the outline, so the last line isn't clipped.
     const needed = el.scrollHeight + 2
     const cell = fillParent && el.parentElement ? el.parentElement.clientHeight : 0
     el.style.height = `${Math.max(needed, cell)}px`
   }, [ref, value, active, fillParent])
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
-
-/** A person the sheet can put on a row. */
 export interface SheetPerson {
   id: string
   name: string
-  /** The muted second line - their team on this project, or their role. */
   caption?: string
-  /**
-   * May the viewer write NEW work into this row?
-   *
-   * Editing what is already there is decided per task, from the task's own
-   * rules. This is the one thing those rules cannot answer, because there is no
-   * task yet - so it mirrors what the create endpoint allows: your own row, a
-   * row on a team you manage, or anyone's if you administer the project.
-   */
+  /** May the viewer add NEW work to this row? Mirrors the create endpoint: own row, a managed team's, or admin. */
   canPlan?: boolean
 }
 
-/**
- * What a ROW is, and therefore what a cell means.
- *
- *   client   one person's week across their accounts   - My Tasks
- *   person   one account's week across its people      - a project's Tasks tab
- *
- * Everything else about the grid is identical, which is exactly why this is one
- * component: two sheets would have drifted apart on the first change to either.
- */
+/** client: one person's week across accounts (My Tasks); person: one account's week across people (Tasks tab). */
 export type SheetAxis =
   | {
       by: "client"
-      /** Row order: every project this person is on, even the empty ones. */
       projects: SheetProject[]
-      /** Who new tasks are raised on - the person whose sheet this is. */
       assigneeId: string
       /** Show the Adhoc row - hidden when the filter has narrowed to one client. */
       showAdhoc?: boolean
     }
   | {
       by: "person"
-      /** The account every row is planned against. */
       project: SheetProject
-      /** Row order: the people on it, including the ones with a blank week. */
       people: SheetPerson[]
     }
 
 interface Props {
   /** Already filtered by project/status. Not filtered by date - the grid slices. */
   tasks: SheetTask[]
-  /** Whether rows are clients or people - see SheetAxis. */
   axis: SheetAxis
-  /** The signed-in user, used to prefer a team they manage when filing. */
   currentUserId: string
   /** Project admin (PROJECT_WRITE): edits and deletes without restriction. */
   isAdmin?: boolean
-  /** Read-only when the sheet shows a whole team rather than one person. */
   readOnly?: boolean
-  /**
-   * Open a task's full record - comments, checklist, files. Offered from the
-   * line's status menu when given: there is no room for a button per line, and
-   * the number is already that line's one affordance.
-   */
+  /** Opens the task's full record; offered from the line's status menu. */
   onOpenTask?: (task: SheetTask) => void
 }
 
-/** One row of the grid, whichever axis built it. */
 interface SheetRow {
-  /** Row key: a project id on the client axis, an employee id on the person one. */
   id: string
   name: string
-  /** The muted second line: a project code, or the person's team. */
   caption: string
-  /** Where work typed into this row is filed, and on whom. */
   projectId: string
   projectName: string
   assigneeId: string
-  /**
-   * Whose leave explains a quiet cell on this row. Empty on client rows - the
-   * whole sheet is one person there, so their week is said once in the header
-   * rather than repeated in every cell under it.
-   */
+  /** Whose leave explains a quiet cell; empty on client rows (the header says it once). */
   awayOf: string
   /** A bucket rather than a real row: adhoc work, or work with no owner. */
   muted: boolean
-  /** Hover text for the row heading - what that bucket collects. */
   hint?: string
   canPlan: boolean
 }
@@ -581,9 +428,7 @@ export function TasksSheetView({
   const [busyCells, setBusyCells] = useState<Record<string, boolean>>({})
   /** A Plan edit that would delete tasks, held until it is confirmed. */
   const [pendingPlan, setPendingPlan] = useState<CellPlan | null>(null)
-  /** The instructions, which used to sit permanently under the sheet. */
   const [helpOpen, setHelpOpen] = useState(false)
-  /** A status pick that still needs its reason (and hold date) collected. */
   const [pendingStatus, setPendingStatus] = useState<{
     task: SheetTask
     mode: "ON_HOLD" | "DISCARDED"
@@ -592,12 +437,10 @@ export function TasksSheetView({
   const thisMonday = toKey(mondayOf(new Date()))
   const todayKey = toKey(new Date())
 
-  // Beat along while a clock is running OR an edit window is still open, so a
-  // line locks itself the moment its 15 minutes are up rather than staying
-  // editable-looking until the next refetch.
-  const tick = useTick(
+  // Tick while a clock runs or an edit window is open, so lines lock right when their 15 minutes end.
+  const tick = useTick((now) =>
     tasks.some(
-      (t) => t.inProgressSince || isWithinEditWindow(t.createdAt, Date.now(), TASK_EDIT_WINDOW_MS),
+      (t) => t.inProgressSince || isWithinEditWindow(t.createdAt, now, TASK_EDIT_WINDOW_MS),
     ),
   )
 
@@ -605,25 +448,17 @@ export function TasksSheetView({
   const mayEdit = (task: SheetTask) => !readOnly && canEditTaskDetails(subjectOf(task), actor)
   const mayDelete = (task: SheetTask) => !readOnly && canDeleteTask(subjectOf(task), actor)
 
-  /**
-   * What to say about a line's editability on hover: the reason it is shut, or
-   * the time left while it is open. The window is far less surprising when you
-   * can watch it run down than when it simply refuses you afterwards.
-   */
   function editHint(task: SheetTask): string | undefined {
     if (readOnly) return undefined
     if (!mayEdit(task)) return taskEditLockReason(subjectOf(task), actor) ?? undefined
     if (task.creatorId !== currentUserId) return undefined
-    // Your own adhoc work never expires, so a countdown here would promise a
-    // deadline that does not exist.
+    // Your own adhoc work never expires.
     if (!task.project && task.assignee?.id === currentUserId) return "Yours to edit"
     const left = taskEditWindowLeft(subjectOf(task))
     return left ? `Yours to edit - ${left}` : undefined
   }
 
-  // Mon-Fri: the working week the allocation sheet is written in. A weekend day
-  // appears only when it actually has work on it, so a normal week is five
-  // columns wide and a Saturday task is still never silently hidden.
+  // Mon-Fri, plus a weekend day only when it has work.
   const days = useMemo(() => {
     const start = fromKey(weekStart)
     const dates = Array.from({ length: 5 }, (_, i) => addDays(start, i))
@@ -646,7 +481,6 @@ export function TasksSheetView({
 
   const weekKeys = useMemo(() => new Set(columns.map((c) => c.key)), [columns])
 
-  // row id + day -> the tasks written in that cell.
   const cells = useMemo(() => {
     const map = new Map<string, SheetTask[]>()
     for (const t of tasks) {
@@ -660,19 +494,7 @@ export function TasksSheetView({
     return map
   }, [tasks, weekKeys, axis.by])
 
-  /**
-   * The rows, in the order they are read.
-   *
-   * CLIENT axis: every project the person is on, plus any project that has work
-   * in this week but is missing from that list (e.g. a task filed on a project
-   * they have since left). Adhoc is pinned LAST rather than sorted in: it is not
-   * a client, and having it land between two real accounts alphabetically is
-   * what made the old ADHOC project read as one.
-   *
-   * PERSON axis: everyone on the project, plus - by the same rule, so nobody's
-   * week can vanish - anyone with work this week who is no longer on a team. An
-   * Unassigned bucket is pinned last, and only when the week has work in it.
-   */
+  /** Also adds rows with work this week that are missing from the list; Adhoc / Unassigned go last. */
   const rows = useMemo<SheetRow[]>(() => {
     if (axis.by === "client") {
       const byId = new Map<string, SheetProject>()
@@ -722,8 +544,7 @@ export function TasksSheetView({
       byId.set(person.id, {
         id: person.id,
         name: `${person.firstName ?? ""} ${person.lastName ?? ""}`.trim() || "Former member",
-        // Their work is still here, but there is no team to file anything new
-        // under - which is also why the row cannot be planned into.
+        // No team to file new work under, so the row can't be planned into.
         caption: "not on a team",
       })
     }
@@ -755,19 +576,13 @@ export function TasksSheetView({
         awayOf: "",
         muted: true,
         hint: "Work on this project that nobody is down to do",
-        // There is nobody to raise it ON. Giving this work an owner is what the
-        // row is asking for, and that happens on the task itself.
+        // Nobody to raise it on; giving the work an owner happens on the task.
         canPlan: false,
       },
     ]
   }, [axis, tasks, weekKeys])
 
-  // Why a cell is quiet: leave, a half day, or a holiday.
-  //
-  // One person's sheet is read once and marked across the COLUMN headers - it is
-  // their week, end to end. A whole team's is read for every row in one request
-  // and marked per CELL instead, because one person being off is not the team's
-  // empty day.
+  // Leave marks: one person's sheet marks the column headers; a team's marks each cell.
   const from = days[0]?.key
   const to = days[days.length - 1]?.key
   const { data: soloAway } = useAwayDays(
@@ -786,11 +601,7 @@ export function TasksSheetView({
     return map
   }, [teamAway])
 
-  /**
-   * What the column header says. One person's sheet: their own week. A team's:
-   * only what is true of everybody, which is a public holiday - one person's
-   * leave belongs on their row, not painted over the whole column.
-   */
+  /** Header marks: the person's own week, or for a team only public holidays. */
   const awayByDay = useMemo(() => {
     if (axis.by === "client") return new Map((soloAway ?? []).map((d) => [d.date, d]))
     const map = new Map<string, AwayDay>()
@@ -808,8 +619,7 @@ export function TasksSheetView({
 
   const weekLabel = useMemo(() => {
     const start = fromKey(weekStart)
-    // The last column that is actually rendered, not start+N: a lone Sunday
-    // task extends the grid past Friday without adding a Saturday.
+    // The last rendered column, not start+N: a lone Sunday task doesn't add a Saturday.
     const end = fromKey(days[days.length - 1]?.key ?? weekStart)
     const fmt = (d: Date, withYear: boolean) =>
       d.toLocaleDateString("en-IN", {
@@ -820,14 +630,7 @@ export function TasksSheetView({
     return `${fmt(start, false)} - ${fmt(end, true)}`
   }, [weekStart, days])
 
-  /**
-   * Which team to file a new task under. The API needs one, and it must be a
-   * team the ASSIGNEE belongs to - preferring one the caller manages, since that
-   * is the only route that does not park the task in an approval queue.
-   *
-   * The assignee is the ROW's on the person axis and the sheet's owner on the
-   * client one, so it is passed in rather than read off the component.
-   */
+  /** A team the assignee belongs to, preferring one the caller manages (avoids the approval queue). */
   async function resolveTeamId(projectId: string, assigneeId: string): Promise<string | null> {
     const res = await qc.fetchQuery({
       queryKey: ["project-teams", projectId],
@@ -883,8 +686,7 @@ export function TasksSheetView({
       }
 
       if (plan.creates.length > 0) {
-        // Adhoc work belongs to no project and no team, so it goes to the plain
-        // task endpoint; everything else has to be filed under a team.
+        // Adhoc work has no project or team, so it goes to the plain task endpoint.
         const adhoc = plan.projectId === ADHOC_ROW_ID
         const teamId = adhoc ? null : await resolveTeamId(plan.projectId, plan.assigneeId)
         if (!adhoc && !teamId) {
@@ -916,8 +718,7 @@ export function TasksSheetView({
       }
     } finally {
       setBusy(cellKey, false)
-      // Always refetch: a cell that failed must snap back to what is actually
-      // stored rather than keep showing the text that was rejected.
+      // Always refetch, so a failed cell snaps back to what's stored.
       await qc.invalidateQueries({ queryKey: ["my-tasks"] })
       if (plan.projectId !== ADHOC_ROW_ID) {
         qc.invalidateQueries({ queryKey: ["project-all-tasks", plan.projectId] })
@@ -943,10 +744,7 @@ export function TasksSheetView({
     const existing = cells.get(`${row.id}|${columnKey}`) ?? []
     const diff = diffCell(lines, existing)
 
-    // Drop what this person may not do BEFORE sending anything, and say which
-    // lines were dropped. Firing the requests and letting each come back 403
-    // would half-apply the cell and explain nothing. Adding lines is always
-    // allowed - a new task is theirs to raise.
+    // Drop lines this person may not edit before sending (and say which), rather than half-apply via 403s.
     const updates = diff.updates.filter((u) => mayEdit(u.task))
     const deletes = diff.deletes.filter(mayDelete)
     const lockedEdits = diff.updates.filter((u) => !mayEdit(u.task))
@@ -966,8 +764,7 @@ export function TasksSheetView({
 
     const creates = diff.creates
     if (creates.length === 0 && updates.length === 0 && deletes.length === 0) {
-      // Nothing survived the filter, but the cell text no longer matches what is
-      // stored - pull it back so it stops showing an edit that did not happen.
+      // Nothing was sent, but the cell text differs from what's stored - pull it back.
       if (lockedEdits.length > 0 || lockedDeletes.length > 0) {
         void qc.invalidateQueries({ queryKey: ["my-tasks"] })
       }
@@ -990,7 +787,6 @@ export function TasksSheetView({
     else void runPlan(plan, cellKey)
   }
 
-  /** One field on one task, saved on its own. Used by Actual and by Allocated. */
   async function patchTask(
     task: SheetTask,
     body: Record<string, unknown>,
@@ -1006,13 +802,10 @@ export function TasksSheetView({
       })
 
     try {
-      // The same three answers every other completion path gives: the shared
-      // clock, the toast, and the output prompt. This view used to drop the
-      // prompt on the floor - marking a task done here asked nothing at all.
+      // Same follow-up as every completion path: shared clock, toast and output prompt.
       afterTaskPatch(await send(body), { successMessage: label })
     } catch (e) {
-      // Moving a hold follow-up whose original is already underway is a question
-      // for the user, not an error - see follow-up-conflict.ts.
+      // A hold follow-up conflict is a question for the user - see follow-up-conflict.ts.
       const conflict = followUpConflictFrom(e)
       if (conflict) {
         askFollowUpConflict({
@@ -1030,20 +823,11 @@ export function TasksSheetView({
     } finally {
       setBusy(cellKey, false)
       await qc.invalidateQueries({ queryKey: ["my-tasks"] })
-      // Adhoc work is in no project board, so there is nothing else to refresh.
       if (task.project) qc.invalidateQueries({ queryKey: ["project-all-tasks", task.project.id] })
     }
   }
 
-  /**
-   * Move one task to a new phase. On Hold and Discarded carry required context
-   * (a reason, and for a hold the date it is expected by), so they route through
-   * the same dialog the dropdown and the kanban board use rather than committing
-   * a half-written record from a two-click menu.
-   *
-   * Saved against a key nothing renders, so the Plan cell keeps showing its list
-   * instead of blanking to "Saving…" - the colour changing IS the feedback.
-   */
+  /** On Hold / Discarded need the reason dialog; saved under an unrendered key so the cell never shows "Saving…". */
   function pickStatus(task: SheetTask, next: string) {
     if (next === task.status) return
     if (next === "ON_HOLD" || next === "DISCARDED") {
@@ -1053,15 +837,7 @@ export function TasksSheetView({
     void patchTask(task, { status: next }, `${task.id}|status`, "Status updated")
   }
 
-  // Per-day totals for the footer strip.
-  //
-  // This used to run on EVERY render - columns x rows x cells - because a
-  // running clock changes `spentHours(t)` without changing columns/rows/cells,
-  // so a memo keyed on those alone would freeze the footer while the row totals
-  // ticked on. That reasoning was right; the missing piece was `tick`. With the
-  // beat as a dependency the memo recomputes exactly when the numbers can
-  // actually have changed - once every 30s, or when the data does - instead of
-  // on every keystroke, hover and selection change.
+  // Per-day footer totals; `tick` is a dependency because running clocks change spent hours.
   const { dayTotals, grand } = useMemo(() => {
     const totals: Record<string, { count: number; allocated: number; spent: number }> = {}
     for (const c of columns) {
@@ -1089,7 +865,6 @@ export function TasksSheetView({
 
   return (
     <div className="space-y-3">
-      {/* Week stepper */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <CalendarRange className="text-muted-foreground h-4 w-4" />
@@ -1130,24 +905,14 @@ export function TasksSheetView({
         </div>
       ) : (
         <div className="bg-card overflow-x-auto rounded-sm border">
-          {/* This grid is genuinely spreadsheet-shaped - seven day columns cannot
-              become a phone card without losing the week-at-a-glance that is the
-              whole point. So it stays a scrolling sheet with the Client column
-              pinned, and says so rather than leaving the swipe to be discovered. */}
           <p className="text-muted-foreground border-b px-3 py-1.5 text-[11px] sm:hidden">
             Swipe sideways to see the rest of the week →
           </p>
-          {/* border-SEPARATE, not collapse: a collapsed border belongs to the
-              table, not to the cell that declares it, so the Client column's
-              right edge painted underneath the sticky cell and slid away with
-              the scroll - leaving the pinned column visually merged into the
-              day columns. Separated borders stay with their cell. Every cell
-              draws only its right and bottom edge, so nothing doubles up. */}
+          {/* border-separate: a collapsed border belongs to the table, so the sticky column's edge would scroll away. */}
           <table className="w-full border-separate border-spacing-0 text-sm">
             <thead>
               <tr className="bg-muted/60">
-                {/* Solid, not the row's translucent tint: cells scroll UNDER
-                    this column and a see-through header shows them doing it. */}
+                {/* Solid: cells scroll under this column. */}
                 <th
                   rowSpan={2}
                   className={cn(
@@ -1167,8 +932,6 @@ export function TasksSheetView({
                         "border-r border-b px-3 py-1.5 text-center text-[11px] font-semibold tracking-wide uppercase",
                         c.key === todayKey && "bg-primary/10",
                         c.key === NO_DATE && "text-muted-foreground",
-                        // A day with nobody in is dimmed, so an empty column
-                        // reads as "not here" rather than "did nothing".
                         away?.status !== "half-day" && away && "bg-muted/60",
                       )}
                     >
@@ -1176,9 +939,7 @@ export function TasksSheetView({
                       <span className="text-muted-foreground ml-1.5 font-normal normal-case">
                         {c.sub}
                       </span>
-                      {/* Says WHY the column is empty. Icon + words, never colour
-                          alone - and never the leave type, which is nobody's
-                          business on a task board. */}
+                      {/* Icon + words, never the leave type - that's nobody's business on a task board. */}
                       {away && (
                         <span
                           className={cn(
@@ -1261,14 +1022,9 @@ export function TasksSheetView({
                   <tr key={row.id} className={cn("align-top", row.muted && "bg-muted/20")}>
                     <th
                       scope="row"
-                      // Tinted and captioned, so a bucket row - adhoc work, work
-                      // with no owner - reads as one rather than as another
-                      // account or another colleague on the list.
                       className={cn(
                         "z-10 border-b px-3 py-2 text-left align-top",
                         STICKY_EDGE,
-                        // Opaque, always: cells scroll under this column, and a
-                        // translucent tint would show them doing it.
                         row.muted ? "bg-muted" : "bg-card",
                       )}
                       title={row.hint}
@@ -1283,15 +1039,11 @@ export function TasksSheetView({
                       const hoursKey = `${row.id}|${c.key}|hours`
                       const resourcesKey = `${row.id}|${c.key}|resources`
                       const isToday = c.key === todayKey
-                      // THIS person's absence. A day the whole sheet is out is
-                      // already said once in the header, so it is not repeated
-                      // in every cell underneath it.
+                      // This person's absence; a whole-sheet absence is already in the header.
                       const away = awayByDay.has(c.key)
                         ? undefined
                         : awayByRow.get(row.awayOf)?.get(c.key)
-                      // One background per cell, picked here rather than stacked
-                      // as competing classes - two bg utilities in one string win
-                      // by stylesheet order, not by the order they are written.
+                      // One bg class per cell: two bg utilities would win by stylesheet order.
                       const tint = away
                         ? away.status === "half-day"
                           ? "bg-amber-500/5"
@@ -1305,10 +1057,7 @@ export function TasksSheetView({
                             <PlanCell
                               tasks={cellTasks}
                               busy={!!busyCells[planKey]}
-                              // A row you may not raise work in still SHOWS its
-                              // work - and each line is still governed by its own
-                              // rules. This only shuts the "type a new plan here"
-                              // door the task rules cannot answer for.
+                              // Only blocks new plans; existing lines follow their own task rules.
                               readOnly={readOnly || !row.canPlan}
                               onCommit={(lines) => commitPlan(row, c.key, lines)}
                               onPickStatus={pickStatus}
@@ -1422,9 +1171,6 @@ export function TasksSheetView({
         </div>
       )}
 
-      {/* Legend - the colours ARE the status, so they stay on screen. The
-          instructions behind the question mark do not: seven bullets under
-          every sheet is read once and then permanently in the way. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
         {!readOnly && (
           <button
@@ -1444,8 +1190,6 @@ export function TasksSheetView({
         ))}
       </div>
 
-      {/* One line per column, in the order you use them - in a dialog, because
-          this is reference you reach for on day one and never again. */}
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -1507,9 +1251,6 @@ export function TasksSheetView({
         }}
       />
 
-      {/* On Hold / Discarded picked from a number's menu land here first: both
-          phases require a written reason, and a hold also needs the date it is
-          expected by. Same dialog the dropdown and the kanban drag use. */}
       <TaskStatusReasonDialog
         mode={pendingStatus?.mode ?? null}
         onOpenChange={(open) => {
@@ -1525,19 +1266,13 @@ export function TasksSheetView({
   )
 }
 
-// ── Legend bits ──────────────────────────────────────────────────────────────
-
-/** The column being described, so the eye can jump straight to its line. */
 function Term({ children }: { children: ReactNode }) {
   return <strong className="text-foreground font-medium">{children} -</strong>
 }
 
-/** A literal you type: a key, or text that goes in a cell. */
 function Chip({ children }: { children: ReactNode }) {
   return <code className="bg-muted rounded-sm px-1 py-0.5">{children}</code>
 }
-
-// ── Cells ────────────────────────────────────────────────────────────────────
 
 /** The row number that ties Plan, Actual and Hrs together. */
 function TaskNumber({ n, status }: { n: number; status?: string }) {
@@ -1553,14 +1288,7 @@ function TaskNumber({ n, status }: { n: number; status?: string }) {
   )
 }
 
-/**
- * The same number, but it opens the phase menu.
- *
- * The number already IS the status - it is printed in the status colour - so it
- * is the one per-line affordance that can carry the change without adding a
- * dropdown box to every row and without stealing the click that opens the
- * cell's text editor.
- */
+/** The status-coloured number doubles as the phase menu, without stealing the cell editor's click. */
 function StatusNumber({
   n,
   task,
@@ -1572,11 +1300,9 @@ function StatusNumber({
   task: SheetTask
   disabled: boolean
   onPick: (task: SheetTask, next: string) => void
-  /** Given: the menu also opens the task's full record. */
   onOpenTask?: (task: SheetTask) => void
 }) {
-  // The workflow set, plus the current value up front if it is a legacy status
-  // (IN_REVIEW / CANCELLED) so it still shows as the selected one.
+  // Keep a legacy current status (IN_REVIEW / CANCELLED) so it still shows as selected.
   const options = useMemo(() => {
     const set = [...TASK_WORKFLOW_STATUSES] as string[]
     if (!set.includes(task.status)) set.unshift(task.status)
@@ -1584,9 +1310,7 @@ function StatusNumber({
   }, [task.status])
 
   const label = TASK_STATUS_LABELS[task.status] ?? task.status
-  // Nothing to move it TO, but the record behind the line is still worth
-  // reading - so a locked line opens it directly instead of offering a menu of
-  // one. Without this, a colleague's row would have no way into its comments.
+  // Locked: open the record directly instead of a one-item menu.
   if (disabled) {
     if (!onOpenTask) return <TaskNumber n={n} status={task.status} />
     return (
@@ -1617,8 +1341,7 @@ function StatusNumber({
           type="button"
           title={`${label} · click to change`}
           aria-label={`Status of task ${n}: ${label}`}
-          // The cell behind this opens the plan editor on click; without this
-          // every attempt to change a status would open the textarea instead.
+          // Otherwise the click would also open the plan editor.
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
           className={cn(
@@ -1662,13 +1385,7 @@ function CellBusy() {
   )
 }
 
-/**
- * The PLAN cell: reads as the day's numbered list, edits as plain text.
- *
- * Display and edit are separate states on purpose - that is how a spreadsheet
- * cell behaves, and it is the only way to number and status-colour each line
- * while still letting the whole cell be re-typed in one go.
- */
+/** Reads as a numbered, status-coloured list; edits as plain text, like a spreadsheet cell. */
 function PlanCell({
   tasks,
   busy,
@@ -1691,21 +1408,14 @@ function PlanCell({
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState("")
   const ref = useRef<HTMLTextAreaElement>(null)
-  // One editing session ends exactly once. Blur, Enter, Escape and a click
-  // outside can all arrive for the same session - and often two of them do -
-  // so every route goes through finish() and the first one wins.
+  // Several routes can end one session; finish() runs once and the first wins.
   const settled = useRef(false)
-  // Where the caret belongs after a renumber, applied before the browser paints
-  // so it never visibly jumps to the end of the cell.
+  // Caret position after a renumber, applied before paint so it doesn't jump.
   const caret = useRef<number | null>(null)
 
-  // The allocation round-trips through the text, so what you see in the cell is
-  // exactly what the parse reads back - no hidden state to get out of step.
   const stored = tasks.map(planLineOf).join("\n")
 
-  // fillParent: this textarea is the direct child of the <td>, so it can and
-  // should take the whole cell - the editor should never be a small box sitting
-  // inside a larger cell.
+  // fillParent: this textarea is the <td>'s direct child, so it takes the whole cell.
   useAutoGrow(ref, text, editing, true)
   useCommitOnOutsidePointer(ref, editing, () => finish(true))
 
@@ -1727,13 +1437,11 @@ function PlanCell({
   function begin() {
     if (readOnly || busy) return
     settled.current = false
-    // An empty cell opens on "1. " so the numbering is there from the first
-    // keystroke rather than appearing once a second line exists.
+    // An empty cell opens on "1. ".
     setText(numberLines(tasks.length > 0 ? tasks.map(planLineOf) : [""]))
     setEditing(true)
   }
 
-  /** Renumber whatever was just typed and keep the caret where it was. */
   function apply(bare: string[], line: number, col: number) {
     setText(numberLines(bare))
     caret.current = caretFor(bare, line, col)
@@ -1745,12 +1453,7 @@ function PlanCell({
     apply(toBareLines(value), line, Math.max(0, col - removed))
   }
 
-  /**
-   * Backspace at the head of a line joins it to the one above. Left to the
-   * browser that would merge the raw text and leave the stale "2. " sitting in
-   * the middle of the joined line; doing it on the bare lines drops the
-   * numbering with the break, which is what the keystroke means.
-   */
+  /** Backspace at a line's start joins it to the line above, dropping the numbering with the break. */
   function handleBackspace(el: HTMLTextAreaElement): boolean {
     if (el.selectionStart !== el.selectionEnd) return false
     const value = el.value
@@ -1775,8 +1478,7 @@ function PlanCell({
       .split("\n")
       .map(parsePlanLine)
       .filter((l) => l.title)
-    // Compare in canonical form, so re-typing the same plan with stray spaces
-    // or hand-written numbering is recognised as the no-op it is.
+    // Canonical compare, so stray spaces or hand-typed numbering are a no-op.
     if (lines.map(canonicalLine).join("\n") === stored) return
     onCommit(lines)
   }
@@ -1795,8 +1497,7 @@ function PlanCell({
             finish(false)
             return
           }
-          // Enter saves - the cell is done far more often than it needs another
-          // line. Shift+Enter (or Ctrl/Cmd+Enter) is how you keep going.
+          // Enter saves; Shift+Enter (or Ctrl/Cmd+Enter) adds a line.
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault()
             finish(true)
@@ -1806,9 +1507,7 @@ function PlanCell({
             e.preventDefault()
           }
         }}
-        // The active-cell look: the outline is drawn INSIDE the box, so the
-        // editor lines up exactly with the cell's grid lines instead of a ring
-        // bleeding over its neighbours.
+        // Outline drawn inside, so the editor lines up with the cell's grid lines.
         className="outline-primary block h-full min-h-14 w-full resize-none overflow-hidden bg-transparent px-2.5 py-2 text-xs leading-relaxed outline-2 -outline-offset-2"
         placeholder="1. Fix cart @2h"
       />
@@ -1848,8 +1547,7 @@ function PlanCell({
           <StatusNumber
             n={i + 1}
             task={task}
-            // A rejected task must not be moved through the workflow - the same
-            // gate every other view enforces.
+            // A rejected task can't move through the workflow (the same gate as every view).
             disabled={readOnly || busy || task.approvalStatus === "REJECTED"}
             onPick={onPickStatus}
             onOpenTask={onOpenTask}
@@ -1862,8 +1560,6 @@ function PlanCell({
             )}
           >
             {task.title}
-            {/* The wording is settled - re-typing this line will be refused, so
-                say so here rather than after the attempt. */}
             {!readOnly && !canEdit(task) && (
               <Lock
                 className="text-muted-foreground/50 ml-1 inline h-2.5 w-2.5 align-baseline"
@@ -1871,9 +1567,7 @@ function PlanCell({
               />
             )}
           </span>
-          {/* Dimmed until pointed at: one of these per line would otherwise be a
-              column of icons competing with the plan itself. It stops its own
-              click, so opening the log never opens the cell editor. */}
+          {/* Dimmed until hovered; stops its own click so the cell editor doesn't open. */}
           <TaskHistoryDialog
             taskId={task.id}
             taskTitle={task.title}
@@ -1886,13 +1580,7 @@ function PlanCell({
   )
 }
 
-/**
- * The ACTUAL cell: what really happened, one note per planned task.
- *
- * Edited row by row rather than as one block of text. A note can itself run to
- * several lines, so there is no safe way to split a whole-cell edit back into
- * per-task notes - and unlike Plan, this column never adds or removes tasks.
- */
+/** One note per planned task, edited row by row (a multi-line note can't be split back safely). */
 function ActualCell({
   tasks,
   busy,
@@ -1964,8 +1652,7 @@ function ActualCell({
                     finish(task, false)
                     return
                   }
-                  // Same chord as Plan, so the two editors do not need separate
-                  // muscle memory: Enter saves, Shift+Enter breaks the line.
+                  // Same keys as Plan: Enter saves, Shift+Enter breaks the line.
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault()
                     finish(task, true)
@@ -1991,8 +1678,6 @@ function ActualCell({
                   "min-w-0 flex-1 break-words whitespace-pre-wrap",
                   editable &&
                     "hover:bg-muted/40 focus:ring-primary/60 cursor-text rounded-sm outline-none focus:ring-2",
-                  // The note carries the task's status too, so a completed line
-                  // reads as completed all the way across the sheet.
                   task.description
                     ? (STATUS_TEXT[task.status] ?? "text-foreground")
                     : "text-muted-foreground/40",
@@ -2008,19 +1693,7 @@ function ActualCell({
   )
 }
 
-/**
- * The RESOURCES cell: where each task's work actually lives.
- *
- * Stored as `links` on the task, because that is what they are - URLs. The
- * column is called Resources because that is what they MEAN to the person
- * reading the sheet, and because `ProjectResource` (uploaded files) already
- * owns the word in the data model.
- *
- * Not governed by the 15-minute edit window, unlike the rest of a task's
- * details. Attaching the published URL is something you do WHEN the blog goes
- * live, which is hours or days after the task was raised - locking it on the
- * same clock as the title would make the column useless for its main purpose.
- */
+/** Stored as the task's `links`. Exempt from the 15-minute edit window: URLs get added when the work goes live. */
 function ResourcesCell({
   tasks,
   busy,
@@ -2052,13 +1725,7 @@ function ResourcesCell({
   )
 }
 
-/**
- * The HRS cell: allocated over spent, per task.
- *
- * Allocated is the plan and is editable here as well as inline in Plan ("@2h").
- * Spent is measured - the clock runs off the task's own status changes - so it
- * is never typed; a number typed there would be a claim rather than a record.
- */
+/** Allocated (editable here or as "@2h" in Plan) over spent (measured from status changes, never typed). */
 function HoursCell({
   tasks,
   busy,

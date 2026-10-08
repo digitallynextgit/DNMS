@@ -37,8 +37,7 @@ export interface SeoSitesResponse {
   serviceAccount: string | null
 }
 
-/** Every site tracked under a project. Skips the fetch when no project is
- *  selected yet, so callers can pass a possibly-empty id. */
+/** Every site on a project. Disabled until a project id is set. */
 export function useSeoSites(projectId: string) {
   return useQuery({
     queryKey: listKey(projectId),
@@ -82,8 +81,7 @@ export function useSeoOverview(
   const suffix = qs.toString() ? `?${qs}` : ""
 
   return useQuery({
-    // The period is part of the key, so switching weeks refetches instead of
-    // showing the previous window's numbers under a new label.
+    // The period is in the key, so switching weeks refetches.
     queryKey: [...overviewKey(propertyId ?? ""), end, weeks],
     queryFn: () =>
       apiFetch<{ data: SeoOverview }>(
@@ -91,8 +89,7 @@ export function useSeoOverview(
       ).then((r) => r.data),
     enabled: !!propertyId,
     staleTime: 60_000,
-    // Keeps the table populated while a new period loads, so the layout does not
-    // collapse to a skeleton on every change.
+    // Keep the old data while a new period loads, so the layout doesn't collapse.
     placeholderData: (prev) => prev,
   })
 }
@@ -220,8 +217,6 @@ export function useGscSites(enabled: boolean) {
   })
 }
 
-// --- phase 1: scorecard + Core Web Vitals -----------------------------------
-
 export function useScorecard(projectId: string, propertyId: string | null) {
   return useQuery({
     queryKey: ["seo-scorecard", propertyId ?? ""],
@@ -300,8 +295,6 @@ export function useRunVitals(projectId: string) {
   })
 }
 
-// --- phase 2: technical audit -----------------------------------------------
-
 export function useTechnicalAudit(projectId: string, propertyId: string | null) {
   return useQuery({
     queryKey: ["seo-technical", propertyId ?? ""],
@@ -333,8 +326,6 @@ export function useRunTechnicalAudit(projectId: string) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Audit failed"),
   })
 }
-
-// --- phase 3: keyword backlog -----------------------------------------------
 
 export function useKeywordBacklog(projectId: string, propertyId: string | null) {
   return useQuery({
@@ -416,8 +407,6 @@ export function useUpdateKeyword(projectId: string) {
   })
 }
 
-// --- phase 4: competitor gap analysis ---------------------------------------
-
 export function useCompetitorAudit(projectId: string, propertyId: string | null) {
   return useQuery({
     queryKey: ["seo-competitors", propertyId ?? ""],
@@ -448,8 +437,6 @@ export function useRunCompetitorGap(projectId: string) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Competitor analysis failed"),
   })
 }
-
-// --- phase 5: content brief + QA loop ---------------------------------------
 
 export function useContentBriefs(projectId: string, propertyId: string | null) {
   return useQuery({
@@ -538,8 +525,6 @@ export function useDeleteBrief(projectId: string) {
   })
 }
 
-// --- step 8: off-page / backlinks -------------------------------------------
-
 export function useBacklinks(projectId: string, propertyId: string | null) {
   return useQuery({
     queryKey: ["seo-backlinks", propertyId ?? ""],
@@ -581,8 +566,6 @@ export function useImportBacklinks(projectId: string) {
   })
 }
 
-// --- step 9: daily accident monitor -----------------------------------------
-
 export function useMonitor(projectId: string, propertyId: string | null) {
   return useQuery({
     queryKey: ["seo-monitor", propertyId ?? ""],
@@ -607,8 +590,6 @@ export function useRunMonitor(projectId: string) {
   })
 }
 
-// --- guided setup ------------------------------------------------------------
-
 /** The step-by-step readiness checklist for a site. */
 export function useSeoSetup(projectId: string, propertyId: string | null) {
   return useQuery({
@@ -622,16 +603,13 @@ export function useSeoSetup(projectId: string, propertyId: string | null) {
   })
 }
 
-// --- AI assistance -----------------------------------------------------------
-
 interface AiResponse {
   keywords?: KeywordSuggestionView[]
   competitors?: CompetitorSuggestionView[]
   text?: string
 }
 
-/** Ask the AI for keyword / competitor suggestions or a plain-language read-out.
- *  Suggestions are never auto-saved - the caller shows them for human approval. */
+/** AI keyword/competitor suggestions or a plain-language read-out. Never auto-saved. */
 export function useSeoAi(projectId: string) {
   return useMutation({
     mutationFn: ({

@@ -1,16 +1,5 @@
-// =============================================================================
-// Project monitoring (staff side)
-// =============================================================================
-// Everything here is scoped to ONE project. The projectId is supplied by the
-// route guard (withProjectManager), which has already proved the caller may
-// manage that project and resolved a slug to a real id - it is never taken from
-// a request body, so this surface cannot register a monitor or a renewal against
-// some other project.
-//
-// Every update/delete filters on projectId AS WELL AS the row id. Without that,
-// an id copied from another project would resolve and be editable from this
-// project's screen.
-// =============================================================================
+// Project monitoring (staff side). projectId always comes from the route guard, never the
+// body, and every update/delete filters on projectId as well as the row id.
 
 import "server-only"
 
@@ -97,8 +86,6 @@ export async function getProjectMonitoring(projectId: string): Promise<ActionRes
   })
 }
 
-// ─── Renewal register ───────────────────────────────────────────────────────
-
 export async function createAsset(
   projectId: string,
   body: AssetInput,
@@ -151,9 +138,7 @@ export async function updateAsset(
     if (!existing) return fail("Asset not found", undefined, 404)
 
     const nextExpiry = new Date(input.expiresAt)
-    // Moving the date forward (i.e. it was renewed) resets the reminder ladder,
-    // so next year's 60-day warning fires instead of being suppressed by last
-    // year's "already alerted at stage 0".
+    // Moving the date forward (renewed) resets the reminder ladder for the next cycle.
     const renewed = nextExpiry.getTime() > existing.expiresAt.getTime()
 
     const asset = await db.projectAsset.update({
@@ -207,8 +192,6 @@ export async function deleteAsset(
     return ok(serialize({ data: { id: assetId } }))
   })
 }
-
-// ─── Uptime monitors ────────────────────────────────────────────────────────
 
 export async function createMonitor(
   projectId: string,
@@ -313,8 +296,7 @@ export async function ackIncident(
   session: Session,
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
-    // The incident must belong to a monitor on THIS project - an id from another
-    // project must not be acknowledgeable from here.
+    // The incident must belong to a monitor on this project.
     const incident = await db.uptimeIncident.findFirst({
       where: { id: incidentId, monitor: { projectId } },
       select: { id: true },

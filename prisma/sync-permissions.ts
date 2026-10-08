@@ -1,27 +1,10 @@
 /**
- * Idempotent permission sync - NON-DESTRUCTIVE.
- *
- * Applies the PERMISSION_DEFINITIONS catalogue to an existing database WITHOUT
- * the destructive full reseed (which wipes role_permissions and recreates roles).
- * Run it after adding a scope to PERMISSION_DEFINITIONS:
- *
- *   pnpm db:permissions
- *
- * NOT a bare `npx tsx prisma/sync-permissions.ts`, which is what this comment
- * used to say and which cannot work: the @/server/db import below chains
- * through server/tenant-guard.ts, whose `import "server-only"` throws unless
- * the `react-server` export condition is enabled. The pnpm script sets it.
- *
- * What it does, all upserts (safe to run repeatedly):
- *   1. Ensure every catalogue scope exists as a Permission row.
- *   2. Ensure the `admin` role holds EVERY permission (admin = full access).
- *   3. Ensure `hr_manager` holds the company-noticeboard scopes it should have.
- *
- * It never deletes anything, so existing custom role grants are untouched.
+ * Non-destructive permission sync: run `pnpm db:permissions` after adding a scope to PERMISSION_DEFINITIONS.
+ * Upserts every catalogue scope, gives `admin` every permission and adds ROLE_GRANTS. Never deletes anything.
+ * Use the pnpm script: @/server/db needs the react-server export condition.
  */
 import "dotenv/config"
-// Reuse the app's configured client: Prisma 7 requires the driver adapter
-// (PrismaPg) that server/db.ts sets up - a bare `new PrismaClient()` throws.
+// The app's client: Prisma 7 needs the driver adapter that server/db.ts sets up.
 import { db as prisma } from "@/server/db"
 import { PERMISSION_DEFINITIONS } from "@/lib/constants"
 import { forEachTenant } from "@/server/tenant-jobs"
@@ -31,16 +14,13 @@ const ROLE_GRANTS: Record<string, string[]> = {
   hr_manager: [
     "announcement:write",
     "gallery:write",
-    // HR checklists. hr_manager runs both, including the exit sign-off that
-    // issues relieving and deactivates the account.
+    // hr_manager runs both checklists, including the exit sign-off that issues relieving and deactivates the account.
     "onboarding:read",
     "onboarding:write",
     "exit:read",
     "exit:write",
   ],
-  // Self-service payslips: the route self-scopes non payroll:write callers to
-  // their own records, so this exposes only the HR employee's own pay.
-  // Checklists are read-only here - running an exit stays with hr_manager.
+  // payroll:read self-scopes to the caller's own records; running an exit stays with hr_manager.
   hr_employee: ["payroll:read", "onboarding:read", "exit:read"],
 }
 
@@ -61,9 +41,7 @@ async function main() {
   const allPerms = await prisma.permission.findMany({ select: { id: true, scope: true } })
   console.log(`Catalogue synced: ${allPerms.length} permissions present.`)
 
-  // Steps 2 and 3 run ONCE PER TENANT. Permissions are platform-level, but roles
-  // and role_permissions belong to a company, so a catalogue change has to reach
-  // every company's copy of them - not just whichever one happened to be first.
+  // Steps 2 and 3 run once per tenant: roles and role_permissions belong to a company.
   const summary = await forEachTenant("sync-permissions", async (tenant) => {
     console.log(`\n-- ${tenant.slug} --`)
 
@@ -112,8 +90,7 @@ async function main() {
 }
 
 main()
-  // Explicit exit: the pg Pool behind the adapter keeps the event loop alive, so
-  // the script would otherwise hang after finishing.
+  // Explicit exit: the adapter's pg Pool would otherwise keep the process alive.
   .then(() => process.exit(0))
   .catch((e) => {
     console.error(e)

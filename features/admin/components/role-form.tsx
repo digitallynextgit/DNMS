@@ -1,23 +1,5 @@
 "use client"
 
-/**
- * RoleForm - create or edit a role.
- *
- * Features:
- *  - name (text slug, auto-normalised to lowercase_with_underscores)
- *  - displayName (human-readable label)
- *  - description (optional textarea)
- *  - Permission selection grouped by module, with a "select all" toggle per
- *    module group
- *  - On submit: POST /api/roles (create) or PATCH /api/roles/:id (edit)
- *  - Success toast + parent callback on completion
- *
- * Props:
- *   role - when provided, the form operates in "edit" mode
- *   onSuccess - called after a successful save
- *   onCancel - called when the user clicks "Cancel"
- */
-
 import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -40,9 +22,6 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 
-// ---------------------------------------------------------------------------
-// Zod schema
-// ---------------------------------------------------------------------------
 const roleFormSchema = z.object({
   name: z
     .string()
@@ -54,9 +33,6 @@ const roleFormSchema = z.object({
 
 type RoleFormValues = z.infer<typeof roleFormSchema>
 
-// ---------------------------------------------------------------------------
-// Permission types (mirror Prisma Permission model)
-// ---------------------------------------------------------------------------
 interface Permission {
   id: string
   scope: string
@@ -70,9 +46,6 @@ interface PermissionGroup {
   permissions: Permission[]
 }
 
-// ---------------------------------------------------------------------------
-// Existing-role shape (what the parent passes in when editing)
-// ---------------------------------------------------------------------------
 interface RoleInput {
   id: string
   name: string
@@ -82,29 +55,20 @@ interface RoleInput {
   rolePermissions?: { permission: Permission }[]
 }
 
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
 interface RoleFormProps {
   role?: RoleInput
   onSuccess: () => void
   onCancel: () => void
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
   const isEditing = !!role
 
-  // Permission groups fetched from the API
   const [permissionGroups, setPermissionGroups] = useState<PermissionGroup[]>([])
   const [loadingPermissions, setLoadingPermissions] = useState(true)
 
-  // Currently selected permission ids
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  // Form
   const form = useForm<RoleFormValues>({
     resolver: zodResolver(roleFormSchema),
     defaultValues: {
@@ -116,17 +80,12 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
 
   const { isSubmitting } = form.formState
 
-  // ---------------------------------------------------------------------------
-  // Load permissions from API + pre-select existing ones when editing
-  // ---------------------------------------------------------------------------
   useEffect(() => {
     async function loadPermissions() {
       setLoadingPermissions(true)
       try {
-        // Fetch all available permissions
         const [permsRes, roleRes] = await Promise.all([
           fetch("/api/permissions"),
-          // If editing, also fetch the full role detail to get its permissions
           role?.id ? fetch(`/api/roles/${role.id}`) : Promise.resolve(null),
         ])
 
@@ -134,7 +93,6 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
         const permsJson = await permsRes.json()
         setPermissionGroups(permsJson.data)
 
-        // Pre-select from the fetched role detail
         if (roleRes && roleRes.ok) {
           const roleJson = await roleRes.json()
           const existingIds: string[] = (roleJson.data?.rolePermissions ?? []).map(
@@ -142,7 +100,6 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
           )
           setSelectedIds(new Set(existingIds))
         } else if (role?.rolePermissions) {
-          // Fallback: use what the parent passed in
           setSelectedIds(new Set(role.rolePermissions.map((rp) => rp.permission.id)))
         }
       } catch {
@@ -154,9 +111,6 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
     loadPermissions()
   }, [role?.id])
 
-  // ---------------------------------------------------------------------------
-  // Toggle helpers
-  // ---------------------------------------------------------------------------
   function togglePermission(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev)
@@ -187,9 +141,6 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
     })
   }
 
-  // ---------------------------------------------------------------------------
-  // Auto-normalise the name slug as the user types
-  // ---------------------------------------------------------------------------
   function handleNameInput(e: React.ChangeEvent<HTMLInputElement>) {
     const normalized = e.target.value
       .toLowerCase()
@@ -198,9 +149,6 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
     form.setValue("name", normalized, { shouldValidate: true })
   }
 
-  // ---------------------------------------------------------------------------
-  // Submit
-  // ---------------------------------------------------------------------------
   async function onSubmit(values: RoleFormValues) {
     const payload = {
       name: values.name,
@@ -233,13 +181,9 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {/* Name slug */}
         <FormField
           control={form.control}
           name="name"
@@ -267,7 +211,6 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
           )}
         />
 
-        {/* Display name */}
         <FormField
           control={form.control}
           name="displayName"
@@ -287,7 +230,6 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
           )}
         />
 
-        {/* Description */}
         <FormField
           control={form.control}
           name="description"
@@ -310,10 +252,7 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
 
         <Separator />
 
-        {/* Permissions */}
         <div className="space-y-4">
-          {/* Wraps on a phone: the "select all" control next to the heading
-              overflows a 390px sheet otherwise. */}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-foreground text-sm font-medium">Permissions</p>
@@ -362,7 +301,6 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
 
                 return (
                   <div key={group.module} className="space-y-2">
-                    {/* Module header with "select all" checkbox */}
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id={`module-${group.module}`}
@@ -380,7 +318,6 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
                       </label>
                     </div>
 
-                    {/* Individual permissions */}
                     <div className="ml-6 space-y-1.5">
                       {group.permissions.map((permission) => (
                         <div key={permission.id} className="flex items-start gap-2">
@@ -416,8 +353,6 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
 
         <Separator />
 
-        {/* Footer buttons - full width and stacked on a phone so both stay
-            comfortably tappable at the bottom of a narrow sheet. */}
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end [&>button]:w-full sm:[&>button]:w-auto">
           <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Cancel

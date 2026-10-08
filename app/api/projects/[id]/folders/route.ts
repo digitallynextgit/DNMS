@@ -6,16 +6,14 @@ import { createFolder, listProjectFolders } from "@/features/projects/server/fol
 import { folderCreateSchema } from "@/features/projects/schemas/files.schema"
 import { createAuditLog } from "@/lib/audit"
 
-// GET /api/projects/[id]/folders - every folder in the project (flat; the
-// client builds the tree). Used by "Move to..." pickers.
+// Flat list; the client builds the tree.
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     return NextResponse.json({ data: await listProjectFolders(ctx.params.id) })
   },
 )
 
-// POST /api/projects/[id]/folders  body { name, parentId? }
-// Any project member may make a folder - the same people who may upload into it.
+// Any member may create a folder - the same people who may upload into it.
 export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const input = folderCreateSchema.parse(await req.json().catch(() => ({})))

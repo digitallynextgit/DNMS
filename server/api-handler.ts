@@ -1,15 +1,3 @@
-// =============================================================================
-// API route infrastructure (CLAUDE.md §3/§4)
-// =============================================================================
-// - withErrorHandler: wraps a plain route handler; maps ZodError / AppError /
-//   unknown errors to the standard `fail()` response.
-// - withAuth / withSession: authenticate (and authorize) first, then run the
-//   handler inside the same error funnel. Handlers may `throw` AppError
-//   subclasses (or return `ok()/fail()`); per-handler try/catch is no longer
-//   needed.
-// Pure, client-safe session predicates live in @/lib/permissions.
-// =============================================================================
-
 import "server-only"
 import { NextRequest, NextResponse } from "next/server"
 import { ZodError } from "zod"
@@ -23,23 +11,11 @@ import { fail, ok } from "@/lib/api-response"
 import type { ActionResult } from "@/server/action-result"
 
 /**
- * The session, AND the point where the tenant context is established (M4).
- *
- * Every API route wrapper below calls this, and so does `requireSession()` in
- * server/action-guard.ts, which every server action goes through - so one line
- * here covers both families. `enterTenant` rather than `runWithTenant` because
- * this function returns a session and the caller carries on; there is no
- * continuation to wrap.
- *
- * From this point on `db` only sees the caller's own company. Server components
- * do not come through here - they use `tenantScopedSession()` in
- * server/tenant-request.ts, which does the same thing.
+ * The session, AND where the tenant context is entered for every API route and server action.
+ * Server components use tenantScopedSession() (server/tenant-request.ts) instead.
  */
 export async function getSession(): Promise<Session | null> {
-  // An AI app acting for a verified person (MCP connector). The token was
-  // checked and the tenant entered by features/mcp/server/principal.ts before
-  // anything ran, so return that person's session as-is. See
-  // server/delegated-session.ts.
+  // An AI app acting for a verified person (MCP); its tenant is already entered.
   const delegated = delegatedSession()
   if (delegated) return delegated
 
@@ -50,21 +26,14 @@ export async function getSession(): Promise<Session | null> {
   return session
 }
 
-/**
- * Staff-only gate. External client-portal accounts hold a valid session but no
- * roles and no permission scopes, so `withAuth` already fails for them - this
- * makes it explicit and also covers `withSession`, which asks for no scope at
- * all and would otherwise let a client reach every "any signed-in user" API.
- * Client sessions belong on /api/portal/*, which uses withClientSession.
- */
+/** Also covers withSession, which would otherwise let a client reach every "signed-in" API. */
 function assertStaff(session: Session): void {
   if (session.user.kind === "client") {
     throw new ForbiddenError("This endpoint is not available to client accounts")
   }
 }
 
-// Next 16 passes `params` as a Promise; resolve it once so handlers keep
-// destructuring `ctx.params` synchronously.
+// Next 16 passes `params` as a Promise; resolved once so handlers read ctx.params directly.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type NextRouteContext = { params: Promise<any> | any }
 
@@ -74,11 +43,7 @@ async function resolveParams(context: NextRouteContext): Promise<any> {
   return raw && typeof (raw as Promise<unknown>).then === "function" ? await raw : (raw ?? {})
 }
 
-/**
- * The first zod issue as a sentence the UI can toast as-is - "Title is
- * required", "Email: Invalid email" - instead of a bare "Invalid input" with
- * the reason buried in `details`.
- */
+/** The first zod issue as a toast-ready sentence: "Title is required", "Email: Invalid email". */
 function zodMessage(err: ZodError): string {
   const issue = err.issues[0]
   if (!issue) return "Invalid input"
@@ -117,11 +82,8 @@ const STATUS_CODE: Record<number, string> = {
 }
 
 /**
- * Map a server-only service ActionResult ({ ok, data } | { ok:false, error, … })
- * to the standard HTTP envelope, so thin route handlers can wrap service
- * functions directly:
+ * Map a service ActionResult to the standard envelope (failure status defaults to 400):
  *   export const GET = withSession(async () => respond(await listThings()))
- * Success → ok(data); failure → fail() with the carried status (default 400).
  */
 export function respond<T>(result: ActionResult<T>, okStatus = 200): NextResponse {
   if (result.ok) return ok(result.data, { status: okStatus })
@@ -129,25 +91,15 @@ export function respond<T>(result: ActionResult<T>, okStatus = 200): NextRespons
   return fail(STATUS_CODE[status] ?? "ERROR", result.error, status, result.details)
 }
 
-// Standardize a handler's JSON response to the CLAUDE.md envelope:
-//   success → { success: true, data }   ({ data } is lifted; { data, pagination }
-//             becomes { items, pagination }; any other body is wrapped intact)
-//   error   → { success: false, error: { code, message, details } }
-// Non-JSON responses (file downloads, redirects) and already-standard bodies are
-// passed through untouched, so this is idempotent with ok()/fail().
+// Coerce a handler's JSON into the standard { success, ... } envelope. Non-JSON responses and
+// already-standard bodies pass through untouched.
 async function normalize(res: Response): Promise<Response> {
   const contentType = res.headers.get("content-type") ?? ""
   if (!contentType.includes("application/json")) return res
 
   const status = res.status
 
-  // Read the body ONCE.
-  //
-  // This was `await res.clone().json()`, which tees the stream and buffers the
-  // entire payload a SECOND time - on every response from all 283 routes,
-  // including the large list endpoints. Reading text once and parsing it costs
-  // one buffer, and the two pass-through branches below can then hand back the
-  // original string instead of re-serialising the parsed object graph.
+  // Read once as text (no clone), so pass-throughs can return the original string.
   const text = await res.text()
   const passThrough = () =>
     new NextResponse(text, { status, headers: res.headers, statusText: res.statusText })
@@ -171,10 +123,7 @@ async function normalize(res: Response): Promise<Response> {
     return fail(STATUS_CODE[status] ?? "ERROR", message, status, b.details)
   }
 
-  // Success: add the success flag while PRESERVING the handler's payload keys, so
-  // existing consumers (which read `result.data`, and a few that read other keys)
-  // keep working. A bare `{ data }` body becomes the strict { success, data }
-  // envelope; arrays / primitives are wrapped under `data`.
+  // Keep the handler's own keys (some consumers read more than `data`); wrap arrays/primitives.
   if (Array.isArray(body) || body === null || typeof body !== "object") {
     return NextResponse.json({ success: true, data: body }, { status })
   }
@@ -183,10 +132,7 @@ async function normalize(res: Response): Promise<Response> {
 
 type AuthedHandler = (
   req: NextRequest,
-  // Next's per-route `params` shape varies by route, so it is genuinely unknown
-  // here - same reason as PlainHandler below, which already carried this
-  // comment. The disable sits on this line because AuthedHandler spans several
-  // and `eslint-disable-next-line` only reaches the one after it.
+  // `params` varies per route, so it is genuinely untyped here.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   context: { params: any },
   session: Session,
@@ -207,7 +153,6 @@ export function withErrorHandler(handler: PlainHandler) {
   }
 }
 
-/** Require an authenticated session AND the given permission(s). */
 export function withAuth(requiredPermission: string | string[], handler: AuthedHandler) {
   return async (req: NextRequest, context: NextRouteContext) => {
     try {
@@ -230,7 +175,6 @@ export function withAuth(requiredPermission: string | string[], handler: AuthedH
   }
 }
 
-/** Require an authenticated session (no specific permission). */
 export function withSession(handler: AuthedHandler) {
   return async (req: NextRequest, context: NextRouteContext) => {
     try {
@@ -245,11 +189,7 @@ export function withSession(handler: AuthedHandler) {
   }
 }
 
-/**
- * The mirror image: require a signed-in CLIENT. Staff sessions are rejected, so
- * a portal endpoint can never be driven with an employee's cookie and quietly
- * skip the per-project access check it exists to enforce.
- */
+/** Signed-in CLIENT only: staff are rejected so they can't skip the per-project access check. */
 export function withClientSession(handler: AuthedHandler) {
   return async (req: NextRequest, context: NextRouteContext) => {
     try {

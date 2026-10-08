@@ -7,20 +7,13 @@ interface AuditLogInput {
   module: string
   entityType?: string
   entityId?: string
-  // `object` (not Record<string, unknown>) so callers can pass loosely-typed
-  // change payloads / `as object` casts; it's stored as Prisma JSON regardless.
+  // `object` so loosely typed payloads can be passed; it's stored as JSON anyway.
   changes?: object
   ipAddress?: string | null
   userAgent?: string | null
 }
 
-/**
- * Write an audit log entry.
- *
- * Actions performed by a admin_ (the CEO role) are intentionally NOT
- * recorded - that account is invisible to the system. Pass the session of the
- * actor; if it carries the admin_ role the call returns silently.
- */
+/** admin_ (CEO) actions are never recorded - that account is invisible to the system. */
 export async function createAuditLog(session: Session | null, input: AuditLogInput): Promise<void> {
   if (session?.user?.roles?.includes(SYSTEM_ROLES.ADMIN_)) return
 
@@ -38,17 +31,13 @@ export async function createAuditLog(session: Session | null, input: AuditLogInp
   })
 }
 
-/** Returns true when the given session represents a admin_ account. */
 export function isAdmin_Session(session: Session | null): boolean {
   return !!session?.user?.roles?.includes(SYSTEM_ROLES.ADMIN_)
 }
 
 /**
- * The actor id to stamp onto a record's "who did this" field (approver,
- * reviewer, etc.). Returns null for a admin_ so that account is never named
- * on a record - the same invisibility policy as createAuditLog. The action still
- * happens (status + timestamps are set normally); only the identity is withheld,
- * so completion logic must key off timestamps/status, never the stamped id.
+ * Actor id for "who did this" fields. Null for admin_ (never named on a record), so completion
+ * logic must key off status/timestamps, never this id.
  */
 export function actorStampId(session: Session | null): string | null {
   return isAdmin_Session(session) ? null : (session?.user?.id ?? null)

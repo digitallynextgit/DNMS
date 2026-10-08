@@ -27,8 +27,7 @@ describe("parseMonth", () => {
   })
 
   it("reads a month that arrived as a timestamp", () => {
-    // JSON.stringify turns a Date into this, and a payload that took that route
-    // must not read as undated.
+    // JSON.stringify turns a Date into this; it must not read as undated.
     expect(parseMonth("2026-09-01T00:00:00.000Z")).toEqual({ year: 2026, month0: 8 })
   })
 
@@ -40,9 +39,7 @@ describe("parseMonth", () => {
   })
 
   it("does not shift the month by timezone", () => {
-    // The bug this file exists to avoid: new Date("2026-09-01").getMonth() is
-    // August anywhere west of Greenwich, because the string parses as UTC
-    // midnight and getMonth() reads local time.
+    // new Date("2026-09-01").getMonth() is August west of Greenwich (parsed as UTC, read locally).
     expect(parseMonth("2026-01-01")).toEqual({ year: 2026, month0: 0 })
     expect(parseMonth("2026-12-01")).toEqual({ year: 2026, month0: 11 })
   })
@@ -134,9 +131,7 @@ describe("editionIndexForMonth", () => {
 })
 
 describe("stepEdition", () => {
-  // August and October exist; SEPTEMBER DOES NOT. The gap is the interesting
-  // case: stepping walks the months the calendar actually has, not the
-  // calendar year, so it must not stall on a month nobody ran.
+  // September is missing: stepping walks the months that exist, not the calendar year.
   const series = groupIntoSeries([
     ed("oct", "Performance", "2026-10-01"),
     ed("aug", "Performance", "2026-08-01"),
@@ -158,8 +153,7 @@ describe("stepEdition", () => {
   })
 
   it("never steps onto an undated edition", () => {
-    // June is the oldest DATED edition; the undated one is not part of any
-    // month order, so stepping back from it is the end of the road.
+    // June is the oldest dated edition; the undated one has no place in the month order.
     expect(stepEdition(series, { year: 2026, month0: 5 }, -1)).toBeNull()
   })
 
@@ -187,8 +181,7 @@ describe("dueTone", () => {
   })
 
   it("does not raise an alarm about a month that has already ended", () => {
-    // The whole reason dueTone takes the calendar's month: browsing back to
-    // June would otherwise paint every chip red forever.
+    // dueTone takes the calendar's month, else browsing back to June paints every chip red.
     expect(dueTone("2026-06-10", "2026-06-01", TODAY)).toBe("later")
   })
 

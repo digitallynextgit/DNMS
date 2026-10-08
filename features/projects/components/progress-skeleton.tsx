@@ -4,7 +4,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 export function ProgressSkeleton() {
   return (
     <div className="space-y-6">
-      {/* 1. Four KPI metric cards matching KpiRow */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Card key={i} className="transition-colors">
@@ -20,16 +19,13 @@ export function ProgressSkeleton() {
         ))}
       </div>
 
-      {/* 2. Middle row: Status Donut (2 cols) & By Project (3 cols) */}
       <div className="grid gap-6 lg:grid-cols-5">
-        {/* Where the work stands (Donut chart + Status rows) */}
         <Card className="lg:col-span-2">
           <CardHeader className="border-border/60 border-b pb-3">
             <Skeleton className="h-4 w-36" />
             <Skeleton className="mt-1 h-3 w-48" />
           </CardHeader>
           <CardContent className="pt-4">
-            {/* Donut ring simulation */}
             <div className="relative flex h-[210px] items-center justify-center">
               <div className="border-muted/50 relative flex h-36 w-36 items-center justify-center rounded-full border-[14px]">
                 <div className="flex flex-col items-center justify-center space-y-1">
@@ -40,7 +36,6 @@ export function ProgressSkeleton() {
               </div>
             </div>
 
-            {/* Status breakdown rows */}
             <div className="mt-3 space-y-1.5">
               {Array.from({ length: 5 }).map((_, i) => (
                 <div
@@ -60,14 +55,12 @@ export function ProgressSkeleton() {
           </CardContent>
         </Card>
 
-        {/* By project table */}
         <Card className="lg:col-span-3">
           <CardHeader className="border-border/60 border-b pb-3">
             <Skeleton className="h-4 w-24" />
           </CardHeader>
           <CardContent className="pt-4">
             <div className="w-full">
-              {/* Table header */}
               <div className="border-border/60 grid grid-cols-7 gap-2 border-b pb-3">
                 <Skeleton className="col-span-2 h-3 w-16" />
                 <Skeleton className="h-3 w-12 justify-self-center" />
@@ -76,7 +69,6 @@ export function ProgressSkeleton() {
                 <Skeleton className="h-3 w-12 justify-self-center" />
                 <Skeleton className="h-3 w-16 justify-self-end" />
               </div>
-              {/* Table rows */}
               <div className="divide-border/60 divide-y">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="grid grid-cols-7 items-center gap-2 py-3">
@@ -100,14 +92,12 @@ export function ProgressSkeleton() {
         </Card>
       </div>
 
-      {/* 3. By team member table */}
       <Card>
         <CardHeader className="border-border/60 border-b pb-3">
           <Skeleton className="h-4 w-32" />
         </CardHeader>
         <CardContent className="pt-4">
           <div className="w-full">
-            {/* Table header */}
             <div className="border-border/60 grid grid-cols-7 gap-2 border-b pb-3">
               <Skeleton className="col-span-2 h-3 w-16" />
               <Skeleton className="h-3 w-12 justify-self-center" />
@@ -116,7 +106,6 @@ export function ProgressSkeleton() {
               <Skeleton className="h-3 w-12 justify-self-center" />
               <Skeleton className="h-3 w-16 justify-self-end" />
             </div>
-            {/* Table rows */}
             <div className="divide-border/60 divide-y">
               {Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="grid grid-cols-7 items-center gap-2 py-3">

@@ -4,20 +4,8 @@ import { withProjectAccess, withProjectManager } from "@/features/projects/serve
 import { getSignedUrl } from "@/lib/storage"
 import type { Session } from "next-auth"
 
-// GET - the project's brand/strategy workspace (brief, overview, objectives,
-// manifestation, guidelines) + uploaded assets with signed download URLs.
-//
-// withProjectAccess, NOT withAuth. Two things were wrong with withAuth here and
-// they compounded:
-//
-//   1. Project URLs are SLUGS (/projects/happy-ganga). withProjectAccess and
-//      withProjectManager resolve `ctx.params.id` to the real uuid; withAuth
-//      does not. So the write routes stored assets against the uuid while THIS
-//      route queried for the slug - every upload saved correctly and then came
-//      back empty, along with the brief and every other saved section.
-//   2. It demanded the global `project:read`, so a team member on the project
-//      could open every other tab and not this one. Every other project read
-//      uses withProjectAccess, which is membership-based.
+// withProjectAccess, not withAuth: it resolves the slug to the uuid assets are stored under, and it
+// is membership-based like every other project read.
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
     try {
@@ -29,8 +17,7 @@ export const GET = withProjectAccess(
       const withUrls = await Promise.all(
         assets.map(async (a) => {
           const [url, downloadUrl] = await Promise.all([
-            // `url` opens inline (View); `downloadUrl` carries a content-disposition
-            // header so the browser saves it under its real name (Download).
+            // `url` opens inline; `downloadUrl` saves under the real name.
             getSignedUrl(a.objectKey, 3600).catch(() => ""),
             getSignedUrl(a.objectKey, 3600, { downloadFileName: a.fileName }).catch(() => ""),
           ])
@@ -63,7 +50,6 @@ export const GET = withProjectAccess(
   },
 )
 
-// PUT - upsert the brand text/JSON sections (assets are handled separately).
 export const PUT = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
@@ -71,9 +57,7 @@ export const PUT = withProjectManager(
       const body = await req.json().catch(() => null)
       if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
 
-      // PARTIAL update: only the sections actually sent are touched, so each
-      // section of the Brand tab can be saved on its own without clobbering the
-      // others.
+      // Partial update: only the sections sent are touched.
       const data: Record<string, unknown> = {}
       if ("brief" in body) data.brief = typeof body.brief === "string" ? body.brief : null
       if ("overview" in body)

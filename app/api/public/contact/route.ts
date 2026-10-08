@@ -7,16 +7,8 @@ import { db } from "@/server/db"
 import { sendEmail } from "@/lib/mailer"
 import { rateLimited, clientIp } from "@/lib/rate-limit"
 
-// POST /api/public/contact
-//
-// DELIBERATELY UNAUTHENTICATED. It is the contact form on a public marketing
-// page - the whole point is that the sender has no account. It lives under
-// /api/public, which proxy.ts treats as session-exempt.
-//
-// The enquiry is STORED FIRST (contact_enquiries), then the notification email
-// is attempted - so an SMTP outage no longer loses a customer's message; it
-// just marks the row emailSent=false. Abuse is bounded by the honeypot, the
-// per-IP rate limit and hard length caps on every input.
+// Deliberately unauthenticated (public contact form). The enquiry is stored before the email is tried,
+// so an SMTP outage never loses a message. Abuse is bounded by the honeypot, rate limit and length caps.
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
@@ -32,11 +24,7 @@ const schema = z.object({
     .trim()
     .min(10, "Please add a little more detail.")
     .max(4000, "Please keep it under 4000 characters."),
-  /**
-   * Honeypot. Real people never see it, so anything here is a bot. It must
-   * PASS validation when filled (max(0) used to 422 first, which told the bot
-   * it was caught before the pretend-success branch below could run).
-   */
+  /** Honeypot: only bots fill it. It must pass validation so the bot reaches the pretend-success branch. */
   company_website: z.string().max(500).optional().or(z.literal("")),
 })
 
@@ -48,7 +36,6 @@ const SUBJECT_FOR: Record<(typeof TOPICS)[number], string> = {
   other: "Website enquiry",
 }
 
-/** Route the message to the inbox that owns it. */
 const INBOX_FOR: Record<(typeof TOPICS)[number], string> = {
   sales: siteConfig.emails.sales,
   demo: siteConfig.emails.sales,
@@ -57,10 +44,6 @@ const INBOX_FOR: Record<(typeof TOPICS)[number], string> = {
   other: siteConfig.emails.sales,
 }
 
-// Per-IP rate limit: 5 messages an hour, through the shared limiter in
-// lib/rate-limit.ts (which also reads the IP from the trusted end of the
-// proxy headers - the local copy this replaced trusted the client-controlled
-// first X-Forwarded-For hop).
 const WINDOW_MS = 60 * 60_000
 const MAX_PER_WINDOW = 5
 
@@ -82,8 +65,7 @@ export async function POST(req: NextRequest) {
     }
     const { name, email, company, topic, message, company_website } = parsed.data
 
-    // Honeypot tripped. Answer exactly as we would on success: telling a bot it
-    // was detected only teaches whoever wrote it to fix the bot.
+    // Honeypot tripped: answer exactly as on success, so the bot learns nothing.
     if (company_website) return ok({ sent: true })
 
     if (rateLimited(`contact:${clientIp(req)}`, MAX_PER_WINDOW, WINDOW_MS)) {
@@ -122,23 +104,18 @@ export async function POST(req: NextRequest) {
         subject,
         html,
         text: `${SUBJECT_FOR[topic]}\n\nName: ${name}\nEmail: ${email}\n${company ? `Company: ${company}\n` : ""}Topic: ${topic}\n\n${message}`,
-        // So hitting Reply in the inbox answers the person, not our own mailbox.
-        // The name is stripped of CR/LF and address punctuation: it is user
-        // input landing in an email HEADER, where a raw value could smuggle
-        // extra headers or a second address.
+        // Replies go to the sender. CR/LF and address punctuation are stripped - this lands in an email header.
         replyTo: `${name.replace(/[\r\n<>"]/g, " ").trim()} <${email}>`,
       })
       await db.contactEnquiry.update({ where: { id: enquiry.id }, data: { emailSent: true } })
     } catch (error) {
-      // The enquiry IS saved - a notification failure is ours to notice (the
-      // emailSent=false rows), not the sender's problem.
+      // The enquiry is saved; a failed notification shows up as emailSent=false.
       console.error("[CONTACT] stored enquiry but the notification email failed:", error)
     }
 
     return ok({ sent: true })
   } catch (error) {
-    // A public endpoint: an escaped throw here is a repeating fault visible to
-    // anyone. Funnel it into a 500 and keep the detail in the logs.
+    // A public endpoint: funnel any throw into a 500 and keep the detail in the logs.
     console.error("[CONTACT]", error)
     return fail("INTERNAL_ERROR", "We could not send your message. Please email us directly.", 500)
   }

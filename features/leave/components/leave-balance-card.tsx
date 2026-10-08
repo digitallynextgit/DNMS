@@ -10,8 +10,7 @@ interface LeaveBalanceCardProps {
 
 export function LeaveBalanceCard({ balance }: LeaveBalanceCardProps) {
   const { leaveType } = balance
-  // Coerce every numeric field - a stale client / older balance row may omit
-  // `accrued`, which would otherwise turn the arithmetic into NaN.
+  // Coerce numbers - an older balance row may omit `accrued` (NaN otherwise).
   const allocated = Number(balance.allocated) || 0
   const accrued = Number(balance.accrued) || 0
   const carried = Number(balance.carried) || 0
@@ -23,7 +22,6 @@ export function LeaveBalanceCard({ balance }: LeaveBalanceCardProps) {
   const usedPercent = total > 0 ? Math.min(100, ((used + pending) / total) * 100) : 0
   const availablePercent = total > 0 ? (available / total) * 100 : 100
 
-  // Theme-aware status accent (only used for the bar + small indicator dot)
   const accent =
     availablePercent > 50
       ? { bar: "bg-emerald-500", dot: "bg-emerald-500" }
@@ -34,7 +32,6 @@ export function LeaveBalanceCard({ balance }: LeaveBalanceCardProps) {
   return (
     <Card className="relative overflow-hidden">
       <CardContent className="space-y-3 p-4">
-        {/* Header row */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
@@ -55,7 +52,6 @@ export function LeaveBalanceCard({ balance }: LeaveBalanceCardProps) {
           </span>
         </div>
 
-        {/* Hero number */}
         <div className="flex items-baseline gap-1.5">
           <span className="text-foreground text-2xl font-bold tabular-nums">{available}</span>
           <span className="text-muted-foreground text-xs">
@@ -63,7 +59,6 @@ export function LeaveBalanceCard({ balance }: LeaveBalanceCardProps) {
           </span>
         </div>
 
-        {/* Progress bar */}
         <div className="bg-muted h-1 w-full overflow-hidden rounded-sm">
           <div
             className={cn("h-full transition-all", accent.bar)}
@@ -71,14 +66,12 @@ export function LeaveBalanceCard({ balance }: LeaveBalanceCardProps) {
           />
         </div>
 
-        {/* Accrual progress toward the annual entitlement */}
         {leaveType.accrualMethod !== "UPFRONT" && allocated > 0 && (
           <p className="text-muted-foreground text-[10px]">
             Accrued {accrued} of {allocated} {allocated === 1 ? "day" : "days"} this year
           </p>
         )}
 
-        {/* Breakdown row */}
         <div className="flex items-center justify-between pt-1 text-[11px]">
           <BreakdownItem label="Used" value={used} />
           <BreakdownItem label="Pending" value={pending} amber={pending > 0} />

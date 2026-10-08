@@ -3,28 +3,16 @@ import { toast } from "sonner"
 
 interface MutationWithToastOptions<TData, TVars> {
   mutationFn: (vars: TVars) => Promise<TData>
-  /** Query keys to invalidate on success. */
   invalidate?: QueryKey[]
-  /** Success toast - a fixed string, or a fn of (data, vars) for dynamic text. Omit for no toast. */
+  /** A string or (data, vars) => string. Omit for no toast. */
   success?: string | ((data: TData, vars: TVars) => string)
-  /** Extra side-effects after invalidation + toast. */
+  /** Runs after invalidation and the toast. */
   onSuccess?: (data: TData, vars: TVars) => void | Promise<unknown>
-  /** Override the default error toast (`e.message`). Return false to suppress it. */
+  /** Return false to suppress the default error toast. */
   onError?: (error: Error, vars: TVars) => void | false
 }
 
-/**
- * Build the `useMutation` options for the app's standard mutation shape:
- * run `mutationFn`, then on success invalidate query keys + show a success
- * toast; on error show `error.message`. Call inside a hook that already has a
- * `QueryClient` (`const qc = useQueryClient()`), e.g.
- *
- *   useMutation(mutationWithToast(qc, {
- *     mutationFn: (id) => unwrap(await deleteThing(id)),
- *     invalidate: [["things"]],
- *     success: "Deleted",
- *   }))
- */
+/** Standard mutation: invalidate + success toast on success, `error.message` toast on error. */
 export function mutationWithToast<TData = unknown, TVars = void>(
   qc: QueryClient,
   opts: MutationWithToastOptions<TData, TVars>,

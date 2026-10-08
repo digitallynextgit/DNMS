@@ -25,12 +25,7 @@ interface ConsentCardProps {
   workspace: string
 }
 
-/**
- * "Claude wants to access DNMS as you" - the one screen between an AI app and
- * a person's DNMS data. Shows the app, WHERE the code will be sent (the spec
- * requires the redirect host to be visible), who they are connecting as, and
- * exactly what the app will be able to do.
- */
+/** The consent screen for an AI app. Shows the redirect host, as the spec requires. */
 export function ConsentCard({ request, personName, personEmail, workspace }: ConsentCardProps) {
   const [busy, setBusy] = useState<"allow" | "deny" | null>(null)
   const name = request.verifiedAs ?? request.clientName

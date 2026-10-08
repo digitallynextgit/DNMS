@@ -12,9 +12,7 @@ import {
   type EvalSection,
 } from "../evaluation"
 
-// Snapshot both sides' weighted criteria for an employee, sourced from their
-// PerfKpi profile. Any side with no configured items falls back to the sheet
-// defaults, so an evaluation always has something to fill.
+// Snapshot both sides' weighted criteria; a side with no PerfKpi items falls back to the sheet defaults.
 export async function buildEvaluationCriteria(employeeId: string): Promise<{
   selfCriteria: EvalCriterion[]
   managerCriteria: EvalCriterion[]
@@ -52,8 +50,6 @@ export async function buildEvaluationCriteria(employeeId: string): Promise<{
   return { selfCriteria: forSide("SELF"), managerCriteria: forSide("MANAGER") }
 }
 
-// Delete many evaluations at once (HR) - the list's selection bar, in one
-// request instead of N DELETEs.
 export async function bulkDeleteEvaluations(
   ids: string[],
 ): Promise<ActionResult<{ deleted: number }>> {

@@ -6,20 +6,11 @@ import { createPoll, createEvent, createContact } from "@/server/message-cards"
 
 export const runtime = "nodejs"
 
-/**
- * POST /api/chat/conversations/:id/cards
- *
- * Polls, events and shared contacts. One request creates the message and the
- * card together, the same way attachments work here - a card with no message to
- * hang from would not appear in the thread at all.
- *
- * Body: { kind: "poll" | "event" | "contact", ...payload }
- */
+// Creates the message and the card together; a card without a message wouldn't show in the thread.
 export const POST = withSession(async (req: NextRequest, ctx, session) => {
   const conversationId = ctx.params.conversationId
   const me = session.user.id
 
-  // Membership proven from the database, never from the id in the URL.
   const member = await db.conversationParticipant.findUnique({
     where: { conversationId_employeeId: { conversationId, employeeId: me } },
     select: { conversationId: true },
@@ -29,8 +20,7 @@ export const POST = withSession(async (req: NextRequest, ctx, session) => {
   const body = await req.json()
   const kind = String(body?.kind ?? "")
 
-  // The body doubles as the conversation-list preview, so it says what arrived
-  // rather than leaving a blank line where a message should be.
+  // The body doubles as the conversation-list preview.
   const preview =
     kind === "poll"
       ? `Poll: ${String(body.question ?? "").slice(0, 80)}`
@@ -83,8 +73,7 @@ export const POST = withSession(async (req: NextRequest, ctx, session) => {
       if (!created) throw new Error("That person no longer exists")
     }
   } catch (err) {
-    // The card is the point of the message; without it the thread would show an
-    // empty bubble nobody can act on. Take the message back out.
+    // A message without its card is an empty bubble, so remove it.
     await db.chatMessage.delete({ where: { id: message.id } }).catch(() => {})
     const reason = err instanceof Error ? err.message : "Could not create that"
     return NextResponse.json({ error: reason }, { status: 400 })

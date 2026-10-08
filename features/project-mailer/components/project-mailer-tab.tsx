@@ -1,16 +1,8 @@
 "use client"
 
 /**
- * Project → Mailer tab.
- *
- * Per-project outbound email: the client's OWN SMTP account, their templates,
- * their recipient list, and bulk campaigns. Sending from the client's domain
- * rather than ours is the point - a client newsletter from
- * noreply@digitallynext.com reads as spam to their subscribers and burns our
- * sending reputation when it bounces.
- *
- * Sending is queued server-side, so "Send" returns instantly and the campaign
- * row shows live progress.
+ * Project -> Mailer tab: the client's own SMTP accounts, templates, recipients and campaigns.
+ * Sending from the client's domain keeps our sending reputation out of it. Sends are queued.
  */
 
 import * as React from "react"
@@ -69,8 +61,6 @@ import { RecipientImportDialog } from "./recipient-import-dialog"
 import { CampaignHistoryDialog } from "./campaign-history-dialog"
 import { buildVars, extractVars } from "../lib/merge"
 import { estimateCampaign, formatDuration, TICK_SECONDS } from "../lib/eta"
-
-// ─── Types ──────────────────────────────────────────────────────────────────
 
 interface MailerSettings {
   id: string
@@ -147,8 +137,6 @@ const STATUS_TONE: Record<Campaign["status"], string> = {
   CANCELLED: "bg-muted text-muted-foreground",
 }
 
-// ─── Root ───────────────────────────────────────────────────────────────────
-
 export function ProjectMailerTab({
   projectRef,
   canManage,
@@ -162,22 +150,16 @@ export function ProjectMailerTab({
     queryKey: ["project-mailer", projectRef],
     queryFn: async () => (await apiFetch<{ data: { data: MailerOverview } }>(base)).data.data,
     enabled: canManage,
-    // Campaigns drain on a 30s server tick. Poll fast only while something is
-    // actually in flight - a 5s poll on a settled list is pure load for nothing.
+    // Campaigns drain on a 30s server tick; poll fast only while one is in flight.
     refetchInterval: (q) =>
       (q.state.data?.campaigns ?? []).some((c) => c.status === "QUEUED" || c.status === "SENDING")
         ? 5_000
         : 60_000,
-    // React Query stops polling on a blurred tab by default, which is exactly how
-    // a campaign that finished in 60s could still read "QUEUED · 0 sent" minutes
-    // later: you queue it, switch away, and come back to a card frozen at the
-    // moment you left. Progress must keep arriving while you are elsewhere.
+    // Keep polling in a background tab, or a campaign card freezes at "QUEUED" until you return.
     refetchIntervalInBackground: true,
   })
 
-  // Every custom key present on the recipient list, so the editors can offer
-  // them - a template is NOT limited to these, they are just the ones we know
-  // will resolve. Above the early return: hooks must not be conditional.
+  // Custom keys on the recipient list, offered by the editors. Above the early return (hooks).
   const customVars = React.useMemo(() => {
     const keys = new Set<string>()
     for (const r of data?.recipients ?? []) {
@@ -189,9 +171,7 @@ export function ProjectMailerTab({
   }, [data?.recipients])
 
   /**
-   * Uploads an image and returns the PUBLIC url to embed. Defined here so the
-   * template editor and the campaign composer share one implementation - and
-   * above the early return, because hooks must not be conditional.
+   * Uploads an image and returns its public url. Shared by both editors; above the early return.
    */
   const uploadImage = React.useCallback(
     async (file: File): Promise<string> => {
@@ -206,13 +186,8 @@ export function ProjectMailerTab({
   )
 
   /**
-   * Reclaim an image's stored file after it is removed from a body. The asset id
-   * is the last segment of the public url we minted at upload time.
-   *
-   * Best-effort and non-blocking: the image is already out of the document, so a
-   * failure here costs a stranded file, not a broken email. A 409 means the file
-   * was deliberately kept because a sent campaign still points at it - worth
-   * saying out loud rather than swallowing.
+   * Reclaim an image's file after it's removed from a body (best-effort). A 409 means a sent
+   * campaign still uses it, so it was kept.
    */
   const deleteImage = React.useCallback(
     (src: string) => {
@@ -305,8 +280,6 @@ export function ProjectMailerTab({
   )
 }
 
-// ─── SMTP accounts ──────────────────────────────────────────────────────────
-
 function AccountsSection({
   base,
   mailers,
@@ -387,8 +360,6 @@ function AccountsSection({
                       Off
                     </Badge>
                   )}
-                  {/* Credentials are proven, known-broken, or untested - say which
-                      rather than just showing that the fields are filled in. */}
                   {m.lastVerifiedAt ? (
                     <Badge className="bg-emerald-500/10 text-[10px] text-emerald-600 dark:text-emerald-400">
                       <CheckCircle2 className="mr-1 h-3 w-3" />
@@ -461,7 +432,6 @@ function AccountsSection({
         onDone={onDone}
       />
 
-      {/* Test send */}
       <Dialog open={!!testing} onOpenChange={(o) => !o && setTesting(null)}>
         <DialogContent className="max-w-md lg:max-w-md">
           <DialogHeader>
@@ -541,22 +511,25 @@ function AccountDialog({
     isActive: true,
   })
 
-  React.useEffect(() => {
-    if (!open) return
-    setForm({
-      name: mailer?.name ?? "",
-      fromName: mailer?.fromName ?? "",
-      fromEmail: mailer?.fromEmail ?? "",
-      replyTo: mailer?.replyTo ?? "",
-      host: mailer?.host ?? "",
-      port: mailer?.port ?? 587,
-      secure: mailer?.secure ?? false,
-      username: mailer?.username ?? "",
-      // Never populated from the server - blank means "keep the stored one".
-      password: "",
-      isActive: mailer?.isActive ?? true,
-    })
-  }, [open, mailer])
+  const [seededFor, setSeededFor] = React.useState({ open: false, mailer })
+  if (open !== seededFor.open || mailer !== seededFor.mailer) {
+    setSeededFor({ open, mailer })
+    if (open) {
+      setForm({
+        name: mailer?.name ?? "",
+        fromName: mailer?.fromName ?? "",
+        fromEmail: mailer?.fromEmail ?? "",
+        replyTo: mailer?.replyTo ?? "",
+        host: mailer?.host ?? "",
+        port: mailer?.port ?? 587,
+        secure: mailer?.secure ?? false,
+        username: mailer?.username ?? "",
+        // Never populated from the server - blank means "keep the stored one".
+        password: "",
+        isActive: mailer?.isActive ?? true,
+      })
+    }
+  }
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }))
@@ -718,8 +691,6 @@ function AccountDialog({
   )
 }
 
-// ─── Templates ──────────────────────────────────────────────────────────────
-
 function TemplatesSection({
   base,
   templates,
@@ -872,16 +843,19 @@ function TemplateDialog({
     isActive: true,
   })
 
-  React.useEffect(() => {
-    if (!open) return
-    setForm({
-      name: template?.name ?? "",
-      subject: template?.subject ?? "",
-      bodyHtml: template?.bodyHtml ?? "",
-      bodyMode: template?.bodyMode ?? "RICH",
-      isActive: template?.isActive ?? true,
-    })
-  }, [open, template])
+  const [seededFor, setSeededFor] = React.useState({ open: false, template })
+  if (open !== seededFor.open || template !== seededFor.template) {
+    setSeededFor({ open, template })
+    if (open) {
+      setForm({
+        name: template?.name ?? "",
+        subject: template?.subject ?? "",
+        bodyHtml: template?.bodyHtml ?? "",
+        bodyMode: template?.bodyMode ?? "RICH",
+        isActive: template?.isActive ?? true,
+      })
+    }
+  }
 
   const save = useMutation({
     mutationFn: () => {
@@ -958,24 +932,16 @@ function TemplateDialog({
   )
 }
 
-// ─── Recipients ─────────────────────────────────────────────────────────────
-
 /** Sentinel tag filters. Real tags are their own string. */
 const TAG_ALL = "__all__"
 const TAG_UNTAGGED = "__untagged__"
 
 /**
- * Rows rendered at once. The list can hold thousands, and a table that long is
- * both slow and unreadable - search and the tag chips are how you reach the rest.
- *
- * It also bounds a bulk delete: "select all" covers what is on screen, never the
- * whole list, so the count in the confirm dialog is always a number the person
- * can see. Kept under RECIPIENT_DELETE_LIMIT (500) in the schema so a full page
- * of selections is always within one request.
+ * Rows rendered at once; search and tag chips reach the rest. Also bounds "select all" to what's
+ * on screen, and stays under RECIPIENT_DELETE_LIMIT (500) so one request covers it.
  */
 const ROW_CAP = 200
 
-/** One segment in the tag strip: name plus how many people are in it. */
 function TagChip({
   label,
   count,
@@ -1036,13 +1002,10 @@ function RecipientsSection({
   const [search, setSearch] = React.useState("")
   const [tag, setTag] = React.useState<string>(TAG_ALL)
 
-  // Only the loaded page is here, so the table can filter but the CHIP COUNTS
-  // come from the server - see tagCounts.
+  // Only the loaded page is here; chip counts come from the server (tagCounts).
   const loadedAll = recipients.length >= recipientCount
 
-  // Lowercased so the import dialog can tell new addresses from existing ones
-  // before it writes anything. Only trustworthy when the whole list is loaded,
-  // which is why the dialog is told either way rather than guessing.
+  // Lowercased for the import dialog's new/existing check (reliable only with the whole list).
   const existingEmails = React.useMemo(
     () => new Set(recipients.map((r) => r.email.toLowerCase())),
     [recipients],
@@ -1082,20 +1045,14 @@ function RecipientsSection({
     })
   }, [recipients, search, tag])
 
-  // The rows actually on screen. Extracted from the render so selection and the
-  // table agree on exactly which rows "select all" covers - selecting rows the
-  // table is not showing is how a bulk delete removes something unexpected.
+  // The rows on screen - "select all" covers exactly these.
   const visible = React.useMemo(() => filtered.slice(0, ROW_CAP), [filtered])
   const visibleIds = React.useMemo(() => visible.map((r) => r.id), [visible])
   const selection = useRowSelection(visibleIds)
   const { clear: clearSelection, setSelected } = selection
 
-  // Narrowing the list must not keep a hidden row selected: the count in the bar
-  // would then include somebody the person can no longer see.
-  //
-  // Returning `prev` when nothing is selected matters - this runs on every
-  // keystroke in the search box, and handing back a fresh empty Set each time
-  // would re-render the whole table for no change.
+  // Narrowing the list clears the selection, so no hidden row stays selected. Returning `prev`
+  // when empty avoids re-rendering the table on every keystroke.
   React.useEffect(() => {
     setSelected((prev) => (prev.size === 0 ? prev : new Set()))
   }, [search, tag, setSelected])
@@ -1139,8 +1096,6 @@ function RecipientsSection({
         </div>
       </div>
 
-      {/* Segments, with their real sizes. Doubles as the answer to "who is in
-          this tag?" - the same tag names a campaign targets. */}
       {recipients.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <TagChip
@@ -1180,8 +1135,7 @@ function RecipientsSection({
         />
       )}
 
-      {/* A filter that matches nothing must say so - an empty table under an
-          active chip otherwise reads as "the import failed". */}
+      {/* A filter matching nothing must say so, or it reads as a failed import. */}
       {!isPending && recipients.length > 0 && filtered.length === 0 && (
         <p className="text-muted-foreground rounded-sm border border-dashed p-3 text-xs">
           Nobody matches {tag !== TAG_ALL && <>this segment</>}
@@ -1358,15 +1312,16 @@ function ImportDialog({
   const [raw, setRaw] = React.useState("")
   const [tags, setTags] = React.useState("")
 
-  React.useEffect(() => {
+  const [wasOpen, setWasOpen] = React.useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setRaw("")
       setTags("")
     }
-  }, [open])
+  }
 
-  // Parsed once here rather than again at submit, so the chips below and the
-  // request can never disagree about what was typed.
+  // Parsed once, so the chips and the request always agree.
   const selectedTags = React.useMemo(
     () =>
       tags
@@ -1439,10 +1394,7 @@ function ImportDialog({
                 aria-label="newsletter, vip"
                 className="h-9 text-sm"
               />
-              {/* The tags this project already uses. Typing one by hand risks a
-                  near-miss ("Customer" vs "Customers") that silently creates a
-                  second segment nobody notices until a campaign misses half its
-                  audience. */}
+              {/* Offer existing tags: a typo'd tag silently splits a segment. */}
               {unusedTags.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-muted-foreground text-[11px]">Existing:</span>
@@ -1474,34 +1426,24 @@ function ImportDialog({
   )
 }
 
-// ─── Campaigns ──────────────────────────────────────────────────────────────
-
-/**
- * A clock that only runs when something is waiting on it.
- *
- * The queue is polled every 5s, but a countdown that only moved every 5s reads
- * as frozen - which is the exact impression we are trying to fix. This ticks the
- * display each second between polls; the polls re-anchor it to server truth.
- */
+/** A 1s clock that runs only while active - smooths the countdown between 5s polls. */
 function useTicker(active: boolean, everyMs = 1000): number {
   const [now, setNow] = React.useState(() => Date.now())
   React.useEffect(() => {
     if (!active) return
-    setNow(Date.now())
-    const t = setInterval(() => setNow(Date.now()), everyMs)
-    return () => clearInterval(t)
+    const tick = () => setNow(Date.now())
+    // First tick straight away, so a stale `now` from before activation isn't shown for a second.
+    const first = setTimeout(tick, 0)
+    const t = setInterval(tick, everyMs)
+    return () => {
+      clearTimeout(first)
+      clearInterval(t)
+    }
   }, [active, everyMs])
   return now
 }
 
-/**
- * "How much longer?" for a campaign in flight.
- *
- * The estimate is anchored to `dataUpdatedAt` rather than recomputed from the
- * counts alone: between two polls the sent count is frozen, so a naive estimate
- * would sit motionless for five seconds at a time. Subtracting the time since
- * the fetch makes it fall smoothly and snap back to the truth on every poll.
- */
+/** Time left for a running campaign, anchored to `dataUpdatedAt` so it ticks between polls. */
 function CampaignTimer({
   campaign,
   now,
@@ -1517,8 +1459,7 @@ function CampaignTimer({
   const sinceFetch = Math.max(0, (now - (dataUpdatedAt || now)) / 1000)
   const left = Math.max(0, eta.seconds - sinceFetch)
 
-  // While QUEUED the scheduler could fire a second from now or thirty seconds
-  // from now, so we show the window instead of inventing a precise moment.
+  // While QUEUED the pickup time is unknown, so show the window, not a precise moment.
   const queued = campaign.status === "QUEUED"
   const untilPickup = queued
     ? Math.max(0, TICK_SECONDS - (now - new Date(campaign.createdAt).getTime()) / 1000)
@@ -1586,8 +1527,7 @@ function CampaignsSection({
     onError: (e: Error) => toast.error(e.message),
   })
 
-  // `purge=1` is what separates "remove this record" from "stop this send" - see
-  // the route. Same verb, different intent, stated rather than inferred.
+  // `purge=1` means "remove this record", not "stop this send" - see the route.
   const remove = useMutation({
     mutationFn: (c: Campaign) =>
       apiFetch(`${base}/campaigns/${c.id}?purge=1`, { method: "DELETE" }),
@@ -1612,7 +1552,6 @@ function CampaignsSection({
         </Button>
       </div>
 
-      {/* Say exactly what is missing rather than leaving the button dead. */}
       {!ready && !isPending && (
         <div className="text-muted-foreground rounded-sm border border-dashed p-3 text-xs">
           {(data?.mailers.length ?? 0) === 0
@@ -1642,9 +1581,6 @@ function CampaignsSection({
           return (
             <div key={c.id} className="bg-card rounded-sm border p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                {/* The whole block opens the per-recipient history: the card
-                    already shows the summary, so "who exactly got it" is the
-                    obvious next question to answer on click. */}
                 <button
                   type="button"
                   className="min-w-0 cursor-pointer text-left"
@@ -1660,8 +1596,6 @@ function CampaignsSection({
                     {c.sentCount} sent
                     {c.failedCount > 0 && ` · ${c.failedCount} failed`} of {c.totalCount}
                     {c.mailer && ` · via ${c.mailer.name}`}
-                    {/* One of the two, never both - the send came from a
-                        colleague or from the client's own portal account. */}
                     {c.createdBy
                       ? ` · ${c.createdBy.firstName} ${c.createdBy.lastName}`
                       : c.createdByClient
@@ -1680,8 +1614,7 @@ function CampaignsSection({
                     Cancel
                   </Button>
                 ) : (
-                  // Finished campaigns only. A test send is clutter; there was
-                  // previously no way to clear one without a database query.
+                  // Finished campaigns only.
                   <Button
                     variant="ghost"
                     size="icon"
@@ -1787,27 +1720,25 @@ function ComposeDialog({
     tags: [] as string[],
   })
 
-  React.useEffect(() => {
-    if (!open) return
-    // Pre-select when there is only one real choice; otherwise make them pick,
-    // because sending from the wrong domain is not a recoverable mistake.
-    setForm({
-      mailerId: activeMailers.length === 1 ? activeMailers[0]!.id : "",
-      name: "",
-      subject: "",
-      bodyHtml: "",
-      bodyMode: "RICH",
-      templateId: "",
-      tags: [],
-    })
-    // Deps are [open] ONLY. activeMailers is refetched every 5s, so including
-    // it re-ran this on every poll and wiped whatever was being typed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  // Reset on open only: activeMailers refetches every 5s and would wipe what's being typed.
+  const [wasOpen, setWasOpen] = React.useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      // Pre-select only when there's one choice - sending from the wrong domain can't be undone.
+      setForm({
+        mailerId: activeMailers.length === 1 ? activeMailers[0]!.id : "",
+        name: "",
+        subject: "",
+        bodyHtml: "",
+        bodyMode: "RICH",
+        templateId: "",
+        tags: [],
+      })
+    }
+  }
 
-  // Choosing a template copies its content in rather than referencing it: the
-  // campaign keeps what was actually sent, so editing the template later never
-  // rewrites history.
+  // Copies the template in, so editing the template later never rewrites a sent campaign.
   function applyTemplate(id: string) {
     const t = data?.templates.find((x) => x.id === id)
     setForm((f) => ({
@@ -1820,8 +1751,6 @@ function ComposeDialog({
     }))
   }
 
-  // Preview headers show the account actually selected, so the From line in the
-  // preview is the one that will be used.
   const selectedMailer = activeMailers.find((m) => m.id === form.mailerId)
 
   const audience = React.useMemo(() => {
@@ -1845,8 +1774,6 @@ function ComposeDialog({
   })
 
   const valid =
-    // An account must be chosen: sending from the wrong domain is not a
-    // recoverable mistake, so there is no implicit fallback.
     !!form.mailerId &&
     form.name.trim().length >= 2 &&
     form.subject.trim().length >= 2 &&
@@ -1974,8 +1901,6 @@ function ComposeDialog({
     </Dialog>
   )
 }
-
-// ─── Shared ─────────────────────────────────────────────────────────────────
 
 function FormRow({
   label,

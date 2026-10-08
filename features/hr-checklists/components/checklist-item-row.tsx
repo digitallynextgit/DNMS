@@ -10,10 +10,7 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { CHECKLIST_ITEM_STATE_COLORS, CHECKLIST_ITEM_STATE_LABELS } from "@/lib/constants"
 import type { ChecklistItem } from "../types"
 
-/**
- * Done, overdue, or just pending. Derived here rather than stored - "overdue"
- * is a fact about today, and a stored flag would need a job to keep it true.
- */
+/** Done, overdue, or pending - derived, since "overdue" depends on today. */
 export function itemState(item: ChecklistItem, now = new Date()): "DONE" | "OVERDUE" | "PENDING" {
   if (item.isDone) return "DONE"
   if (!item.dueDate) return "PENDING"
@@ -26,12 +23,7 @@ export function itemState(item: ChecklistItem, now = new Date()): "DONE" | "OVER
 }
 
 /**
- * One row of a checklist.
- *
- * A CLEARANCE is drawn differently on purpose: it carries a shield, names who
- * must sign, and when the viewer is not that person the checkbox is disabled
- * with the reason rather than hidden. A control that silently is not there
- * reads as a bug; one that says "Finance signs this" explains the process.
+ * One checklist row. A CLEARANCE the viewer can't sign shows disabled with the reason, not hidden.
  */
 export function ChecklistItemRow({
   item,

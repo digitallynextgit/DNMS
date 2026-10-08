@@ -21,12 +21,7 @@ import type { BacklinkSummaryView } from "../types"
 import { useBacklinks, useImportBacklinks } from "../hooks/use-seo"
 import { exportBacklinks } from "../lib/seo-export"
 
-// =============================================================================
-// Off-page / backlinks (plan step 8). Ahrefs Webmaster Tools & Search Console
-// have no free API, so a human pastes the export here and we diff it: new
-// referring domains are counted (and feed the scorecard), vanished links are
-// marked lost. The value is the monthly trend, not a live crawl.
-// =============================================================================
+// Backlinks: no free API, so a human pastes the export and we diff it (new domains, lost links).
 
 const num = (v: number) => v.toLocaleString("en-IN")
 

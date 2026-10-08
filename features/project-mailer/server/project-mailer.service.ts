@@ -1,13 +1,5 @@
-// =============================================================================
-// Project mailer (staff side)
-// =============================================================================
-// SMTP settings, templates, recipients and campaigns - all scoped to ONE
-// project. The projectId comes from the route guard (withProjectManager), never
-// from a body, and every update/delete filters on it as well as the row id.
-//
-// The SMTP password is encrypted at rest and NEVER selected into a response.
-// Screens show whether credentials verify, not what they are.
-// =============================================================================
+// Project mailer (staff side). projectId comes from the route guard and every write filters on
+// it. The SMTP password is encrypted and never selected into a response.
 
 import "server-only"
 
@@ -62,13 +54,7 @@ const TEMPLATE_SELECT = {
   updatedAt: true,
 } as const
 
-/**
- * Which author column this actor belongs in.
- *
- * Staff and client-portal accounts live in different tables, and the mailer is
- * the one surface both drive. Writing a client id into the employee column was a
- * foreign key violation on every single client send.
- */
+/** Staff and portal accounts live in different tables, so pick the right author column. */
 export function authorColumns(session: Session): {
   createdById: string | null
   createdByClientId: string | null
@@ -78,7 +64,6 @@ export function authorColumns(session: Session): {
     : { createdById: session.user.id, createdByClientId: null }
 }
 
-/** Whoever made it, from whichever table they are in. */
 const AUTHOR_SELECT = {
   createdBy: { select: { firstName: true, lastName: true } },
   createdByClient: { select: { name: true, company: true } },
@@ -136,10 +121,7 @@ export async function getProjectMailer(projectId: string): Promise<ActionResult<
         }),
         db.projectRecipient.count({ where: { projectId, isSubscribed: true } }),
         db.projectRecipient.count({ where: { projectId } }),
-        // Segment sizes come from SQL over the WHOLE list, not from the 500 rows
-        // above: counting the loaded page would quietly under-report every tag on
-        // any list bigger than that, and a wrong number here is one somebody
-        // plans a campaign around.
+        // Segment sizes over the whole list in SQL, not just the 500 loaded rows.
         db.$queryRaw<{ tag: string; count: number }[]>`
           SELECT unnest(tags) AS tag, COUNT(*)::int AS count
           FROM project_recipients
@@ -154,7 +136,6 @@ export async function getProjectMailer(projectId: string): Promise<ActionResult<
         `,
       ])
 
-    // Tag names alone, for the compose screen's segment picker.
     const allTags = tagRows.map((t) => t.tag).sort()
 
     return ok(
@@ -174,8 +155,6 @@ export async function getProjectMailer(projectId: string): Promise<ActionResult<
     )
   })
 }
-
-// ─── SMTP settings ──────────────────────────────────────────────────────────
 
 function mailerData(input: MailerSettingsInput) {
   return {
@@ -254,9 +233,6 @@ export async function updateMailer(
       where: { id: mailerId },
       data: {
         ...mailerData(input),
-        // A blank password means "keep the stored one" - it is never sent to the
-        // browser, so blank cannot mean "clear it" without wiping working
-        // credentials every time somebody edits the sender name.
         ...(input.password ? { password: encrypt(input.password) } : {}),
       },
       select: MAILER_SELECT,
@@ -287,8 +263,7 @@ export async function deleteMailer(
     })
     if (!existing) return fail("Account not found", undefined, 404)
 
-    // Refuse while it is mid-send: the runner needs these credentials to finish,
-    // and the campaign would fail every remaining recipient.
+    // Refuse mid-send: the runner still needs these credentials.
     const inFlight = await db.projectCampaign.count({
       where: { mailerId, status: { in: ["QUEUED", "SENDING"] } },
     })
@@ -296,8 +271,7 @@ export async function deleteMailer(
       return fail("A campaign is still sending from this account", undefined, 409)
     }
 
-    // Campaign history keeps its mailerId FK as SET NULL, so past sends still
-    // exist - they just no longer name a live account.
+    // Campaign history keeps mailerId as SET NULL, so past sends survive.
     await db.projectMailer.delete({ where: { id: mailerId } })
     await recordActivity(session, {
       projectId,
@@ -350,8 +324,7 @@ export async function sendTestEmail(
       return ok(serialize({ data: { ok: true } }))
     } catch (err) {
       const message = err instanceof Error ? err.message.slice(0, 500) : "Could not send"
-      // Recorded so the screen can show that these credentials are known-broken
-      // rather than merely untested.
+      // Recorded so the screen shows these credentials as known-broken, not just untested.
       await db.projectMailer.update({
         where: { id: mailerId },
         data: { lastError: message, lastVerifiedAt: null },
@@ -360,8 +333,6 @@ export async function sendTestEmail(
     }
   })
 }
-
-// ─── Templates ──────────────────────────────────────────────────────────────
 
 export async function createTemplate(
   projectId: string,
@@ -448,31 +419,9 @@ export async function deleteTemplate(
   })
 }
 
-// ─── Recipients ─────────────────────────────────────────────────────────────
-
 /**
- * Every address already on this project's list, keyed by its LOWER-CASED form.
- *
- * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────
- * The unique index is `(project_id, email)`, and Postgres compares text
- * case-sensitively. Every write path here lower-cases before inserting, so in
- * theory the two agree - but any row that reached the table another way (a
- * restored snapshot, a seed, a hand-written INSERT, or a build from before the
- * schema gained `.toLowerCase()`) can hold `Person@Example.com`. Against such a
- * row:
- *
- *   • the exact-match existence checks below miss it, and
- *   • `skipDuplicates` misses it too, because the index does not match either,
- *
- * so adding `person@example.com` INSERTS A SECOND ROW. The list then shows the
- * same address twice, once per tag, which is exactly the duplicate reported
- * from the Recipients tab.
- *
- * Comparing on the lower-cased form closes both holes at once. It reads the
- * project's addresses rather than filtering by the candidate set, because
- * `email: { in: [...] }` cannot be made case-insensitive in Prisma, and a
- * raw `lower(email) = ANY(...)` would step around the tenant guard for no gain -
- * this stays an ordinary, tenant-scoped query.
+ * Addresses on this project's list, keyed lower-cased. The unique index is case-sensitive and
+ * older rows may be mixed-case, so exact matches and `skipDuplicates` alone let duplicates in.
  */
 async function existingEmailIds(projectId: string): Promise<Map<string, string>> {
   const rows = await db.projectRecipient.findMany({
@@ -481,8 +430,7 @@ async function existingEmailIds(projectId: string): Promise<Map<string, string>>
   })
   const byEmail = new Map<string, string>()
   for (const row of rows) {
-    // First row wins, so a pre-existing duplicate pair resolves consistently
-    // rather than depending on row order.
+    // First row wins, so an existing duplicate pair resolves consistently.
     const key = row.email.trim().toLowerCase()
     if (!byEmail.has(key)) byEmail.set(key, row.id)
   }
@@ -495,8 +443,7 @@ export async function addRecipient(
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const input = recipientSchema.parse(body)
-    // Case-insensitive: see existingEmailIds. An exact match here let
-    // "Person@Example.com" and "person@example.com" both onto the list.
+    // Case-insensitive: see existingEmailIds.
     const existing = await existingEmailIds(projectId)
     if (existing.has(input.email))
       return fail("That address is already on the list", undefined, 409)
@@ -544,9 +491,7 @@ export async function addRecipientsBulk(
     // Dedupe within the paste itself before touching the database.
     const unique = [...new Map(parsed.map((p) => [p.email, p])).values()]
 
-    // Then against the list, case-insensitively - `skipDuplicates` alone leans on
-    // the case-SENSITIVE unique index, so a legacy mixed-case row would let the
-    // same address in a second time. See existingEmailIds.
+    // Then against the list, case-insensitively - see existingEmailIds.
     const existing = await existingEmailIds(projectId)
     const fresh = unique.filter((p) => !existing.has(p.email))
 
@@ -558,8 +503,7 @@ export async function addRecipientsBulk(
             name: p.name,
             tags: input.tags,
           })),
-          // Still set: another paste running concurrently could insert one of
-          // these between the read above and this write.
+          // Still needed: a concurrent paste could insert one of these meanwhile.
           skipDuplicates: true,
         })
       : { count: 0 }
@@ -573,15 +517,8 @@ export async function addRecipientsBulk(
 }
 
 /**
- * Import recipients from a spreadsheet the browser has already parsed and mapped.
- *
- * Three outcomes per row, all reported back rather than silently applied:
- *   • a new address is created with the chosen tags,
- *   • an address already on the list gains the tags (see `tagExisting`),
- *   • an unusable row is skipped and counted.
- *
- * Unmapped columns land in `fields`, so a "City" column in the sheet becomes
- * {{City}} in a template without anyone configuring anything.
+ * Import pre-parsed spreadsheet rows: new addresses are created, existing ones gain the tags
+ * (if `tagExisting`), bad rows are skipped and counted. Unmapped columns land in `fields`.
  */
 export async function importRecipients(
   projectId: string,
@@ -590,8 +527,7 @@ export async function importRecipients(
   return runAction(async () => {
     const input = recipientImportSchema.parse(body)
 
-    // Validate per row. One bad cell in a 400-row sheet must not reject the
-    // other 399 - the count comes back so the number is visible, not hidden.
+    // Validate per row - one bad cell must not reject the rest.
     const valid = new Map<
       string,
       { email: string; name: string | null; fields: Record<string, string>; company: string | null }
@@ -603,8 +539,7 @@ export async function importRecipients(
         invalid++
         continue
       }
-      // First occurrence wins, so a duplicate later in the sheet cannot blank a
-      // name that the earlier row supplied.
+      // First occurrence wins, so a later duplicate can't blank an earlier name.
       if (valid.has(email)) continue
       const fields = Object.fromEntries(
         Object.entries(row.fields ?? {}).filter(([k, v]) => k.trim() !== "" && v.trim() !== ""),
@@ -627,8 +562,7 @@ export async function importRecipients(
       )
     }
 
-    // Case-insensitive, so a sheet row cannot re-add an address the list already
-    // holds in another casing - that inserted a duplicate. See existingEmailIds.
+    // Case-insensitive - see existingEmailIds.
     const onList = await existingEmailIds(projectId)
     const already = new Set([...valid.keys()].filter((email) => onList.has(email)))
 
@@ -643,15 +577,12 @@ export async function importRecipients(
             tags: input.tags,
             fields: Object.keys(r.fields).length ? r.fields : undefined,
           })),
-          // Belt and braces: another import running concurrently could have
-          // inserted one of these between the SELECT above and this INSERT.
+          // A concurrent import could insert one of these between the SELECT and this INSERT.
           skipDuplicates: true,
         })
       : { count: 0 }
 
-    // Tag the ones already on the list in ONE statement. Prisma cannot append to
-    // a scalar array across many rows, and a loop of 3,000 updates would hold the
-    // request open for minutes - so this drops to SQL and unions the arrays.
+    // Tag existing rows in one SQL statement - Prisma can't append to an array across rows.
     let tagged = 0
     if (input.tagExisting && input.tags.length > 0 && already.size > 0) {
       tagged = await db.$executeRaw`
@@ -714,17 +645,8 @@ export async function deleteRecipient(
 }
 
 /**
- * Remove several recipients in one request.
- *
- * `deleteMany` filters on `projectId` as well as the ids, so an id belonging to
- * another project is simply not matched rather than deleted - the same rule the
- * single-row delete follows. The returned count is what actually went, which is
- * why the UI reports it instead of echoing back how many were selected: if a
- * row was removed by someone else a moment ago, the two differ and the person
- * should see the real number.
- *
- * Sends already queued or delivered keep working: ProjectCampaignSend.recipient
- * is ON DELETE SET NULL, so campaign history survives the address being removed.
+ * Remove several recipients. Filters on projectId too, and returns the real deleted count.
+ * Campaign history survives (the send rows' recipient FK is SET NULL).
  */
 export async function deleteRecipientsBulk(
   projectId: string,
@@ -742,11 +664,8 @@ export async function deleteRecipientsBulk(
   })
 }
 
-// ─── Campaigns ──────────────────────────────────────────────────────────────
-
 /**
- * Queue a campaign: snapshot the audience into one send row per recipient and
- * hand it to the scheduler. Returns immediately - the request never sends mail.
+ * Queue a campaign: one send row per recipient, sent later by the scheduler - never in the request.
  */
 export async function queueCampaign(
   projectId: string,
@@ -756,8 +675,7 @@ export async function queueCampaign(
   return runAction(async () => {
     const input = campaignSchema.parse(body)
 
-    // The chosen account must belong to THIS project - otherwise a campaign
-    // could be sent through another client's SMTP credentials.
+    // The account must belong to THIS project, or another client's SMTP could be used.
     const mailer = await db.projectMailer.findFirst({
       where: { id: input.mailerId, projectId },
       select: { id: true, isActive: true, name: true },
@@ -780,16 +698,13 @@ export async function queueCampaign(
     const campaign = await db.projectCampaign.create({
       data: {
         projectId,
-        // Snapshotted, so the runner sends from what was chosen rather than
-        // re-deciding later.
         mailerId: mailer.id,
         templateId: input.templateId || null,
         name: input.name,
         subject: input.subject,
         bodyHtml: input.bodyHtml,
         bodyMode: input.bodyMode,
-        // QUEUED, not SENDING: the scheduler owns the transition, so a campaign
-        // can't be left mid-send by the request that created it.
+        // QUEUED, not SENDING: only the scheduler moves it on.
         status: "QUEUED",
         totalCount: audience.length,
         ...authorColumns(session),
@@ -854,17 +769,8 @@ export async function cancelCampaign(
 }
 
 /**
- * Delete a finished campaign and its per-recipient log.
- *
- * Separate from cancelCampaign on purpose. Cancelling STOPS something and keeps
- * the record of what already went out; this destroys the record itself, which is
- * only ever right for clutter - a test send, a mistake - never for tidying up
- * real history. So the two are different verbs rather than one that quietly does
- * whichever the status implies.
- *
- * Refuses while in flight: deleting the rows the runner is mid-way through
- * claiming would strand a half-sent campaign with no log of who received it.
- * Cancel first, then delete.
+ * Delete a finished campaign and its log - for clutter like test sends. Unlike cancel, this
+ * destroys the record. Refused while in flight: cancel first.
  */
 export async function deleteCampaign(
   projectId: string,
@@ -881,8 +787,7 @@ export async function deleteCampaign(
       return fail("Cancel this campaign before deleting it - it is still sending", undefined, 409)
     }
 
-    // The send rows go with it (FK is ON DELETE CASCADE), which is the point:
-    // a campaign row without its per-recipient log is a worse record than none.
+    // Send rows cascade with it - a campaign without its log is worse than none.
     await db.projectCampaign.delete({ where: { id: campaignId } })
 
     await recordActivity(session, {
@@ -920,17 +825,7 @@ export async function getCampaignSends(
   })
 }
 
-// ─── Images ─────────────────────────────────────────────────────────────────
-
-/**
- * Delete an uploaded image and reclaim its B2 object.
- *
- * REFUSES when the image is still referenced by a campaign that has gone out (or
- * is going out). Those emails are already in inboxes pointing at this exact URL -
- * deleting the object would turn them into broken boxes for every recipient, and
- * there is no way to fix it after the fact. Templates and drafts are fair game:
- * nothing has been delivered from them yet.
- */
+/** Delete an uploaded image - refused while a sent or sending campaign still points at it. */
 export async function deleteMailerImage(
   projectId: string,
   assetId: string,
@@ -941,8 +836,7 @@ export async function deleteMailerImage(
       where: { id: assetId, projectId },
       select: { id: true, objectKey: true, fileName: true },
     })
-    // Already gone: report success so a double-click, or removing an image that
-    // was never uploaded through us, isn't surfaced as an error.
+    // Already gone counts as success (double clicks, images not uploaded through us).
     if (!asset) return ok(serialize({ data: { id: assetId, deleted: false } }))
 
     const sentReference = await db.projectCampaign.findFirst({

@@ -42,7 +42,6 @@ export function EmployeeFilters({
 
   return (
     <FilterToolbar hasActiveFilters={hasActiveFilters} onClear={onClear}>
-      {/* Search */}
       <SearchInput
         placeholder="Search by name, email, or ID..."
         value={search}
@@ -50,7 +49,6 @@ export function EmployeeFilters({
         className="max-w-sm min-w-[200px] flex-1"
       />
 
-      {/* Department Filter */}
       <FilterSelect
         value={departmentId}
         onChange={onDepartmentChange}
@@ -59,7 +57,6 @@ export function EmployeeFilters({
         className="w-[180px]"
       />
 
-      {/* Status Filter */}
       <FilterSelect
         value={status}
         onChange={onStatusChange}

@@ -33,16 +33,7 @@ import type {
   ProgressTotals,
 } from "../lib/deliverables-progress"
 
-// =============================================================================
-// My Progress - by deliverable
-//
-// The page a person or a team manager opens on Monday: what is owed, what has
-// landed, what has not and why - across every project they are on. The numbers
-// come from the same route the slide deck uses, so the page and the deck never
-// disagree. The filters narrow to one project, one team or one person; the
-// server decides what each role may see, a plain member only ever gets
-// themselves, and the pickers are built from that same answer.
-// =============================================================================
+// Same route as the slide deck, so the two never disagree; the server decides what each role may see.
 
 type Role = "admin" | "account_manager" | "team_manager" | "member"
 
@@ -70,8 +61,7 @@ const STATUS_COLOR: Record<DeliverableStatus, string> = {
   STUCK: "var(--state-overdue)",
   DISCARDED: "var(--state-todo)",
 }
-// Delivered and accepted share a hue - both are "done" - the lighter one is
-// the half the client has not signed off on yet.
+// Delivered and accepted share a hue; the lighter one isn't signed off by the client yet.
 const STATUS_OPACITY: Record<DeliverableStatus, number> = {
   PLANNED: 1,
   IN_PROGRESS: 1,
@@ -79,7 +69,6 @@ const STATUS_OPACITY: Record<DeliverableStatus, number> = {
   ACCEPTED: 1,
   REJECTED: 1,
   STUCK: 1,
-  // Faded: on the chart for completeness, not for attention.
   DISCARDED: 0.4,
 }
 
@@ -104,13 +93,11 @@ export interface ProgressFilterState {
 interface MyProgressProps {
   /** The window, picked in the page header so this panel and the Slides deck read the same one. */
   range: DateRangeValue
-  /** Callback fired whenever the active view filters or counts change. */
   onFilterChange?: (filters: ProgressFilterState) => void
 }
 
 export function MyProgress({ range, onFilterChange }: MyProgressProps) {
   const [projectId, setProjectId] = useState(ALL)
-  // A team NAME, not an id: the six teams are the same on every project.
   const [team, setTeam] = useState(ALL)
   const [personId, setPersonId] = useState(ALL)
 
@@ -122,9 +109,7 @@ export function MyProgress({ range, onFilterChange }: MyProgressProps) {
     staleTime: 60_000,
   })
 
-  // Every project carries the same six teams, so the picker offers each NAME
-  // once and picking one means "that team on every project in view". The
-  // route takes ids, so the name is turned back into every id it stands for.
+  // The six teams are the same on every project, so a team NAME maps back to every id it stands for.
   const teamNames = useMemo(() => {
     const seen = new Set<string>()
     for (const t of scope.data?.teams ?? []) {
@@ -159,19 +144,16 @@ export function MyProgress({ range, onFilterChange }: MyProgressProps) {
         `/api/projects/deliverables/progress${qs ? `?${qs}` : ""}`,
       ).then((r) => r.data),
     staleTime: 30_000,
-    // Keep the last numbers on screen while a new filter loads - no flash of
-    // skeletons every time someone changes the window.
+    // Keep the last numbers on screen while a new filter loads.
     placeholderData: (prev) => prev,
   })
 
   const sc = scope.data
   const showProjects = (sc?.projects.length ?? 0) > 1
-  // One team name in view means the picker could only ever say that name.
   const showTeams = teamNames.length > 1
   const showPeople = sc?.role !== "member" && (sc?.people.length ?? 0) > 1
 
-  // People narrowed to the chosen project / team, falling back to everyone
-  // when that would leave nobody (a line report with no team on the project).
+  // Falls back to everyone when the filter would leave nobody.
   const people = useMemo(() => {
     if (!sc) return []
     const teamsHere = teamIds.length
@@ -187,8 +169,7 @@ export function MyProgress({ range, onFilterChange }: MyProgressProps) {
 
   const pickProject = (id: string) => {
     setProjectId(id)
-    // The same teams sit on every project, so a chosen team survives the
-    // switch - unless this project somehow lacks it (legacy data).
+    // A chosen team survives a project switch unless that project lacks it (legacy data).
     const stillThere =
       team === ALL ||
       (sc?.teams.some((t) => t.name === team && (id === ALL || t.projectId === id)) ?? false)
@@ -224,8 +205,6 @@ export function MyProgress({ range, onFilterChange }: MyProgressProps) {
 
   return (
     <div className="space-y-6">
-      {/* Who this covers on the left, the filters on the right - the window
-          itself is picked in the page header, next to Slides. */}
       <div className="flex flex-wrap items-center gap-3">
         {sc ? (
           <p className="text-muted-foreground text-xs">
@@ -353,8 +332,6 @@ export function MyProgress({ range, onFilterChange }: MyProgressProps) {
   )
 }
 
-// ─── KPIs ───────────────────────────────────
-
 type Tone = "default" | "good" | "warn" | "bad"
 
 const TONE: Record<Tone, string> = {
@@ -412,7 +389,6 @@ function KpiRow({ data }: { data: DeliverablesProgress }) {
     <>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {tiles.map((k) => (
-          // Each tile opens the list behind its number; keyboard-reachable too.
           <Card
             key={k.key}
             role="button"
@@ -445,8 +421,6 @@ function KpiRow({ data }: { data: DeliverablesProgress }) {
   )
 }
 
-// ─── Status donut ────────────────────────────
-
 function StatusTip({
   active,
   payload,
@@ -464,11 +438,7 @@ function StatusTip({
 }
 
 function StatusCard({ t, className }: { t: ProgressTotals; className?: string }) {
-  // The status being looked at, picked from the legend or the ring itself; the
-  // same click again lets go of it. With nothing picked the ring reads as the
-  // whole. Picking dims every other slice and swaps the centre to that
-  // status's own number and share, which is what "highlight" has to mean on a
-  // ring where the slices are already side by side.
+  // Picked from the legend or the ring; clicking again releases it. Other slices dim.
   const [picked, setPicked] = useState<DeliverableStatus | null>(null)
   const toggle = (s: DeliverableStatus) => setPicked((cur) => (cur === s ? null : s))
 
@@ -547,13 +517,7 @@ function StatusCard({ t, className }: { t: ProgressTotals; className?: string })
             )}
           </div>
         </div>
-        {/* The legend is the control: each row is a button that picks its slice
-            out of the ring. One row per status, top to bottom, with the same
-            four columns on every row - dot, name, count, share - so the numbers
-            line up down the card instead of drifting between two half-width
-            columns with an orphan on the last line. The share is the same size
-            as the count (it was a faint xs), and a thin bar under the name
-            carries the proportion so nobody has to read the small number. */}
+        {/* The legend is the control: each row picks its slice out of the ring. */}
         <ul className="mt-3 space-y-1">
           {slices.map((s) => {
             const on = picked === s.key
@@ -598,8 +562,6 @@ function StatusCard({ t, className }: { t: ProgressTotals; className?: string })
     </Card>
   )
 }
-
-// ─── Breakdown tables ───────────────────────────
 
 function ProgressBar({ done, overdue, total }: { done: number; overdue: number; total: number }) {
   const d = pctOf(done, total)
@@ -704,8 +666,6 @@ function GroupCard({
     </Card>
   )
 }
-
-// ─── Item lists ─────────────────────────────
 
 function StatusPill({ status }: { status: DeliverableStatus }) {
   return (

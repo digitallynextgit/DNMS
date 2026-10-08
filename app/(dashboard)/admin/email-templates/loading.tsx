@@ -1,14 +1,11 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeaderSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
 
-// Email Templates: header (with a Create action) + the templates DataTable.
 export default function Loading() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeaderSkeleton withActions />
 
-      {/* DataTable: bordered card + header row + rows + pagination footer.
-          Columns: S.No, Name, Slug, Subject, Trigger, Active, Last Updated. */}
       <div className="border-border bg-card rounded-sm border">
         <TableSkeleton rows={10} cols={7} />
         <div className="border-border flex items-center justify-between border-t px-4 py-3">

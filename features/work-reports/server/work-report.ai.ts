@@ -3,13 +3,8 @@ import "server-only"
 import { aiComplete, isAiConfigured } from "@/lib/ai"
 import type { WorkReport } from "../types"
 
-// =============================================================================
-// Optional polish: task titles are written in a hurry ("resposniveness fix @5h"),
-// and a report goes to a manager and HR. AI rewrites the per-person highlights
-// and the impact bullets into plain sentences - from the titles and numbers in
-// the report only, never adding work. Any failure leaves the plain version in
-// place: the download must not depend on an AI provider being up.
-// =============================================================================
+// Optional AI polish of highlights and impact bullets, from the report's own titles and numbers
+// (never adding work). Any failure keeps the plain version.
 
 const SYSTEM = `You polish a month-end work report that goes to a manager and HR.
 Rewrite rough task titles into short, plain-English bullets about what was done.

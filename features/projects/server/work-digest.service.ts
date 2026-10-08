@@ -7,53 +7,20 @@ import { detailRow, wrapEmail, BRAND_NAME } from "@/lib/email-layout"
 import { addDays, startOfDayUTC } from "@/lib/dates"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 
-// =============================================================================
-// The Monday digest: "here is what last week left behind".
-//
-// Everything this sends is already visible somewhere in the app - on the
-// Progress page, on a goal, on the Deliverables tab. That is precisely the
-// problem: nobody opens a tab to discover a task they finished on Wednesday
-// never produced the thing it existed to produce. Work that quietly went
-// nowhere is invisible by nature, so once a week it has to come and find the
-// person who can fix it.
-//
-// It reports on the LAST COMPLETE Mon-Sun week, never the week in progress: a
-// task finished this morning with no output logged yet is not a problem, it is
-// Tuesday. Waiting until the week is closed means every line in the mail is
-// genuinely stale.
-//
-// IDEMPOTENCY lives in the database, not in a timer. One `digest_runs` row per
-// (kind, period) with a unique index is the whole lock - the hourly in-process
-// scheduler and the cron route can both fire, restart, and fire again, and the
-// second one loses the insert and sends nothing.
-// =============================================================================
+// Monday digest of work last week left behind, for the LAST COMPLETE Mon-Sun week. Idempotent via
+// a unique digest_runs row per (kind, period): a second run loses the insert and sends nothing.
 
-/** Notification link for a manager digest - the page that shows all of this. */
 const MANAGER_LINK = "/projects/progress"
-/** Members act on their own list, not on the portfolio view. */
 const MEMBER_LINK = "/projects/my-tasks"
 
-/** The digest kind stored in `digest_runs.kind`. */
 const DIGEST_KIND = "weekly-work"
 
-/**
- * A deliverable in one of these states physically EXISTS - it was made. A task
- * with one of these against it produced its output, whatever the client later
- * said about it. (The shared constant lives in the deliverable lifecycle module;
- * this job keeps its own copy so a digest can never be blocked by a refactor
- * somewhere else.)
- *
- * The price of that copy is that a new status does NOT arrive here on its own,
- * and nothing will fail to tell you - so anyone adding one has to come and look.
- * STUCK and DISCARDED were checked when they were added: neither was made, so
- * both are correctly absent.
- */
+// Made statuses (own copy of the lifecycle constant) - check here when adding a deliverable status.
 const MADE_STATUSES = ["DELIVERED", "ACCEPTED", "REJECTED"] as const
 
-/** Statuses that mean a task is still open, i.e. worth chasing a goal link for. */
 const TASK_CLOSED = ["DONE", "CANCELLED", "DISCARDED"] as const
 
-/** How far ahead "due soon" looks. A week, so nothing is reported twice. */
+/** A week ahead, so nothing is reported twice. */
 const DUE_SOON_DAYS = 7
 
 /** Longest list printed per section before it becomes "and N more". */
@@ -66,17 +33,12 @@ export interface WorkDigestResult {
   skipped: boolean
 }
 
-/** One line in the digest: what it is, and which project it belongs to. */
 interface DigestLine {
   project: string
   label: string
 }
 
-/**
- * The sections, in the order they appear in the mail. `short` is what the
- * one-line in-app summary uses; `urgent` decides whether the notification is a
- * warning rather than a tidy-up list.
- */
+/** Sections in mail order. `short` feeds the in-app summary; `urgent` makes it a warning. */
 const SECTIONS = [
   {
     key: "doneWithoutOutput",
@@ -121,22 +83,15 @@ type SectionKey = (typeof SECTIONS)[number]["key"]
 /** What one person is told, keyed by section. Empty sections are dropped. */
 type Payload = Map<SectionKey, DigestLine[]>
 
-/**
- * Send the weekly digest for the current tenant.
- *
- * Call it inside a tenant context - `withCron` / `forEachTenant` establish one,
- * and everything below reads `db` as though this company were the only one.
- */
+/** Send the weekly digest for the current tenant - call inside withCron / forEachTenant. */
 export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkDigestResult> {
   const today = startOfDayUTC(now)
-  // Monday of the week we are IN, then step back a week: [periodStart, periodEnd)
-  // is the last complete Mon-Sun. getUTCDay() is 0 for Sunday, hence the +6 %7.
+  // getUTCDay() is 0 on Sunday, hence +6 %7. The period is last week's Mon-Sun.
   const thisMonday = addDays(today, -((today.getUTCDay() + 6) % 7))
   const periodStart = addDays(thisMonday, -7)
   const periodEnd = thisMonday
 
-  // Claim the period BEFORE doing any work. A duplicate digest is worse than a
-  // late one: the second copy teaches people that the first can be ignored.
+  // Claim the period BEFORE any work: a duplicate digest is worse than a late one.
   try {
     await db.digestRun.create({ data: { kind: DIGEST_KIND, periodStart } })
   } catch (err) {
@@ -147,8 +102,6 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
   }
 
   const projects = await db.project.findMany({
-    // A finished or cancelled project has no chores left worth chasing, and an
-    // archived one is off the board entirely.
     where: { isArchived: false, status: { in: ["PLANNING", "ACTIVE"] } },
     select: {
       id: true,
@@ -166,15 +119,8 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
   const projectIds = projects.map((p) => p.id)
   const projectName = new Map(projects.map((p) => [p.id, p.name] as const))
 
-  // ── who hears about what ───────────────────────────────────────────────────
-  // Two reverse indexes rather than a scope object per manager: an item knows
-  // its project and its team, so delivery is two map lookups instead of a scan
-  // over every manager.
-  //
-  //  • projectManagers - sees EVERYTHING on that project (owner / project:write)
-  //  • teamManagers    - sees their team's tasks and deliverables only. Goals are
-  //                      project-level, so a team manager is not chased about
-  //                      dates they do not own.
+  // projectManagers see everything on a project; teamManagers only their team's tasks and
+  // deliverables (goals are project-level).
   const projectManagers = new Map<string, Set<string>>()
   const teamManagers = new Map<string, Set<string>>()
 
@@ -191,11 +137,7 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
     }
   }
 
-  // `project:write` is held through a role, so resolve it the way the session
-  // does - role -> permission scope - in one query rather than reading a session
-  // that a cron run does not have. admin_ is excluded on purpose: it is the
-  // silent watch account, and a weekly list of everyone else's chores is exactly
-  // the noise it exists to avoid.
+  // No session in a cron: resolve project:write via roles. admin_ (silent watch account) is excluded.
   const globalManagers = await db.employee.findMany({
     where: {
       isActive: true,
@@ -214,10 +156,8 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
     for (const id of projectIds) addTo(projectManagers, id, manager.id)
   }
 
-  // ── the work itself ────────────────────────────────────────────────────────
   const [doneWithoutOutput, unlinked, overdueGoals, dated, rejected] = await Promise.all([
-    // Finished, was supposed to produce something, wasn't answered with "nothing
-    // to log", and no deliverable ever appeared against it.
+    // Done, meant to produce output, not marked "nothing to log", and no deliverable against it.
     db.projectTask.findMany({
       where: {
         projectId: { in: projectIds },
@@ -229,8 +169,7 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
       },
       select: { id: true, title: true, projectId: true, teamId: true, assigneeId: true },
     }),
-    // Open work serving no stated goal. Managers only - it is a planning gap,
-    // not something the assignee decided.
+    // Open work serving no goal.
     db.projectTask.findMany({
       where: {
         projectId: { in: projectIds },
@@ -239,8 +178,7 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
       },
       select: { id: true, title: true, projectId: true, teamId: true },
     }),
-    // Overdue only. "Slipping" is derived in the goals module from progress
-    // maths this job deliberately does not duplicate.
+    // Overdue only; "slipping" needs the goals module's maths.
     db.projectGoal.findMany({
       where: {
         projectId: { in: projectIds },
@@ -254,9 +192,7 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
     db.projectDeliverable.findMany({
       where: {
         projectId: { in: projectIds },
-        // Owed work, which now includes STUCK: blocked output is precisely what
-        // a chase list is for, and leaving it out would let a stuck commitment
-        // go quiet in the one report meant to catch it.
+        // STUCK included: blocked output is exactly what a chase list is for.
         status: { in: ["PLANNED", "IN_PROGRESS", "STUCK"] },
         dueOn: { not: null, lt: addDays(today, DUE_SOON_DAYS + 1) },
       },
@@ -278,7 +214,6 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
     }),
   ])
 
-  // ── fan the work out to the people who can act on it ───────────────────────
   const payloads = new Map<string, Payload>()
 
   const push = (employeeIds: Iterable<string>, section: SectionKey, line: DigestLine) => {
@@ -294,11 +229,7 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
     }
   }
 
-  /**
-   * Everyone this row concerns: the project's managers, the team's manager, and
-   * optionally the person who owns the work. A Set because an account manager
-   * who is also the assignee must read the line once, not twice.
-   */
+  /** Project managers + team manager + optional owner; a Set so nobody reads a line twice. */
   const audience = (
     projectId: string | null,
     teamId?: string | null,
@@ -312,8 +243,7 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
   }
 
   for (const task of doneWithoutOutput) {
-    // The assignee is the only one who can say what came out of it - or that
-    // nothing did - so they hear about it alongside their manager.
+    // Only the assignee can say what came of it, so they hear too.
     const to = audience(task.projectId, task.teamId, task.assigneeId)
     push(to, "doneWithoutOutput", {
       project: projectLabel(projectName, task.projectId),
@@ -322,8 +252,7 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
   }
 
   for (const task of unlinked) {
-    // Managers only: an unlinked task is a planning gap, not something the
-    // assignee decided.
+    // Managers only: a planning gap, not the assignee's call.
     push(audience(task.projectId, task.teamId), "unlinked", {
       project: projectLabel(projectName, task.projectId),
       label: task.title,
@@ -359,18 +288,14 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
     return { sent: 0, skipped: false }
   }
 
-  // Somebody who both manages a project and does the work on it gets ONE mail:
-  // the manager sections and their own rows sit together rather than arriving
-  // as two digests they have to reconcile. Which link it carries is the only
-  // thing that changes.
+  // A manager who also does the work gets ONE mail; only the link differs.
   const managerIds = new Set<string>()
   for (const index of [projectManagers, teamManagers]) {
     for (const set of index.values()) for (const id of set) managerIds.add(id)
   }
 
   const recipients = await db.employee.findMany({
-    // A departed employee has no chores. Filtered here rather than inside each
-    // of the five work queries, which would need the same join five times.
+    // Departed employees get nothing (filtered once here, not in all five queries).
     where: { id: { in: [...payloads.keys()] }, isActive: true },
     select: { id: true, firstName: true, email: true },
   })
@@ -432,8 +357,6 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
   return { sent, skipped: false }
 }
 
-// ─── rendering ───────────────────────────────────────────────────────────────
-
 interface DigestBucket {
   title: string
   /** Short form for the one-line in-app summary. */
@@ -443,12 +366,7 @@ interface DigestBucket {
   lines: DigestLine[]
 }
 
-/**
- * The mail itself: a count table at the top (so the shape of the week is
- * readable without scrolling), then each section as a short list. Capped at
- * {@link MAX_ITEMS} per section - a digest that prints 200 tasks is a report,
- * and reports do not get read in an inbox.
- */
+/** Count table first, then each section capped at MAX_ITEMS - inbox digests must stay short. */
 function renderDigestEmail(input: {
   firstName: string
   periodLabel: string
@@ -529,14 +447,10 @@ function renderDigestEmail(input: {
   return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
 }
 
-// ─── small helpers ───────────────────────────────────────────────────────────
-
-/** Project name for an id, with a stand-in rather than a blank when it is gone. */
 function projectLabel(names: Map<string, string>, projectId: string | null): string {
   return (projectId && names.get(projectId)) || "Project"
 }
 
-/** "12 Aug" - short enough to sit inside a line without pushing it to two. */
 function formatDay(date: Date | null): string {
   if (!date) return "no date"
   return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()] ?? ""}`.trim()

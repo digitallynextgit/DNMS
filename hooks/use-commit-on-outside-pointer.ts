@@ -1,17 +1,10 @@
 "use client"
 
-import { useEffect, useRef, type RefObject } from "react"
+import { useEffect, useLayoutEffect, useRef, type RefObject } from "react"
 
 /**
- * Close an open inline editor when a pointer goes down anywhere outside it.
- *
- * `onBlur` alone is not enough to mean "clicked away": it never fires when the
- * pointer lands on a scroll container's own scrollbar, on a target whose
- * mousedown is prevented, or when focus leaves the document altogether. An
- * editor that silently keeps unsaved text in those cases is the worst outcome,
- * so this runs in the CAPTURE phase - ahead of anything that might swallow the
- * event - and the commit it calls is expected to be idempotent, so pairing it
- * with onBlur is safe.
+ * Commit an inline editor when a pointer goes down outside it - onBlur misses scrollbar clicks
+ * and prevented mousedowns. Capture phase; `commit` must be idempotent (it pairs with onBlur).
  */
 export function useCommitOnOutsidePointer(
   ref: RefObject<HTMLElement | null>,
@@ -19,7 +12,9 @@ export function useCommitOnOutsidePointer(
   commit: () => void,
 ) {
   const latest = useRef(commit)
-  latest.current = commit
+  useLayoutEffect(() => {
+    latest.current = commit
+  })
 
   useEffect(() => {
     if (!active) return

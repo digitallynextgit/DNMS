@@ -35,68 +35,30 @@ import {
 } from "@/features/projects/lib/sheet-types"
 import { formatMonth } from "@/features/projects/lib/calendar-months"
 
-// =============================================================================
-// The client's view of the team's content calendars.
-// =============================================================================
-// The SAME sheets the team fills on the project's Calendars tab - a cell edited
-// here is edited there. Only calendars staff ticked as shared ever arrive, and
-// the filtering happens on the server, so this component never has to decide
-// what it is allowed to show.
-//
-// ── WHY NOT REUSE project-sheet.tsx ──────────────────────────────────────────
-// That component is ~2,000 lines and carries column editing, import, history,
-// assignment, deletion, resizing and a staff session. None of it is available
-// to a client, so reusing it would mean threading the portal's access rules
-// through a staff component and trusting every branch to respect them. What a
-// client may do - fill a cell - is small enough to write plainly.
-//
-// It does have to FEEL like that grid, and like every other spreadsheet the
-// client has used: frozen header and row numbers, column letters, a cursor you
-// drive with the arrow keys, type-to-replace, Enter down and Tab across. Those
-// are not decoration - a grid that only answers the mouse reads as a table, and
-// people do not try to type into a table.
-// =============================================================================
+// Client view of shared calendars. Not project-sheet.tsx: a client may only fill cells, but the
+// grid must still feel like a spreadsheet (keyboard cursor, type-to-replace, Enter/Tab).
 
-/** Geometry, matched to the staff grid so the two read as the same object. */
+/** Matches the staff grid. */
 const ROW_H = 64
 const COL_W = 220
 const GUTTER_W = 44
 const HEADER_H = 30
 
-/**
- * How many rows the grid offers before anyone asks for more.
- *
- * Every one is live and none is a database row: the server creates a row the
- * first time something is typed into it, so an untouched grid of a hundred
- * costs nothing to offer. The staff grid offers a thousand on the same basis.
- */
+/** Rows offered up front. A row only becomes a DB row when something is typed into it. */
 const DEFAULT_ROWS = 100
-/** What the button under the grid adds, the way a spreadsheet's does. */
 const ROW_STEP = 100
 /** Rows kept in the DOM above and below the visible band, to hide fast scrolling. */
 const OVERSCAN = 6
 
 /** Types whose own control IS the editor - there is no "start editing" step. */
 const LIVE_TYPES = new Set<string>(["SELECT", "CHECKBOX"])
-/**
- * Types a client may not set.
- *
- * PERSON stores an employee id, and the portal has no staff roster to pick from
- * or to resolve one against. Read-only is the honest answer; a free-text box
- * would let someone type a name into a column that holds ids.
- */
+/** PERSON holds an employee id and the portal has no roster, so it's read-only. */
 const READ_ONLY_TYPES = new Set<string>(["PERSON"])
 
 /** One shared empty object, so "nothing pending" is a stable reference. */
 const EMPTY_CELLS: Record<string, CellValue> = {}
 
-/**
- * A calendar, plus whether this client may remove it.
- *
- * `canDelete` comes from the server, which knows who is asking. It is only ever
- * true for a calendar they started: the team's are theirs to delete, and the
- * API refuses regardless of what this flag says.
- */
+/** `canDelete` comes from the server: true only for calendars this client started. */
 type PortalWorkbook = SheetWorkbook & { canDelete: boolean }
 
 interface CalendarsPayload {
@@ -121,8 +83,7 @@ export function PortalCalendars({ projectRef }: { projectRef: string }) {
   const [newName, setNewName] = React.useState("")
   const [confirmDelete, setConfirmDelete] = React.useState<PortalWorkbook | null>(null)
 
-  // Fall back to the first calendar/tab rather than holding an id that is no
-  // longer shared - a calendar can be withdrawn while this page is open.
+  // Fall back to the first calendar/tab: one can be un-shared while the page is open.
   const book = workbooks.find((w) => w.id === bookId) ?? workbooks[0] ?? null
   const sheet = book?.sheets.find((s) => s.id === sheetId) ?? book?.sheets[0] ?? null
 
@@ -143,8 +104,7 @@ export function PortalCalendars({ projectRef }: { projectRef: string }) {
     onSuccess: invalidate,
     onError: (e: Error) => {
       toast.error(e.message)
-      // Put the server's value back under the cell that failed, or the grid
-      // goes on showing an edit that was never saved.
+      // Put the server's value back, or the grid keeps showing an unsaved edit.
       invalidate()
     },
   })
@@ -154,8 +114,7 @@ export function PortalCalendars({ projectRef }: { projectRef: string }) {
     onSuccess: () => {
       toast.success("Calendar deleted")
       setConfirmDelete(null)
-      // Let the fallback below pick the next calendar rather than naming one
-      // here - by the time this runs the list has not refetched yet.
+      // Let the fallback pick the next calendar - the list hasn't refetched yet.
       setBookId(null)
       setSheetId(null)
       invalidate()
@@ -174,8 +133,6 @@ export function PortalCalendars({ projectRef }: { projectRef: string }) {
       toast.success("Calendar created")
       setCreating(false)
       setNewName("")
-      // Open what they just made, rather than leaving them on whichever
-      // calendar happened to be first.
       setBookId(res.data.data.workbook.id)
       setSheetId(null)
       invalidate()
@@ -192,8 +149,7 @@ export function PortalCalendars({ projectRef }: { projectRef: string }) {
     )
   }
 
-  // A failed load must not read as "nothing shared with you": those are two very
-  // different things to tell somebody, and only one of them is actionable.
+  // A failed load must not read as "nothing shared with you".
   if (isError) {
     return (
       <div className="space-y-5">
@@ -232,17 +188,13 @@ export function PortalCalendars({ projectRef }: { projectRef: string }) {
           icon={Table2}
           variant="card"
           title="No calendars yet"
-          // Says BOTH ways one arrives. The old copy only mentioned the team
-          // sharing one, which read as "there is nothing you can do here".
           description="Calendars the team shares with you appear here. You can also start one of your own - the team sees it too."
           action={{ label: "New calendar", onClick: () => setCreating(true) }}
         />
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            {/* One picker for the calendar, one strip for its tabs - the same
-                two levels the team sees, named the same way. Shown even for a
-                single calendar, because otherwise its name appears nowhere. */}
+            {/* Shown even for one calendar, or its name appears nowhere. */}
             <Select
               value={book.id}
               onValueChange={(v) => {
@@ -254,10 +206,7 @@ export function PortalCalendars({ projectRef }: { projectRef: string }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {/* The month is part of the NAME here, because the name alone
-                    stopped being unique: a calendar now has one edition per
-                    month, so a team sharing September and October would
-                    otherwise offer two identical-looking rows. */}
+                {/* The month is part of the name: a calendar has one edition per month. */}
                 {workbooks.map((w) => (
                   <SelectItem key={w.id} value={w.id}>
                     {w.periodMonth ? `${w.name} · ${formatMonth(w.periodMonth)}` : w.name}
@@ -266,9 +215,7 @@ export function PortalCalendars({ projectRef }: { projectRef: string }) {
               </SelectContent>
             </Select>
 
-            {/* Kept visible but disabled on the team's calendars, rather than
-                hidden: "where did the button go" is a worse question than one
-                the button answers itself. */}
+            {/* Disabled rather than hidden on the team's calendars. */}
             <Button
               variant="ghost"
               disabled={!book.canDelete || deleteCalendar.isPending}
@@ -297,8 +244,7 @@ export function PortalCalendars({ projectRef }: { projectRef: string }) {
           </div>
 
           <SheetGrid
-            // Remount on a tab change: the cursor, the open editor and the
-            // not-yet-echoed values all belong to the sheet they were made on.
+            // Remount per tab: cursor, editor and pending values belong to one sheet.
             key={sheet.id}
             sheet={sheet}
             onWrite={(position, cells) =>
@@ -358,14 +304,7 @@ export function PortalCalendars({ projectRef }: { projectRef: string }) {
   )
 }
 
-/**
- * The grid.
- *
- * Rows are addressed by POSITION, not by id: the grid offers far more rows than
- * exist, and the server creates the row the first time something lands in it.
- * That is the same contract the staff grid uses, and it is why a blank row can
- * be filled without being created first.
- */
+/** The grid. Rows are addressed by position; the server creates a row on its first write. */
 function SheetGrid({
   sheet,
   onWrite,
@@ -388,17 +327,9 @@ function SheetGrid({
   const [extra, setExtra] = React.useState(0)
 
   /**
-   * Values written but not yet echoed back by the fetch.
-   *
-   * Without them a committed cell shows its OLD value until the refetch lands
-   * and then flips, which reads as the edit having been rejected.
-   *
-   * They are NOT a local copy that outlives the server's. Each batch is stamped
-   * with the rows array it was written against, and the moment a fetch replaces
-   * that array the batch stops counting - so a colleague editing the same
-   * calendar always wins in the end. Stamping rather than clearing in an effect
-   * keeps this a derivation: there is no render in which the stale values are
-   * still on screen waiting to be cleaned up.
+   * Values written but not yet echoed by the refetch, so a committed cell doesn't flash its old
+   * value. Each batch is tied to the rows array it was written against and stops counting once a
+   * fetch replaces it, so the server always wins in the end.
    */
   const [pending, setPending] = React.useState<{
     rows: ProjectSheet["rows"]
@@ -418,22 +349,14 @@ function SheetGrid({
   const scrollerRef = React.useRef<HTMLDivElement>(null)
 
   /**
-   * How tall each row REALLY is on screen: its stored height, or what it grew
-   * to around wrapped text. heightOf stays the cells' minimum; this drives the
-   * window - sized from the stored 64px, scrolling repeated rows and leapt
-   * ahead. See useMeasuredRowHeights.
+   * Real on-screen row heights (stored, or grown around wrapped text). See useMeasuredRowHeights.
    */
   const extentOf = useMeasuredRowHeights(scrollerRef, heightOf, sheet.id)
 
   /** Cumulative y of every row - drives both the window and scroll-into-view. */
   const offsets = React.useMemo(() => rowOffsets(total, extentOf), [total, extentOf])
 
-  // ── Windowing ──────────────────────────────────────────────────────────────
-  // A hundred rows by twenty-six columns is 2,600 cells, and every one of them
-  // would re-render on every arrow key. Only the visible band is in the DOM;
-  // two spacer rows stand in for the rest, so the scrollbar still measures the
-  // whole grid. It is also what keeps "Add 100 rows" free: the cost of a row
-  // nobody has scrolled to is zero.
+  // Only the visible band is in the DOM; two spacer rows stand in for the rest.
   const [scroll, setScroll] = React.useState({ top: 0, height: 600 })
   React.useEffect(() => {
     const el = scrollerRef.current
@@ -466,7 +389,7 @@ function SheetGrid({
   const commit = (pos: number, column: SheetColumn, raw: CellValue) => {
     setEditing(null)
     const next = normalizeCell(column.type, raw)
-    if (next === valueAt(pos, column)) return // in and out again is not an edit
+    if (next === valueAt(pos, column)) return
     setPending({ rows: sheet.rows, cells: { ...unsaved, [`${pos}:${column.id}`]: next } })
     onWrite(pos, { [column.id]: next })
   }
@@ -496,8 +419,7 @@ function SheetGrid({
     if (READ_ONLY_TYPES.has(column.type) || LIVE_TYPES.has(column.type)) return
     const v = valueAt(pos, column)
     setEditing({ r: pos, columnId: column.id })
-    // A seed is the character that opened the edit: typing over a selected cell
-    // REPLACES it, exactly as it does in a spreadsheet.
+    // Typing over a selected cell replaces it, as in a spreadsheet.
     setDraft(seed !== undefined ? seed : v === null ? "" : String(v))
   }
 
@@ -555,9 +477,7 @@ function SheetGrid({
         tabIndex={0}
         onKeyDown={onKeyDown}
         onScroll={(e) => {
-          // Read the value out FIRST: React pools nothing these days, but the
-          // functional setState below runs after the handler returns, and
-          // touching the event in there throws on every scroll.
+          // Read it first: the functional setState runs after the handler returns.
           const top = e.currentTarget.scrollTop
           setScroll((s) => ({ ...s, top }))
         }}
@@ -576,19 +496,13 @@ function SheetGrid({
 
           <thead>
             <tr>
-              {/* Frozen on BOTH axes so the corner stays put when the grid is
-                  scrolled diagonally. The backgrounds are deliberately OPAQUE:
-                  a translucent header lets row 1 show through as it scrolls
-                  under, which reads as the header being broken. */}
+              {/* Frozen on both axes; opaque so rows don't show through when scrolled under. */}
               <th
                 className="bg-muted border-border sticky top-0 left-0 z-30 border-r border-b"
                 style={{ height: HEADER_H }}
               />
               {columns.map((c, ci) => {
-                // A column still called by its letter is UNNAMED - show just
-                // the letter, as a spreadsheet does. Once the team renames it
-                // the name leads and the letter stays as the small reference
-                // people say out loud ("what's in C4?").
+                // A column still named by its letter is unnamed - show just the letter.
                 const unnamed = c.name === columnLetter(ci)
                 return (
                   <th
@@ -619,9 +533,6 @@ function SheetGrid({
           </thead>
 
           <tbody>
-            {/* Spacers stand in for the rows outside the window, so the
-                scrollbar reflects the whole grid rather than the slice of it
-                that happens to be mounted. */}
             {topPad > 0 && (
               <tr aria-hidden>
                 <td colSpan={columns.length + 1} style={{ height: topPad, padding: 0 }} />
@@ -674,9 +585,6 @@ function SheetGrid({
         </table>
       </div>
 
-      {/* The spreadsheet answer to running out of room. Nothing is saved by
-          pressing it - blank rows are not database rows - so it simply offers
-          more of the grid. */}
       <div className="flex items-center gap-2">
         <Button variant="outline" className="gap-1.5" onClick={() => setExtra(extra + ROW_STEP)}>
           <Plus className="h-3.5 w-3.5" />
@@ -690,13 +598,7 @@ function SheetGrid({
   )
 }
 
-/**
- * One row.
- *
- * Its own component so that moving the cursor re-renders the two rows that
- * changed rather than all hundred: `selectedCol` and `editingColumnId` are null
- * for every other row, so their props do not move.
- */
+/** One row. Its own component so a cursor move re-renders only the two rows that changed. */
 function GridRow({
   pos,
   height,
@@ -747,8 +649,7 @@ function GridRow({
             onDoubleClick={() => onEdit(ci)}
             className={cn(
               "border-border relative border-r border-b p-0 align-top",
-              // The cursor sits ON TOP of its neighbours, or the ring is
-              // clipped by the next cell's rule.
+              // The cursor sits on top, or the next cell's border clips the ring.
               isSelected && !isEditing && "ring-primary z-10 ring-2",
               isEditing && "z-20",
             )}
@@ -771,14 +672,7 @@ function GridRow({
   )
 }
 
-/**
- * One cell: what it looks like at rest, and what it becomes while being typed
- * into.
- *
- * At rest it is plain text, not an input. A hundred rows of live inputs is
- * thousands of focusable controls, which is both slow and wrong - in a
- * spreadsheet exactly one cell is in edit mode at a time.
- */
+/** One cell: plain text at rest, an editor only while being edited (one at a time). */
 function PortalCell({
   column,
   value,
@@ -812,8 +706,7 @@ function PortalCell({
   }
 
   if (column.type === "SELECT") {
-    // A SELECT with no choices yet would render an unopenable dropdown, which
-    // reads as broken rather than as unconfigured.
+    // A SELECT with no options would render a dropdown that can't open.
     if (column.options.length === 0) {
       return (
         <span className="text-muted-foreground/50 flex h-full items-center px-2 text-[11px]">
@@ -845,10 +738,7 @@ function PortalCell({
 
   if (!isEditing) {
     return (
-      /* Wraps and clips to the ROW's height, which is what a spreadsheet does:
-         the whole value is stored and you see as much of it as the row is tall.
-         Row heights are the team's to set, so a clipped cell is one to ask them
-         about - the client cannot drag rows here. */
+      /* Wraps and clips to the row's height, like a spreadsheet. Row heights are staff-only. */
       <div className="h-full overflow-hidden px-2 py-1 leading-snug break-words whitespace-pre-wrap">
         <CellText column={column} value={value} />
       </div>
@@ -857,9 +747,7 @@ function PortalCell({
 
   const value_ = () => (draft.trim() === "" ? null : draft)
   const keys = (e: React.KeyboardEvent) => {
-    // Stopped here rather than left to bubble: the grid's own handler would
-    // read this keystroke as a second command and move the cursor out from
-    // under the editor that is still open.
+    // Stop here, or the grid's handler moves the cursor out from under the open editor.
     e.stopPropagation()
     if (e.key === "Escape") {
       e.preventDefault()
@@ -871,16 +759,14 @@ function PortalCell({
       onCommitAndMove(value_(), 0, e.shiftKey ? -1 : 1)
       return
     }
-    // Enter commits everywhere EXCEPT a long-text cell, where a newline is the
-    // whole reason that type exists. There, Ctrl/Cmd+Enter commits.
+    // Enter commits, except in LONG_TEXT where Ctrl/Cmd+Enter does.
     if (e.key === "Enter" && (column.type !== "LONG_TEXT" || e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       onCommitAndMove(value_(), 1, 0)
     }
   }
 
-  // Every free-text type edits in a TEXTAREA, not an input: a single-line input
-  // scrolls sideways as you type and only appears to wrap once committed.
+  // Free text edits in a textarea so it wraps while typing.
   if (column.type === "TEXT" || column.type === "LONG_TEXT" || column.type === "URL") {
     return (
       <Textarea
@@ -911,9 +797,7 @@ function PortalCell({
 /** A cell's value at rest, typed the way the staff grid types it. */
 function CellText({ column, value }: { column: SheetColumn; value: CellValue }) {
   if (column.type === "PERSON") {
-    // The portal has no staff roster, so the stored id cannot be turned into a
-    // name here. Saying "someone is on this" is true; printing a raw id at a
-    // client, or showing an assigned cell as blank, is not.
+    // No staff roster in the portal to resolve the id, so never print it.
     return value === null || value === "" ? null : (
       <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
         <User className="h-3 w-3" />

@@ -7,11 +7,7 @@ import { cn } from "@/lib/utils"
 interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
   /** 0-100. Clamped. */
   value?: number
-  /**
-   * No known total yet - render a sliding bar instead of a fraction. Use this only
-   * when the progress genuinely cannot be measured; a fake determinate bar is worse
-   * than an honest indeterminate one.
-   */
+  /** Unknown total: a sliding bar. Only when progress genuinely can't be measured. */
   indeterminate?: boolean
 }
 

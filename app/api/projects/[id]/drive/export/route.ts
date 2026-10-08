@@ -4,10 +4,7 @@ import type { Session } from "next-auth"
 import { withProjectAccess } from "@/features/projects/server/project-access"
 import { exportProjectDriveSheet } from "@/features/projects/server/project-drive.service"
 
-// POST /api/projects/[id]/drive/export  body { fileId }
-// A Google Sheet from the project's Drive folder as an .xlsx (all tabs), for
-// the sheet importer. Binary response, not the JSON envelope: the browser hands
-// the bytes straight to the spreadsheet parser.
+// Binary .xlsx, not the JSON envelope: the browser hands the bytes straight to the sheet importer.
 export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     const { fileId } = (await req.json().catch(() => ({}))) as { fileId?: unknown }

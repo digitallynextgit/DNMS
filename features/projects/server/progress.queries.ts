@@ -3,20 +3,7 @@ import "server-only"
 import { db } from "@/server/db"
 import { getSeoRollup } from "@/features/seo/server/seo.queries"
 
-// =============================================================================
-// "How is this project actually going?"
-//
-// The project Overview only counted teams, members and tasks, which says nothing
-// about progress. This answers three questions in one payload:
-//   1. Delivery: how much is done, how much is late, and is the pace holding
-//   2. Who: the same numbers per team and per member
-//   3. Search: what the tracked sites are doing, since for most of these clients
-//      that IS the outcome the work is judged on
-//
-// Rates are null rather than 0 when there is nothing to measure. A team with no
-// finished tasks has an UNKNOWN on-time rate, not a 0% one, and showing 0% would
-// read as failure where the honest answer is "no data yet".
-// =============================================================================
+// Project progress: delivery, per team/member, and search. Rates are null (not 0%) with no data.
 
 const OPEN_STATUSES = ["TODO", "IN_PROGRESS", "IN_REVIEW", "ON_HOLD"] as const
 const TREND_WEEKS = 8
@@ -75,7 +62,6 @@ export interface SeoSiteProgress {
   clicksChange: number | null
   impressions: number
   position: number
-  /** Latest stored scorecard, when one has been built. */
   score: number | null
   coverage: number | null
   band: string | null
@@ -132,8 +118,7 @@ function emptyBucket(): ProgressBucket {
   }
 }
 
-/** Fold one task into a bucket. `now` is passed in so every bucket in a run
- *  judges "overdue" against the same instant. */
+/** Fold one task into a bucket. `now` is shared so every bucket judges "overdue" alike. */
 function addTask(b: ProgressBucket, t: TaskRow, now: Date) {
   b.total++
   b.estimatedHours += t.estimatedHours ?? 0
@@ -162,8 +147,7 @@ function addTask(b: ProgressBucket, t: TaskRow, now: Date) {
   }
 
   if (t.status === "DONE") {
-    // Completed with no due date cannot be judged either way, so it counts
-    // toward neither on-time nor late.
+    // Done with no due date counts toward neither on-time nor late.
     if (t.dueDate) {
       const finished = t.completedAt ?? now
       if (finished <= endOfDay(t.dueDate)) b.onTime++
@@ -195,11 +179,7 @@ function finalise(b: ProgressBucket): ProgressBucket {
   return b
 }
 
-/**
- * @param range Optional yyyy-mm-dd window. Scopes to tasks DUE inside it, the
- *   same rule the Progress page's headline tiles use - otherwise the tiles and
- *   this breakdown disagree, and a range with no work still shows a full report.
- */
+/** `range` (yyyy-mm-dd) scopes to tasks DUE inside it, matching the Progress page's tiles. */
 export async function getProjectProgress(
   projectId: string,
   range?: { from?: string | null; to?: string | null },
@@ -246,14 +226,12 @@ export async function getProjectProgress(
     }),
   ])
 
-  // --- summary, per team, per member ---------------------------------------
   const summary = emptyBucket()
   const teamBuckets = new Map<string, TeamProgress>()
   for (const t of teams) {
     teamBuckets.set(t.id, { ...emptyBucket(), id: t.id, name: t.name, members: t._count.members })
   }
-  // Tasks with no team still need somewhere to go, or the per-team numbers
-  // would silently not add up to the summary.
+  // No-team tasks need a bucket, or per-team numbers won't add up to the summary.
   const UNASSIGNED = "__no_team__"
   teamBuckets.set(UNASSIGNED, {
     ...emptyBucket(),
@@ -295,7 +273,6 @@ export async function getProjectProgress(
     .map((b) => b as MemberProgress)
     .sort((a, b) => b.total - a.total)
 
-  // --- weekly pace ----------------------------------------------------------
   // Monday-start weeks, oldest first.
   const weekStart = new Date(now)
   weekStart.setUTCHours(0, 0, 0, 0)
@@ -315,12 +292,10 @@ export async function getProjectProgress(
     })
   }
 
-  // --- what is coming up ----------------------------------------------------
   const upcoming: UpcomingTask[] = tasks
     .filter((t) => t.dueDate && (OPEN_STATUSES as readonly string[]).includes(t.status))
     .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime())
-    // Deep enough that a single person's own next tasks are always in here, so
-    // the Overview can derive "my next tasks" client-side.
+    // Deep enough to always hold one person's next tasks ("my next tasks" is derived client-side).
     .slice(0, 40)
     .map((t) => ({
       id: t.id,
@@ -334,8 +309,7 @@ export async function getProjectProgress(
       overdue: endOfDay(t.dueDate!) < now,
     }))
 
-  // --- search performance ---------------------------------------------------
-  // Reuses the SEO roll-up so these numbers can never disagree with the SEO tab.
+  // Reuses the SEO roll-up so these numbers match the SEO tab.
   const rollup = await getSeoRollup(projectId)
   const cards = await db.seoScorecard.findMany({
     where: { property: { projectId } },

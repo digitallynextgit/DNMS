@@ -42,26 +42,8 @@ import { MAX_LINKS, MAX_QUANTITY, MAX_TYPE_LENGTH } from "../lib/deliverable-typ
 import { formatHours } from "../lib/format-hours"
 import { SearchPicker } from "./search-picker"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Logging what was made.
-//
-// TWO STEPS, ONE DIALOG. Files need an entry to hang off, so a new entry is
-// saved first and the dialog then stays open in edit mode with the Files
-// section revealed - "Logged. Add files below." Closing after the first step is
-// fine; the entry exists and files can come later from the row's edit button.
-//
-// The type is free text with a type-ahead: the project's own vocabulary first,
-// then the team's starter set (see lib/deliverable-types.ts). The server snaps
-// a match onto the existing casing, so "reel" cannot split "Reel"'s count.
-//
-// ── THE SAME FORM PLANS AND LOGS ─────────────────────────────────────────────
-// A deliverable that is OWED and one that was MADE are the same row at two
-// points in its life, so they get one form. What changes is which date is
-// asked for: owed work has a DUE date and no completion, made work has the
-// reverse. `initial.status` opens it in the right mode; `submitStatus` moves
-// the row on save, which is how the capture prompt turns a planned row into a
-// delivered one without a second dialog.
-// ─────────────────────────────────────────────────────────────────────────────
+// One form plans (owed: due date) and logs (made: completion date). A new entry saves first, then the
+// dialog stays open in edit mode so files can be attached.
 
 const NONE = "__none__"
 /** "Nobody yet - the team owes it." Only offered while the work is still owed. */
@@ -72,7 +54,6 @@ interface TaskOption {
   title: string
   status: string
   assigneeId: string | null
-  /** The goal this work serves, so the entry can inherit it. */
   goal?: { id: string; title: string } | null
 }
 
@@ -102,21 +83,11 @@ export function DeliverableFormDialog({
   onOpenChange: (open: boolean) => void
   /** Set = editing this row (and files are attachable). Null = new. */
   entry: DeliverableRow | null
-  /**
-   * Called with the new id so the parent can flip the dialog into edit mode
-   * (to attach files). `count` is how many rows were laid down - more than one
-   * means a repeat, where editing "the" row would be the wrong thing to open.
-   */
+  /** `count` > 1 means a repeat, so the parent shouldn't open "the" row in edit mode. */
   onCreated: (id: string, count: number) => void
   /** Admin / account manager: may log on behalf of anyone on the project. */
   canManage: boolean
-  /**
-   * May they hand work out at all - a project manager OR a team manager.
-   *
-   * Separate from `canManage` because planning and logging-for-others are
-   * different rights: a team manager assigns their team's work but is not the
-   * account manager. Defaults to `canManage` so existing callers are unchanged.
-   */
+  /** A project manager OR a team manager (planning differs from logging for others). Defaults to `canManage`. */
   canStaff?: boolean
   currentUserId: string
   suggestedTypes: string[]
@@ -134,23 +105,12 @@ export function DeliverableFormDialog({
   }
   /** Replaces the default description - the capture prompt's "what did it produce?" */
   prompt?: string
-  /**
-   * Save the row AT this status rather than leaving it where it is.
-   *
-   * The one thing a plain edit cannot do: "Log delivery" on an owed row is a
-   * status move and a form save at once, and doing it as two requests leaves a
-   * window where the row is delivered with last week's details on it.
-   */
+  /** Save at this status in the same request, e.g. "Log delivery" on an owed row. */
   submitStatus?: DeliverableStatus
-  /** Overrides the primary button's text - "Log delivery", "Redeliver". */
   submitLabel?: string
 }) {
-  // Keyed remount by the parent (key={entry?.id ?? "new"}), so state seeds
-  // straight from props with no effect.
-  // Who the entry is for. An owed line with nobody on it stays "the team" -
-  // a valid answer while it is owed. The same line opened to LOG it needs a
-  // maker: the person logging, when they cannot pick anyone else, and a
-  // deliberate choice when they can (the button waits for it).
+  // Keyed remount by the parent, so state seeds straight from props.
+  // An owed line may stay with "the team"; logging it needs a maker (picked deliberately if they can pick).
   const seedOwed = isOpenStatus(submitStatus ?? entry?.status ?? initial?.status ?? "DELIVERED")
   const [employeeId, setEmployeeId] = React.useState(
     entry
@@ -166,8 +126,7 @@ export function DeliverableFormDialog({
     entry?.completedOn ?? toDateString(new Date()),
   )
   const [dueOn, setDueOn] = React.useState(entry?.dueOn ?? initial?.dueOn ?? "")
-  // Repetition applies to NEW owed work only: editing one week of a standing
-  // commitment must never silently re-lay the other eleven.
+  // Repeat applies to new owed work only, so editing one week never re-lays the rest.
   const [repeatEvery, setRepeatEvery] = React.useState<"NONE" | "WEEK" | "MONTH">("NONE")
   const [repeatCount, setRepeatCount] = React.useState("4")
   const [goalId, setGoalId] = React.useState(entry?.goal?.id ?? initial?.goalId ?? NONE)
@@ -184,9 +143,7 @@ export function DeliverableFormDialog({
   const m = useDeliverableMutations(projectId)
   const people = useAssignableEmployees(projectId, assigns)
   const teams = useProjectTeams(projectId)
-  // Every task on the project, grouped in the picker by who holds it. Fetching
-  // only the maker's own tasks looked broken the moment somebody logged work
-  // for a task that was never assigned to them (or to anyone).
+  // Every project task, not just the maker's: work gets logged against unassigned tasks too.
   const tasks = useQuery({
     queryKey: ["project-tasks-for", projectId],
     queryFn: () =>
@@ -196,20 +153,16 @@ export function DeliverableFormDialog({
   })
 
   const editing = Boolean(entry)
-  /** An existing line being LOGGED as delivered - the form in log mode, which
-   *  is neither an edit nor a fresh entry and must not be titled as either. */
+  /** Logging an existing owed line as delivered - neither an edit nor a new entry. */
   const logging = Boolean(entry && submitStatus && !isOpenStatus(submitStatus))
   const pending = m.create.isPending || m.update.isPending
   const qty = Number(quantity)
 
-  // Where the row will BE once this saves - which decides whether it needs a
-  // completion date or a due date, not where it happens to be right now.
+  // The status after this saves decides which date is asked for.
   const status: DeliverableStatus = submitStatus ?? entry?.status ?? initial?.status ?? "DELIVERED"
   const owed = isOpenStatus(status)
 
-  // The furthest day a picker may legitimately point at. A local calendar can
-  // be a day ahead of UTC, so "today" alone would reject a perfectly ordinary
-  // entry logged at 01:00 in Delhi; the server applies the same tolerance.
+  // A local calendar can be a day ahead of UTC (01:00 in Delhi); the server allows the same.
   const maxDay = React.useMemo(() => latestCalendarDay().toISOString().slice(0, 10), [])
   const future = (d: string) => Boolean(d) && d > maxDay
 
@@ -225,9 +178,7 @@ export function DeliverableFormDialog({
 
   const chosenTask = (tasks.data ?? []).find((t) => t.id === taskId)
 
-  // Own tasks first, then the unowned ones anybody may claim. Other people's
-  // tasks are a manager's business - a maker attaching their output to a
-  // colleague's task is a mistake, not a feature.
+  // Own tasks first, then unowned ones; other people's tasks are a manager's business.
   const taskGroups = React.useMemo(() => {
     const all = tasks.data ?? []
     const mine = all.filter((t) => t.assigneeId === employeeId)
@@ -238,18 +189,14 @@ export function DeliverableFormDialog({
   const maker = (people.data?.data ?? []).find((p) => p.id === employeeId)
   const makerName =
     employeeId === currentUserId ? "you" : maker ? `${maker.firstName} ${maker.lastName}` : "them"
-  // The task already knows which goal it serves; making somebody restate it is
-  // how the two end up disagreeing.
+  // Inherit the task's goal unless one was picked by hand.
   const effectiveGoalId = goalTouched ? goalId : (chosenTask?.goal?.id ?? goalId)
   const inheritedGoal = !goalTouched && chosenTask?.goal ? chosenTask.goal.title : null
 
-  // ── Team <-> person, kept in step ──────────────────────────────────────────
-  // Memoised: a bare `?? []` mints a new array on every render, which would
-  // make every memo below it recompute for nothing.
+  // Memoised: a bare `?? []` would make every memo below recompute.
   const teamList = React.useMemo(() => teams.data?.data ?? [], [teams.data])
   const roster = React.useMemo(() => people.data?.data ?? [], [people.data])
   const teamName = teamList.find((t) => t.id === teamId)?.name ?? null
-  /** Ids on the chosen team, so the picker can lead with them. */
   const teamMemberIds = React.useMemo(() => {
     const t = teamList.find((x) => x.id === teamId)
     if (!t) return new Set<string>()
@@ -290,14 +237,11 @@ export function DeliverableFormDialog({
   }
 
   const toTeam = employeeId === TEAM
-  // Repeating is offered only where it means something: planning new owed work
-  // that has a first due date to count from.
   const canRepeat = owed && !entry
   const repeatN = Number(repeatCount)
   const repeats = canRepeat && repeatEvery !== "NONE"
   const valid =
-    // "Leave it to the team" only answers while the work is owed; something
-    // being logged as made has a maker, and the button waits until it is picked.
+    // "Leave it to the team" is only valid while the work is owed.
     (!toTeam || (owed && teamId !== NONE)) &&
     (!repeats ||
       (dueOn.length > 0 && Number.isInteger(repeatN) && repeatN >= 2 && repeatN <= 52)) &&
@@ -324,16 +268,14 @@ export function DeliverableFormDialog({
   const submit = () => {
     if (!valid) return
     const body = {
-      // null is the wire form of "nobody yet"; the server only accepts it on
-      // owed work, and only alongside a team.
+      // null = "nobody yet"; the server accepts it only on owed work, with a team.
       employeeId: toTeam ? null : employeeId,
       teamId: teamId === NONE ? null : teamId,
       type: type.trim(),
       title: title.trim(),
       quantity: qty,
       startedOn: startedOn || null,
-      // Owed work has not been completed, and sending today's date "to fill the
-      // column" would make the ledger claim it landed.
+      // Owed work has no completion date; sending today would claim it landed.
       completedOn: owed ? null : completedOn,
       dueOn: dueOn || null,
       goalId: effectiveGoalId === NONE ? null : effectiveGoalId,
@@ -381,12 +323,7 @@ export function DeliverableFormDialog({
         </DialogHeader>
 
         <div className="space-y-3">
-          {/* TEAM FIRST, then the person. That is the order the work is
-              actually decided in - "the video team owes this; now, who on
-              video?" - and it lets the second field answer the first instead
-              of listing the whole company. The dependency runs both ways:
-              picking a person while no team is set fills the team in from
-              them, so logging your own output stays one click. */}
+          {/* Team first, then person; picking a person with no team set fills the team in. */}
           {assigns && (
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -424,7 +361,6 @@ export function DeliverableFormDialog({
                     <SelectValue placeholder={owed ? "Who will make it" : "Who made it"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {/* Only while it is owed: something already made has a maker. */}
                     {owed && (
                       <SelectItem value={TEAM}>
                         <span className="text-muted-foreground">
@@ -443,9 +379,7 @@ export function DeliverableFormDialog({
                         ))}
                       </SelectGroup>
                     )}
-                    {/* Never a hard filter: work does get handed to somebody
-                        outside the team, and a picker that made that
-                        impossible would just push people back to the sheet. */}
+                    {/* Never a hard filter: work does get handed to people outside the team. */}
                     {offTeam.length > 0 && (
                       <SelectGroup>
                         {onTeam.length > 0 && (
@@ -536,9 +470,6 @@ export function DeliverableFormDialog({
                 <p className="text-destructive text-[11px]">That is in the future.</p>
               )}
             </div>
-            {/* Owed work is asked WHEN IT IS DUE; made work is asked when it
-                landed. Showing both would invite somebody to fill in a
-                completion date for a thing that does not exist yet. */}
             {owed ? (
               <div className="space-y-1.5">
                 <Label required={repeats} className="text-muted-foreground text-[11px]">
@@ -565,10 +496,7 @@ export function DeliverableFormDialog({
             )}
           </div>
 
-          {/* A retainer is written as "three reels a week", so it should be
-              enterable that way. Each repeat is laid down as its own owed row:
-              one week can be reassigned, moved or dropped without disturbing
-              the rest, and nothing depends on a generator still running. */}
+          {/* Each repeat is its own owed row, so one week can change without touching the rest. */}
           {canRepeat && (
             <div className="grid gap-3 sm:grid-cols-[1fr_110px]">
               <div className="space-y-1.5">
@@ -644,8 +572,7 @@ export function DeliverableFormDialog({
                 </p>
               )}
             </div>
-            {/* Which promise this counts against. A deliverable with no goal
-                still counts as output; it just does not move any target. */}
+            {/* A deliverable with no goal still counts as output; it just moves no target. */}
             <div className="space-y-1.5">
               <Label className="text-muted-foreground text-[11px]">Goal (optional)</Label>
               <SearchPicker
@@ -730,7 +657,6 @@ export function DeliverableFormDialog({
             />
           </div>
 
-          {/* ── Files: only once the entry exists ──────────────────────────── */}
           {entry && (
             <div className="border-border/60 space-y-1.5 border-t pt-3">
               <Label className="text-muted-foreground text-[11px]">Files</Label>
@@ -806,6 +732,5 @@ export function DeliverableFormDialog({
   )
 }
 
-// Referenced so the format helper stays available to row renderers that import
-// from here; keeps one import path for the deliverables UI.
+// Re-exported so row renderers have one import path for the deliverables UI.
 export { formatHours }

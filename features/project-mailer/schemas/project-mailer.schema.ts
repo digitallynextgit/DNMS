@@ -16,11 +16,7 @@ export const mailerSettingsSchema = z.object({
   port: z.coerce.number().int().min(1).max(65535).default(587),
   secure: z.boolean().default(false),
   username: z.string().trim().min(1, "Username is required").max(160),
-  /**
-   * Blank on edit means "keep the stored password". The saved value is never
-   * sent back to the browser, so an empty field cannot mean "clear it" - that
-   * would wipe working credentials every time somebody edited the From name.
-   */
+  /** Blank on edit means "keep the stored password" - it's never sent to the browser. */
   password: z.string().max(300).optional().or(z.literal("")),
   isActive: z.boolean().default(true),
 })
@@ -54,12 +50,7 @@ export const recipientBulkSchema = z.object({
 })
 export type RecipientBulkInput = z.infer<typeof recipientBulkSchema>
 
-/**
- * Remove several recipients at once.
- *
- * Capped so one request cannot try to delete an entire 5,000-address list in a
- * single statement; the UI selects a page at a time, which is well inside this.
- */
+/** Bulk delete cap; the UI selects one page at a time, well inside it. */
 export const RECIPIENT_DELETE_LIMIT = 500
 
 export const recipientDeleteSchema = z.object({
@@ -70,21 +61,12 @@ export const recipientDeleteSchema = z.object({
 })
 export type RecipientDeleteInput = z.infer<typeof recipientDeleteSchema>
 
-/**
- * One import can carry this many rows. A real subscriber list is well under it;
- * anything larger is a paste accident or a whole CRM export, and it would sit in
- * one request body and one transaction.
- */
+/** Max rows per import - more is a paste accident or a CRM export. */
 export const IMPORT_ROW_LIMIT = 5000
 
 /**
- * Spreadsheet import. The file is parsed in the BROWSER and arrives here already
- * mapped to columns, so the person could see which column was the email address
- * before committing - importing the wrong column silently mails the wrong people.
- *
- * NOTE: `email` is only shape-checked here, not validated as an address. A single
- * malformed cell in row 400 must not reject the other 399; the service counts
- * them as skipped and reports back instead.
+ * Spreadsheet import, already parsed and mapped in the browser. `email` is only shape-checked:
+ * the service skips and counts bad rows instead of rejecting the whole file.
  */
 export const recipientImportSchema = z.object({
   rows: z
@@ -100,18 +82,13 @@ export const recipientImportSchema = z.object({
     .min(1, "The sheet has no rows")
     .max(IMPORT_ROW_LIMIT, `Import at most ${IMPORT_ROW_LIMIT} rows at a time`),
   tags: z.array(z.string().trim().min(1).max(40)).default([]),
-  /**
-   * Addresses already on the list get the new tags too. On by default because the
-   * usual reason to re-import a list is to tag it - skipping them would look like
-   * the import did nothing.
-   */
+  /** Re-importing usually means tagging, so existing addresses get the tags too. */
   tagExisting: z.boolean().default(true),
 })
 export type RecipientImportInput = z.infer<typeof recipientImportSchema>
 
 export const campaignSchema = z.object({
-  /// Which SMTP account sends this. Required - never guessed, because guessing
-  /// wrong means the mail goes out from the wrong domain.
+  /// Required, never guessed - a wrong guess sends from the wrong domain.
   mailerId: z.string().uuid("Choose which account to send from"),
   name: z.string().trim().min(2, "Give the campaign a name").max(120),
   subject: z.string().trim().min(2, "Subject is required").max(200),

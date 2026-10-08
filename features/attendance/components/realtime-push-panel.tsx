@@ -32,26 +32,14 @@ interface HookConfig {
 /** A push seen within this window means the live path is currently working. */
 const LIVE_WINDOW_MS = 24 * 60 * 60 * 1000
 
-/**
- * Set up and verify the realtime push path.
- *
- * The terminal is on a private LAN, so a hosted DNMS can never pull from it -
- * the Sync button only works from a machine on that network. The live path runs
- * the other way: the device POSTs each punch outbound to this URL, which every
- * office firewall already permits, and attendance lands the moment somebody
- * punches instead of whenever a cron next runs.
- *
- * This panel exists because none of that was discoverable. The endpoint was
- * built and enabled, but nothing told an admin what URL to paste into the
- * device, or whether anything had ever actually arrived.
- */
+/** Set up and verify the live push path: shows the URL to paste into the device and whether
+ *  punches have arrived (a hosted DNMS can't pull from the office LAN). */
 export function RealtimePushPanel() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ["attendance-hook-config"],
     queryFn: () =>
       apiFetch<{ data: HookConfig }>("/api/attendance/hook/config").then((r) => r.data),
-    // The "last push" stamps go stale on their own; a slow refresh keeps the
-    // indicator honest without polling hard for a config endpoint.
+    // Slow refresh so the "last push" stamps don't go stale.
     refetchInterval: 60_000,
   })
 
@@ -81,7 +69,8 @@ export function RealtimePushPanel() {
   const lastPush = data.devices
     .map((d) => (d.lastPushAt ? new Date(d.lastPushAt).getTime() : 0))
     .reduce((a, b) => Math.max(a, b), 0)
-  const isLive = lastPush > 0 && Date.now() - lastPush < LIVE_WINDOW_MS
+  // Measured at fetch time, which the 60s refetch keeps current.
+  const isLive = lastPush > 0 && dataUpdatedAt - lastPush < LIVE_WINDOW_MS
 
   return (
     <div className="border-border bg-card space-y-4 rounded-sm border p-4">
@@ -115,7 +104,6 @@ export function RealtimePushPanel() {
         lands the moment somebody punches, from anywhere.
       </p>
 
-      {/* ── Blockers ─────────────────────────────────────────────────────── */}
       {!data.secretConfigured && (
         <Warning>
           <code className="font-mono text-xs">ATTENDANCE_HOOK_SECRET</code> is not set on the
@@ -138,7 +126,6 @@ export function RealtimePushPanel() {
         </Warning>
       )}
 
-      {/* ── The URL ──────────────────────────────────────────────────────── */}
       {data.url && (
         <div className="space-y-2">
           <p className="text-xs font-medium">
@@ -165,7 +152,6 @@ export function RealtimePushPanel() {
         </div>
       )}
 
-      {/* ── Per-device state ─────────────────────────────────────────────── */}
       <div className="space-y-1.5">
         {data.devices.map((d) => {
           const pushed = d.lastPushAt ? new Date(d.lastPushAt) : null

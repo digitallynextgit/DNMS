@@ -1,12 +1,7 @@
 import { Laptop } from "lucide-react"
 import type { HelpAction, HelpGuide } from "../../types"
 
-/**
- * In an open date picker (react-day-picker in a popover): go to next month, so
- * every day is in the future whenever the shots are taken, and click its first
- * day that can be picked - weekends and holidays are greyed out (data-disabled),
- * and columns 2-6 (Mon-Fri, weeks start on Sunday) are kept just in case.
- */
+/** Next month (so every day is future), then its first pickable weekday; disabled days are greyed. */
 const pickWeekdayNextMonth: HelpAction[] = [
   { click: { role: "button", name: "Go to the Next Month" } },
   {
@@ -57,9 +52,7 @@ export const workFromHomeGuide: HelpGuide = {
             as: "employee",
             path: "/wfh",
             highlight: [
-              // One box round the whole tier card - separate boxes on its lines
-              // put their number circles over the "TIER 3" text.
-              // Last match = the innermost card holding the text.
+              // One box round the whole tier card (separate boxes cover "TIER 3"); last match = innermost card.
               { css: "div.bg-card:has-text('used this month')", nth: -1 },
               { role: "link", name: "Apply WFH" },
             ],

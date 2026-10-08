@@ -19,8 +19,7 @@ import {
   type DriveFile,
 } from "@/lib/google-drive"
 
-/** The people who should have access to a project's Drive folder: the owner +
- *  every team member, by their (work) email. */
+/** The owner + every team member, by work email. */
 async function projectMemberEmails(projectId: string): Promise<string[]> {
   const project = await db.project.findUnique({
     where: { id: projectId },
@@ -37,21 +36,10 @@ async function projectMemberEmails(projectId: string): Promise<string[]> {
   return [...emails]
 }
 
-/**
- * Ensure the project's folder exists (named "<code> · <name>") and return it.
- *
- * The implementation moved to lib/drive-media.ts so the client portal can resolve
- * the same folder without importing this feature's server internals. Re-exported
- * here because every caller below and in the Files tab already knows this name.
- */
+// Lives in lib/drive-media.ts so the client portal can share it; re-exported under the old name.
 export const ensureProjectFolder = ensureProjectDriveFolder
 
-/**
- * Make the folder's shared-with list match the project's members exactly:
- * grant anyone missing, revoke anyone no longer on the project. Idempotent, so
- * it's safe to call on every membership change and from a manual "Sync" button.
- * Returns a small summary for the UI/logs.
- */
+/** Make the folder's shares match the project's members exactly (grant + revoke). Idempotent. */
 export async function syncProjectFolderAccess(
   projectId: string,
 ): Promise<{ folderId: string; granted: number; revoked: number; members: number }> {
@@ -62,9 +50,7 @@ export async function syncProjectFolderAccess(
   let granted = 0
   let revoked = 0
 
-  // Revoke item-level user permissions for people no longer on the project. NEVER
-  // touch the service account, domain/anyone permissions, or the inherited
-  // Shared-Drive owner - only the per-user shares this app added.
+  // Only revoke per-user shares this app added - never the service account, domain/anyone or owner.
   for (const p of current) {
     if (p.type !== "user" || !p.email) continue
     if (p.role === "owner") continue
@@ -76,7 +62,6 @@ export async function syncProjectFolderAccess(
     }
   }
 
-  // Grant anyone on the project who isn't already shared.
   const have = new Set(
     current.filter((p) => p.type === "user" && p.email).map((p) => p.email!.toLowerCase()),
   )
@@ -90,8 +75,7 @@ export async function syncProjectFolderAccess(
   return { folderId: folder.id, granted, revoked, members: wanted.size }
 }
 
-/** Fire-and-forget sync (used from member add/remove routes so a slow Drive call
- *  never blocks the HTTP response). No-ops silently when Drive isn't configured. */
+/** Fire-and-forget so a slow Drive call never blocks the response. No-op without Drive. */
 export function syncProjectFolderAccessAsync(projectId: string): void {
   void isDriveConfigured()
     .then((ok) => {
@@ -108,8 +92,7 @@ export interface ProjectDriveData {
   files: DriveFile[]
 }
 
-/** Everything the project's Drive tab needs: the folder link, its files, and how
- *  many people currently have access. Ensures the folder + access on read. */
+/** Folder link, files and access count for the Drive tab. Ensures the folder and access on read. */
 export async function getProjectDrive(projectId: string): Promise<ProjectDriveData> {
   if (!(await isDriveConfigured())) {
     return { configured: false, folderId: null, folderLink: null, memberCount: 0, files: [] }
@@ -129,9 +112,8 @@ export async function getProjectDrive(projectId: string): Promise<ProjectDriveDa
 }
 
 /**
- * The Drive folder a write should land in: the app folder's mirrored Drive
- * sub-folder (created on demand), or the project root when no app folder is
- * given. Throws when the app folder is not this project's.
+ * Drive target for a write: the app folder's mirror (created on demand) or the project root.
+ * Throws when the app folder is not this project's.
  */
 async function driveTargetFor(projectId: string, appFolderId: string | null): Promise<string> {
   const root = await ensureProjectFolder(projectId)
@@ -163,10 +145,8 @@ export async function createProjectDoc(
 }
 
 /**
- * Does this Drive file live under THIS project's folder (any depth)? The
- * service account can see every project's folder, so every write below checks
- * this first - without it a member of one project could pass any fileId and
- * rename/move/trash another project's files (SEC-07).
+ * Is this file under THIS project's folder? The service account sees every project, so every
+ * write checks this - otherwise any fileId could touch another project's files.
  */
 async function ownsDriveFile(projectId: string, fileId: string): Promise<boolean> {
   const root = await ensureProjectFolder(projectId)
@@ -206,12 +186,7 @@ export async function moveProjectDriveFile(
 
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-/**
- * A Google Sheet from this project's Drive tree as an .xlsx (every tab), for
- * the sheet importer. Null when the file is not under the project's folder -
- * the service account can read every project's Drive, so without that check a
- * file id from another project would export another client's data.
- */
+/** A Google Sheet as .xlsx for the importer; null unless it's under this project's folder. */
 export async function exportProjectDriveSheet(
   projectId: string,
   fileId: string,

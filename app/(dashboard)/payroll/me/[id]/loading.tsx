@@ -1,11 +1,8 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
-// A single payslip: a back button, title + status/download actions, then the
-// A4-style payslip document (letterhead, employee grid, earnings table, net pay).
 export default function Loading() {
   return (
     <div className="space-y-6">
-      {/* Header: back link, then title (left) and status + download (right). */}
       <div className="space-y-2 py-4">
         <Skeleton className="bg-muted h-8 w-24 animate-pulse rounded-sm" />
         <div className="flex items-center justify-between gap-4">
@@ -24,12 +21,10 @@ export default function Loading() {
   )
 }
 
-/** Placeholder shaped like the printed payslip document. */
 function PayslipDocSkeleton() {
   return (
     <div className="mx-auto max-w-3xl">
       <div className="space-y-4 rounded-sm border border-neutral-300 px-6 py-5 dark:border-neutral-700">
-        {/* Letterhead */}
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1.5">
             <Skeleton className="h-4 w-56" />
@@ -39,12 +34,10 @@ function PayslipDocSkeleton() {
           <Skeleton className="h-16 w-16" />
         </div>
 
-        {/* "Salary Slip - Month Year" */}
         <div className="flex justify-center border-t pt-3">
           <Skeleton className="h-4 w-48" />
         </div>
 
-        {/* Employee detail grid */}
         <div className="grid grid-cols-2 gap-x-4 gap-y-2">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="flex items-center gap-2">
@@ -54,7 +47,6 @@ function PayslipDocSkeleton() {
           ))}
         </div>
 
-        {/* Earnings / deductions table */}
         <div className="space-y-1.5">
           <Skeleton className="h-6 w-full" />
           {Array.from({ length: 7 }).map((_, i) => (
@@ -66,7 +58,6 @@ function PayslipDocSkeleton() {
           ))}
         </div>
 
-        {/* Net pay + amount in words */}
         <div className="space-y-2 border-t pt-3">
           <Skeleton className="h-6 w-40" />
           <Skeleton className="h-3.5 w-72" />

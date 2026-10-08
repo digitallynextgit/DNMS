@@ -20,15 +20,11 @@ export interface SettingValue {
   overridden: boolean
 }
 
-// ---------------------------------------------------------------------------
-// getSettings - current effective config for the Integrations page. Secret
-// values are NEVER returned; only whether they are set.
-// ---------------------------------------------------------------------------
+// Secret values are NEVER returned; only whether they are set.
 export async function getSettings(): Promise<ActionResult<{ data: SettingValue[] }>> {
   return runAction(async () => {
     const session = await requirePermission(PERMISSIONS.SETTINGS_WRITE)
-    // AppSetting is platform-global (no tenantId): a second tenant's admin
-    // holds settings:write too, but must not read or write the platform config.
+    // AppSetting is platform-global (no tenantId), so another tenant's admin must not touch it.
     assertPlatformScope(session)
     const rows = await db.appSetting.findMany()
     const dbMap = new Map(rows.map((r) => [r.key, r.value]))
@@ -46,21 +42,15 @@ export async function getSettings(): Promise<ActionResult<{ data: SettingValue[]
   })
 }
 
-// ---------------------------------------------------------------------------
-// updateSettings - upsert the provided keys. Blank secret = keep existing;
-// blank non-secret = revert to env (delete the override).
-// ---------------------------------------------------------------------------
+// Blank secret = keep the stored one; blank non-secret = revert to env (delete the override).
 export async function updateSettings(
   values: Record<string, string>,
 ): Promise<ActionResult<{ updated: number }>> {
   return runAction(async () => {
     const session = await requirePermission(PERMISSIONS.SETTINGS_WRITE)
-    // Same platform-global reasoning as getSettings above.
     assertPlatformScope(session)
 
-    // Required fields (the mandatory notifications mailer) must never be left
-    // blank. A blank secret is allowed only when a value is already stored
-    // (blank means "keep the existing secret").
+    // Required fields may never be blank (a blank secret is fine if one is already stored).
     const requiredBlank: string[] = []
     for (const field of SETTING_FIELDS) {
       if (!field.required || !(field.key in values)) continue
@@ -84,7 +74,7 @@ export async function updateSettings(
       const value = typeof raw === "string" ? raw.trim() : ""
 
       if (SECRET_KEYS.has(field.key)) {
-        if (value === "") continue // blank → leave the stored secret untouched
+        if (value === "") continue
         await db.appSetting.upsert({
           where: { key: field.key },
           create: { key: field.key, value: encrypt(value), isSecret: true },

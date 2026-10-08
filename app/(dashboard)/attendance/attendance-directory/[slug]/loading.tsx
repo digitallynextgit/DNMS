@@ -1,8 +1,6 @@
 import { StatCardsSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Employee attendance detail: back link + avatar/identity header with a month
-// stepper, a 4-up stat strip, then the month calendar grid.
 export default function EmployeeAttendanceLoading() {
   return (
     <div className="space-y-6">

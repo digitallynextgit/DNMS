@@ -1,8 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeaderSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
 
-// KPI Profiles: a title-only header, a search box, then the employee table
-// (Employee, Department, Manager KPIs, Self KPIs, Status, Edit + S.No).
 export default function Loading() {
   return (
     <div className="space-y-6">

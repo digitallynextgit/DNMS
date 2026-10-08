@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
@@ -35,8 +35,7 @@ export interface PolicyEntry {
 export function useLeavePolicies(enabled = true) {
   return useQuery({
     queryKey: ["leave-policies"],
-    // The route returns the standard envelope wrapping a `serialize({ data })`
-    // payload, so the matrix sits two `data` levels deep ({ data: { data: … } }).
+    // Envelope + serialize({ data }), so the matrix is two `data` levels deep.
     queryFn: async () =>
       (await apiFetch<{ data: { data: LeavePolicyData } }>("/api/leave/policies")).data.data,
     enabled,
@@ -78,10 +77,8 @@ export function useResyncBalances() {
   )
 }
 
-// ─── Policy editor ─────────────────────────────────────────────────────────────
-// Holds the grid's editing state so the Save / Re-sync toolbar can be rendered
-// anywhere (e.g. next to the tabs in the page header) while the matrix table
-// renders the inputs - both share this single editor instance.
+// Policy editor: shared grid state, so the Save / Re-sync toolbar can render anywhere (e.g. the
+// page header) while the matrix table renders the inputs.
 export const policyCellKey = (employmentType: string, leaveTypeId: string) =>
   `${employmentType}__${leaveTypeId}`
 
@@ -108,14 +105,20 @@ export function useLeavePolicyEditor(enabled = true): LeavePolicyEditor {
   const [dirty, setDirty] = useState(false)
   const [resyncOpen, setResyncOpen] = useState(false)
 
-  // Seed the grid from saved policies (until the user starts editing).
-  useEffect(() => {
-    if (!data || dirty) return
-    const next: Record<string, string> = {}
-    for (const p of data.policies)
-      next[policyCellKey(p.employmentType, p.leaveTypeId)] = String(p.daysPerYear)
-    setValues(next)
-  }, [data, dirty])
+  // Seed the grid from saved policies until the user starts editing.
+  const [seededFrom, setSeededFrom] = useState<{
+    data: LeavePolicyData | undefined
+    dirty: boolean
+  }>({ data: undefined, dirty: false })
+  if (data !== seededFrom.data || dirty !== seededFrom.dirty) {
+    setSeededFrom({ data, dirty })
+    if (data && !dirty) {
+      const next: Record<string, string> = {}
+      for (const p of data.policies)
+        next[policyCellKey(p.employmentType, p.leaveTypeId)] = String(p.daysPerYear)
+      setValues(next)
+    }
+  }
 
   const setCell = useCallback((employmentType: string, leaveTypeId: string, v: string) => {
     setDirty(true)

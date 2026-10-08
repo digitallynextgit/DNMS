@@ -19,13 +19,7 @@ interface ClientComboboxProps {
 
 type Picked = { id: string; name: string }
 
-/**
- * Searchable client picker, for the project form.
- *
- * Plain DOM with no portal, for the same reasons as EmployeeCombobox: this sits
- * inside a Dialog, whose focus trap and scroll lock both break a list rendered
- * on document.body. Expanding in place keeps typing and scrolling working.
- */
+/** Searchable client picker, rendered in normal flow like EmployeeCombobox (Dialog-safe). */
 export function ClientCombobox({
   value,
   onChange,
@@ -34,9 +28,8 @@ export function ClientCombobox({
 }: ClientComboboxProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
-  // `undefined` = nothing chosen HERE yet, so the parent's label shows through
-  // (it usually arrives after mount, once the parent has the client). `null` =
-  // the user cleared the field, which must not fall back to that label.
+  // `undefined` = nothing picked here yet, so the parent's (late) label shows; `null` = cleared by
+  // the user, which must not fall back to that label.
   const [picked, setPicked] = useState<Picked | null | undefined>(undefined)
   const inputRef = useRef<HTMLInputElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)

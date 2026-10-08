@@ -171,9 +171,6 @@ export default function JobRolesPage() {
         </Select>
       </div>
 
-      {/* The table renders from the first paint: while `isLoading` it draws
-          skeleton rows inside its own real <thead>, so the header, column count
-          and S.No column never move when the data lands. */}
       {isLoading || list.length > 0 ? (
         <DataTable
           columns={columns}

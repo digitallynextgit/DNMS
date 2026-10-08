@@ -5,16 +5,7 @@ import { withSession } from "@/server/api-handler"
 import { getDeliverablesOverview } from "@/features/projects/server/deliverables.queries"
 import { STATUS_ORDER, type DeliverableStatus } from "@/features/projects/lib/deliverable-lifecycle"
 
-// GET /api/projects/deliverables
-//
-// What was produced across every project the caller can see, for the Progress
-// page: counts by type, client and person, plus the rows behind them. Optional
-// projectId / employeeId / teamId / type / status / from / to narrow it,
-// matching the page's own filters.
-//
-// Static segment beside the dynamic [id] one, exactly like
-// /api/projects/performance and /api/projects/goals: Next resolves the literal
-// path first, so this does not shadow /api/projects/<id>.
+// Static segment beside [id]; Next resolves the literal path first, so it doesn't shadow /api/projects/<id>.
 export const dynamic = "force-dynamic"
 
 /** `?status=DELIVERED,ACCEPTED`. Unknown names are dropped, not 400'd. */

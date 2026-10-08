@@ -1,11 +1,4 @@
-/**
- * The Repository tab's row model and its pure helpers.
- *
- * Four sources (stored files, Drive files, links, folders) are flattened into
- * one `UnifiedFile` so the table and the card grid can render, sort and filter
- * the same shape. Nothing here touches React or the DOM - the presentational
- * pieces live in `components/files/file-bits.tsx`.
- */
+// Repository tab row model: stored files, Drive files, links and folders flattened into one shape.
 import type { DocTag } from "./doc-tag"
 
 export type Source = "b2" | "drive" | "link" | "folder"
@@ -18,7 +11,6 @@ export interface Person {
   initials: string
 }
 
-/** One row of the Repository, whichever of the four sources it came from. */
 export interface UnifiedFile {
   id: string
   source: Source
@@ -45,7 +37,6 @@ export interface UnifiedFile {
   thumbnailLink?: string | null
 }
 
-/** Human label per type. Kept apart from the icons so this file stays pure. */
 export const TYPE_LABEL: Record<FileType, string> = {
   doc: "Google Doc",
   sheet: "Google Sheet",
@@ -77,7 +68,6 @@ export function classify(mime: string, source: Source): FileType {
   return "other"
 }
 
-/** Anything with a name and (optionally) a photo - our employee snippets all fit. */
 interface PersonLike {
   firstName: string | null
   lastName: string | null

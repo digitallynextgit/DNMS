@@ -3,7 +3,6 @@ import { withProjectAccess } from "@/features/projects/server/project-access"
 import { addRow, sheetBelongsToProject } from "@/features/projects/server/sheets.service"
 import type { Session } from "next-auth"
 
-/** POST - append a row. Anyone on the project. */
 export const POST = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, sheetId } = ctx.params

@@ -7,18 +7,11 @@ function getPool(): Pool {
   if (globalForPrisma.pgPool) return globalForPrisma.pgPool
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    // Raised from 10 now that the endpoints which used to hold many connections
-    // at once are bounded (the storage overview ran 12 unbounded scans in one
-    // Promise.all - it now runs 3 at a time).
-    //
-    // Sized against the server's actual limit: max_connections=100 with 3
-    // superuser-reserved, so 20 per instance leaves room for ~4 app instances
-    // plus migrations, psql sessions and the cron worker. Override with
-    // DB_POOL_MAX if you run more instances than that.
+    // Server max_connections is 100: 20 per instance leaves room for ~4 instances plus
+    // migrations and psql. Set DB_POOL_MAX if you run more instances.
     max: Number(process.env.DB_POOL_MAX) || (process.env.NODE_ENV === "production" ? 20 : 5),
     idleTimeoutMillis: 30_000,
-    // Fail fast instead of queueing forever when every connection is busy (e.g. a
-    // long backfill pinning the pool) - a stuck request is better than a stalled app.
+    // Fail fast instead of queueing forever when every connection is busy.
     connectionTimeoutMillis: 5_000,
     keepAlive: true,
   })
@@ -26,34 +19,23 @@ function getPool(): Pool {
   return pool
 }
 
-// NOTE: the return type is inferred, not annotated as `PrismaClient`. The `omit`
-// config below is encoded in the client's TYPE, so annotating it would erase that
-// and let `employee.passwordHash` type-check as if it were still there.
+// Return type inferred on purpose: the `omit` below lives in the client's TYPE, and a
+// `PrismaClient` annotation would erase it.
 function createClient() {
   return new PrismaClient({
     adapter: new PrismaPg(getPool()),
     log: process.env.PRISMA_LOG_QUERIES === "1" ? ["query", "error", "warn"] : ["error", "warn"],
-    // Credentials are DENY-BY-DEFAULT: Prisma strips these from every query, so a
-    // `findMany`/`include` without an explicit `select` can never leak them into an
-    // API response. The three places that legitimately need them opt back in with
-    // `omit: { <field>: false }`:
-    //   - server/identity.ts    (findLoginUser - bcrypt.compare on login)
-    //   - app/api/profile/route.ts (verify current password; read app password)
-    //   - lib/mailer.ts         (decrypt the Gmail app password to send as the user)
+    // Credentials are deny-by-default: stripped from every query unless a caller opts back in
+    // (`omit: { field: false }` or an explicit select).
     omit: {
-      // The platform identity, where the credential now actually lives (M2).
       user: { passwordHash: true },
       employee: { passwordHash: true, gmailAppPassword: true },
-      // Same deny-by-default for external client accounts; only the client
-      // credentials provider in server/auth.ts opts back in.
       clientUser: { passwordHash: true },
     },
   })
 }
 
-// The tenant guard (M4) is applied here, so there is exactly one client in the
-// app and no way to obtain an unscoped one by accident. Deliberately
-// cross-tenant work declares itself with runUnscoped() - see server/tenant-guard.ts.
+// The only client in the app is the tenant-guarded one; cross-tenant work uses runUnscoped().
 function createGuardedClient() {
   return createClient().$extends(tenantGuard)
 }
@@ -67,12 +49,5 @@ export const db = globalForPrisma.prisma ?? createGuardedClient()
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db
 
-/**
- * The client handed to a `db.$transaction(async (tx) => …)` callback.
- *
- * Use this instead of `Prisma.TransactionClient` for any helper that takes a
- * `tx`. Extending the client changes its type, so the stock
- * `Prisma.TransactionClient` no longer describes what `$transaction` actually
- * passes - and a helper annotated with it silently stops accepting the real one.
- */
+/** Type for a `tx` param: the extended client no longer matches Prisma.TransactionClient. */
 export type DbTransaction = Parameters<Parameters<typeof db.$transaction>[0]>[0]

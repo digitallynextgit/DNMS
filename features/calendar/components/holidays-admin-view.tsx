@@ -34,9 +34,7 @@ import { HOLIDAY_TYPE_COLORS, HOLIDAY_TYPE_LABELS, PERMISSIONS } from "@/lib/con
 import { formatDate } from "@/lib/utils"
 import { YearSelect } from "./year-select"
 
-// The HR Holiday Calendar view (HRMS → Calendar): manage the company holidays -
-// table, month grid, add/edit/delete - and approve floating-holiday requests.
-// Employees get the read-and-apply version, holidays-calendar-view.tsx.
+// HR view; employees get the read-and-apply version, holidays-calendar-view.tsx.
 
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -55,7 +53,6 @@ export function HolidaysAdminView() {
   const publicCount = holidays.filter((h) => !h.isOptional).length
   const floatingCount = holidays.filter((h) => h.isOptional).length
 
-  // Client-side pagination of the per-year holiday list (table view).
   const PAGE_SIZE = 10
   const [page, setPage] = useUrlPage()
   const totalPages = Math.max(1, Math.ceil(holidays.length / PAGE_SIZE))
@@ -85,9 +82,7 @@ export function HolidaysAdminView() {
   const updateHoliday = useUpdateHoliday()
   const deleteHoliday = useDeleteHoliday()
 
-  // One dialog for both add and edit - the fields are identical, so a second
-  // copy would only be two forms to keep in sync. `editing` is the row being
-  // changed, or null for a new holiday.
+  // One dialog for add and edit; `editing` is the row being changed, or null for a new holiday.
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<HolidayRow | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -140,7 +135,7 @@ export function HolidaysAdminView() {
       await deleteHoliday.mutateAsync(deleteId)
       setDeleteId(null)
     } catch {
-      // the mutation hook already toasts the error; just keep the form open
+      // already toasted by the mutation hook
     }
   }
 
@@ -152,7 +147,7 @@ export function HolidaysAdminView() {
       selection.clear()
       setBulkOpen(false)
     } catch {
-      // the mutation hook already toasts the error; just keep the form open
+      // already toasted by the mutation hook
     }
   }
 
@@ -214,7 +209,6 @@ export function HolidaysAdminView() {
   return (
     <>
       <Tabs value={view} onValueChange={setView} className="space-y-6">
-        {/* The view's toolbar: list/month/requests, the year, and Add. */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsBar
             spacing="none"
@@ -235,7 +229,6 @@ export function HolidaysAdminView() {
           </div>
         </div>
 
-        {/* Summary cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <StatCard
             title="Total Holidays"
@@ -260,7 +253,6 @@ export function HolidaysAdminView() {
           />
         </div>
 
-        {/* ── Table view ── */}
         <TabsContent value="table" className="space-y-4">
           {canWrite && (
             <BulkActionBar count={selection.count} onClear={selection.clear}>
@@ -305,7 +297,6 @@ export function HolidaysAdminView() {
           )}
         </TabsContent>
 
-        {/* ── Calendar view (the shared month grid, same as the employee one) ── */}
         <TabsContent value="calendar">
           <HolidayMonthCalendar
             year={year}
@@ -316,7 +307,6 @@ export function HolidaysAdminView() {
           />
         </TabsContent>
 
-        {/* ── Floating-holiday approval inbox (shared with the Leave section) ── */}
         {canWrite && (
           <TabsContent value="requests">
             <FloatingRequestsInbox />
@@ -324,7 +314,6 @@ export function HolidaysAdminView() {
         )}
       </Tabs>
 
-      {/* Add / Edit Holiday Dialog */}
       <FormDialog
         open={formOpen}
         onOpenChange={(open) => {
@@ -356,8 +345,7 @@ export function HolidaysAdminView() {
 
         <div className="space-y-2">
           <Label required>Date</Label>
-          {/* Bounded to the year in view when adding; when editing, the holiday's
-              own year, so a row opened from another year is still reachable. */}
+          {/* Bounded to the year in view, or the holiday's own year when editing. */}
           <DateField
             value={date}
             onChange={setDate}
@@ -390,7 +378,6 @@ export function HolidaysAdminView() {
         </div>
       </FormDialog>
 
-      {/* Bulk delete confirmation */}
       <ConfirmDialog
         open={bulkOpen}
         onOpenChange={setBulkOpen}
@@ -402,7 +389,6 @@ export function HolidaysAdminView() {
         isLoading={deleteHoliday.isPending}
       />
 
-      {/* Delete confirmation */}
       <ConfirmDialog
         open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}

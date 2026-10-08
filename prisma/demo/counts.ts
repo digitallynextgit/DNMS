@@ -1,12 +1,7 @@
 /**
- * READ-ONLY: row counts for every tenant-scoped table of one tenant.
- *
- *   pnpm exec tsx --conditions=react-server prisma/demo/counts.ts            # demo
- *   pnpm exec tsx --conditions=react-server prisma/demo/counts.ts digitallynext
- *   ... counts.ts digitallynext --json > before.json                         # machine-readable
- *
- * Used to prove `pnpm db:demo` only ever touches the demo tenant: snapshot the
- * real company before a run, run the seed, snapshot again, compare.
+ * READ-ONLY: row counts for every tenant-scoped table of one tenant (default: demo).
+ *   pnpm exec tsx --conditions=react-server prisma/demo/counts.ts [tenant-slug] [--json]
+ * Run it on the real company before and after `pnpm db:demo` to prove the seed only touches the demo tenant.
  */
 import "dotenv/config"
 import { Prisma } from "@prisma/client"

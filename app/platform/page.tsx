@@ -10,13 +10,7 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic"
 
-/**
- * The platform console (M5) - every customer, on one page.
- *
- * NOT FOUND rather than Forbidden for anyone who may not see it. A 403 confirms
- * the page exists; for the one surface that lists every customer, saying nothing
- * is the better answer.
- */
+/** Every customer on one page. Not found rather than forbidden: a 403 confirms the page exists. */
 export default async function PlatformPage() {
   const session = await getPlatformAdminSession()
   if (!session) notFound()

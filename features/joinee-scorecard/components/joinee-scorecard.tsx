@@ -40,13 +40,7 @@ import {
 } from "../hooks/use-scorecard"
 import type { Scorecard } from "../types"
 
-// =============================================================================
-// The 15-day new-joinee scorecard, laid out like HR's sheet: who and when, the
-// daily grid (three manager scores, three HR scores, their averages), the
-// 15-day summary beside the scoring guide, both sides' observations, and HR's
-// recommendation. One component for every place it appears - HR edits it
-// (onboarding:write), the employee sees the same page read-only.
-// =============================================================================
+// One component everywhere: HR edits it (onboarding:write), the employee sees it read-only.
 
 /** Colour for a score or an average, by the guide entry it rounds to. */
 const SCORE_TONE: Record<number, string> = {
@@ -86,8 +80,7 @@ export function JoineeScorecard({ employeeId }: { employeeId: string }) {
   const { data, isLoading, isError, error, refetch, isFetching } = useScorecard(employeeId)
 
   if (isLoading) return <JoineeScorecardSkeleton />
-  // A failed load must never read as "no scorecard yet" - that sends HR to
-  // start one that already exists, behind a button they may not even get.
+  // A failed load must never read as "no scorecard yet", or HR would start a duplicate.
   if (isError || !data) {
     return (
       <div className="bg-card flex flex-col items-center gap-3 rounded-sm border px-6 py-10 text-center">
@@ -105,7 +98,6 @@ export function JoineeScorecard({ employeeId }: { employeeId: string }) {
   return <ScorecardBody employeeId={employeeId} card={data.scorecard} canEdit={data.canEdit} />
 }
 
-/** Nobody has started one yet: HR can, everyone else is told so. */
 function NotStarted({ employeeId, canEdit }: { employeeId: string; canEdit: boolean }) {
   const start = useStartScorecard(employeeId)
   return (
@@ -153,7 +145,6 @@ function ScorecardBody({
 
   return (
     <div className="space-y-4">
-      {/* ── Who and when ─────────────────────────────────────────────────── */}
       <section className="bg-card rounded-sm border">
         <header className="flex items-center gap-3 border-b px-5 py-4">
           <div className="min-w-0 flex-1">
@@ -218,7 +209,6 @@ function ScorecardBody({
         </dl>
       </section>
 
-      {/* ── The daily grid ───────────────────────────────────────────────── */}
       <section className="bg-card overflow-hidden rounded-sm border">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[960px] text-sm">
@@ -301,7 +291,6 @@ function ScorecardBody({
         </div>
       </section>
 
-      {/* ── Summary + scoring guide ──────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <section className="bg-card rounded-sm border">
           <h3 className="border-b px-5 py-3 text-sm font-semibold">15-day summary</h3>
@@ -349,7 +338,6 @@ function ScorecardBody({
         </section>
       </div>
 
-      {/* ── Observations ─────────────────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Observations
           key={card.managerObservations ?? ""}
@@ -371,7 +359,6 @@ function ScorecardBody({
         />
       </div>
 
-      {/* ── Recommendation ───────────────────────────────────────────────── */}
       <section className="bg-card rounded-sm border">
         <h3 className="border-b px-5 py-3 text-sm font-semibold">15-day HR recommendation</h3>
         <div className="flex flex-wrap gap-2 px-5 py-4" role="radiogroup">
@@ -446,8 +433,6 @@ function ScorecardBody({
   )
 }
 
-// ── Pieces ──────────────────────────────────────────────────────────────────
-
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
@@ -475,7 +460,6 @@ function ScoreCell({
       className={cn(
         "inline-flex h-8 w-10 items-center justify-center rounded-sm text-sm font-semibold tabular-nums",
         value === null ? "text-muted-foreground/50" : SCORE_TONE[value],
-        // An empty cell HR can fill says so.
         value === null && editable && "border border-dashed",
       )}
     >
@@ -577,7 +561,6 @@ function SummaryTile({ label, value }: { label: string; value: number | null }) 
   )
 }
 
-/** An observations box: editable text with its own Save for HR, plain text otherwise. */
 function Observations({
   title,
   hint,
@@ -631,8 +614,6 @@ function Observations({
     </section>
   )
 }
-
-// ── Skeleton ────────────────────────────────────────────────────────────────
 
 export function JoineeScorecardSkeleton() {
   return (

@@ -6,11 +6,8 @@ import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 const governance = MODULES.find((x) => x.name === "Governance & Control")!
 
-/** Security & governance: narrative + control cards, theme-aware to match the
- *  rest of the page. */
 export function SecuritySection() {
-  // Rendered for real in the left column, and as an invisible spacer above the
-  // right cards so they start at the TITLE line (not the pill).
+  // Rendered left, and as an invisible spacer on the right so the cards start at the title.
   const pill = (
     <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
       <span
@@ -32,7 +29,6 @@ export function SecuritySection() {
       <GridBackdrop className="opacity-50" />
 
       <div className="relative mx-auto grid max-w-[1600px] items-stretch gap-12 px-4 sm:px-6 lg:grid-cols-2 lg:gap-16">
-        {/* Left: narrative */}
         <Reveal>
           {pill}
           <h2 className="mt-6 text-4xl font-bold tracking-tight text-balance sm:text-5xl">
@@ -54,10 +50,8 @@ export function SecuritySection() {
           </ul>
         </Reveal>
 
-        {/* Right: control cards, aligned to the title and filling the height */}
         <Reveal delay={120} className="lg:h-full">
           <div className="flex h-full flex-col">
-            {/* invisible pill-height spacer (desktop) */}
             <div aria-hidden className="pointer-events-none hidden opacity-0 select-none lg:block">
               {pill}
             </div>

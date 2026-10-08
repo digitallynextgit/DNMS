@@ -1,13 +1,5 @@
 "use client"
 
-/**
- * The two presentations of a storage account: card and table row.
- *
- * Split out of storage-accounts.tsx so the container keeps only state and
- * mutations - both views render the same badges and the same usage numbers, and
- * a divergence between them would show up as two different truths on one screen.
- */
-
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import {
@@ -56,14 +48,7 @@ function formatBytes(bytes: number): string {
   return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`
 }
 
-/**
- * Each account fetches its OWN usage.
- *
- * Listing a bucket is a network round trip, so folding it into the accounts list
- * would make the page wait on the slowest bucket - and one unreachable bucket
- * would empty the whole screen. This way the cards appear immediately and fill
- * in, and a broken bucket reports itself on its own card.
- */
+/** Per-account usage, so one slow or unreachable bucket can't hold up or blank the whole page. */
 export function useAccountUsage(accountId: string) {
   return useQuery({
     queryKey: ["storage-account-usage", accountId],
@@ -103,8 +88,7 @@ function UsageBar({ accountId }: { accountId: string }) {
         </p>
         <span className="text-muted-foreground text-[11px] tabular-nums">{pct.toFixed(1)}%</span>
       </div>
-      {/* Floored at 1% while non-zero: a 0.4%-full bucket should still draw a
-          visible sliver rather than an apparently broken empty track. */}
+      {/* Floored at 1% while non-zero, so a nearly empty bucket still shows a sliver. */}
       <Progress value={pct > 0 ? Math.max(pct, 1) : 0} className="h-1.5" />
       <p className="text-muted-foreground text-[11px]">
         {data.totalFiles} file{data.totalFiles === 1 ? "" : "s"} ·{" "}
@@ -161,22 +145,13 @@ export function AccountCard({
   onMakeDefault,
 }: { account: StorageAccount; busy: boolean } & RowActions) {
   return (
-    // Same shell as a project card (app/(dashboard)/projects/projects-client.tsx):
-    // `group`, rounded-[2px], border, and the hover pair that lifts border and
-    // background together.
     <div
       className={cn(
-        // Byte-for-byte the project card's shell. No accent border for the
-        // default account: a tinted border is what made this card read as
-        // heavier than a project card, and the "Default" badge already says it.
         "group bg-card hover:border-foreground/20 hover:bg-muted/30 relative flex flex-col gap-3 rounded-sm border p-4 transition-colors",
         !a.isActive && "opacity-60",
       )}
     >
-      {/* Stretched link: an absolutely-positioned overlay makes the WHOLE card
-          clickable while keeping the markup valid. It is a sibling of the inner
-          buttons, not their parent, so Edit/Remove/Test need no stopPropagation -
-          they simply sit above it with `relative z-10`. */}
+      {/* Stretched link: a sibling overlay makes the whole card clickable; buttons sit above it (z-10). */}
       <button
         type="button"
         onClick={() => onOpen(a)}
@@ -192,9 +167,6 @@ export function AccountCard({
           <p className="line-clamp-1 text-sm font-medium group-hover:underline">{a.label}</p>
           <p className="text-muted-foreground mt-0.5 truncate font-mono text-xs">{a.bucket}</p>
         </div>
-        {/* One overflow menu, exactly like a project card - four ghost buttons
-            competing with the content is what made this card busier than the
-            projects grid it sits beside. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

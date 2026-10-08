@@ -8,9 +8,7 @@ import { hrPeopleGuides } from "./hr-people"
 import { hrOperationsGuides } from "./hr-operations"
 import { adminGuides } from "./admin"
 
-// Every guide, in the order the Help home page lists them. Each folder owns its
-// own list (./<folder>/index.ts) so guides can be written side by side without
-// two people editing this file.
+// Each folder owns its own list (./<folder>/index.ts), in Help home page order.
 
 export const HELP_GUIDES: readonly HelpGuide[] = [
   ...startSelfGuides,

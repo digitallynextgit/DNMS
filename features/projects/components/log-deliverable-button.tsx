@@ -22,23 +22,14 @@ import {
 import { useProjectDeliverables } from "../hooks/use-deliverables"
 import { DeliverableFormDialog } from "./deliverable-form-dialog"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// "Log what you delivered", from wherever you already are.
-//
-// The Deliverables tab is a project's ledger; this is the one-click entry point
-// for the person doing the work, placed on My Tasks so logging output is part
-// of the same visit as updating tasks rather than a trip to the project page.
-// One project on the list opens the form directly; more than one asks which
-// first.
-// ─────────────────────────────────────────────────────────────────────────────
+// One-click deliverable logging from My Tasks; with several projects it asks which first.
 
 export function LogDeliverableButton({
   projects,
   currentUserId,
   className,
 }: {
-  /** Projects this person works on - derived from their tasks, so it is never
-   *  a project they cannot log against. */
+  /** Derived from this person's tasks, so never a project they can't log against. */
   projects: { id: string; name: string }[]
   currentUserId: string
   className?: string
@@ -56,8 +47,7 @@ export function LogDeliverableButton({
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [projects])
 
-  // The chosen project's ledger, for type suggestions and to find the row after
-  // the first save (the dialog flips to edit mode so files can be attached).
+  // For type suggestions, and to find the row after the first save (the dialog then flips to edit mode).
   const ledger = useProjectDeliverables(projectId ?? undefined, {})
   const entry = ledger.data?.rows.find((r) => r.id === editingId) ?? null
 

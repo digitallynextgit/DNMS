@@ -1,8 +1,6 @@
 import { PageHeaderSkeleton, StatCardsSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-// My Attendance: header with a month stepper, a 4-up stat strip, then the month
-// calendar grid.
 export default function MyAttendanceLoading() {
   return (
     <div className="space-y-6">

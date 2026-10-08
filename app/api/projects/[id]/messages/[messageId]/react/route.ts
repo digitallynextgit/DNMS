@@ -3,17 +3,7 @@ import { db } from "@/server/db"
 import { withProjectAccess } from "@/features/projects/server/project-access"
 import type { Session } from "next-auth"
 
-/**
- * POST /api/projects/:id/messages/:messageId/react  { emoji, replyId? }
- *
- * Toggles one emoji for the caller. `replyId` picks a reply; omit it to react to
- * the opening post - exactly one of the two columns is ever set, which is why
- * the lookup below branches rather than passing a possibly-null id into one key.
- *
- * A toggle rather than a set: the client is acting on what it can see, and a
- * stale `on: true` from another tab would fight it. withProjectAccess is the
- * membership check - you cannot react into a project you are not on.
- */
+// `replyId` targets a reply; omit it for the opening post (exactly one column is ever set).
 export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -24,17 +14,14 @@ export const POST = withProjectAccess(
 
       const me = session.user.id
 
-      // Prove the thread belongs to THIS project first - withProjectAccess only
-      // validated the URL project, and messageId is a string the client chose.
-      // Without this, a reaction lands on an arbitrary project's opening post.
+      // messageId is client-supplied: check the thread belongs to this project first.
       const message = await db.projectMessage.findFirst({
         where: { id: messageId, projectId },
         select: { id: true },
       })
       if (!message) return NextResponse.json({ error: "Message not found" }, { status: 404 })
 
-      // Prove the target reply belongs to THIS thread before writing to it - the
-      // id in the URL is just a string somebody could change.
+      // Likewise check the reply belongs to this thread.
       if (replyId) {
         const reply = await db.projectMessageReply.findFirst({
           where: { id: replyId, messageId },
@@ -51,9 +38,7 @@ export const POST = withProjectAccess(
         where,
         select: { id: true },
       })
-      // Idempotent toggle (API-13): tolerate the double-tap race - deleteMany
-      // accepts 0 rows, and a duplicate create is swallowed via P2002. deleteMany
-      // needs a plain filter, not the composite-unique `where` used for lookup.
+      // Tolerate the double-tap race: deleteMany accepts 0 rows and a duplicate create's P2002 is swallowed.
       if (existing) {
         await db.projectMessageReaction.deleteMany({
           where: replyId

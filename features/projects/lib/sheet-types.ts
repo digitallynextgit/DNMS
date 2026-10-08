@@ -1,12 +1,5 @@
-/**
- * The vocabulary of a project sheet, shared by the server and the browser.
- *
- * Mirrors the SheetColumnType and SheetEventType enums in schema.prisma. Kept
- * dependency-free so the grid can import it without pulling anything server-side
- * into the client bundle.
- */
+// Sheet vocabulary shared by server and browser; mirrors the SheetColumnType/SheetEventType enums.
 
-/** Resize bounds. Wide enough to be useful, tight enough to stay a grid. */
 export const MIN_COL_W = 64
 export const MAX_COL_W = 640
 export const MIN_ROW_H = 24
@@ -36,7 +29,6 @@ export const COLUMN_TYPE_LABEL: Record<SheetColumnType, string> = {
   PERSON: "Person",
 }
 
-/** One line each, so the type picker explains itself rather than being a guess. */
 export const COLUMN_TYPE_HINT: Record<SheetColumnType, string> = {
   TEXT: "A single line",
   LONG_TEXT: "A paragraph, wraps in the cell",
@@ -108,8 +100,6 @@ export interface ProjectSheet {
   updatedAt: string
 }
 
-/** A workbook - what the Calendars UI calls a "sheet": a named set of tabs. */
-/** Just enough of an employee to show who owns a sheet. */
 export interface SheetAssignee {
   id: string
   firstName: string
@@ -120,14 +110,7 @@ export interface SheetAssignee {
 export interface SheetWorkbook {
   id: string
   name: string
-  /**
-   * The month this edition covers, as "YYYY-MM-01". Null = an undated calendar.
-   *
-   * NULLABLE rather than required, and that is load-bearing: this interface is
-   * shared with the client portal, so a required field would break every
-   * consumer at once - and every calendar made before calendars were monthly
-   * genuinely has no month.
-   */
+  /** The month this edition covers, "YYYY-MM-01"; null = undated (older calendars have no month). */
   periodMonth: string | null
   position: number
   createdByName: string | null
@@ -142,16 +125,8 @@ export interface SheetWorkbook {
   sheets: ProjectSheet[]
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The per-team plan.
-//
-// STAFF ONLY. None of this travels through toWorkbook(), which the client
-// portal shares - see the comment on listClientWorkbooks in sheets.service.ts.
-// Who is doing the work, how much they owe and when it is due is an internal
-// conversation, and the portal must never be one refactor away from it.
-// ─────────────────────────────────────────────────────────────────────────────
+// Per-team plan - STAFF ONLY. Never goes through toWorkbook(), which the client portal shares.
 
-/** Someone put on a team's row for this calendar. */
 export interface WorkbookTeamMember {
   employeeId: string
   firstName: string
@@ -160,7 +135,6 @@ export interface WorkbookTeamMember {
   designation: string | null
 }
 
-/** A file produced against a team's row. Uploaded through the project's own pipeline. */
 export interface WorkbookTeamAttachment {
   id: string
   fileName: string
@@ -182,7 +156,6 @@ export interface WorkbookTeam {
   teamManagerId: string | null
   /** How many items they owe. 0 = on the calendar, not yet quantified. */
   quantity: number
-  /** Where the month stands. See lib/workbook-team-progress.ts. */
   status: WorkbookTeamStatus
   /** "YYYY-MM-DD", or null when no date has been agreed. */
   dueOn: string | null
@@ -193,15 +166,7 @@ export interface WorkbookTeam {
   attachments: WorkbookTeamAttachment[]
 }
 
-/**
- * One calendar in the PICKER: enough to name it, date it and say who runs it,
- * and nothing else.
- *
- * Deliberately carries no columns and no rows. The picker lists every edition
- * of every calendar on the project, and monthly editions mean that list grows
- * by twelve a year per calendar - sending each one's whole grid to draw a
- * dropdown would make opening the tab cost more every month it is used.
- */
+/** A calendar in the picker: no rows or columns, since the list grows by twelve editions a year. */
 export interface WorkbookIndexEntry {
   id: string
   name: string
@@ -219,14 +184,7 @@ export interface WorkbookIndexEntry {
 /** One calendar in FULL: the grid, plus the team plan. Staff only. */
 export type StaffWorkbook = SheetWorkbook & { teams: WorkbookTeam[] }
 
-/**
- * Coerce whatever arrives for a cell into something storable.
- *
- * The grid sends strings for nearly everything (an input's value always is one),
- * so NUMBER and CHECKBOX are normalised here rather than trusting the client.
- * An empty string becomes null: "cleared" and "never filled in" should look the
- * same to a filter, and storing "" makes them differ.
- */
+/** Coerce a cell to something storable: NUMBER/CHECKBOX normalised from strings, "" -> null. */
 export function normalizeCell(type: SheetColumnType, raw: unknown): CellValue {
   if (raw === null || raw === undefined) return null
   if (type === "CHECKBOX") return raw === true || raw === "true"
@@ -239,15 +197,7 @@ export function normalizeCell(type: SheetColumnType, raw: unknown): CellValue {
   return s.trim() === "" ? null : s
 }
 
-/**
- * 0 -> A, 25 -> Z, 26 -> AA. The reference people actually use out loud
- * ("what's in C4?"), which is why it is worth showing even though every column
- * here also has a name.
- *
- * Lives here rather than in the staff grid because the portal grid shows the
- * same letters, and two copies of this loop would be two chances to disagree
- * about what column 27 is called.
- */
+/** 0 -> A, 25 -> Z, 26 -> AA. Shared with the portal grid. */
 export function columnLetter(index: number): string {
   let n = index
   let out = ""

@@ -1,18 +1,8 @@
 import "server-only"
 
-// =============================================================================
-// The public URLs of the AI connector.
-//
-// Everything here is built from ONE configured origin, never from `req.url`:
-// behind nginx the request URL can carry http:// or the internal host (see the
-// onThisOrigin comment in proxy.ts), and OAuth compares these strings exactly -
-// the issuer in our metadata, the `iss` we return and the `resource` a token is
-// bound to must all be byte-for-byte identical.
-//
-//   APP_PUBLIC_ORIGIN=https://dnms.digitallynext.com   (production)
-//
-// Falls back to NEXTAUTH_URL / NEXT_PUBLIC_APP_URL so local dev works unset.
-// =============================================================================
+// Public URLs of the AI connector, all from ONE configured origin (APP_PUBLIC_ORIGIN), never
+// req.url - behind nginx that can differ, and OAuth compares these strings exactly. Falls back to
+// NEXTAUTH_URL / NEXT_PUBLIC_APP_URL for local dev.
 
 export function publicOrigin(): string {
   const raw =

@@ -5,15 +5,8 @@ import { withProjectAccess } from "@/features/projects/server/project-access"
 import { planDeliverables } from "@/features/projects/server/deliverables.service"
 import { AppError } from "@/lib/errors"
 
-// POST /api/projects/[id]/deliverables/plan
-//
-// A whole week's commitments at once: several teams, several lines each.
-// Weeks only, one week at a time - the service refuses any other window. One
-// transaction, so a half-entered week never reaches the board.
-//
-// withProjectAccess, not withTeamStaffing: the plan spans teams, so "may they
-// staff ANY team on this project" is the right question and the service is
-// where it gets asked.
+// One week at a time, in one transaction. withProjectAccess: the plan spans teams, so the service
+// checks whether they may staff any team on the project.
 export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {

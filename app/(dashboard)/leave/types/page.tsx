@@ -37,8 +37,7 @@ export default function LeaveTypesAndPolicyPage() {
 
   const [tab, setTab] = useUrlState("tab", canManageTypes ? "types" : "policy")
 
-  // Shared policy-grid editing state, so its Save / Re-sync buttons can live in
-  // the page header next to the tabs.
+  // Shared editor state, so Save / Re-sync can live in the page header next to the tabs.
   const policyEditor = useLeavePolicyEditor(canManagePolicy)
 
   const { data, isLoading } = useLeaveTypes()
@@ -50,8 +49,7 @@ export default function LeaveTypesAndPolicyPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [page, setPage] = useUrlPage()
 
-  // useLeaveTypes returns the full list; paginate locally (it's reused as a
-  // dropdown/lookup elsewhere so the API stays unpaginated).
+  // Paginated locally: the list is reused as a lookup elsewhere, so the API stays unpaginated.
   const leaveTypes = data?.data ?? []
   const total = leaveTypes.length
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -247,9 +245,6 @@ export default function LeaveTypesAndPolicyPage() {
               </Button>
             </BulkActionBar>
 
-            {/* The table renders from the first paint: while `isLoading` it draws
-                skeleton rows inside its own real <thead>, so the header, column
-                count and S.No column never move when the data lands. */}
             {isLoading || leaveTypes.length > 0 ? (
               <DataTable
                 columns={columns}

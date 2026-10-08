@@ -9,15 +9,8 @@ import { PERMISSIONS } from "@/lib/constants"
 import { monthlyGross, parsePercent, rewardAmount, rewardState } from "../lib/reward"
 import { submitReferralSchema, linkHireSchema, markPaidSchema } from "../schemas/referral.schema"
 
-// =============================================================================
-// Referrals.
-//
-// A referral IS a career application - the same row the marketing site writes,
-// with a referrer attached. One pipeline, so HR never has two lists to reconcile
-// and a referred candidate goes through exactly the same stages as everyone
-// else. The only difference is where the row came from and who gets told about
-// it afterwards.
-// =============================================================================
+// A referral IS a career application (the same row the marketing site writes) with a referrer
+// attached, so referred candidates go through the same pipeline.
 
 /** An employee putting somebody forward from inside DNMS. */
 export async function submitReferral(referrerId: string, input: unknown) {
@@ -35,8 +28,7 @@ export async function submitReferral(referrerId: string, input: unknown) {
   })
   if (!role) throw new NotFoundError("Role")
 
-  // Same person, same role, still in play - referring them twice does not make
-  // them twice as likely to be hired, and it would create two reward claims.
+  // Same person, same role, still in play: block the duplicate (it would also double the reward).
   const existing = await db.careerApplication.findFirst({
     where: {
       email: data.email,
@@ -58,8 +50,7 @@ export async function submitReferral(referrerId: string, input: unknown) {
   await db.careerApplication.create({
     data: {
       id,
-      // Not from the site, so there is no upstream key to replay - the id is
-      // unique on its own and keeps the column's NOT NULL contract.
+      // No upstream key (not from the site); the id keeps the column unique and NOT NULL.
       idempotencyKey: `referral_${id}`,
       mode: role.subDepartment.group.mode,
       groupSlug: role.subDepartment.group.slug,
@@ -84,7 +75,6 @@ export async function submitReferral(referrerId: string, input: unknown) {
     },
   })
 
-  // HR has to see it, and nothing else in this flow tells them.
   await notifyHrOfReferral(referrerId, data.fullName, role.title)
   return { id }
 }
@@ -96,9 +86,7 @@ async function notifyHrOfReferral(referrerId: string, candidate: string, role: s
       where: { id: referrerId },
       select: { firstName: true, lastName: true },
     }),
-    // recruitment:write, not a careers-specific scope: careers permissions do
-    // not exist in this database, so gating on one would have quietly notified
-    // nobody at all.
+    // recruitment:write - there is no careers-specific permission.
     db.employee.findMany({
       where: {
         isActive: true,
@@ -129,13 +117,7 @@ async function notifyHrOfReferral(referrerId: string, candidate: string, role: s
   )
 }
 
-/**
- * Tell the referrer their candidate moved.
- *
- * Called from the application status update, so a referred candidate's referrer
- * finds out the same moment HR records the decision - which is the whole reason
- * somebody refers a friend and then wonders what happened.
- */
+/** Tell the referrer their candidate moved (called from the application status update). */
 export async function notifyReferrerOfStage(applicationId: string) {
   const app = await db.careerApplication.findUnique({
     where: { id: applicationId },
@@ -195,8 +177,7 @@ export async function linkReferralHire(applicationId: string, input: unknown) {
   if (!app) throw new NotFoundError("Application")
   if (!hire) throw new NotFoundError("Employee")
   if (!hire.dateOfJoining) {
-    // Without it there is no one-year mark, so the reward could never become
-    // due - better to refuse now than to create a claim that silently never pays.
+    // Without it the reward could never become due, so refuse now.
     throw new ValidationError(
       "That employee has no date of joining, so the one-year reward date cannot be worked out. Set it on their profile first.",
     )
@@ -204,8 +185,7 @@ export async function linkReferralHire(applicationId: string, input: unknown) {
 
   await db.careerApplication.update({
     where: { id: applicationId },
-    // Linking a hire IS the hire being confirmed; leaving the stage behind would
-    // make the pipeline disagree with itself.
+    // Linking a hire confirms it, so the stage moves to HIRED too.
     data: { hiredEmployeeId: hire.id, status: "HIRED" },
   })
   await notifyReferrerOfStage(applicationId)
@@ -291,16 +271,8 @@ export interface EligibilityRunResult {
   notified: number
 }
 
-/**
- * Tell referrers (and HR) when a referred hire reaches one year.
- *
- * Runs daily. Only ever notifies ONCE per referral - rewardNotifiedAt is the
- * latch, because a reward that is due stays due until somebody pays it, and a
- * daily "you are owed money" is how people start ignoring notifications.
- *
- * The referrer having since LEFT does not block it: they made the introduction
- * that produced a year of service, and that is what the reward is for.
- */
+/** Daily: tell referrers (and HR) when a referred hire reaches one year - once per referral
+ *  (rewardNotifiedAt latch), even if the referrer has since left. */
 export async function runReferralEligibility(now = new Date()): Promise<EligibilityRunResult> {
   const oneYearAgo = new Date(now.getTime() - 365 * 86_400_000)
 

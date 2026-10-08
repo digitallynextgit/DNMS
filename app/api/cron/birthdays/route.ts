@@ -3,19 +3,13 @@ import { db } from "@/server/db"
 import { sendEmail } from "@/lib/mailer"
 import { getConfig } from "@/server/app-config"
 
-// This route is called daily by a cron job (e.g., Vercel Cron, node-cron in worker.ts, or external scheduler).
-// Protect it with CRON_SECRET env variable.
-// Example cron: 0 9 * * * (runs at 9 AM every day)
-// Call: GET /api/cron/birthdays with header Authorization: Bearer <CRON_SECRET>
-
 export const GET = withCron("birthdays", async () => {
   try {
     const today = new Date()
     const month = today.getMonth() + 1 // 1-12
     const day = today.getDate()
 
-    // Find all active employees whose birthday is today
-    // dateOfBirth is stored as a Date - match month and day regardless of year
+    // Match month and day regardless of year.
     const employees = await db.employee.findMany({
       where: {
         status: "ACTIVE",
@@ -79,7 +73,6 @@ export const GET = withCron("birthdays", async () => {
     }
   } catch (error) {
     console.error("[CRON_BIRTHDAYS]", error)
-    // Rethrown so forEachTenant records it against this tenant and continues.
     throw error
   }
 })

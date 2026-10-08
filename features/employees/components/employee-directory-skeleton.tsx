@@ -4,10 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 
-// Placeholders shaped like the employee directory's real cells. Each bar sits in
-// a box the height of the line it stands for (text-sm = 20px, text-xs = 16px),
-// so a skeleton row is exactly as tall as a real one and nothing jumps when the
-// data lands.
+// Placeholders sized like the directory's real cells, so nothing jumps when data lands.
 
 /** The identity cell: avatar, name, employee number. */
 export function EmployeeCellSkeleton() {
@@ -26,7 +23,6 @@ export function EmployeeCellSkeleton() {
   )
 }
 
-/** The Active / Inactive pill. */
 export function EmployeeStatusSkeleton() {
   return <Skeleton className="h-5 w-14 rounded-sm" />
 }
@@ -44,8 +40,7 @@ export function EmployeeActionsSkeleton() {
   )
 }
 
-// Mirrors the columns in employee-directory-client.tsx. Cells never render
-// while `loading`, so only the headers, alignment and skeletons matter.
+// Mirrors the columns in employee-directory-client.tsx (cells never render while loading).
 const COLUMNS: DataTableColumn<never>[] = [
   { header: "Employee", cell: () => null, skeleton: <EmployeeCellSkeleton /> },
   { header: "Department", cell: () => null },
@@ -64,11 +59,7 @@ const NO_SELECTION = {
   someSelected: false,
 }
 
-/**
- * The whole directory page while the route loads: the real title, then the
- * filter bar, view toggle and table at their real sizes - so the page fills in
- * around the skeleton instead of replacing it with a different layout.
- */
+/** The directory page while the route loads, at its real layout. */
 export function EmployeeDirectorySkeleton() {
   return (
     <div className="space-y-6">
@@ -78,7 +69,6 @@ export function EmployeeDirectorySkeleton() {
         actions={<Skeleton className="h-9 w-36" />}
       />
 
-      {/* Search, department, status - then the card/table toggle. */}
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
           <Skeleton className="h-9 max-w-sm min-w-[200px] flex-1" />

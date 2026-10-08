@@ -16,14 +16,8 @@ import { cn } from "@/lib/utils"
 import type { SeoConfig } from "../types"
 import { SiteFieldDialog, type SiteField } from "./site-field-dialog"
 
-// =============================================================================
-// The settings hub for one site: every setting as a row showing its current
-// value, opening its own focused dialog. Replaces the single form that showed
-// all nine inputs at once.
-//
-// Rows that are empty but matter are flagged, so "what still needs filling in"
-// is answerable at a glance rather than by reading each box.
-// =============================================================================
+// Settings hub for one site: each setting is a row with its value, opening its own dialog.
+// Empty rows that matter are flagged.
 
 interface Row {
   field: SiteField

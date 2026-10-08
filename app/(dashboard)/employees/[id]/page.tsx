@@ -54,12 +54,7 @@ import {
   PROBATION_BADGE,
 } from "@/lib/constants"
 
-/**
- * Mirrors the REAL profile layout instead of two grey blocks: the same PageHeader
- * (real Back button, avatar-sized circle, title/description bars at the true size)
- * and the same card grid. The page shell paints instantly - only the data regions
- * are placeheld - so opening a profile never blanks the screen.
- */
+/** Mirrors the real profile layout, so opening a profile never blanks the screen. */
 function ProfileSkeleton() {
   return (
     <div className="space-y-6">
@@ -130,9 +125,7 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="space-y-6">
-      {/* Mirrors /profile: a generic header, then one identity card carrying the
-          big avatar, name, role, badges and contact - so viewing a colleague and
-          viewing yourself look like the same page. */}
+      {/* Mirrors /profile, so viewing a colleague and yourself look like the same page. */}
       <PageHeader
         backHref="/employees/employee-directory"
         backLabel="Back to Employees"
@@ -141,8 +134,6 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
         actions={
           (can(PERMISSIONS.EMPLOYEE_WRITE) || userId === emp.id) && (
             <div className="flex flex-wrap items-center gap-2">
-              {/* Full edit form (every field, same as create) - the per-section
-                  "Edit" buttons below are the quick path. */}
               {canEdit && (
                 <Button className="gap-1.5" asChild variant="outline">
                   <Link href={`/employees/${emp.id}/edit`}>
@@ -150,8 +141,6 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
                   </Link>
                 </Button>
               )}
-              {/* Photo (admin) + Resign (self only) live here; the component
-                  decides which to show based on permission / ownership. */}
               <EmployeeAdminActions
                 employeeId={emp.id}
                 status={emp.status}
@@ -163,7 +152,6 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
         }
       />
 
-      {/* Top card */}
       <Card>
         <CardContent className="pt-6 pb-6">
           <div className="flex flex-col items-start gap-6 sm:flex-row">
@@ -238,7 +226,6 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
         </CardContent>
       </Card>
 
-      {/* Tabs */}
       <Tabs defaultValue="info">
         <TabsBar
           items={[
@@ -247,8 +234,7 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
             { value: "leave", label: "Leave", icon: CalendarDays },
             { value: "salary", label: "Salary", icon: Wallet },
             { value: "roles", label: "Roles", icon: ShieldCheck },
-            // HR only: the API behind it is employee:write, so showing the tab to
-            // anyone else would only ever produce a 403.
+            // HR only: the API behind it is employee:write.
             canEdit && { value: "access", label: "Task Access", icon: History },
             // Onboarding HR: the scorecard reads on onboarding:read, edits on :write.
             canSeeScorecard && {
@@ -259,9 +245,7 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
           ]}
         />
 
-        {/* ── Info Tab ─────────────────────────────────────────────────────── */}
         <TabsContent value="info" className="space-y-6">
-          {/* Personal Information */}
           <Card>
             <CardContent className="pt-6">
               <SectionHeader action={canEdit && <EditPersonalInfo emp={emp} />}>
@@ -282,7 +266,6 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
             </CardContent>
           </Card>
 
-          {/* Employment Details */}
           <Card>
             <CardContent className="pt-6">
               <SectionHeader action={canEdit && <EditEmploymentDetails emp={emp} />}>
@@ -318,7 +301,6 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
             </CardContent>
           </Card>
 
-          {/* Address */}
           <Card>
             <CardContent className="pt-6">
               <SectionHeader action={canEdit && <EditAddress emp={emp} />}>Address</SectionHeader>
@@ -349,7 +331,6 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
             </CardContent>
           </Card>
 
-          {/* Emergency Contact */}
           <Card>
             <CardContent className="pt-6">
               <SectionHeader action={canEdit && <EditEmergencyContact emp={emp} />}>
@@ -368,7 +349,6 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
           </Card>
         </TabsContent>
 
-        {/* ── Documents Tab ─────────────────────────────────────────────────── */}
         <TabsContent value="documents">
           <Card>
             <CardHeader>
@@ -401,17 +381,14 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
           />
         </TabsContent>
 
-        {/* ── Leave Tab ─────────────────────────────────────────────────────── */}
         <TabsContent value="leave">
           <EmployeeLeaveTab employeeId={emp.id} />
         </TabsContent>
 
-        {/* ── Salary Tab ────────────────────────────────────────────────────── */}
         <TabsContent value="salary">
           <EmployeeSalaryTab employeeId={emp.id} />
         </TabsContent>
 
-        {/* ── Roles Tab ─────────────────────────────────────────────────────── */}
         <TabsContent value="roles">
           <Card>
             <CardHeader>
@@ -445,14 +422,12 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
           </Card>
         </TabsContent>
 
-        {/* ── Task Access Tab ──────────────────────────────────────────────── */}
         {canEdit && (
           <TabsContent value="access">
             <EmployeeTaskAccess employeeId={emp.id} employeeName={fullName} />
           </TabsContent>
         )}
 
-        {/* ── 15-Day Scorecard Tab ─────────────────────────────────────────── */}
         {canSeeScorecard && (
           <TabsContent value="scorecard">
             <JoineeScorecard employeeId={emp.id} />

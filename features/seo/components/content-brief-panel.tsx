@@ -21,12 +21,7 @@ import type { ContentBriefView } from "../types"
 import { useContentBriefs, useCreateBrief, useDeleteBrief, useUpdateBrief } from "../hooks/use-seo"
 import { exportBriefs } from "../lib/seo-export"
 
-// =============================================================================
-// The content loop (plan step 7): brief -> write -> QA -> publish -> 30-day
-// check. The team writes the page; this panel gives the outline, runs the
-// on-page QA gate against the live URL, and reports whether the query's Search
-// Console position improved 30 days after publish.
-// =============================================================================
+// Content loop: brief -> write -> QA -> publish -> 30-day position check. The team writes the page.
 
 const STATUS_LABEL: Record<string, string> = {
   BRIEF: "Brief",
@@ -148,7 +143,6 @@ function BriefCard({
   return (
     <Card>
       <CardContent className="space-y-3 p-4">
-        {/* header row */}
         <div className="flex flex-wrap items-start justify-between gap-2">
           <button
             type="button"
@@ -212,7 +206,6 @@ function BriefCard({
           </div>
         </div>
 
-        {/* measurement summary (always visible once measured) */}
         {(brief.baselinePosition !== null || brief.reviewPosition !== null) && (
           <p className="text-muted-foreground text-xs">
             Position at publish:{" "}
@@ -236,7 +229,6 @@ function BriefCard({
 
         {open && (
           <div className="space-y-3 border-t pt-3">
-            {/* outline */}
             <div>
               <p className="mb-1 text-xs font-medium">Suggested outline</p>
               <ol className="text-muted-foreground list-decimal space-y-0.5 pl-5 text-sm">
@@ -246,7 +238,6 @@ function BriefCard({
               </ol>
             </div>
 
-            {/* QA gate */}
             {canManage && (
               <div>
                 <p className="mb-1 text-xs font-medium">QA the published page</p>

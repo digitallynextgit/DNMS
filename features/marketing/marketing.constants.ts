@@ -23,15 +23,7 @@ import {
 
 import { siteConfig } from "@/lib/site"
 
-/** Pre-filled "Book a demo" mailto. Change the address in lib/site.ts. */
-/**
- * The marketing/auth accent red (matches the logo mark).
- *
- * Was redeclared verbatim as a local `const BRAND_RED = "#ef4444"` in 14 files,
- * so changing the brand colour meant finding all 14. It stays a hex literal
- * rather than a CSS token because these sections set it via inline `style` on
- * gradients and SVG strokes, where a Tailwind class cannot reach.
- */
+/** Brand accent red (matches the logo). A hex literal, for inline styles Tailwind can't reach. */
 export const BRAND_RED = "#ef4444"
 
 export const demoHref = `mailto:${siteConfig.contactEmail}?subject=${encodeURIComponent(
@@ -342,10 +334,6 @@ export const HOW_STEPS: FlowStep[] = [
     text: "The record feeds KPI scores.",
   },
 ]
-
-// NOTE: the FAQ list used to live here. It moved to faq.content.ts when /faq
-// shipped, so the homepage teaser and the full page read one source instead of
-// two that would drift.
 
 export const PHILOSOPHY = {
   quote: "Software should remove the busywork between the work, not add one more tool to manage.",

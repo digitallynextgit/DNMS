@@ -1,8 +1,6 @@
 "use client"
 
-// Recharts is heavy (~100kB+). Keeping these charts in their own module lets the
-// dashboard lazy-load them (next/dynamic) so the landing page's initial JS stays
-// small and the stat cards paint immediately.
+// Own module so the dashboard can lazy-load recharts (~100kB+) and paint the stat cards first.
 import {
   PieChart,
   Pie,
@@ -26,7 +24,7 @@ import {
 
 const DEPT_COLORS = CHART_NEUTRAL_SERIES
 
-/** With no rows both charts drew a silent 280px blank - say why instead. */
+/** Shown instead of a blank chart when there are no rows. */
 function ChartEmpty({ message }: { message: string }) {
   return (
     <div className="text-muted-foreground flex h-[280px] items-center justify-center text-sm">

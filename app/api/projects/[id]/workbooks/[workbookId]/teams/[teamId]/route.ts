@@ -21,43 +21,13 @@ import {
 import { formatMonth } from "@/features/projects/lib/calendar-months"
 import { db } from "@/server/db"
 
-/**
- * The team-plan surface, keyed on (calendar, team) rather than on the plan
- * row's own id.
- *
- * That pair is the row's natural key - the six teams are a fixed catalogue, so
- * a team is on a calendar once or not at all - which means there is nothing to
- * create-then-fetch, and, more importantly, the GUARD can read the team out of
- * the URL. A guard cannot read the body to find out which team is being edited
- * without consuming the stream the handler then needs.
- *
- * withWorkbookTeamAccess: project admin, Account Manager, the calendar's
- * manager (any team), or that team's own manager (only their row).
- */
+// Keyed on (calendar, team), the row's natural key, so the guard can read the team from the URL
+// (it can't read the body without consuming it).
 
 const MAX_LINKS = 20
 
-/**
- * PUT - put a team on the plan, or change what it owes. Idempotent.
- *   body { quantity?, dueOn?, links?, notes?, employeeIds? }
- *
- * One write for the whole row, because that is how the form is filled in. Any
- * omitted field is left alone, so the same call serves "add VIDEO" and "move
- * VIDEO's deadline".
- *
- * ── TWO PERMISSION LEVELS IN ONE ROUTE ───────────────────────────────────────
- * The guard admits anyone who may hand work in - including a plain member of
- * that team, which is the point of the plan living on the calendar. The
- * PLANNING fields are then gated separately, inside:
- *
- *   quantity / dueOn / employeeIds   account manager, project admin, the
- *                                    calendar's manager, or that team's manager
- *   links / files / status           anyone on that team
- *
- * A member deciding their own deadline or their own target would make the plan
- * a suggestion. A member who cannot record what they delivered makes it
- * paperwork somebody else has to do for them.
- */
+// Idempotent; omitted fields are left alone. The guard admits any team member (links/files/status);
+// quantity/dueOn/employeeIds also need the AM, a project admin, or the calendar's or team's manager.
 export const PUT = withWorkbookTeamContribute(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, workbookId, teamId } = ctx.params
@@ -74,8 +44,6 @@ export const PUT = withWorkbookTeamContribute(
       employeeIds?: unknown
     }
 
-    // Links are validated here rather than in the service because this is where
-    // untrusted input arrives. Same rule as task links and deliverable links:
     // http(s) only, so a stored javascript: URL can never become a click.
     let links: string[] | undefined
     if (body.links !== undefined) {
@@ -104,14 +72,12 @@ export const PUT = withWorkbookTeamContribute(
       status = body.status as WorkbookTeamStatus
     }
 
-    // The planning fields. Asking only when one of them is actually present
-    // keeps the extra lookup off the path a team member takes to upload a file.
+    // Only look up planning rights when a planning field is present.
     const plans =
       body.quantity !== undefined ||
       body.dueOn !== undefined ||
       body.employeeIds !== undefined ||
-      // Dropping the work is a planning decision, not a progress report - a
-      // team member may say STUCK, but not that it is no longer owed.
+      // Dropping the work is a planning decision; a member may say STUCK, not that it's no longer owed.
       status === "DISCARDED"
     if (plans && !(await canEditWorkbookTeam(session, projectId!, workbookId!, teamId!))) {
       return NextResponse.json(
@@ -159,9 +125,7 @@ export const PUT = withWorkbookTeamContribute(
         },
       })
 
-      // Only people NEW to the row, and never the person doing it. Someone who
-      // was already on it does not need telling again because the quantity
-      // moved - that is what the calendar itself is for.
+      // Only people new to the row, and never the person doing it.
       const tell = addedEmployeeIds.filter((id) => id !== session.user.id)
       if (tell.length > 0) {
         await createNotifications(
@@ -187,14 +151,7 @@ export const PUT = withWorkbookTeamContribute(
   },
 )
 
-/**
- * DELETE - take a team off this month's plan.
- *
- * Its files are DETACHED, not deleted (the FK is ON DELETE SET NULL): they stay
- * in the project's Files. Taking a team off a plan is an editing decision, and
- * destroying work they already handed over is not something a planning panel
- * should be able to do. The count comes back so the UI can say so.
- */
+// Files are detached, not deleted (FK ON DELETE SET NULL); the count comes back so the UI can say so.
 export const DELETE = withWorkbookTeamAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     const { id: projectId, workbookId, teamId } = ctx.params

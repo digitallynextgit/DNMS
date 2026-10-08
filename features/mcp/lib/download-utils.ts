@@ -1,12 +1,6 @@
-// Pure helpers for the AI connector's file downloads (dnms_download /
-// dnms_export_table). No framework or server imports: unit-tested in
-// download-utils.test.ts.
+// Pure helpers for the AI connector's downloads (dnms_download / dnms_export_table).
 
 export type Cell = string | number | boolean | null
-
-// ---------------------------------------------------------------------------
-// File names and types
-// ---------------------------------------------------------------------------
 
 /** A file name that is safe to put in a header and on a disk. */
 export function safeFileName(name: string | null | undefined, fallback = "download"): string {
@@ -83,10 +77,6 @@ export function withExtension(name: string, contentType: string): string {
   return `${name}.${ext}`
 }
 
-// ---------------------------------------------------------------------------
-// Signed storage links in JSON ({ data: { signedUrl } } and friends)
-// ---------------------------------------------------------------------------
-
 const URL_KEYS = ["signedUrl", "downloadUrl", "fileUrl", "url", "link"]
 const NAME_KEYS = ["fileName", "filename", "name", "title"]
 
@@ -142,19 +132,11 @@ export function looksLikePresignedStorageUrl(url: string): boolean {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Turning a list response into a table (dnms_export_table)
-// ---------------------------------------------------------------------------
-
 type Json = unknown
 const isObject = (v: Json): v is Record<string, Json> =>
   v !== null && typeof v === "object" && !Array.isArray(v)
 
-/**
- * The array of records inside an API response - {data:[...]},
- * {data:{data:[...],pagination}}, {items:[...]}, {rows:[...]}, or else the
- * largest array of objects within a few levels.
- */
+/** The record array in a response ({data}, {data:{data}}, {items}, {rows}), else the largest. */
 export function pickRows(json: Json): { rows: Record<string, Json>[]; path: string } | null {
   const rowsAt = (v: Json): Record<string, Json>[] | null =>
     Array.isArray(v) && v.length > 0 && v.every(isObject) ? (v as Record<string, Json>[]) : null
@@ -256,9 +238,8 @@ export function flattenRows(records: Record<string, Json>[]): {
 }
 
 /**
- * CSV formula-injection guard. A text cell beginning = or @ (or +/- followed by
- * something that is not a number) would be run as a formula by Excel, so it gets
- * a leading apostrophe. Phone numbers (+91 98...) and negatives are left alone.
+ * CSV formula-injection guard: text starting with = or @ (or +/- not followed by a number) gets
+ * a leading apostrophe. Phone numbers and negatives are left alone.
  */
 export function guardCsvCell(value: Cell): Cell {
   if (typeof value !== "string") return value

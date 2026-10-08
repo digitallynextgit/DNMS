@@ -22,9 +22,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 
-// Only honour internal, relative callback paths. Anything else (an absolute
-// URL, a protocol-relative `//evil.com`, or a missing param) falls back to the
-// dashboard - this prevents open-redirect attacks via a crafted ?callbackUrl=.
+// Only internal relative paths (not `//evil.com`), to prevent open redirects via ?callbackUrl=.
 function safeCallbackUrl(raw: string | null): string {
   if (raw && raw.startsWith("/") && !raw.startsWith("//")) return raw
   return "/dashboard"
@@ -48,8 +46,7 @@ export function LoginForm() {
 
   const { isSubmitting } = form.formState
 
-  // Surface auth redirects (e.g. a rejected Google sign-in) as a toast, then
-  // strip the ?error= param so it doesn't re-fire on refresh.
+  // Toast auth redirect errors, then strip ?error= so it doesn't re-fire on refresh.
   useEffect(() => {
     const err = searchParams.get("error")
     if (!err) return
@@ -83,11 +80,7 @@ export function LoginForm() {
 
     if (result?.ok) {
       toast.success("Signed in successfully")
-      // One login point serves both populations (M2), so where to land is
-      // decided by what the session turned out to be, not by which form was
-      // used. Without this a client signing in here would be sent to /dashboard
-      // and bounced to /portal by the proxy - it works, but it flashes a page
-      // they are not allowed to see.
+      // Land by what the session turned out to be (staff or client), not by which form was used.
       const session = await getSession()
       const isClient = session?.user?.kind === "client"
       const destination = isClient && !callbackUrl.startsWith("/portal") ? "/portal" : callbackUrl

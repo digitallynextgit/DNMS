@@ -1,5 +1,4 @@
-// The work report as data. Built once by the server loader, then drawn by the
-// PPTX, PDF and DOCX renderers - none of them queries anything.
+// The work report as data: built once by the server loader, drawn by the PPTX/PDF/DOCX renderers.
 
 export type WorkReportFormat = "pptx" | "pdf" | "docx"
 

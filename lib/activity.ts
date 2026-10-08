@@ -4,54 +4,26 @@ import type { Session } from "next-auth"
 import { db } from "@/server/db"
 import { createAuditLog } from "@/lib/audit"
 
-// =============================================================================
-// One call, right table.
-// =============================================================================
-// A shared service (the project mailer) is now driven by BOTH staff and client
-// accounts. Its audit calls cannot simply keep calling createAuditLog, because
-// `audit_logs.actor_id` is a foreign key to `employees` - a client id there is a
-// database error, so the first campaign a client sent would 500 after doing the
-// work.
-//
-// So dispatch on who is acting:
-//   staff  -> audit_logs         (unchanged; every existing caller is unaffected)
-//   client -> client_activity_logs
-//
-// Call sites stay honest by not having to know which is which. Adding a client
-// path to any other staff service is now one import away.
-// =============================================================================
+// Staff actions go to audit_logs, client actions to client_activity_logs (audit_logs.actor_id must be an employee).
 
 export interface ActivityInput {
   action: string
   module: string
   entityType?: string
   entityId?: string
-  /**
-   * A plain-language line shown to the client in their own Activity view.
-   * Written at the time of the action, because only here do we still know what
-   * "campaign:create" actually meant. Ignored for staff (audit_logs has no such
-   * column and the staff UI derives its wording from the action).
-   */
+  /** Plain-language line for the client's Activity view. Ignored for staff. */
   summary?: string
   changes?: object
-  /** The resolved project id, so the record can be scoped to one project. */
   projectId?: string | null
   ipAddress?: string | null
   userAgent?: string | null
 }
 
-/** True when this session belongs to an external client-portal account. */
 export function isClientSession(session: Session | null): boolean {
   return session?.user?.kind === "client"
 }
 
-/**
- * Record an action against whichever log fits the actor.
- *
- * Never throws: a failed log must not roll back work the user already saw
- * succeed. It is written after the operation for that reason, and a failure is
- * reported to the server console rather than to the person.
- */
+/** Never throws: a failed log must not roll back work the user already saw succeed. */
 export async function recordActivity(session: Session | null, input: ActivityInput): Promise<void> {
   try {
     if (!isClientSession(session)) {

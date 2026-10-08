@@ -4,20 +4,9 @@ import { google } from "googleapis"
 import { getConfig } from "@/server/app-config"
 import { readGoogleCredentials } from "@/lib/google-credentials"
 
-// =============================================================================
-// GA4 Data API - organic sessions, engagement and conversions.
-//
-// Search Console proves people CLICKED; GA4 proves what happened next. Together
-// they are 40 of the 100 points in the plan's scorecard ("rankings lead, clicks
-// prove, conversions pay").
-//
-// SETUP (once per property):
-//   1. Enable "Google Analytics Data API" on the same Cloud project.
-//   2. GA4 -> Admin -> Property access management -> add the service account
-//      email with Viewer.
-//   3. Paste the numeric property id (Admin -> Property details) into the site's
-//      SEO settings.
-// =============================================================================
+// GA4 Data API: organic sessions, engagement, conversions.
+// Setup per property: enable the "Google Analytics Data API" on the Cloud project, add the service
+// account as Viewer in GA4 property access, and paste the numeric property id into SEO settings.
 
 const SCOPES = ["https://www.googleapis.com/auth/analytics.readonly"]
 
@@ -61,10 +50,7 @@ function describeError(err: unknown, propertyId?: string): string {
   return msg || "GA4 request failed"
 }
 
-/**
- * Organic-search sessions, engaged sessions, conversions and AI-assistant
- * referrals for one date window. Dates are inclusive "YYYY-MM-DD".
- */
+/** Dates are inclusive "YYYY-MM-DD". */
 export async function fetchOrganicTraffic(input: {
   propertyId: string
   startDate: string
@@ -83,8 +69,7 @@ export async function fetchOrganicTraffic(input: {
   const property = `properties/${propertyId.replace(/^properties\//, "")}`
 
   try {
-    // Organic search only - paid and direct traffic are not what SEO is judged
-    // on, and mixing them would flatter the numbers.
+    // Organic only - paid and direct traffic would flatter the SEO numbers.
     const [organic, referrals] = await Promise.all([
       analytics.properties.runReport({
         property,

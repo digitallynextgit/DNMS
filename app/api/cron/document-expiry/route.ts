@@ -2,10 +2,7 @@ import { withCron } from "@/server/cron-auth"
 import { db } from "@/server/db"
 import { createNotification } from "@/lib/notifications"
 
-// Notifies people about documents expiring within the next 30 days.
-//   - Personal (employee) documents → notify the employee.
-//   - Company documents → notify whoever uploaded them.
-// Run daily. Auth: Authorization: Bearer <CRON_SECRET>
+// Daily. Personal documents notify the employee; company documents notify the uploader.
 
 export const GET = withCron("document-expiry", async () => {
   try {
@@ -54,7 +51,6 @@ export const GET = withCron("document-expiry", async () => {
     }
   } catch (error) {
     console.error("[DOCUMENT_EXPIRY_CRON]", error)
-    // Rethrown so forEachTenant records it against this tenant and continues.
     throw error
   }
 })

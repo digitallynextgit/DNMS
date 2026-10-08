@@ -26,11 +26,7 @@ interface NameFormProps {
   onCancel: () => void
 }
 
-/**
- * One text field behind a title: "New folder", "Rename". Submit is disabled
- * until the name is non-empty AND different from what it started as, so a
- * rename that changes nothing cannot be sent.
- */
+/** Submit stays disabled until the name is non-empty and actually changed. */
 export function NameDialog({
   open,
   onOpenChange,
@@ -42,8 +38,7 @@ export function NameDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        {/* The form's state lives in a child that only exists while the dialog
-            is open, so every opening starts from `initial` without an effect. */}
+        {/* Mounted only while open, so each opening starts fresh from `initial`. */}
         <NameForm {...form} onCancel={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>

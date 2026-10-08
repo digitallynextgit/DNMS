@@ -1,38 +1,13 @@
-// =============================================================================
-// The tenant URL space (M3).
-//
-//   dnms.digitallynext.com/{tenant}/dashboard
-//   dnms.digitallynext.com/{tenant}/projects/abc
-//   dnms.digitallynext.com/{tenant}/portal/xyz
-//
-// Pages are PATH-scoped; APIs are TOKEN-scoped and stay at /api/... with no
-// prefix, because an API caller (the mobile app, a webhook) proves its tenant
-// with its credential, not with a URL segment.
-//
-// NO framework or server imports: proxy.ts runs this on the EDGE, client
-// components run it in the browser, and server components run it in Node. It is
-// pure string handling on purpose - anything needing the database belongs in
-// server/tenants.ts, which builds on this file.
-//
-// SECURITY: nothing here authenticates anything. A slug in a URL is a claim.
-// proxy.ts is what checks that claim against the session before letting the
-// request through, and it is the only place allowed to conclude anything from it.
-// =============================================================================
+// Tenant URLs: pages live at /{tenant}/..., APIs stay at /api (the token carries the tenant).
+// Pure string code (runs on the edge, browser and Node). Not a security check - proxy.ts verifies the slug.
 
 /**
- * The first path segments that belong to the authenticated app and therefore
- * live under a tenant. Mirrors the folders in `app/(dashboard)/` plus the client
- * portal.
- *
- * An ALLOW-list, not a deny-list: a new public or platform route added later is
- * left alone by default. The failure mode of a miss here is an un-prefixed URL
- * (cosmetic, and proxy.ts redirects it to the canonical form anyway), whereas
- * the failure mode of a deny-list miss would be a broken public link.
+ * First path segments that live under a tenant (app/(dashboard)/ folders + portal). Allow-list on
+ * purpose. Every dashboard route MUST be here, or looksLikeSlug reads it as a company and the proxy
+ * bounces it to /select-workspace.
  */
 export const TENANT_SCOPED_SEGMENTS: ReadonlySet<string> = new Set([
   "admin",
-  // AI Connections (Claude / ChatGPT via MCP). Hyphenated, so looksLikeSlug
-  // would otherwise take it for a company name.
   "ai-connections",
   "analytics",
   "announcements",
@@ -43,18 +18,12 @@ export const TENANT_SCOPED_SEGMENTS: ReadonlySet<string> = new Set([
   "employees",
   "gallery",
   "holiday-calendar",
-  // The Calendar page (holidays, birthdays...). A plain word that looksLikeSlug
-  // would otherwise take for a company name.
   "calendar",
   "holidays",
-  // Help & Guides. A plain word that looksLikeSlug would take for a company.
   "help",
   "leave",
   "more",
   "notifications",
-  // HR checklists. "onboarding" and "clearances" read exactly like company
-  // names to looksLikeSlug, so without these the proxy strips them as a tenant
-  // prefix and bounces /onboarding to /select-workspace?next=/onboarding.
   "onboarding",
   "clearances",
   "exit-clearance",
@@ -65,25 +34,14 @@ export const TENANT_SCOPED_SEGMENTS: ReadonlySet<string> = new Set([
   "recruitment",
   "referrals",
   "resignations",
-  // HR stock register. Like "onboarding" above, "stock" reads exactly like a
-  // company name to looksLikeSlug - without this the proxy strips it and
-  // bounces /stock to /select-workspace.
   "stock",
+  "tools",
   "wfh",
-  // Month-end work report. Hyphenated like "exit-clearance", so looksLikeSlug
-  // would otherwise take it for a company and bounce it to /select-workspace.
   "work-reports",
-  // The external client portal. A client belongs to a company too, so their
-  // URLs carry the same prefix.
   "portal",
 ])
 
-/**
- * Segments that are NEVER tenant-scoped, and can therefore never be a slug.
- *
- * Sign-in happens before a tenant is known, APIs carry their tenant in the
- * token, and the marketing site has no tenant at all.
- */
+/** Never tenant-scoped, so never a slug: sign-in, token-scoped APIs, the marketing site. */
 export const GLOBAL_SEGMENTS: ReadonlySet<string> = new Set([
   "api",
   "login",
@@ -93,13 +51,9 @@ export const GLOBAL_SEGMENTS: ReadonlySet<string> = new Set([
   "change-password",
   "select-workspace",
   "platform",
-  // AI-connector consent screen (/oauth/consent/<id>). Reached from Claude /
-  // ChatGPT before any tenant is in the URL; "oauth" reads exactly like a
-  // company name to looksLikeSlug, so without this it would be stripped.
+  // AI-connector consent screen, reached before any tenant is in the URL.
   "oauth",
-  // Public marketing pages. A company is never called "about" or "contact", and
-  // these must resolve to the marketing route rather than being read as a tenant
-  // slug and stripped. Mirrored in PUBLIC_PREFIXES in proxy.ts.
+  // Public marketing pages. Mirrored in PUBLIC_PREFIXES in proxy.ts.
   "about",
   "contact",
   "pricing",
@@ -107,17 +61,11 @@ export const GLOBAL_SEGMENTS: ReadonlySet<string> = new Set([
   "legal",
   "_next",
   "public",
-  // Top-level DIRECTORIES in public/. These matter more than they look: a
-  // directory name has no dot, so without listing it here `looksLikeSlug` reads
-  // it as a company and the proxy strips it - /avatars/av-web-01.webp becomes a
-  // redirect to /av-web-01.webp and every preset avatar 404s. Files in public/
-  // are safe on their own because an extension contains a dot, which the slug
-  // pattern rejects. scripts/verify-tenant-urls.ts asserts this list stays in
-  // step with the directory.
+  // Top-level public/ folders. They have no dot, so without these looksLikeSlug reads them as a
+  // company and the proxy strips them (/avatars/x.webp would 404).
   "avatars",
   "brand-masters",
   "email-icons",
-  // Help & Guides screenshots (features/help).
   "help-shots",
   // Next.js metadata routes served at the root.
   "favicon.ico",
@@ -130,23 +78,14 @@ export const GLOBAL_SEGMENTS: ReadonlySet<string> = new Set([
   "manifest",
 ])
 
-/**
- * Digitally Next - the founding tenant.
- *
- * Declared HERE, not in server/tenant-context.ts, because that file is
- * server-only and client components need the same answer: the topbar has to
- * decide whether to offer the platform console. tenant-context.ts re-exports
- * these, so every existing `from "@/server/tenant-context"` import still works.
- *
- * Matches the DB default set in migration 20260825000000_tenant_spine.
- */
+/** Digitally Next, the founding tenant. Here (not server/tenant-context.ts) so client code can use it. */
 export const FOUNDING_TENANT_ID = "0197d1ab-0000-7000-8000-000000000001"
 export const FOUNDING_TENANT_SLUG = "digitallynext"
 
 /** 3-32 chars: lowercase letters, digits and hyphens, not starting or ending with one. */
 export const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])$/
 
-/** Could this string be a tenant slug at all? Shape only - says nothing about existence. */
+/** Shape only - says nothing about whether the tenant exists. */
 export function looksLikeSlug(segment: string): boolean {
   return (
     SLUG_PATTERN.test(segment) &&
@@ -156,22 +95,12 @@ export function looksLikeSlug(segment: string): boolean {
 }
 
 export interface SplitPath {
-  /** The claimed tenant slug, or null when the path carries none. */
   slug: string | null
-  /** The path with the slug removed - always starts with "/". */
+  /** Always starts with "/". */
   rest: string
 }
 
-/**
- * Split a leading tenant slug off a pathname.
- *
- *   /digitallynext/projects/7 → { slug: "digitallynext", rest: "/projects/7" }
- *   /projects/7               → { slug: null,            rest: "/projects/7" }
- *   /login                    → { slug: null,            rest: "/login" }
- *
- * `/{slug}` with nothing after it yields rest "/" - proxy.ts sends that to the
- * tenant's dashboard.
- */
+/** "/acme/projects/7" -> { slug: "acme", rest: "/projects/7" }; "/acme" -> rest "/". */
 export function splitTenant(pathname: string): SplitPath {
   if (!pathname.startsWith("/")) return { slug: null, rest: pathname }
   const firstSlash = pathname.indexOf("/", 1)
@@ -181,7 +110,6 @@ export function splitTenant(pathname: string): SplitPath {
   return { slug: head, rest: rest === "" ? "/" : rest }
 }
 
-/** Does this un-prefixed path belong under a tenant? */
 export function isTenantScoped(path: string): boolean {
   if (!path.startsWith("/")) return false
   const firstSlash = path.indexOf("/", 1)
@@ -190,15 +118,8 @@ export function isTenantScoped(path: string): boolean {
 }
 
 /**
- * Put `slug` in front of an app path. The one function that builds a tenant URL.
- *
- * Left ALONE, deliberately:
- *   - a path that is not tenant-scoped (/login, /api/..., /)
- *   - a path that already carries a slug (idempotent, so double-wrapping is safe)
- *   - anything not starting with "/" (relative, external, "#anchor", "mailto:")
- *   - a null/empty slug (nothing sensible to add)
- *
- * Query strings and fragments survive: the prefix goes on the pathname only.
+ * Prefix an app path with the tenant slug. Leaves alone: non-tenant paths, already-prefixed paths,
+ * anything not starting with "/", and an empty slug. Query strings and hashes survive.
  */
 export function withTenant(path: string, slug: string | null | undefined): string {
   if (!slug || !path.startsWith("/")) return path

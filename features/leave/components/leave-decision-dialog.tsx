@@ -34,9 +34,7 @@ interface Variant {
 
 const fmtDate = (d: string) => new Date(d).toDateString()
 
-/** The default reply letter - kept in sync with renderLeaveDecisionLetter on the
- *  server (that server default is only a fallback; whatever is in the box here is
- *  what actually gets sent). */
+/** Default reply letter, kept in sync with the server's renderLeaveDecisionLetter fallback. */
 function composeBody(args: {
   approved: boolean
   firstName: string
@@ -75,13 +73,8 @@ function composeBody(args: {
   ].join("\n")
 }
 
-/**
- * Approve / reject a leave request.
- *  - FINAL viewers (admin/HR): the full editable reply that's emailed to the
- *    employee on the thread they applied on - editable letter, AI, signature.
- *  - ADVISORY viewers (the applicant's manager): a recommendation to HR. It's
- *    recorded and HR/admin makes the final call - no email is sent from here.
- */
+/** Approve / reject a leave request. FINAL viewers edit the reply emailed to the employee;
+ *  ADVISORY viewers (the manager) send HR a recommendation with no email. */
 export function LeaveDecisionDialog({
   open,
   onOpenChange,
@@ -102,10 +95,10 @@ export function LeaveDecisionDialog({
   const [body, setBody] = React.useState("")
   const [variants, setVariants] = React.useState<Variant[]>([])
   const [polishing, setPolishing] = React.useState(false)
+  const [bodyDirty, setBodyDirty] = React.useState(false)
   const bodyRef = React.useRef<HTMLTextAreaElement>(null)
 
-  // The reply is signed by, and sent from, whoever approves - so we preview the
-  // current user's signature (final viewers only; advisory sends no email).
+  // The reply is signed by and sent from whoever approves, so preview the current user's signature.
   const { data: sig } = useQuery({
     queryKey: ["leave-decision-signature", request?.id],
     queryFn: () =>
@@ -133,22 +126,25 @@ export function LeaveDecisionDialog({
     [request, isReject, firstName, reason],
   )
 
-  // Only auto-fill the letter from `composed` while the user hasn't taken it over
-  // (UI-06). Previously every keystroke in the reason field recomputed `composed`
-  // and overwrote a manually-edited or AI-polished letter. Editing the reason
-  // still updates the letter until the moment the user edits/AI-polishes it.
-  const bodyDirty = React.useRef(false)
-  React.useEffect(() => {
-    if (!bodyDirty.current) setBody(composed)
-  }, [composed])
+  // Auto-fill the letter from `composed` only until the user edits or AI-polishes it.
+  const [filledFrom, setFilledFrom] = React.useState("")
+  if (composed !== filledFrom) {
+    setFilledFrom(composed)
+    if (!bodyDirty) setBody(composed)
+  }
 
-  React.useEffect(() => {
+  const [resetFor, setResetFor] = React.useState({ open, action })
+  if (open !== resetFor.open || action !== resetFor.action) {
+    setResetFor({ open, action })
     if (open) {
       setReason("")
       setVariants([])
-      bodyDirty.current = false
+      setBodyDirty(false)
+      // Start from a fresh letter, never one edited for an earlier request.
+      setBody("")
+      setFilledFrom("")
     }
-  }, [open, action])
+  }
 
   React.useEffect(() => {
     const el = bodyRef.current
@@ -198,7 +194,7 @@ export function LeaveDecisionDialog({
     }
   }
 
-  // ── Advisory (manager) recommendation - no email, goes to HR/admin. ──────────
+  // Advisory (manager): a recommendation to HR/admin, no email.
   if (advisory) {
     return (
       <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -250,7 +246,7 @@ export function LeaveDecisionDialog({
     )
   }
 
-  // ── Final decision (admin/HR) - the reply that gets emailed. ─────────────────
+  // Final decision (admin/HR): the reply that gets emailed.
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="max-w-2xl">
@@ -307,7 +303,7 @@ export function LeaveDecisionDialog({
                     key={v.label}
                     type="button"
                     onClick={() => {
-                      bodyDirty.current = true
+                      setBodyDirty(true)
                       setBody(v.text)
                       setVariants([])
                     }}
@@ -350,7 +346,7 @@ export function LeaveDecisionDialog({
                 ref={bodyRef}
                 value={body}
                 onChange={(e) => {
-                  bodyDirty.current = true
+                  setBodyDirty(true)
                   setBody(e.target.value)
                 }}
                 rows={1}

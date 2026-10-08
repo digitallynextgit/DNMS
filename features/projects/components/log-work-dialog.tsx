@@ -21,22 +21,8 @@ import { useDeliverableMutations, type DeliverableRow } from "../hooks/use-deliv
 import { MAX_LINKS } from "../lib/deliverable-types"
 import { isSafeHttpUrl, linkLabel } from "../lib/task-links"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Logging work as it happens - which is NOT declaring the thing delivered.
-//
-// "4 blogs" is one row, but the work arrives one blog at a time. This records
-// what is finished so far and the proof of it; the row stays in progress and
-// the status menu only offers Delivered once the count reaches the promise.
-// Merging the two made the first blog unloggable without claiming all four.
-//
-// FILES UPLOAD IMMEDIATELY, links save with the row - the shape of the
-// endpoints, not a preference: a file needs a row to hang off, and this row
-// already exists. The slot a file came from is remembered HERE, in local
-// state, because the server holds a deliverable's files as a set with no
-// notion of which unit they belong to. Re-opening therefore shows them as
-// extras below rather than back in their slots, which is the honest thing to
-// do with a mapping that was never stored.
-// ─────────────────────────────────────────────────────────────────────────────
+// Logs work so far, not "delivered": the row stays in progress until the count reaches the promise.
+// Files upload immediately; which slot a file came from is local state only (the server keeps a flat set).
 
 /** Cap on rendered slots. A row may promise 999 units; nobody fills 999 boxes. */
 const MAX_SLOTS = MAX_LINKS
@@ -56,9 +42,9 @@ export function LogWorkDialog({
   row,
   onClose,
 }: {
-  /** The ref the board is keyed by - a slug or an id, not row.projectId. */
+  /** The board's cache key (slug or id), not row.projectId. */
   projectId: string
-  /** The item being worked on. Null closes the dialog. */
+  /** null = closed. */
   row: DeliverableRow | null
   onClose: () => void
 }) {
@@ -90,7 +76,6 @@ function Body({
     const want = Math.max(1, Math.min(row.quantity, MAX_SLOTS))
     return Array.from({ length: want }, (_, i) => ({
       ...emptySlot(i),
-      // Re-opening shows what was said last time rather than a blank sheet.
       link: row.links[i] ?? "",
     }))
   })
@@ -103,9 +88,7 @@ function Body({
   /** Files on the row that no slot claims - earlier uploads, or a re-open. */
   const looseFiles = row.files.filter((f) => !boundIds.has(f.id))
 
-  // The third kind of proof. Plenty of real work leaves neither a URL nor a
-  // file - a call made, a budget moved, a page checked - and since Delivered
-  // now REQUIRES proof, without this those items could never be finished.
+  // Notes are the third kind of proof, for work that leaves no URL or file (Delivered requires proof).
   const [note, setNote] = React.useState(row.notes ?? "")
 
   const links = slots.map((s) => s.link.trim()).filter((l) => l.length > 0)
@@ -118,10 +101,7 @@ function Body({
       ? 1
       : 0)
 
-  // How many are FINISHED, which is not always how many boxes have something in
-  // them: one link can cover two blogs, and a draft plus its published page is
-  // two proofs of one. So the count follows the boxes until somebody says
-  // otherwise, and then it is theirs.
+  // The count follows the filled boxes until someone edits it (one link can cover two blogs).
   const [touched, setTouched] = React.useState(false)
   const [raw, setRaw] = React.useState(String(row.deliveredQuantity))
   const auto = Math.min(Math.max(answered, row.deliveredQuantity), row.quantity)
@@ -159,9 +139,7 @@ function Body({
         links,
         notes: note.trim() || null,
         deliveredQuantity: done,
-        // Work has started, so say so. Only from PLANNED: any other status is
-        // already past this point, and REJECTED must stay put until it is
-        // redelivered.
+        // Only from PLANNED; REJECTED must stay put until redelivered.
         ...(row.status === "PLANNED" && done > 0 ? { status: "IN_PROGRESS" as const } : {}),
       },
       { onSuccess: () => onClose() },
@@ -307,7 +285,6 @@ function Body({
           )}
         </div>
 
-        {/* Files already on the row that no slot above claims. */}
         {looseFiles.length > 0 && (
           <div className="space-y-1.5">
             <Label className="text-muted-foreground text-[11px]">Also attached</Label>
@@ -339,8 +316,6 @@ function Body({
           </div>
         )}
 
-        {/* Third proof type. Last, because a link or a file is better evidence
-            when one exists - this is for the work that produces neither. */}
         <div className="space-y-1.5">
           <Label htmlFor="log-note" className="text-muted-foreground text-[11px]">
             Note {links.length === 0 && row.files.length === 0 ? "" : "(optional)"}

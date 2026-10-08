@@ -33,10 +33,7 @@ export function ManageRolesDialog({
   currentRoleIds: string[]
 }) {
   const [open, setOpen] = useState(false)
-  // ONE role per employee. The underlying grant table is many-to-many and the
-  // API takes an array, but the product rule is a single role, so this holds one
-  // id and the save sends a one-item list. An employee who was given several
-  // before this rule opens on the first of them.
+  // One role per employee: the API takes an array, so the save sends a one-item list.
   const [selected, setSelected] = useState<string | null>(currentRoleIds[0] ?? null)
   const queryClient = useQueryClient()
   const { data: session, update: updateSession } = useSession()
@@ -66,19 +63,14 @@ export function ManageRolesDialog({
       return res.json()
     },
     onSuccess: async () => {
-      // Refetch, don't just mark stale: `invalidateQueries` alone leaves the
-      // badges showing the old roles until something else triggers a render,
-      // which is what made a manual reload look necessary.
+      // Refetch, not just invalidate, so the role badges update without a reload.
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["employee", employeeId], refetchType: "all" }),
         // The directory shows role chips too.
         queryClient.invalidateQueries({ queryKey: ["employees"] }),
       ])
 
-      // Editing YOUR OWN roles is the other half of this. Permissions are read
-      // from the session JWT (see lib/permissions.ts), not from any query, so
-      // the sidebar and every `can()` check would keep using the old grants
-      // until the next sign-in. Ask NextAuth to reissue the token instead.
+      // Permissions come from the session JWT, so editing your own roles needs a reissued token.
       if (employeeId === session?.user?.id) await updateSession()
 
       toast.success("Roles updated")
@@ -120,9 +112,7 @@ export function ManageRolesDialog({
                   selected === role.id ? "border-primary bg-muted/40" : "border-transparent",
                 )}
               >
-                {/* Radios, not checkboxes: an employee holds exactly one role,
-                    and a checkbox would promise a combination the save cannot
-                    keep. Picking one clears whatever was chosen before. */}
+                {/* Radios, not checkboxes: an employee holds exactly one role. */}
                 <input
                   type="radio"
                   id={`role-${role.id}`}

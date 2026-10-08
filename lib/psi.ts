@@ -2,32 +2,14 @@ import "server-only"
 
 import { getConfig } from "@/server/app-config"
 
-// =============================================================================
-// Core Web Vitals via Google's free PageSpeed Insights API (v5).
-//
-// One call returns BOTH:
-//   - loadingExperience  = CrUX FIELD data (real Chrome users, 28-day rolling).
-//                          This is what Google actually ranks on, but it only
-//                          exists for URLs with enough traffic.
-//   - lighthouseResult   = LAB data (a synthetic run). Always available, so a
-//                          low-traffic page still gets an answer - but it is a
-//                          simulation, never a ranking signal.
-// We store which source a row came from rather than blending them, because
-// telling a client "your LCP is 2.1s" from lab data when field data says 4.8s
-// would be actively misleading.
-//
-// QUOTA: a keyless call is not "free but slow" - Google bills it to a shared
-// anonymous project (project_number:583797351490) whose per-day allowance is
-// routinely already spent, so it 429s on the FIRST call and keeps 429ing for the
-// rest of the day. A key of your own gets a private 25,000/day + 240/min.
-// Set GOOGLE_PSI_API_KEY in Admin -> Integrations.
-// =============================================================================
+// Core Web Vitals via PageSpeed Insights v5. Field data (CrUX, real users) is preferred over lab
+// data; rows record which one they came from, never a blend.
+// Needs GOOGLE_PSI_API_KEY: keyless calls hit a shared, usually exhausted quota and 429 at once.
 
 const ENDPOINT = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 const TIMEOUT_MS = 60_000
 
-// A burst limit clears in seconds, so waiting it out is worth it. A daily limit
-// does not, and is detected separately - we never retry into that one.
+// Retry burst limits only; a daily limit is detected separately and never retried.
 const BACKOFF_MS = [2_000, 8_000] as const
 
 export type FormFactor = "MOBILE" | "DESKTOP"
@@ -46,12 +28,7 @@ export interface VitalsResult {
   verdict: Verdict | null
 }
 
-/**
- * Why a measurement produced no row. The distinction is the whole point:
- * UNMEASURABLE is about ONE page and the caller should carry on to the next,
- * while QUOTA is about the API itself and the caller MUST stop - walking the
- * rest of the list only turns one 429 into a hundred.
- */
+/** UNMEASURABLE is about one page (carry on); QUOTA is about the API (stop the run). */
 export type VitalsOutcome =
   | { ok: true; vitals: VitalsResult }
   | { ok: false; reason: "UNMEASURABLE"; message: string }
@@ -64,7 +41,7 @@ const THRESHOLDS = {
   cls: { good: 0.1, poor: 0.25 },
 } as const
 
-/** All-three-green verdict. Any POOR metric makes the page POOR. */
+/** Any POOR metric makes the page POOR. */
 export function verdictFor(v: Pick<VitalsResult, "lcpMs" | "inpMs" | "cls">): Verdict | null {
   const parts: Verdict[] = []
   for (const [key, t] of Object.entries(THRESHOLDS) as [
@@ -81,10 +58,7 @@ export function verdictFor(v: Pick<VitalsResult, "lcpMs" | "inpMs" | "cls">): Ve
   return "GOOD"
 }
 
-/**
- * Whether we have our own quota. Without a key PSI is not "available but slow",
- * it is effectively unusable, so callers treat false as not configured.
- */
+/** Without our own key PSI is effectively unusable, so false means not configured. */
 export async function isPsiConfigured(): Promise<boolean> {
   return !!(await getConfig("GOOGLE_PSI_API_KEY"))
 }
@@ -112,16 +86,7 @@ const round = (n: number | undefined | null) =>
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-/**
- * Split a quota rejection into "wait a moment" and "come back tomorrow".
- *
- * Google names the limit it hit in the message ("Queries per day", "Queries per
- * minute", "Queries per 100 seconds") and, on newer responses, in
- * `details[].metadata.quota_limit` ("defaultPerDayPerProject"). We read both and
- * treat anything unrecognised as daily: guessing "burst" wrong costs a retry
- * storm against an API that is already refusing us, while guessing "daily" wrong
- * only costs one skipped run.
- */
+/** Burst vs daily quota. Unrecognised counts as daily: a wrong "burst" guess causes a retry storm. */
 function isDailyQuota(body: string): boolean {
   let message = body
   let limit = ""
@@ -140,7 +105,6 @@ function isDailyQuota(body: string): boolean {
   )
 }
 
-/** Milliseconds from a `Retry-After` header, when the server sent a usable one. */
 function retryAfterMs(res: Response): number | null {
   const raw = res.headers.get("retry-after")
   if (!raw) return null
@@ -166,7 +130,6 @@ type CallResult =
   | { ok: true; json: PsiResponse }
   | { ok: false; reason: "UNMEASURABLE" | "QUOTA"; message: string }
 
-/** One PSI request, retrying the burst-limit case only. */
 async function callPsi(params: URLSearchParams, hasKey: boolean): Promise<CallResult> {
   for (let attempt = 0; ; attempt++) {
     let res: Response
@@ -190,14 +153,10 @@ async function callPsi(params: URLSearchParams, hasKey: boolean): Promise<CallRe
 
     const body = await res.text().catch(() => "")
 
-    // 429 = out of quota; 403 = key rejected or the API not enabled on its
-    // project. Neither says anything about this particular URL, so both abort
-    // the run instead of being charged to the page.
+    // 429 (quota) and 403 (bad key / API off) aren't about this URL, so abort the run.
     if (res.status === 429 || res.status === 403) {
       const daily = res.status === 403 ? true : isDailyQuota(body)
-      // BACKOFF_MS running out is what bounds the retries. `Retry-After` only
-      // changes how long we wait, never whether we wait again - letting the
-      // server extend the loop would make it unbounded.
+      // BACKOFF_MS bounds the retries; Retry-After only changes the wait, never whether we retry.
       const backoff = BACKOFF_MS[attempt]
       if (daily || backoff === undefined) {
         return { ok: false, reason: "QUOTA", message: quotaMessage(daily, hasKey) }
@@ -214,13 +173,7 @@ async function callPsi(params: URLSearchParams, hasKey: boolean): Promise<CallRe
   }
 }
 
-/**
- * Fetch Core Web Vitals for one URL.
- *
- * Never throws: a page that cannot be measured comes back as UNMEASURABLE, so a
- * single bad URL cannot abort a whole run. QUOTA is the opposite signal - the
- * API itself is unavailable and the caller is expected to stop.
- */
+/** Never throws. */
 export async function fetchVitals(
   url: string,
   formFactor: FormFactor = "MOBILE",
@@ -272,9 +225,7 @@ export async function fetchVitals(
     formFactor,
     source: "PSI_LAB",
     lcpMs: round(audits["largest-contentful-paint"]?.numericValue),
-    // Lab runs cannot measure INP (it needs a real interaction); TBT is the
-    // documented proxy, but it is NOT the same metric, so leave INP null
-    // rather than pass a stand-in off as the real thing.
+    // Lab runs can't measure INP; TBT is only a proxy, so leave it null.
     inpMs: null,
     cls: audits["cumulative-layout-shift"]?.numericValue ?? null,
     fcpMs: round(audits["first-contentful-paint"]?.numericValue),

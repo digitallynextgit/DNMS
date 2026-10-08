@@ -16,13 +16,8 @@ interface TaskAccess {
   grantedBy: { id: string; name: string } | null
 }
 
-/**
- * HR's switch for one person's task-edit window.
- *
- * Spelled out rather than labelled with a bare toggle: this hands somebody the
- * ability to change their own recorded hours after the fact, which is worth
- * being explicit about at the moment of granting it.
- */
+/** HR's switch for one person's task-edit window - spelled out because it lets them change
+ *  their own recorded hours after the fact. */
 export function EmployeeTaskAccess({
   employeeId,
   employeeName,
@@ -88,8 +83,7 @@ export function EmployeeTaskAccess({
               />
             </div>
 
-            {/* What it does NOT do. A permission is only safe to grant if the
-                person granting it knows where it stops. */}
+            {/* What it does NOT do. */}
             <div className="text-muted-foreground space-y-1 text-xs">
               <p className="text-foreground flex items-center gap-1.5 font-medium">
                 <ShieldAlert className="h-3.5 w-3.5" />

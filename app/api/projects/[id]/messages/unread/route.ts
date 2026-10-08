@@ -3,9 +3,7 @@ import { db } from "@/server/db"
 import { withProjectAccess } from "@/features/projects/server/project-access"
 import type { Session } from "next-auth"
 
-// GET  /api/projects/[id]/messages/unread  -> { count } of messages + replies
-//       posted by others since this user last opened the Messages tab.
-// POST /api/projects/[id]/messages/unread  -> mark the tab as seen (now).
+// GET: count of messages + replies by others since the tab was last opened. POST: mark it seen.
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {

@@ -28,10 +28,7 @@ import type {
   WorkReport,
 } from "../types"
 
-// =============================================================================
-// Everything a work report shows, read once for every person in it. Renderers
-// get plain data and never touch the database.
-// =============================================================================
+// Reads everything a work report shows, once; renderers never touch the database.
 
 const OPEN_STATUSES = ["TODO", "IN_PROGRESS", "IN_REVIEW", "ON_HOLD"] as const
 type OpenStatus = (typeof OPEN_STATUSES)[number]
@@ -403,7 +400,6 @@ export async function loadWorkReport(input: LoadWorkReportInput): Promise<WorkRe
     })
   }
 
-  // ── Team roll-up ──────────────────────────────────────────────────────────
   const teamProjects = new Map<string, { total: number; byPerson: Record<string, number> }>()
   for (const p of people) {
     for (const { project, hours } of p.projectHours) {

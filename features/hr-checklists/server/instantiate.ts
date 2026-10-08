@@ -3,35 +3,15 @@ import "server-only"
 import { db } from "@/server/db"
 import { itemDueDate, resolveAssignee } from "../lib/checklist-rules"
 
-// =============================================================================
-// Building a checklist from a template.
-// =============================================================================
-// Split out of checklists.service.ts DELIBERATELY, and the reason is a real
-// constraint rather than tidiness: that service imports the action guards,
-// which import the API handler, which imports NextAuth - and NextAuth reaches
-// React client code. Anything that touches it therefore cannot be imported by a
-// plain `tsx` script (`React.createContext is not a function`), which rules out
-// seeds, backfills and one-off data fixes.
-//
-// Creating rows from a template needs none of that. This module imports only
-// the database and the pure rules, so it works identically inside a request and
-// from a standalone script.
-//
-// It also does NOT notify. The caller owns that: notification needs the session
-// (to suppress the hidden admin_ role), and a backfill writing historical data
-// should be able to choose whether anybody is told.
-// =============================================================================
+// Kept out of checklists.service.ts so plain tsx scripts can import it (that service pulls in
+// NextAuth). It doesn't notify - the caller decides.
 
 export type ChecklistKind = "ONBOARDING" | "EXIT"
 
 export interface InstantiateResult {
   id: string
   created: boolean
-  /**
-   * assigneeId -> how many items they now own, excluding the subject's own
-   * items. What the caller needs to send one message per person rather than one
-   * per item.
-   */
+  /** assigneeId -> items they now own (excluding the subject's), for one message per person. */
   assigneeCounts: Map<string, number>
 }
 
@@ -75,9 +55,7 @@ export async function instantiateChecklist(opts: {
       },
     },
   })
-  // No template is a real state - a tenant provisioned before this feature and
-  // not yet backfilled. Returning null lets the caller carry on rather than
-  // failing an employee creation over a missing checklist.
+  // No template is a valid state for an older tenant; don't fail employee creation over it.
   if (!template) return null
 
   const employee = await db.employee.findUnique({
@@ -154,10 +132,7 @@ export async function instantiateChecklist(opts: {
     }
   }
 
-  // ── SEPARATE top-level createMany, NOT nested under the instance above ──────
-  // The tenant guard stamps top-level writes but NOT nested ones, so
-  // `create({ data: { ..., items: { create: rows } } })` would leave every item
-  // on the founding tenant's column default - the wrong company entirely.
+  // Top-level createMany, not nested: the tenant guard doesn't stamp nested writes.
   if (rows.length > 0) await db.checklistInstanceItem.createMany({ data: rows })
 
   const assigneeCounts = new Map<string, number>()

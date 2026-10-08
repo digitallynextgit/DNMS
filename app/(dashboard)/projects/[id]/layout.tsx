@@ -7,13 +7,8 @@ import { getProjectTitle } from "@/features/projects/server/projects.queries"
 const DESCRIPTION = "A project's teams, tasks, messages and delivery."
 
 /**
- * The tab reads the project's name, not "Project".
- *
- * The page itself is a client component and cannot set metadata, so the name is
- * looked up here, once per navigation. `tenantScopedSession()` rather than
- * `auth()`: a layout renders outside every route wrapper, and without it the
- * lookup would run with no tenant context. The root layout's template turns
- * the name into "RUDIONE / LEOCYM | DNMS".
+ * The page is a client component and can't set metadata, so the project name is looked up here.
+ * tenantScopedSession(), not auth(): a layout renders outside every route wrapper.
  */
 export async function generateMetadata({
   params,

@@ -9,20 +9,13 @@ import { avatarPath, isValidAvatarId } from "@/lib/avatars"
 import type { Session } from "next-auth"
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024 // 5 MB
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024
 
-// Avatars render at 20-96px (see AvatarDisplay). 512px covers every size at 2x DPI
-// with room to spare; storing the 5 MB original was costing a multi-MB download to
-// paint a 32px circle.
+// Avatars render at 20-96px; 512px covers every size at 2x DPI.
 const PHOTO_MAX_DIM = 512
 const PHOTO_QUALITY = 80
 
-/**
- * Downscale + re-encode an uploaded photo to a small WebP. Typical result is
- * 20-60 KB instead of the multi-MB original. Falls back to the original bytes if
- * the image can't be processed (corrupt/unsupported), so an upload never hard-fails
- * on a resize error.
- */
+/** Downscale to a small WebP; falls back to the original bytes if the image can't be processed. */
 async function toThumbnail(
   buffer: Buffer,
   fallbackType: string,
@@ -40,38 +33,22 @@ async function toThumbnail(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Signed-URL cache
-// ---------------------------------------------------------------------------
-// Every avatar on screen used to cost a DB lookup + a fresh B2 presign. Both are
-// pure functions of the object key, so cache the signed URL and reuse it until it
-// nears expiry. Keyed by objectKey, which changes on every upload - so a new photo
-// can never be served from a stale entry.
-// THE SIGNATURE MUST OUTLIVE THE CACHE WINDOW.
-// This shipped as a 1-hour signature behind a 7-day immutable cache: the browser
-// replayed the cached redirect long after B2 stopped honouring it, so avatars
-// died an hour after first load and a reload could not fix them -
-// means "do not revalidate", even on refresh. Sign for the SigV4 maximum and let
-// the cache lapse a day earlier, so a cached redirect is always still valid.
+// Signed URLs are cached per objectKey, which changes on every upload.
+// The signature MUST outlive the browser cache window, or cached redirects start serving 403s.
 const SIGNED_TTL_SECONDS = 7 * 24 * 60 * 60
 const CACHE_SECONDS = 6 * 24 * 60 * 60
 const signedUrlCache = new Map<string, { url: string; expiresAt: number }>()
 
 async function cachedSignedUrl(objectKey: string): Promise<string> {
   const hit = signedUrlCache.get(objectKey)
-  // Only reuse a cached URL while it still outlives a FULL fresh browser cache
-  // window (+ a minute), not just the next minute. The redirect is cached in the
-  // browser for CACHE_SECONDS, so handing out a URL with less life than that left
-  // means the viewer keeps replaying a redirect to a dead URL and every hit 403s
-  // until their cache lapses - the exact multi-day breakage this pairing prevents.
+  // Reuse only while the URL outlives a full browser cache window, or viewers replay a dead redirect.
   if (hit && hit.expiresAt > Date.now() + (CACHE_SECONDS + 60) * 1000) return hit.url
   const url = await getSignedUrl(objectKey, SIGNED_TTL_SECONDS)
   signedUrlCache.set(objectKey, { url, expiresAt: Date.now() + SIGNED_TTL_SECONDS * 1000 })
   return url
 }
 
-// The photoKey lookup is also cached: profilePhotoKey only changes on upload/delete,
-// and both of those paths clear the entry.
+// Cached too; upload and delete both clear the entry.
 const photoKeyCache = new Map<string, string | null>()
 
 function invalidatePhotoCaches(employeeId: string, objectKey?: string | null) {
@@ -83,20 +60,12 @@ function canEdit(session: Session, id: string): boolean {
   return session.user.id === id || hasPermission(session, PERMISSIONS.EMPLOYEE_WRITE)
 }
 
-// Best-effort B2 delete - never let storage cleanup failures break the request.
 async function deleteQuietly(key: string | null | undefined) {
   if (!key) return
   await deleteFile(key).catch((e) => console.error("[photo] B2 delete failed:", key, e))
 }
 
-/**
- * GET /api/employees/[id]/photo - redirect to a presigned B2 URL.
- * profilePhoto stores this stable route URL, so <img> tags resolve a signed URL
- * without ever exposing the private bucket directly.
- *
- * The DB lookup and the B2 presign are both cached (see above), so rendering a
- * directory full of avatars no longer means one DB query + one presign PER AVATAR.
- */
+// profilePhoto stores this stable URL; it redirects to a presigned URL so the bucket stays private.
 export const GET = withSession(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -116,9 +85,8 @@ export const GET = withSession(
       }
 
       const url = await cachedSignedUrl(photoKey)
-      // The stored route URL carries a ?v=<timestamp> that changes on every
-      // upload, so caching hard is safe for CONTENT. The window still has to stay
-      // under the signature lifetime above, which is what went wrong before.
+      // ?v=<timestamp> changes on every upload, so caching hard is safe - but it must stay under the
+      // signature lifetime above.
       return NextResponse.redirect(url, {
         status: 302,
         headers: { "Cache-Control": `private, max-age=${CACHE_SECONDS}` },
@@ -130,7 +98,6 @@ export const GET = withSession(
   },
 )
 
-/** POST /api/employees/[id]/photo - upload/replace a profile photo (self or HR). */
 export const POST = withSession(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -162,8 +129,6 @@ export const POST = withSession(
         select: { profilePhotoKey: true },
       })
 
-      // Downscale to a 512px WebP BEFORE storing - the bytes we keep are the bytes
-      // every viewer downloads, so this is where the 5 MB -> ~40 KB win is made.
       const original = Buffer.from(await file.arrayBuffer())
       const thumb = await toThumbnail(original, file.type)
 
@@ -183,7 +148,6 @@ export const POST = withSession(
 
       invalidatePhotoCaches(id, existing?.profilePhotoKey)
 
-      // Reclaim space: drop the previous B2 object now that the new one is live.
       await deleteQuietly(existing?.profilePhotoKey)
 
       return NextResponse.json({ data: { url } })
@@ -194,13 +158,7 @@ export const POST = withSession(
   },
 )
 
-/**
- * PUT /api/employees/[id]/photo - pick one of the preset avatars.
- *
- * Body: { avatarId: "av-07" }. Stores the public path in profilePhoto and clears
- * profilePhotoKey, so a preset needs no bucket object at all - and any photo the
- * employee had uploaded before is reclaimed.
- */
+// Presets are public paths: clear profilePhotoKey and reclaim any uploaded photo.
 export const PUT = withSession(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -235,7 +193,6 @@ export const PUT = withSession(
   },
 )
 
-/** DELETE /api/employees/[id]/photo - remove the photo and delete the B2 object. */
 export const DELETE = withSession(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {

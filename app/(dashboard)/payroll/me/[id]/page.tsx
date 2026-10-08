@@ -15,8 +15,7 @@ export default function MyPayslipPage({ params }: { params: Promise<{ id: string
   const { data, isLoading } = useMyPayslip(id)
   const record = data?.data
 
-  // Only a LOADED-but-missing payslip is "not found"; while loading we paint the
-  // shell (back link, title, actions) and placehold just the payslip itself.
+  // Only a LOADED-but-missing payslip is "not found"; while loading, the shell paints.
   if (!isLoading && !record) {
     return (
       <EmptyState

@@ -6,14 +6,10 @@ import { requirePermission } from "@/server/action-guard"
 import { createAuditLog } from "@/lib/audit"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 
-// Company-wide leave policy is gated by `leave:policy`, not a hardcoded role
-// list. It previously required HR Manager or Admin literally, which meant the
-// Roles & Permissions UI could never grant or revoke it - the toggle was a lie.
-// `leave:policy` is granted to exactly those roles, so access is unchanged.
+// Gated by the `leave:policy` permission (not a hardcoded role list), so Roles & Permissions can
+// grant or revoke it.
 
-// =============================================================================
-// Leave policy matrix: (employmentType -> leaveType -> daysPerYear)
-// =============================================================================
+// Leave policy matrix: employmentType -> leaveType -> daysPerYear.
 
 const EMPLOYMENT_TYPES = ["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"] as const
 type EmploymentTypeKey = (typeof EMPLOYMENT_TYPES)[number]
