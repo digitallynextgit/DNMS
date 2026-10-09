@@ -109,7 +109,7 @@ export function MyProgress({ range, onFilterChange }: MyProgressProps) {
     staleTime: 60_000,
   })
 
-  // The six teams are the same on every project, so a team NAME maps back to every id it stands for.
+  // The teams are the same on every project, so a team NAME maps back to every id it stands for.
   const teamNames = useMemo(() => {
     const seen = new Set<string>()
     for (const t of scope.data?.teams ?? []) {

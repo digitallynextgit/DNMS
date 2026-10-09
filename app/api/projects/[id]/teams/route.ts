@@ -34,7 +34,8 @@ export const GET = withProjectAccess(
   },
 )
 
-// Refused: every project has the same six fixed teams (features/projects/lib/project-teams.ts).
+// POST - refused. Every project has the same fixed teams (features/projects/lib/project-teams.ts),
+// made with the project; nobody, admin included, adds one. Staff a team instead.
 export function POST() {
   return NextResponse.json({ error: TEAMS_ARE_FIXED }, { status: 405, headers: { Allow: "GET" } })
 }

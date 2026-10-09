@@ -1,7 +1,22 @@
-/** The six fixed teams every project gets, in display order. Only staffing varies per project. */
-export const PROJECT_TEAMS = ["WEB", "DESIGN", "MAP", "VIDEO", "AMG/SMO", "ADMIN"] as const
+/** The fixed teams every project gets, in display order. Only staffing varies per project. */
+export const PROJECT_TEAMS = [
+  "AM",
+  "WEB",
+  "DESIGN",
+  "VIDEO",
+  "CONTENT",
+  "SMO",
+  "SEO",
+  "PERFORMANCE",
+  "PR",
+  "ALLIANCES & PARTNERSHIPS",
+  "ADMIN",
+] as const
 
 export type ProjectTeamName = (typeof PROJECT_TEAMS)[number]
+
+/** Holds the project's Account Manager (its owner) as manager. */
+export const ACCOUNT_MANAGER_TEAM: ProjectTeamName = "AM"
 
 export const TEAMS_ARE_FIXED = `Teams are fixed for every project (${PROJECT_TEAMS.join(", ")}) - add or remove people instead.`
 

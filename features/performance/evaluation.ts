@@ -1,4 +1,4 @@
-// Scorecard: SELF and MANAGER each rate their own KPIs 1..5. Section A = 60%, B = 40%, each split
+// Scorecard: SELF and MANAGER rate the same KPIs 1..5. Section A = 60%, B = 40%, each split
 // equally across its items; points = weight × (rating ÷ 5). The OFFICIAL score is the MANAGER's
 // total; the self-score is shown for comparison only.
 
@@ -40,46 +40,35 @@ export const RATING_LABELS = [
 export const SECTION_A_WEIGHT = 60
 export const SECTION_B_WEIGHT = 40
 
-export const DEFAULT_SECTION_A_LABEL = "Role Performance (KRA & KPI)"
+export const DEFAULT_SECTION_A_LABEL = "Role Performance (KPI)"
 export const DEFAULT_SECTION_B_LABEL = "Workplace Discipline & Execution Effectiveness"
 
+/** A profile's KPIs and parameters, rated by both the manager and the employee. */
+export type PerfKpiLine = Omit<PerfKpiInput, "evaluator">
+
 // Starter "Load defaults" seed; HR tweaks it per employee.
-export const DEFAULT_KPI_PROFILE: PerfKpiInput[] = [
-  { evaluator: "MANAGER", section: "A", label: "Project Delivery Efficiency" },
-  { evaluator: "MANAGER", section: "A", label: "Technical Quality Score" },
-  { evaluator: "MANAGER", section: "A", label: "Client Feedback & Collaboration" },
-  { evaluator: "MANAGER", section: "A", label: "Team Mentorship & Contribution" },
-  { evaluator: "MANAGER", section: "A", label: "Cost and Resource Alignment" },
-  { evaluator: "MANAGER", section: "A", label: "Market Response Metrics" },
-  { evaluator: "MANAGER", section: "B", label: "Task Closure & Accountability" },
-  { evaluator: "MANAGER", section: "B", label: "Proactive Work Communication" },
-  { evaluator: "MANAGER", section: "B", label: "Adaptability & Improvement Orientation" },
-  { evaluator: "MANAGER", section: "B", label: "Situational Handling & Solution Orientation" },
-  { evaluator: "MANAGER", section: "B", label: "Workplace timings and Professional conduct" },
-  { evaluator: "SELF", section: "A", label: "Timeliness of task and module deliveries" },
-  {
-    evaluator: "SELF",
-    section: "A",
-    label: "Functional accuracy and stability of implementations",
-  },
-  { evaluator: "SELF", section: "A", label: "Adherence to design, brand, and platform guidelines" },
-  { evaluator: "SELF", section: "A", label: "Rework, bug recurrence, and revision frequency" },
-  {
-    evaluator: "SELF",
-    section: "A",
-    label: "Website performance, responsiveness, and compatibility",
-  },
-  {
-    evaluator: "SELF",
-    section: "A",
-    label: "Innovation contribution through research or suggestions",
-  },
-  { evaluator: "SELF", section: "B", label: "Task Closure & Accountability" },
-  { evaluator: "SELF", section: "B", label: "Proactive Work Communication" },
-  { evaluator: "SELF", section: "B", label: "Adaptability & Improvement Orientation" },
-  { evaluator: "SELF", section: "B", label: "Situational Handling & Solution Orientation" },
-  { evaluator: "SELF", section: "B", label: "Workplace timings and Professional conduct" },
+export const DEFAULT_KPI_LINES: PerfKpiLine[] = [
+  { section: "A", label: "Project Delivery Efficiency" },
+  { section: "A", label: "Technical Quality Score" },
+  { section: "A", label: "Client Feedback & Collaboration" },
+  { section: "A", label: "Team Mentorship & Contribution" },
+  { section: "A", label: "Cost and Resource Alignment" },
+  { section: "A", label: "Market Response Metrics" },
+  { section: "B", label: "Task Closure & Accountability" },
+  { section: "B", label: "Proactive Work Communication" },
+  { section: "B", label: "Adaptability & Improvement Orientation" },
+  { section: "B", label: "Situational Handling & Solution Orientation" },
+  { section: "B", label: "Workplace timings and Professional conduct" },
 ]
+
+/** The employee self-rates the exact list the manager rates. */
+export function forBothSides(lines: readonly PerfKpiLine[]): PerfKpiInput[] {
+  return (["MANAGER", "SELF"] as const).flatMap((evaluator) =>
+    lines.map((l) => ({ ...l, evaluator })),
+  )
+}
+
+export const DEFAULT_KPI_PROFILE: PerfKpiInput[] = forBothSides(DEFAULT_KPI_LINES)
 
 const round1 = (n: number) => Math.round(n * 10) / 10
 

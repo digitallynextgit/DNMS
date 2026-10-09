@@ -43,7 +43,9 @@ export function TeamPeopleDialog({
     setPrevOpen(open)
     setPrevMembers(team.members)
     if (open) {
-      setSelected(team.members.map((m) => m.employeeId))
+      // Drop anyone seated who has since left the team: they can't be shown or saved.
+      const onTeam = new Set(roster.map((m) => m.employeeId))
+      setSelected(team.members.map((m) => m.employeeId).filter((id) => onTeam.has(id)))
       setSearch("")
     }
   }

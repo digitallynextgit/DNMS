@@ -1,7 +1,7 @@
 import "server-only"
 
 import { db } from "@/server/db"
-import { NotFoundError } from "@/lib/errors"
+import { NotFoundError, ValidationError } from "@/lib/errors"
 import type { Prisma } from "@prisma/client"
 import {
   MAX_COL_W,
@@ -1037,7 +1037,7 @@ export async function deleteRow(sheetId: string, rowId: string, actorId: string)
   await record(row.sheetId, actorId, "ROW_DELETED", { rowId, before: snapshot })
 }
 
-// Per-team plan, keyed on (workbookId, teamId): the six teams are fixed, and the route guard can
+// Per-team plan, keyed on (workbookId, teamId): the teams are fixed, and the route guard can
 // read the team from the URL without consuming the body.
 
 /** One team's row, or null. The shape every write below returns. */
@@ -1086,13 +1086,13 @@ export async function upsertWorkbookTeam(
     where: { id: teamId },
     select: { id: true, projectId: true, name: true },
   })
-  if (!team) throw new Error("Team not found")
+  if (!team) throw new NotFoundError("Team")
 
   const workbook = await db.projectWorkbook.findFirst({
     where: { id: workbookId, projectId: team.projectId },
     select: { id: true },
   })
-  if (!workbook) throw new Error("That team is not on this project")
+  if (!workbook) throw new ValidationError("That team is not on this project")
 
   // Named people must be ON that team, so the Teams tab and the calendar agree.
   let members: string[] | null = null
@@ -1104,7 +1104,7 @@ export async function upsertWorkbookTeam(
     })
     const allowed = new Set(onTeam.map((m) => m.employeeId))
     if (wanted.some((id) => !allowed.has(id))) {
-      throw new Error(
+      throw new ValidationError(
         `Everyone on a team's row has to be on that team. Add them to ${team.name} on the Teams tab first.`,
       )
     }
@@ -1118,10 +1118,10 @@ export async function upsertWorkbookTeam(
         ? new Date(`${input.dueOn}T00:00:00Z`)
         : null
   if (dueOn instanceof Date && Number.isNaN(dueOn.getTime())) {
-    throw new Error("That due date is not a date")
+    throw new ValidationError("That due date is not a date")
   }
   if (input.quantity != null && (!Number.isInteger(input.quantity) || input.quantity < 0)) {
-    throw new Error("A quantity is a whole number, or nothing at all")
+    throw new ValidationError("A quantity is a whole number, or nothing at all")
   }
 
   const existing = await db.projectWorkbookTeam.findUnique({
@@ -1147,7 +1147,7 @@ export async function upsertWorkbookTeam(
         attachments: new Array(existing?._count.attachments ?? 0),
       }),
     )
-    if (problem) throw new Error(problem)
+    if (problem) throw new ValidationError(problem)
   }
 
   await db.projectWorkbookTeam.upsert({

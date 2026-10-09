@@ -24,12 +24,28 @@ const BY_TEAM: { match: RegExp; types: string[] }[] = [
     types: ["Post", "Story", "Carousel", "Campaign", "Caption set"],
   },
   {
-    match: /content|copy|blog|seo|writ/i,
+    match: /seo|search/i,
+    types: ["Keyword set", "On-page fix", "Blog", "Backlink", "Audit"],
+  },
+  {
+    match: /content|copy|blog|writ/i,
     types: ["Blog", "Script", "Copy", "Article", "Keyword set"],
   },
   {
     match: /map|marketing|ads|performance|growth/i,
     types: ["Ad creative", "Campaign", "Landing page", "Report", "Audit"],
+  },
+  {
+    match: /^pr$|press|public relation/i,
+    types: ["Press release", "Media pitch", "Coverage", "Media list"],
+  },
+  {
+    match: /allian|partner|collab/i,
+    types: ["Partnership", "Collab", "Outreach", "Proposal"],
+  },
+  {
+    match: /^am$|account/i,
+    types: ["Brief", "Proposal", "Client report", "Meeting notes", "Strategy deck"],
   },
 ]
 
@@ -37,7 +53,17 @@ const BY_TEAM: { match: RegExp; types: string[] }[] = [
 export const GENERIC_TYPES = ["Asset", "Document", "Report", "Other"] as const
 
 export function suggestTypes(teamName?: string | null): string[] {
-  const own = teamName ? (BY_TEAM.find((t) => t.match.test(teamName))?.types ?? []) : []
+  return suggestTypesForTeams(teamName ? [teamName] : [])
+}
+
+/** Each team's own words in order (someone can be on several teams), then the generic tail. */
+export function suggestTypesForTeams(teamNames: readonly string[]): string[] {
+  const own: string[] = []
+  for (const name of teamNames) {
+    for (const t of BY_TEAM.find((b) => b.match.test(name))?.types ?? []) {
+      if (!own.includes(t)) own.push(t)
+    }
+  }
   return [...own, ...GENERIC_TYPES.filter((g) => !own.includes(g))]
 }
 

@@ -7,7 +7,7 @@ import { addDays, at, idOf, makeMany, ymd, type DemoContext } from "./context"
 
 const MODULE = "Performance"
 
-const SECTION_A_LABEL = "Role Performance (KRA & KPI)"
+const SECTION_A_LABEL = "Role Performance (KPI)"
 const SECTION_B_LABEL = "Workplace Discipline & Execution Effectiveness"
 
 const SECTION_B = [

@@ -44,7 +44,7 @@ interface TaskSpec {
   detail?: boolean // checklist + comments
 }
 
-/** Projects (and the team) each person works on, mirroring projects.ts TEAMS. */
+/** Projects (and the team their tasks go under) each person works on, mirroring projects.ts TEAMS. */
 const WORKS_ON: Record<string, [string, string][]> = {
   priya: [
     ["sunrise", "DESIGN"],
@@ -54,17 +54,17 @@ const WORKS_ON: Record<string, [string, string][]> = {
   ],
   rahul: [["fitlife", "DESIGN"]],
   ananya: [
-    ["sunrise", "MAP"],
-    ["urbannest", "MAP"],
-    ["internal", "MAP"],
+    ["sunrise", "CONTENT"],
+    ["urbannest", "CONTENT"],
+    ["internal", "CONTENT"],
   ],
   vikram: [
-    ["sunrise", "MAP"],
-    ["urbannest", "MAP"],
+    ["sunrise", "SEO"],
+    ["urbannest", "SEO"],
   ],
   sneha: [
-    ["sunrise", "AMG/SMO"],
-    ["fitlife", "AMG/SMO"],
+    ["sunrise", "SMO"],
+    ["fitlife", "SMO"],
   ],
   arjun: [
     ["sunrise", "VIDEO"],

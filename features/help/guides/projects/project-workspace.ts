@@ -123,8 +123,8 @@ export const projectWorkspaceGuide: HelpGuide = {
       id: "teams",
       title: { en: "See and staff the teams", hi: "टीमें देखें और लोग जोड़ें" },
       intro: {
-        en: "Every project has the same six teams: WEB, DESIGN, MAP, VIDEO, AMG/SMO and ADMIN. The teams themselves never change - only the people on them do.",
-        hi: "हर प्रोजेक्ट में वही छह टीमें होती हैं: WEB, DESIGN, MAP, VIDEO, AMG/SMO और ADMIN। टीमें कभी नहीं बदलतीं - सिर्फ़ उनमें के लोग बदलते हैं।",
+        en: "Every project has the same 11 teams: AM, WEB, DESIGN, VIDEO, CONTENT, SMO, SEO, PERFORMANCE, PR, ALLIANCES & PARTNERSHIPS and ADMIN. The AM team holds the project's Account Manager. The teams themselves never change - only the people on them do.",
+        hi: "हर प्रोजेक्ट में वही 11 टीमें होती हैं: AM, WEB, DESIGN, VIDEO, CONTENT, SMO, SEO, PERFORMANCE, PR, ALLIANCES & PARTNERSHIPS और ADMIN। AM टीम में प्रोजेक्ट का Account Manager होता है। टीमें कभी नहीं बदलतीं - सिर्फ़ उनमें के लोग बदलते हैं।",
       },
       steps: [
         {
@@ -175,7 +175,8 @@ export const projectWorkspaceGuide: HelpGuide = {
             id: "project-workspace-member-menu",
             as: "manager",
             path: "/projects/sunmeadow-organics-launch?tab=teams",
-            actions: [{ click: { role: "button", name: "More actions", nth: 1 } }],
+            // The third person: AM's Rohan and WEB's manager come first, and a manager has no Make manager.
+            actions: [{ click: { role: "button", name: "More actions", nth: 2 } }],
             highlight: [
               { role: "menuitem", name: "Make manager" },
               { role: "menuitem", name: "Remove from team" },
@@ -192,6 +193,10 @@ export const projectWorkspaceGuide: HelpGuide = {
           en: "Someone can be on more than one team of the same project.",
           hi: "एक व्यक्ति एक ही प्रोजेक्ट की एक से ज़्यादा टीमों में हो सकता है।",
         },
+        {
+          en: "When the project's Account Manager changes, the new one becomes the AM team's manager. The old one stays on the team until someone removes them.",
+          hi: "जब प्रोजेक्ट का Account Manager बदलता है, तो नया Account Manager AM टीम का मैनेजर बन जाता है। पुराना तब तक टीम में रहता है जब तक कोई उसे हटा न दे।",
+        },
       ],
       faq: [
         {
@@ -200,8 +205,8 @@ export const projectWorkspaceGuide: HelpGuide = {
             hi: "क्या मैं नई टीम बना सकता हूँ या किसी टीम का नाम बदल सकता हूँ?",
           },
           a: {
-            en: "No. The six teams are the same on every project, for everyone - even admins. Add or remove people instead.",
-            hi: "नहीं। छह टीमें हर प्रोजेक्ट पर सबके लिए एक जैसी हैं - एडमिन के लिए भी। इसकी जगह लोगों को जोड़ें या हटाएँ।",
+            en: "No. The 11 teams are the same on every project, for everyone - even admins. Add or remove people instead.",
+            hi: "नहीं। ये 11 टीमें हर प्रोजेक्ट पर सबके लिए एक जैसी हैं - एडमिन के लिए भी। इसकी जगह लोगों को जोड़ें या हटाएँ।",
           },
         },
       ],

@@ -287,7 +287,10 @@ export interface MemberProgress extends ProgressBucket {
   id: string
   name: string
   profilePhoto: string | null
-  teamName: string | null
+  /** Every team they are on, catalogue order. */
+  teamNames: string[]
+  /** Their tasks split by each task's team (`id` "__no_team__" for none); adds up to their totals. */
+  byTeam: (ProgressBucket & { id: string; name: string })[]
 }
 export interface UpcomingTask {
   id: string
@@ -414,7 +417,11 @@ export function useRemoveTeamMember(projectId: string, teamId: string) {
         apiFetch(`/api/projects/${projectId}/teams/${teamId}/members/${memberId}`, {
           method: "DELETE",
         }),
-      invalidate: [["project-teams", projectId]],
+      // Removal also clears their seats on this team's calendar rows.
+      invalidate: [
+        ["project-teams", projectId],
+        ["project-workbook", projectId],
+      ],
       success: "Member removed",
     }),
   )

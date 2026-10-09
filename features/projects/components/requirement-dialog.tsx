@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useSession } from "next-auth/react"
 
 import { FormDialog } from "@/components/shared/form-dialog"
 import { Input } from "@/components/ui/input"
@@ -22,6 +23,7 @@ import {
   useProjectMembers,
   useProjectAllTasks,
 } from "@/features/projects/hooks/use-projects"
+import { sortProjectTeams } from "@/features/projects/lib/project-teams"
 
 /** Raise a requirement: something the team needs from someone else before work can continue. */
 export function RequirementDialog({
@@ -39,6 +41,8 @@ export function RequirementDialog({
   const { data: projectData } = useProject(projectId)
   const { data: membersData } = useProjectMembers(projectId)
   const { data: tasksData } = useProjectAllTasks(projectId)
+  const { data: session } = useSession()
+  const me = session?.user?.id
 
   const accountManager = projectData?.data?.owner
   const members = useMemo(() => membersData?.data ?? [], [membersData])
@@ -53,6 +57,27 @@ export function RequirementDialog({
   const [requestedFromId, setRequestedFromId] = useState("")
   const [neededBy, setNeededBy] = useState("")
   const [blockedTaskIds, setBlockedTaskIds] = useState<string[]>([])
+  /** "" until the raiser picks one. */
+  const [teamId, setTeamId] = useState("")
+
+  const myTeams = useMemo(
+    () =>
+      sortProjectTeams(
+        (projectData?.data?.teams ?? []).filter((t) => t.members.some((m) => m.employeeId === me)),
+      ),
+    [projectData, me],
+  )
+  // Asked only of someone on several teams: their pick, else a ticked task's team, else the first.
+  const chosenTeamId = useMemo(() => {
+    if (myTeams.length < 2) return undefined
+    if (teamId) return teamId
+    const mine = new Set(myTeams.map((t) => t.id))
+    const tasks = tasksData?.data ?? []
+    const implied = blockedTaskIds
+      .map((id) => tasks.find((t) => t.id === id)?.teamId)
+      .find((id) => id && mine.has(id))
+    return implied ?? myTeams[0]!.id
+  }, [myTeams, teamId, tasksData, blockedTaskIds])
 
   // Default the recipient to the Account Manager, as the client contact.
   const managerId = accountManager?.id
@@ -70,6 +95,7 @@ export function RequirementDialog({
       setNeededBy("")
       setRequestedFromId(managerId ?? "")
       setBlockedTaskIds(defaultBlockedTaskId ? [defaultBlockedTaskId] : [])
+      setTeamId("")
     }
   }
 
@@ -96,6 +122,7 @@ export function RequirementDialog({
             requestedFromId,
             neededBy: neededBy || null,
             blockedTaskIds,
+            teamId: chosenTeamId,
           },
           { onSuccess: () => onOpenChange(false) },
         )
@@ -172,6 +199,27 @@ export function RequirementDialog({
             Defaults to the Account Manager, who owns the client relationship.
           </p>
         </div>
+
+        {chosenTeamId && (
+          <div className="space-y-2">
+            <Label>Team</Label>
+            <Select value={chosenTeamId} onValueChange={setTeamId}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {myTeams.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-[11px]">
+              You&apos;re on more than one team here - pick the one this is for.
+            </p>
+          </div>
+        )}
 
         {openTasks.length > 0 && (
           <div className="space-y-2">

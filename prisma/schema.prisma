@@ -1920,7 +1920,7 @@ model ProjectWorkbookTeamMember {
   tenantId       String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id             String   @id @default(uuid()) @map("id")
   workbookTeamId String   @map("workbook_team_id")
-  /// Copied from the parent row so "one team per calendar per person" can be a unique constraint.
+  /// Copied from the parent row for per-calendar lookups.
   workbookId     String   @map("workbook_id")
   employeeId     String   @map("employee_id")
   addedAt        DateTime @default(now()) @map("added_at")
@@ -1929,7 +1929,7 @@ model ProjectWorkbookTeamMember {
   employee     Employee            @relation("WorkbookTeamMembership", fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([workbookTeamId, employeeId])
-  @@unique([workbookId, employeeId])
+  @@index([workbookId, employeeId])
   @@index([workbookTeamId])
   @@index([employeeId])
   @@index([tenantId])
@@ -2018,7 +2018,7 @@ model ProjectTeam {
   tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id          String   @id @default(uuid()) @map("id")
   projectId   String   @map("project_id")
-  name        String   @map("name") // ad-hoc, e.g. "Web Development"
+  name        String   @map("name") // from PROJECT_TEAMS (features/projects/lib/project-teams.ts)
   description String?  @map("description")
   managerId   String?  @map("manager_id") // nullable when team is empty
   createdAt   DateTime @default(now()) @map("created_at")
@@ -2043,7 +2043,7 @@ model ProjectTeamMember {
   tenantId   String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String   @id @default(uuid()) @map("id")
   teamId     String   @map("team_id")
-  projectId  String   @map("project_id") // denormalised to enforce 1 team per project per employee
+  projectId  String   @map("project_id") // denormalised for per-project lookups; a person may be on several teams
   employeeId String   @map("employee_id")
   joinedAt   DateTime @default(now()) @map("joined_at")
 
@@ -2051,7 +2051,7 @@ model ProjectTeamMember {
   employee Employee    @relation("ProjectTeamMembership", fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, employeeId])
-  @@unique([projectId, employeeId])
+  @@index([projectId, employeeId])
   @@index([teamId])
   @@index([employeeId])
   @@index([tenantId])

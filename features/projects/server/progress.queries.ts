@@ -2,6 +2,7 @@ import "server-only"
 
 import { db } from "@/server/db"
 import { getSeoRollup } from "@/features/seo/server/seo.queries"
+import { sortProjectTeams } from "@/features/projects/lib/project-teams"
 
 // Project progress: delivery, per team/member, and search. Rates are null (not 0%) with no data.
 
@@ -34,11 +35,20 @@ export interface TeamProgress extends ProgressBucket {
   members: number
 }
 
+/** One person's tasks inside one team (`id` is the team's, or "__no_team__"). */
+export interface MemberTeamProgress extends ProgressBucket {
+  id: string
+  name: string
+}
+
 export interface MemberProgress extends ProgressBucket {
   id: string
   name: string
   profilePhoto: string | null
-  teamName: string | null
+  /** Every team they are on in this project, catalogue order. */
+  teamNames: string[]
+  /** Their tasks split by each task's team, catalogue order; adds up to their own totals. */
+  byTeam: MemberTeamProgress[]
 }
 
 export interface UpcomingTask {
@@ -221,15 +231,23 @@ export async function getProjectProgress(
     }) as Promise<TaskRow[]>,
     db.projectTeam.findMany({
       where: { projectId },
-      select: { id: true, name: true, _count: { select: { members: true } } },
-      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        members: { select: { employeeId: true } },
+        _count: { select: { members: true } },
+      },
     }),
   ])
 
   const summary = emptyBucket()
   const teamBuckets = new Map<string, TeamProgress>()
-  for (const t of teams) {
+  const teamNamesOf = new Map<string, string[]>()
+  for (const t of sortProjectTeams(teams)) {
     teamBuckets.set(t.id, { ...emptyBucket(), id: t.id, name: t.name, members: t._count.members })
+    for (const m of t.members) {
+      teamNamesOf.set(m.employeeId, [...(teamNamesOf.get(m.employeeId) ?? []), t.name])
+    }
   }
   // No-team tasks need a bucket, or per-team numbers won't add up to the summary.
   const UNASSIGNED = "__no_team__"
@@ -241,6 +259,7 @@ export async function getProjectProgress(
   })
 
   const memberBuckets = new Map<string, MemberProgress>()
+  const memberTeamBuckets = new Map<string, Map<string, MemberTeamProgress>>()
 
   for (const t of tasks) {
     addTask(summary, t, now)
@@ -256,11 +275,21 @@ export async function getProjectProgress(
           id: t.assignee.id,
           name: `${t.assignee.firstName} ${t.assignee.lastName}`,
           profilePhoto: t.assignee.profilePhoto,
-          teamName: t.team?.name ?? null,
+          teamNames: teamNamesOf.get(t.assignee.id) ?? [],
+          byTeam: [],
         }
         memberBuckets.set(t.assignee.id, m)
+        memberTeamBuckets.set(t.assignee.id, new Map())
       }
       addTask(m, t, now)
+
+      const split = memberTeamBuckets.get(t.assignee.id)!
+      let mt = split.get(teamKey)
+      if (!mt) {
+        mt = { ...emptyBucket(), id: teamKey, name: teamBuckets.get(teamKey)!.name }
+        split.set(teamKey, mt)
+      }
+      addTask(mt, t, now)
     }
   }
 
@@ -268,9 +297,17 @@ export async function getProjectProgress(
   const byTeam = [...teamBuckets.values()]
     .filter((t) => t.total > 0 || t.id !== UNASSIGNED)
     .map(finalise) as TeamProgress[]
-  const byMember = ([...memberBuckets.values()] as MemberProgress[])
-    .map(finalise as (b: ProgressBucket) => ProgressBucket)
-    .map((b) => b as MemberProgress)
+  const teamOrder = [...teamBuckets.keys()]
+  const byMember = [...memberBuckets.values()]
+    .map((m) => {
+      finalise(m)
+      const split = memberTeamBuckets.get(m.id)!
+      m.byTeam = teamOrder.flatMap((k) => {
+        const b = split.get(k)
+        return b ? [finalise(b) as MemberTeamProgress] : []
+      })
+      return m
+    })
     .sort((a, b) => b.total - a.total)
 
   // Monday-start weeks, oldest first.

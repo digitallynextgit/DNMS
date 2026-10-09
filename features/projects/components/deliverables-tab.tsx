@@ -1268,15 +1268,31 @@ export function DeliverablesTab({
       ),
     [teams.data, currentUserId],
   )
+  // People on a team the viewer manages: a row with no team answers to any of its assignee's managers.
+  const myPeopleIds = React.useMemo(
+    () =>
+      new Set(
+        (teams.data?.data ?? [])
+          .filter((t) => t.managerId === currentUserId)
+          .flatMap((t) => (t.members ?? []).map((mem) => mem.employee?.id))
+          .filter((id): id is string => !!id),
+      ),
+    [teams.data, currentUserId],
+  )
+  const managesOwner = React.useCallback(
+    (r: DeliverableRow) =>
+      r.team ? myTeamIds.has(r.team.id) : !!r.employee && myPeopleIds.has(r.employee.id),
+    [myTeamIds, myPeopleIds],
+  )
   const actorFor = React.useCallback(
     (r: DeliverableRow): DeliverableActor => {
       if (canManage) return "project_manager"
-      if (r.team && myTeamIds.has(r.team.id)) return "team_manager"
+      if (managesOwner(r)) return "team_manager"
       if (r.employee?.id === currentUserId) return "maker"
       if (!r.employee && r.team && myMemberTeamIds.has(r.team.id)) return "maker"
       return "none"
     },
-    [canManage, myTeamIds, myMemberTeamIds, currentUserId],
+    [canManage, managesOwner, myMemberTeamIds, currentUserId],
   )
 
   /** After the period closes only a project manager may edit (the history records it). */
@@ -1285,7 +1301,7 @@ export function DeliverablesTab({
     if (actor === "none") return false
     return !r.locked || actor === "project_manager"
   }
-  const managesRow = (r: DeliverableRow) => canManage || (r.team ? myTeamIds.has(r.team.id) : false)
+  const managesRow = (r: DeliverableRow) => canManage || managesOwner(r)
 
   const startMove = (r: DeliverableRow, to: DeliverableStatus) => {
     const check = allowedTransition(r.status, to, actorFor(r))

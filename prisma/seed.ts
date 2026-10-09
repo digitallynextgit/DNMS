@@ -2161,9 +2161,12 @@ async function main() {
     },
   })
 
+  // The AM team holds the project's Account Manager (its owner), as the app does on create.
+  await createTeamWithMembers(project1.id, "AM", "Account management", rupamId, [], [])
+
   await createTeamWithMembers(
     project1.id,
-    "Web Development",
+    "WEB",
     "Frontend + backend implementation, hosting, deployment",
     vivekId, // Manager
     [shaileshId, saurabhId, mridulId], // Members
@@ -2205,7 +2208,7 @@ async function main() {
 
   await createTeamWithMembers(
     project1.id,
-    "Design",
+    "DESIGN",
     "Visual design, branding, illustrations, UI mockups",
     aditiId, // Manager
     [teeshaId, komalId], // Members
@@ -2247,7 +2250,7 @@ async function main() {
 
   await createTeamWithMembers(
     project1.id,
-    "Content",
+    "CONTENT",
     "Copywriting, blog migration, SEO content",
     ayushiId, // Manager
     [praneetId, diwakarId], // Members
@@ -2295,9 +2298,11 @@ async function main() {
     },
   })
 
+  await createTeamWithMembers(project2.id, "AM", "Account management", rupamId, [], [])
+
   await createTeamWithMembers(
     project2.id,
-    "Paid Ads",
+    "PERFORMANCE",
     "Google Ads, Meta Ads, LinkedIn campaigns",
     hemantId, // Manager
     [shivamId, jatinId], // Members
@@ -2329,10 +2334,10 @@ async function main() {
     ],
   )
 
-  // One team per project per employee, but different teams across projects are fine (Shailesh: P1 Web Dev, P2 Video).
+  // Shailesh builds on P1's WEB and runs VIDEO on P2.
   await createTeamWithMembers(
     project2.id,
-    "Video Production",
+    "VIDEO",
     "Promo videos, social shorts, B-roll",
     shaileshId, // Manager
     [],
@@ -2364,9 +2369,11 @@ async function main() {
     },
   })
 
+  await createTeamWithMembers(project3.id, "AM", "Account management", adminId, [], [])
+
   await createTeamWithMembers(
     project3.id,
-    "Web Development",
+    "WEB",
     "Engineering work on the DNMS app",
     rupamId, // Manager
     [],
@@ -2416,7 +2423,7 @@ async function main() {
     },
   ])
 
-  console.log("  ✓ Created 3 projects, 7 teams, sample tasks & 2 resources")
+  console.log("  ✓ Created 3 projects, 9 teams, sample tasks & 2 resources")
 
   console.log("Step 15: Creating job postings & applicants...")
 

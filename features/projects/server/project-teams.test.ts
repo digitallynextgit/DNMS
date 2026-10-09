@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 // The tests hand in a fake client; keep the real Prisma client from being constructed.
 vi.mock("@/server/db", () => ({ db: {} }))
 
-import { ensureProjectTeams } from "./project-teams"
+import { ensureProjectTeams, syncAccountManagerTeam } from "./project-teams"
 
 type Team = {
   id: string
@@ -12,7 +12,7 @@ type Team = {
   name: string
   managerId: string | null
 }
-type Member = { id: string; projectId: string; employeeId: string }
+type Member = { id: string; teamId?: string; projectId: string; employeeId: string }
 
 type Client = NonNullable<Parameters<typeof ensureProjectTeams>[1]>["client"]
 
@@ -22,7 +22,7 @@ function fakeClient(state: { teams: Team[]; members: Member[]; active: Record<st
   const client = {
     project: {
       findUnique: async ({ where }: { where: { id: string } }) =>
-        where.id.startsWith("missing") ? null : { tenantId: "t1" },
+        where.id.startsWith("missing") ? null : { tenantId: "t1", ownerId: "owner" },
     },
     projectTeam: {
       findMany: async ({ where }: { where: Record<string, unknown> }) => {
@@ -40,6 +40,20 @@ function fakeClient(state: { teams: Team[]; members: Member[]; active: Record<st
             .map((t) => ({ managerId: t.managerId }))
         }
         return teams.filter((t) => t.projectId === where.projectId).map((t) => ({ name: t.name }))
+      },
+      findUnique: async ({
+        where,
+      }: {
+        where: { projectId_name: { projectId: string; name: string } }
+      }) =>
+        teams.find(
+          (t) =>
+            t.projectId === where.projectId_name.projectId && t.name === where.projectId_name.name,
+        ) ?? null,
+      update: async ({ where, data }: { where: { id: string }; data: { managerId: string } }) => {
+        const t = teams.find((x) => x.id === where.id)!
+        t.managerId = data.managerId
+        return t
       },
       create: async ({
         data,
@@ -63,6 +77,7 @@ function fakeClient(state: { teams: Team[]; members: Member[]; active: Record<st
         if (data.members) {
           members.push({
             id: `m-${n}`,
+            teamId: team.id,
             projectId: data.members.create.projectId,
             employeeId: data.members.create.employeeId,
           })
@@ -71,9 +86,21 @@ function fakeClient(state: { teams: Team[]; members: Member[]; active: Record<st
       },
     },
     projectTeamMember: {
-      findFirst: async ({ where }: { where: { projectId: string; employeeId: string } }) =>
-        members.find((m) => m.projectId === where.projectId && m.employeeId === where.employeeId) ??
-        null,
+      upsert: async ({
+        where,
+        create,
+      }: {
+        where: { teamId_employeeId: { teamId: string; employeeId: string } }
+        create: { teamId: string; projectId: string; employeeId: string }
+      }) => {
+        const { teamId, employeeId } = where.teamId_employeeId
+        const found = members.find((m) => m.teamId === teamId && m.employeeId === employeeId)
+        if (found) return found
+        n += 1
+        const row = { id: `m-${n}`, ...create }
+        members.push(row)
+        return row
+      },
     },
   }
   return client as unknown as Client
@@ -94,6 +121,8 @@ const everyoneActive = {
   dev: true,
   teesha: true,
   manpreet: true,
+  harsh: true,
+  gokul: true,
 }
 
 /** Two fully staffed projects - the precedent a new project copies. */
@@ -101,11 +130,16 @@ function precedent(): Team[] {
   const rows: Team[] = []
   for (const p of ["p1", "p2"]) {
     rows.push(
+      team(p, "AM", "teesha"),
       team(p, "WEB", "diwakar"),
       team(p, "DESIGN", "hemant"),
-      team(p, "MAP", "aashutosh"),
       team(p, "VIDEO", "dev"),
-      team(p, "AMG/SMO", "teesha"),
+      team(p, "CONTENT", "aashutosh"),
+      team(p, "SMO", "teesha"),
+      team(p, "SEO", null),
+      team(p, "PERFORMANCE", null),
+      team(p, "PR", "harsh"),
+      team(p, "ALLIANCES & PARTNERSHIPS", "gokul"),
       team(p, "ADMIN", "manpreet"),
     )
   }
@@ -113,7 +147,7 @@ function precedent(): Team[] {
 }
 
 describe("ensureProjectTeams", () => {
-  it("gives a bare project all six teams, staffed the way the other projects are", async () => {
+  it("gives a bare project all eleven teams, staffed the way the other projects are", async () => {
     const teams = precedent()
     const members: Member[] = []
     const client = fakeClient({ teams, members, active: everyoneActive })
@@ -121,19 +155,29 @@ describe("ensureProjectTeams", () => {
     const created = await ensureProjectTeams("p3", { client })
 
     expect(created.map((c) => c.name)).toEqual([
+      "AM",
       "WEB",
       "DESIGN",
-      "MAP",
       "VIDEO",
-      "AMG/SMO",
+      "CONTENT",
+      "SMO",
+      "SEO",
+      "PERFORMANCE",
+      "PR",
+      "ALLIANCES & PARTNERSHIPS",
       "ADMIN",
     ])
     expect(Object.fromEntries(created.map((c) => [c.name, c.managerId]))).toEqual({
+      AM: "owner",
       WEB: "diwakar",
       DESIGN: "hemant",
-      MAP: "aashutosh",
       VIDEO: "dev",
-      "AMG/SMO": "teesha",
+      CONTENT: "aashutosh",
+      SMO: "teesha",
+      SEO: null,
+      PERFORMANCE: null,
+      PR: "harsh",
+      "ALLIANCES & PARTNERSHIPS": "gokul",
       ADMIN: "manpreet",
     })
     expect(
@@ -141,7 +185,17 @@ describe("ensureProjectTeams", () => {
         .filter((m) => m.projectId === "p3")
         .map((m) => m.employeeId)
         .sort(),
-    ).toEqual(["aashutosh", "dev", "diwakar", "hemant", "manpreet", "teesha"])
+    ).toEqual([
+      "aashutosh",
+      "dev",
+      "diwakar",
+      "gokul",
+      "harsh",
+      "hemant",
+      "manpreet",
+      "owner",
+      "teesha",
+    ])
   })
 
   it("is idempotent - a fully set-up project gets nothing new", async () => {
@@ -151,7 +205,7 @@ describe("ensureProjectTeams", () => {
     const created = await ensureProjectTeams("p1", { client })
 
     expect(created).toEqual([])
-    expect(teams).toHaveLength(12)
+    expect(teams).toHaveLength(22)
   })
 
   it("adds only the missing teams and leaves existing ones alone", async () => {
@@ -160,7 +214,17 @@ describe("ensureProjectTeams", () => {
 
     const created = await ensureProjectTeams("p3", { client })
 
-    expect(created.map((c) => c.name)).toEqual(["DESIGN", "MAP", "AMG/SMO", "ADMIN"])
+    expect(created.map((c) => c.name)).toEqual([
+      "AM",
+      "DESIGN",
+      "CONTENT",
+      "SMO",
+      "SEO",
+      "PERFORMANCE",
+      "PR",
+      "ALLIANCES & PARTNERSHIPS",
+      "ADMIN",
+    ])
     // the unmanaged VIDEO team was not "fixed" - existing teams are not touched
     expect(teams.find((t) => t.id === "p3-VIDEO")?.managerId).toBeNull()
   })
@@ -176,15 +240,15 @@ describe("ensureProjectTeams", () => {
     expect(members.some((m) => m.projectId === "p3" && m.employeeId === "manpreet")).toBe(true)
   })
 
-  it("starts a team unstaffed when its usual manager already sits on another team of that project", async () => {
+  it("lets one person manage several teams of the same project", async () => {
     const teams = [...precedent(), team("p3", "WEB", "teesha")]
     const members: Member[] = [{ id: "m0", projectId: "p3", employeeId: "teesha" }]
     const client = fakeClient({ teams, members, active: everyoneActive })
 
     const created = await ensureProjectTeams("p3", { client })
 
-    expect(created.find((c) => c.name === "AMG/SMO")?.managerId).toBeNull()
-    expect(members.filter((m) => m.projectId === "p3" && m.employeeId === "teesha")).toHaveLength(1)
+    expect(created.find((c) => c.name === "SMO")?.managerId).toBe("teesha")
+    expect(members.filter((m) => m.projectId === "p3" && m.employeeId === "teesha")).toHaveLength(2)
   })
 
   it("ignores managers who have left the company", async () => {
@@ -208,8 +272,40 @@ describe("ensureProjectTeams", () => {
     expect(created.find((c) => c.name === "VIDEO")?.managerId).toBe("dev")
   })
 
+  it("puts the project's Account Manager in charge of the AM team", async () => {
+    const client = fakeClient({ teams: precedent(), members: [], active: everyoneActive })
+
+    const created = await ensureProjectTeams("p3", { client })
+
+    expect(created.find((c) => c.name === "AM")?.managerId).toBe("owner")
+  })
+
   it("refuses an unknown project instead of seeding orphan teams", async () => {
     const client = fakeClient({ teams: [], members: [], active: {} })
     await expect(ensureProjectTeams("missing-1", { client })).rejects.toThrow(/not found/)
+  })
+})
+
+describe("syncAccountManagerTeam", () => {
+  it("makes the new Account Manager the AM team's manager and keeps the old one as a member", async () => {
+    const teams = [team("p1", "AM", "teesha")]
+    const members: Member[] = [{ id: "m0", teamId: "p1-AM", projectId: "p1", employeeId: "teesha" }]
+    const client = fakeClient({ teams, members, active: everyoneActive })
+
+    await syncAccountManagerTeam("p1", "manpreet", client)
+
+    expect(teams[0]?.managerId).toBe("manpreet")
+    expect(members.map((m) => m.employeeId).sort()).toEqual(["manpreet", "teesha"])
+  })
+
+  it("does nothing new when they already run it", async () => {
+    const teams = [team("p1", "AM", "teesha")]
+    const members: Member[] = [{ id: "m0", teamId: "p1-AM", projectId: "p1", employeeId: "teesha" }]
+    const client = fakeClient({ teams, members, active: everyoneActive })
+
+    await syncAccountManagerTeam("p1", "teesha", client)
+
+    expect(teams[0]?.managerId).toBe("teesha")
+    expect(members).toHaveLength(1)
   })
 })

@@ -275,26 +275,38 @@ async function main() {
       statuses.length >= 2,
       `Employee statuses: ${statuses.map((s) => `${s.status} ${s._count}`).join(", ")}`,
     )
-    const web = await db.projectTeam.findFirst({
-      where: { project: { slug: "sunmeadow-organics-launch" }, name: "WEB" },
-      select: { managerId: true, _count: { select: { members: true } } },
+    // The Teams tab opens on AM (just the Account Manager), then WEB with a manager and a member.
+    const sunTeams = await db.projectTeam.findMany({
+      where: { project: { slug: "sunmeadow-organics-launch" } },
+      select: { name: true, managerId: true, members: { select: { employeeId: true } } },
     })
+    const am = sunTeams.find((t) => t.name === "AM")
+    const web = sunTeams.find((t) => t.name === "WEB")
     check(
-      !!web?.managerId && web._count.members >= 2,
-      `Sunmeadow WEB team: manager + ${(web?._count.members ?? 1) - 1} member(s)`,
+      am?.managerId === rohan && am.members.length === 1,
+      `Sunmeadow AM team: Rohan alone (${am?.members.length ?? 0} member(s))`,
     )
-    const design = await db.projectTeam.findFirst({
-      where: { project: { slug: "sunmeadow-organics-launch" }, name: "DESIGN" },
-      select: { members: { select: { employeeId: true } } },
-    })
+    check(
+      !!web?.managerId && web.members.length >= 2,
+      `Sunmeadow WEB team: manager + ${(web?.members.length ?? 1) - 1} member(s)`,
+    )
+    // "Add people" offers everyone not on that team yet, whatever other teams they are on.
     const assignable = await db.employee.count({
       where: {
         isActive: true,
         status: "ACTIVE",
-        id: { notIn: design?.members.map((m) => m.employeeId) ?? [] },
+        id: { notIn: am?.members.map((m) => m.employeeId) ?? [] },
       },
     })
-    check(assignable >= 5, `"Add people" to Sunmeadow DESIGN: ${assignable} eligible employees`)
+    check(assignable >= 5, `"Add people" to Sunmeadow AM: ${assignable} eligible employees`)
+    const seats = new Map<string, number>()
+    for (const t of sunTeams) {
+      for (const m of t.members) seats.set(m.employeeId, (seats.get(m.employeeId) ?? 0) + 1)
+    }
+    check(
+      [...seats.values()].filter((n) => n > 1).length >= 2,
+      "Sunmeadow: people on more than one team",
+    )
     const priyaPay = await db.payrollRecord.findMany({
       where: { employeeId: priya, status: "PAID" },
       select: { lopDays: true, totalDeductions: true },

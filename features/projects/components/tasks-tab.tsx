@@ -28,6 +28,7 @@ import {
   type SheetTask,
 } from "@/features/projects/components/tasks-sheet-view"
 import { TASK_STATUS_LABELS, TASK_WORKFLOW_STATUSES } from "@/lib/constants"
+import { ACCOUNT_MANAGER_TEAM } from "@/features/projects/lib/project-teams"
 
 // The My Tasks weekly sheet read the other way: the project is fixed and the rows are its people.
 
@@ -186,7 +187,9 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
   const [teamDefaulted, setTeamDefaulted] = useState(false)
   if (!teamDefaulted && teams.length > 0) {
     setTeamDefaulted(true)
-    const mine = teams.find((t) => t.managerId === currentUserId)
+    const managed = teams.filter((t) => t.managerId === currentUserId)
+    // The AM team rarely holds tasks, so start on another team they run when there is one.
+    const mine = managed.find((t) => t.name !== ACCOUNT_MANAGER_TEAM) ?? managed[0]
     if (mine) setActiveTeamId(mine.id)
   }
 

@@ -173,8 +173,8 @@ export const projectTasksGuide: HelpGuide = {
       ],
       tips: [
         {
-          en: "Each new line becomes a real task, filed under a team the person is on. When you plan your own work, your team manager gets a notification.",
-          hi: "हर नई लाइन एक असली task बन जाती है, उस व्यक्ति की टीम के अंदर। जब आप अपना काम प्लान करते हैं, तो आपके टीम मैनेजर को नोटिफिकेशन जाता है।",
+          en: "Each new line becomes a real task, filed under one of the person's teams: a team of theirs that you manage, if there is one, otherwise the first of their teams in the Teams tab order. When you plan your own work, your team manager gets a notification.",
+          hi: "हर नई लाइन एक असली task बन जाती है, उस व्यक्ति की किसी एक टीम के अंदर: उनकी वो टीम जिसे आप मैनेज करते हैं, अगर कोई हो; नहीं तो Teams टैब के क्रम में उनकी पहली टीम। जब आप अपना काम प्लान करते हैं, तो आपके टीम मैनेजर को नोटिफिकेशन जाता है।",
         },
         {
           en: "Deleting a line from a cell deletes that task. DNMS asks first, and only the team manager, the Account Manager or a project admin can do it.",

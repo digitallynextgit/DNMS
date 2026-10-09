@@ -583,17 +583,26 @@ export function ProjectSheetSection({
   const { data: session } = useSession()
   const me = session?.user?.id ?? null
   const projectTeams = React.useMemo(() => teams?.data ?? [], [teams])
-  const managedTeamId = React.useMemo(
-    () => projectTeams.find((t) => t.managerId != null && t.managerId === me)?.id ?? null,
+  const managedTeamIds = React.useMemo(
+    () =>
+      new Set(
+        projectTeams.filter((t) => t.managerId != null && t.managerId === me).map((t) => t.id),
+      ),
     [projectTeams, me],
   )
-  const canStaff = canManage || managedTeamId !== null
-  /** The one team this person is on, only when unambiguous. */
-  const myTeamId = React.useMemo(() => {
-    if (!me) return null
-    const mine = projectTeams.filter((t) => t.members.some((mm) => mm.employeeId === me))
-    return mine.length === 1 ? mine[0]!.id : (managedTeamId ?? null)
-  }, [projectTeams, me, managedTeamId])
+  const canStaff = canManage || managedTeamIds.size > 0
+  /** Every team this person is on or manages - one person can be on several. */
+  const myTeamIds = React.useMemo(
+    () =>
+      new Set(
+        me
+          ? projectTeams
+              .filter((t) => t.managerId === me || t.members.some((mm) => mm.employeeId === me))
+              .map((t) => t.id)
+          : [],
+      ),
+    [projectTeams, me],
+  )
 
   const series = React.useMemo(() => groupIntoSeries(index ?? []), [index])
   const [seriesName, setSeriesName] = React.useState<string | null>(null)
@@ -1113,7 +1122,7 @@ export function ProjectSheetSection({
         <TeamPlanStrip
           teams={workbook.teams}
           periodMonth={workbook.periodMonth}
-          myTeamId={myTeamId}
+          myTeamIds={myTeamIds}
           canPlan={canStaff}
           onOpen={(teamId) => {
             setPlanFocusTeamId(teamId ?? null)
@@ -1591,8 +1600,8 @@ export function ProjectSheetSection({
           workbook={workbook}
           projectTeams={projectTeams}
           canPlanAll={canManage || workbook.assignedTo?.id === me}
-          managedTeamId={managedTeamId}
-          myTeamId={myTeamId}
+          managedTeamIds={managedTeamIds}
+          myTeamIds={myTeamIds}
           focusTeamId={planFocusTeamId}
           pending={m.saveTeamPlan.isPending || m.removeTeamPlan.isPending}
           onSave={({ teamId, ...rest }) =>

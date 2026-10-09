@@ -51,29 +51,40 @@ export const POST = withProjectAccess(
         )
       }
 
-      // The raiser's own team on this project, unless one was named explicitly.
-      let teamId: string | null = body.teamId || null
-      if (!teamId) {
-        const membership = await db.projectTeamMember.findFirst({
-          where: { projectId, employeeId: session.user.id },
-          select: { teamId: true },
-        })
-        teamId = membership?.teamId ?? null
-      }
-
       // Only tasks that really belong to this project may be linked.
       const requestedTaskIds: string[] = Array.isArray(body.blockedTaskIds)
         ? body.blockedTaskIds.filter((v: unknown) => typeof v === "string")
         : []
-      const blockedTaskIds =
+      const blockedTasks =
         requestedTaskIds.length > 0
-          ? (
-              await db.projectTask.findMany({
-                where: { id: { in: requestedTaskIds }, projectId },
-                select: { id: true },
-              })
-            ).map((t) => t.id)
+          ? await db.projectTask.findMany({
+              where: { id: { in: requestedTaskIds }, projectId },
+              select: { id: true, teamId: true },
+            })
           : []
+      const blockedTaskIds = blockedTasks.map((t) => t.id)
+
+      // A named team of this project, else the blocked task's team, else the raiser's team when
+      // they are on just one (someone on several teams leaves it unset rather than guessing).
+      const taskTeamId = blockedTasks.find((t) => t.teamId)?.teamId ?? null
+      let teamId: string | null = null
+      if (typeof body.teamId === "string" && body.teamId) {
+        const team = await db.projectTeam.findFirst({
+          where: { id: body.teamId, projectId },
+          select: { id: true },
+        })
+        if (!team) return NextResponse.json({ error: "Team not found" }, { status: 422 })
+        teamId = team.id
+      } else if (taskTeamId) {
+        teamId = taskTeamId
+      } else {
+        const memberships = await db.projectTeamMember.findMany({
+          where: { projectId, employeeId: session.user.id },
+          select: { teamId: true },
+          take: 2,
+        })
+        teamId = memberships.length === 1 ? memberships[0]!.teamId : null
+      }
 
       const requirement = await createRequirement({
         projectId,

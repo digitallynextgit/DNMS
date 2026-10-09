@@ -24,6 +24,7 @@ import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import { aiComplete, isAiConfigured } from "@/lib/ai"
 import { todayUtc } from "@/lib/dates"
 import { formatPeriod } from "../lib/delivery-period"
+import { sortProjectTeams } from "../lib/project-teams"
 import {
   DELIVERABLE_STATUS_LABELS,
   OPEN_STATUSES,
@@ -49,6 +50,8 @@ export interface ReportScope {
   projectIds: string[] | null
   teamIds: string[] | null
   employeeIds: string[] | null
+  /** Teams the caller manages; a row with no team is theirs when its maker is on one of them. */
+  managedTeams: { id: string; projectId: string }[]
 }
 
 /** What the caller asked for. Empty arrays mean "everything I can see". */
@@ -74,7 +77,14 @@ export async function resolveReportScope(session: Session): Promise<ReportScope>
   const me = session.user.id
   // project:write only - every employee holds project:read, so it is no admin signal.
   if (hasPermission(session, PERMISSIONS.PROJECT_WRITE)) {
-    return { role: "admin", employeeId: me, projectIds: null, teamIds: null, employeeIds: null }
+    return {
+      role: "admin",
+      employeeId: me,
+      projectIds: null,
+      teamIds: null,
+      employeeIds: null,
+      managedTeams: [],
+    }
   }
 
   const [owned, managed, memberOf, reports] = await Promise.all([
@@ -124,6 +134,7 @@ export async function resolveReportScope(session: Session): Promise<ReportScope>
     ]),
     teamIds,
     employeeIds: uniq([me, ...people.map((p) => p.employeeId), ...reports.map((r) => r.id)]),
+    managedTeams: managed,
   }
 }
 
@@ -153,6 +164,34 @@ export interface ReportScopeData {
 const fullName = (e: { firstName: string; lastName: string }) =>
   `${e.firstName} ${e.lastName}`.trim()
 
+/** Keeps the order projects arrive in; each project's teams in catalogue order. */
+function catalogueWithinProjects<T extends { name: string; projectId: string }>(teams: T[]): T[] {
+  const byProject = new Map<string, T[]>()
+  for (const t of teams) byProject.set(t.projectId, [...(byProject.get(t.projectId) ?? []), t])
+  return [...byProject.values()].flatMap((g) => sortProjectTeams(g))
+}
+
+/** Team ids grouped by their project, so a filter can tie a team to the row's own project. */
+function teamIdsByProject(teams: { id: string; projectId: string }[]): [string, string[]][] {
+  const byProject = new Map<string, string[]>()
+  for (const t of teams) byProject.set(t.projectId, [...(byProject.get(t.projectId) ?? []), t.id])
+  return [...byProject]
+}
+
+interface Membership {
+  projectId: string
+  employeeId: string
+  team: { id: string; name: string }
+}
+
+function membershipsOf(employeeIds: string[], projectIds: string[]): Promise<Membership[]> {
+  if (!employeeIds.length || !projectIds.length) return Promise.resolve([])
+  return db.projectTeamMember.findMany({
+    where: { employeeId: { in: employeeIds }, projectId: { in: projectIds } },
+    select: { projectId: true, employeeId: true, team: { select: { id: true, name: true } } },
+  })
+}
+
 export async function describeReportScope(scope: ReportScope): Promise<ReportScopeData> {
   const projects = await db.project.findMany({
     where: scope.projectIds === null ? {} : { id: { in: scope.projectIds } },
@@ -172,7 +211,7 @@ export async function describeReportScope(scope: ReportScope): Promise<ReportSco
             project: { select: { name: true } },
             _count: { select: { members: { where: { employee: VISIBLE_PERSON } } } },
           },
-          orderBy: [{ project: { name: "asc" } }, { name: "asc" }],
+          orderBy: { project: { name: "asc" } },
         })
 
   const people = await db.employee.findMany({
@@ -195,7 +234,7 @@ export async function describeReportScope(scope: ReportScope): Promise<ReportSco
   return {
     role: scope.role,
     projects,
-    teams: teams.map((t) => ({
+    teams: catalogueWithinProjects(teams).map((t) => ({
       id: t.id,
       name: t.name,
       projectId: t.projectId,
@@ -261,11 +300,12 @@ function scopeWhereFor(scope: ReportScope): Prisma.ProjectDeliverableWhereInput 
     OR: [
       { project: { ownerId: me } },
       { team: { managerId: me } },
-      // Rows owed by nobody yet carry no team; still the manager's if the maker is on their team.
-      {
+      // A row with no team is the manager's when its maker is on their team in that same project.
+      ...teamIdsByProject(scope.managedTeams).map(([projectId, teamIds]) => ({
         teamId: null,
-        employee: { projectTeamMemberships: { some: { team: { managerId: me } } } },
-      },
+        projectId,
+        employee: { projectTeamMemberships: { some: { teamId: { in: teamIds } } } },
+      })),
       // Their line reports' work, wherever it sits.
       { employee: { OR: [{ managerId: me }, { dottedManagerId: me }] } },
       { employeeId: me },
@@ -302,7 +342,7 @@ async function loadRoster(scope: ReportScope, pick: ReportPick): Promise<RosterT
       : scope.teamIds === null
         ? {}
         : { id: { in: scope.teamIds } }
-  const teams = await db.projectTeam.findMany({
+  const found = await db.projectTeam.findMany({
     where,
     select: {
       id: true,
@@ -327,6 +367,7 @@ async function loadRoster(scope: ReportScope, pick: ReportPick): Promise<RosterT
     orderBy: [{ project: { name: "asc" } }, { name: "asc" }],
     take: 60,
   })
+  const teams = catalogueWithinProjects(found)
   if (!pick.employeeIds.length) return teams
   const keep = new Set(pick.employeeIds)
   return teams
@@ -363,15 +404,15 @@ async function loadRows(
   const and: Prisma.ProjectDeliverableWhereInput[] = [scopeWhereFor(scope), windowWhere(from, to)]
   if (pick.projectIds.length) and.push({ projectId: { in: pick.projectIds } })
   if (pick.teamIds.length) {
-    const teamProjects = uniq(roster.map((t) => t.projectId))
+    const picked = roster.filter((t) => pick.teamIds.includes(t.id))
     and.push({
       OR: [
         { teamId: { in: pick.teamIds } },
-        {
+        ...teamIdsByProject(picked).map(([projectId, teamIds]) => ({
           teamId: null,
-          projectId: { in: teamProjects },
-          employee: { projectTeamMemberships: { some: { teamId: { in: pick.teamIds } } } },
-        },
+          projectId,
+          employee: { projectTeamMemberships: { some: { teamId: { in: teamIds } } } },
+        })),
       ],
     })
   }
@@ -383,7 +424,35 @@ async function loadRows(
     orderBy: [{ project: { name: "asc" } }, { dueOn: "asc" }, { createdAt: "asc" }],
     take: ROW_CAP + 1,
   })
-  return { rows: rows.slice(0, ROW_CAP), truncated: rows.length > ROW_CAP }
+  const capped = rows.slice(0, ROW_CAP)
+  return {
+    rows: pick.teamIds.length ? await teamlessUnderOneTeam(capped, pick.teamIds) : capped,
+    truncated: rows.length > ROW_CAP,
+  }
+}
+
+/**
+ * A row with no team counts under its maker's first team (catalogue order) in that project, so
+ * someone on several teams never has it reported under each of them.
+ */
+async function teamlessUnderOneTeam(rows: Row[], teamIds: string[]): Promise<Row[]> {
+  const loose = rows.filter((r) => !r.teamId && r.employeeId)
+  if (!loose.length) return rows
+  const memberships = await membershipsOf(
+    uniq(loose.map((r) => r.employeeId!)),
+    uniq(loose.map((r) => r.projectId)),
+  )
+  const teamsOf = new Map<string, Membership["team"][]>()
+  for (const m of memberships) {
+    const k = `${m.projectId}:${m.employeeId}`
+    teamsOf.set(k, [...(teamsOf.get(k) ?? []), m.team])
+  }
+  const picked = new Set(teamIds)
+  return rows.filter((r) => {
+    if (r.teamId || !r.employeeId) return true
+    const home = sortProjectTeams(teamsOf.get(`${r.projectId}:${r.employeeId}`) ?? [])[0]
+    return !!home && picked.has(home.id)
+  })
 }
 
 const DONE: ReadonlySet<DeliverableStatus> = new Set(["DELIVERED", "ACCEPTED"])
@@ -878,8 +947,8 @@ export async function loadReportData(input: DeckInput): Promise<ReportData> {
 
   const byMember = bucketize(rows, today, (r) =>
     r.employee
-      ? { key: r.employee.id, label: fullName(r.employee), sub: r.team?.name ?? "" }
-      : { key: "__unclaimed__", label: "Not yet picked up", sub: r.team?.name ?? "" },
+      ? { key: r.employee.id, label: fullName(r.employee) }
+      : { key: "__unclaimed__", label: "Not yet picked up" },
   )
 
   // Pad with roster members only for multi-person decks.
@@ -890,7 +959,7 @@ export async function loadReportData(input: DeckInput): Promise<ReportData> {
           byMember.push({
             key: m.employee.id,
             label: fullName(m.employee),
-            sub: t.name,
+            sub: "",
             total: 0,
             done: 0,
             open: 0,
@@ -905,6 +974,25 @@ export async function loadReportData(input: DeckInput): Promise<ReportData> {
     }
   }
   byMember.sort((a, b) => b.total - a.total || a.label.localeCompare(b.label))
+
+  // Team column: all of a person's teams on these projects; unclaimed work lists the teams owing it.
+  if (!isSinglePerson) {
+    const memberships = await membershipsOf(
+      byMember.map((b) => b.key).filter((k) => k !== "__unclaimed__"),
+      uniq([...rows.map((r) => r.projectId), ...roster.map((t) => t.projectId)]),
+    )
+    const teamNames = (teams: { name: string }[]) =>
+      uniq(sortProjectTeams(teams).map((t) => t.name)).join(", ")
+    const rowTeams = (keep: (r: Row) => boolean) =>
+      rows.flatMap((r) => (keep(r) && r.team ? [r.team] : []))
+    for (const b of byMember) {
+      const theirs = memberships.filter((m) => m.employeeId === b.key).map((m) => m.team)
+      b.sub =
+        b.key === "__unclaimed__"
+          ? teamNames(rowTeams((r) => !r.employee))
+          : teamNames(theirs.length ? theirs : rowTeams((r) => r.employee?.id === b.key))
+    }
+  }
 
   return {
     rows,
@@ -1013,10 +1101,25 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
   // 2. Who is in this report
   if (!isSinglePerson && roster.length) {
     const rosterRows: Cell[][] = []
+    // Counted per team, so someone on two teams isn't counted twice. A row with no team counts
+    // under the maker's first team here (catalogue order).
+    const firstTeam = new Map<string, string>()
+    for (const t of sortProjectTeams(roster)) {
+      for (const m of t.members) {
+        const k = `${t.projectId}:${m.employee.id}`
+        if (!firstTeam.has(k)) firstTeam.set(k, t.id)
+      }
+    }
     const seenCount = new Map<string, number>()
     for (const r of rows) {
-      if (r.employee) seenCount.set(r.employee.id, (seenCount.get(r.employee.id) ?? 0) + 1)
+      if (!r.employeeId) continue
+      const teamId = r.teamId ?? firstTeam.get(`${r.projectId}:${r.employeeId}`)
+      if (!teamId) continue
+      const k = `${teamId}:${r.employeeId}`
+      seenCount.set(k, (seenCount.get(k) ?? 0) + 1)
     }
+    const seen = (teamId: string, employeeId: string) =>
+      seenCount.get(`${teamId}:${employeeId}`) ?? 0
     for (const t of roster) {
       if (t.manager) {
         rosterRows.push([
@@ -1025,7 +1128,7 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
           cell("-"),
           cell(t.name),
           cell(t.project.name),
-          num(seenCount.get(t.manager.id) ?? 0),
+          num(seen(t.id, t.manager.id)),
         ])
       }
       for (const m of t.members) {
@@ -1036,7 +1139,7 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
           cell(m.employee.designation?.title ?? "-"),
           cell(t.name),
           cell(t.project.name),
-          num(seenCount.get(m.employee.id) ?? 0),
+          num(seen(t.id, m.employee.id)),
         ])
       }
     }

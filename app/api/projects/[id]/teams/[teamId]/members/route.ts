@@ -73,16 +73,10 @@ export const POST = withSession(
         )
       }
 
-      // One team per person per project.
-      const conflict = await db.projectTeamMember.findFirst({
-        where: { projectId, employeeId },
-        include: { team: { select: { name: true } } },
-      })
-      if (conflict) {
+      // A person may be on several teams of a project, but only once on each.
+      if (team.members.some((m) => m.employeeId === employeeId)) {
         return NextResponse.json(
-          {
-            error: `This employee is already on the "${conflict.team.name}" team in this project. Remove them from there first.`,
-          },
+          { error: `This employee is already on the ${team.name} team.` },
           { status: 409 },
         )
       }

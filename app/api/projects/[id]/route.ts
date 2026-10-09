@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { withProjectManager, withProjectAccess } from "@/features/projects/server/project-access"
+import { syncAccountManagerTeam } from "@/features/projects/server/project-teams"
+import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
 import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS, PROJECT_STAGE_LABELS } from "@/lib/constants"
 import type { Session } from "next-auth"
@@ -41,9 +43,14 @@ export const GET = withProjectAccess(
 
       if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 })
 
+      // Once per person: someone can be on several of the project's teams.
       const decorated = {
         ...project,
-        members: project.teams.flatMap((t) => t.members),
+        members: [
+          ...new Map(
+            project.teams.flatMap((t) => t.members).map((m) => [m.employeeId, m]),
+          ).values(),
+        ],
       }
 
       return NextResponse.json({ data: decorated })
@@ -112,6 +119,11 @@ export const PATCH = withProjectManager(
           ...(clientId !== undefined && { clientId: clientId || null }),
         },
       })
+
+      if (accountManagerId) {
+        await syncAccountManagerTeam(project.id, accountManagerId)
+        syncProjectFolderAccessAsync(project.id)
+      }
 
       // Filing under a client moves this project's unaffiliated portal logins to it (so they show on its
       // Contacts tab); logins at another company are left alone.

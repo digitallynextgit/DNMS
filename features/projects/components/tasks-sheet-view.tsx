@@ -52,6 +52,7 @@ import { apiFetch } from "@/lib/api-fetch"
 import { cn } from "@/lib/utils"
 import { TASK_STATUS_LABELS, TASK_WORKFLOW_STATUSES } from "@/lib/constants"
 import { formatHours } from "@/features/projects/lib/format-hours"
+import { sortProjectTeams } from "@/features/projects/lib/project-teams"
 import {
   ADHOC_DESCRIPTION,
   ADHOC_LABEL,
@@ -630,7 +631,7 @@ export function TasksSheetView({
     return `${fmt(start, false)} - ${fmt(end, true)}`
   }, [weekStart, days])
 
-  /** A team the assignee belongs to, preferring one the caller manages (avoids the approval queue). */
+  /** Assignee's team: one the caller manages (no approval queue), else first in catalogue order. */
   async function resolveTeamId(projectId: string, assigneeId: string): Promise<string | null> {
     const res = await qc.fetchQuery({
       queryKey: ["project-teams", projectId],
@@ -638,7 +639,9 @@ export function TasksSheetView({
       staleTime: 60_000,
     })
     const teams = res?.data ?? []
-    const withAssignee = teams.filter((t) => t.members.some((m) => m.employeeId === assigneeId))
+    const withAssignee = sortProjectTeams(
+      teams.filter((t) => t.members.some((m) => m.employeeId === assigneeId)),
+    )
     const picked = withAssignee.find((t) => t.managerId === currentUserId) ?? withAssignee[0]
     return picked?.id ?? null
   }

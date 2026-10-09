@@ -112,8 +112,8 @@ export const myPerformanceGuide: HelpGuide = {
         },
         {
           text: {
-            en: "The lines come in two groups: Role Performance (KRA & KPI) counts for 60% of the score, and Workplace Discipline & Execution Effectiveness for 40%. Each line shows its weight, the points you get on it appear on the right, and the panel's Total is out of 100.",
-            hi: "लाइनें दो ग्रुप में होती हैं: Role Performance (KRA & KPI) का स्कोर में 60% हिस्सा है, और Workplace Discipline & Execution Effectiveness का 40%। हर लाइन के नीचे उसका वेटेज लिखा होता है, उस पर मिले पॉइंट दाईं ओर दिखते हैं, और पैनल का Total 100 में से होता है।",
+            en: "The lines come in two groups: Role Performance (KPI) counts for 60% of the score, and Workplace Discipline & Execution Effectiveness for 40%. Each line shows its weight, the points you get on it appear on the right, and the panel's Total is out of 100.",
+            hi: "लाइनें दो ग्रुप में होती हैं: Role Performance (KPI) का स्कोर में 60% हिस्सा है, और Workplace Discipline & Execution Effectiveness का 40%। हर लाइन के नीचे उसका वेटेज लिखा होता है, उस पर मिले पॉइंट दाईं ओर दिखते हैं, और पैनल का Total 100 में से होता है।",
           },
         },
         {

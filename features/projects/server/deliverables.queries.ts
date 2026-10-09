@@ -7,7 +7,8 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { todayUtc } from "@/lib/dates"
 import { getCachedSignedUrl } from "@/lib/storage"
-import { suggestTypes, typeKey } from "../lib/deliverable-types"
+import { suggestTypesForTeams, typeKey } from "../lib/deliverable-types"
+import { sortProjectTeams } from "../lib/project-teams"
 import {
   MADE_STATUSES,
   OPEN_STATUSES,
@@ -460,7 +461,7 @@ export async function getDeliverablesOverview(
       id: string
       name: string
       profilePhoto: string | null
-      teamName: string | null
+      teamNames: Set<string>
       count: number
       tally: TypeTally
     }
@@ -525,10 +526,11 @@ export async function getDeliverablesOverview(
       id: r.employeeId,
       name: fullName(r.employee) ?? "",
       profilePhoto: r.employee.profilePhoto,
-      teamName: r.team?.name ?? null,
+      teamNames: new Set<string>(),
       count: 0,
       tally: new TypeTally(),
     }
+    if (r.team?.name) who.teamNames.add(r.team.name)
     who.count += r.quantity
     who.tally.add(r.type, r.quantity, hours)
     people.set(r.employeeId, who)
@@ -557,19 +559,24 @@ export async function getDeliverablesOverview(
     }
   }
 
-  // Starter set from the named person's team, else the caller's (usually the maker).
+  // Starter set from the named person's teams, else the caller's (usually the maker).
   let suggested: string[] = []
   if (filters.projectId) {
     const who = filters.employeeId ?? session.user.id
-    const teamName = (
-      await db.projectTeamMember.findUnique({
-        where: { projectId_employeeId: { projectId: filters.projectId, employeeId: who } },
+    const teamNames = (
+      await db.projectTeamMember.findMany({
+        where: { projectId: filters.projectId, employeeId: who },
         select: { team: { select: { name: true } } },
       })
-    )?.team.name
+    ).map((m) => m.team.name)
     const used = byType.list().map((t) => t.type)
     const seen = new Set(used.map(typeKey))
-    suggested = [...used, ...suggestTypes(teamName).filter((t) => !seen.has(typeKey(t)))]
+    suggested = [
+      ...used,
+      ...suggestTypesForTeams(
+        sortProjectTeams(teamNames.map((name) => ({ name }))).map((t) => t.name),
+      ).filter((t) => !seen.has(typeKey(t))),
+    ]
   }
 
   const rows = await Promise.all(raw.map((r) => toRow(r, qtyByTask, today)))
@@ -582,7 +589,14 @@ export async function getDeliverablesOverview(
       .map(({ tally, ...p }) => ({ ...p, byType: tally.list() }))
       .sort((a, b) => b.count - a.count),
     byPerson: [...people.values()]
-      .map(({ tally, ...p }) => ({ ...p, byType: tally.list() }))
+      .map(({ tally, teamNames, ...p }) => ({
+        ...p,
+        teamName:
+          sortProjectTeams([...teamNames].map((name) => ({ name })))
+            .map((t) => t.name)
+            .join(", ") || null,
+        byType: tally.list(),
+      }))
       .sort((a, b) => b.count - a.count),
     byTeam: [...teams.values()]
       .map(({ tally, ...t }) => ({ ...t, byType: tally.list() }))

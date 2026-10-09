@@ -7,6 +7,7 @@ import { createNotification } from "@/lib/notifications"
 import { createAuditLog } from "@/lib/audit"
 import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import { openFirstStatusPeriod } from "@/features/projects/server/task-status-periods"
+import { sortProjectTeams } from "@/features/projects/lib/project-teams"
 import type { Session } from "next-auth"
 
 // What the caller manages: teams they run and everyone under them (team members + line reports). It drives
@@ -38,7 +39,7 @@ async function getManagedScope(userId: string, seesEveryone: boolean) {
           },
         },
       },
-      orderBy: { name: "asc" },
+      orderBy: { project: { name: "asc" } },
     }),
     seesEveryone
       ? db.employee.findMany({
@@ -99,7 +100,7 @@ async function getManagedScope(userId: string, seesEveryone: boolean) {
   }
 
   return {
-    teams: managedTeams.map((t) => ({
+    teams: sortProjectTeams(managedTeams).map((t) => ({
       id: t.id,
       name: t.name,
       projectName: t.project.name,

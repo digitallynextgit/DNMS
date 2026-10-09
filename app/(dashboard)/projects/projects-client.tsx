@@ -77,7 +77,15 @@ export function ProjectsClient() {
   const userId = session?.user?.id ?? ""
 
   const { data, isLoading } = useQuery({ queryKey: ["projects"], queryFn: fetchProjects })
-  const projects = data?.data ?? []
+  // Once per person, so counts and avatars agree: someone can be on several of a project's teams.
+  const projects = useMemo(
+    () =>
+      (data?.data ?? []).map((p) => ({
+        ...p,
+        members: [...new Map(p.members.map((m) => [m.employee.id, m])).values()],
+      })),
+    [data],
+  )
 
   // The account manager (owner) can manage their own project even without project:write.
   const canManageProject = (p: Project) => canWrite || p.owner.id === userId
@@ -385,21 +393,16 @@ export function ProjectsClient() {
                         </div>
 
                         <div className="flex items-center gap-1">
-                          {/* Dedupe: someone on two of the project's teams appears twice in members. */}
-                          {Array.from(
-                            new Map(project.members.map((m) => [m.employee.id, m])).values(),
-                          )
-                            .slice(0, 5)
-                            .map((m) => (
-                              <AvatarDisplay
-                                key={m.employee.id}
-                                src={m.employee.profilePhoto}
-                                firstName={m.employee.firstName}
-                                lastName={m.employee.lastName}
-                                size="chip"
-                                className="border-background -ml-1 border-2 first:ml-0"
-                              />
-                            ))}
+                          {project.members.slice(0, 5).map((m) => (
+                            <AvatarDisplay
+                              key={m.employee.id}
+                              src={m.employee.profilePhoto}
+                              firstName={m.employee.firstName}
+                              lastName={m.employee.lastName}
+                              size="chip"
+                              className="border-background -ml-1 border-2 first:ml-0"
+                            />
+                          ))}
                           {project.members.length > 5 && (
                             <span className="text-muted-foreground ml-1 text-xs">
                               +{project.members.length - 5}

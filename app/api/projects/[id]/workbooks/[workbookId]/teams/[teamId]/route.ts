@@ -19,6 +19,7 @@ import {
   type WorkbookTeamStatus,
 } from "@/features/projects/lib/workbook-team-progress"
 import { formatMonth } from "@/features/projects/lib/calendar-months"
+import { AppError } from "@/lib/errors"
 import { db } from "@/server/db"
 
 // Keyed on (calendar, team), the row's natural key, so the guard can read the team from the URL
@@ -89,21 +90,34 @@ export const PUT = withWorkbookTeamContribute(
       )
     }
 
+    let saved: Awaited<ReturnType<typeof upsertWorkbookTeam>>
     try {
-      const { team, created, addedEmployeeIds } = await upsertWorkbookTeam(
-        workbookId!,
-        teamId!,
-        session.user.id,
-        {
-          quantity: body.quantity,
-          dueOn: body.dueOn,
-          links,
-          notes: body.notes,
-          employeeIds: body.employeeIds as string[] | undefined,
-          status,
-        },
-      )
+      saved = await upsertWorkbookTeam(workbookId!, teamId!, session.user.id, {
+        quantity: body.quantity,
+        dueOn: body.dueOn,
+        links,
+        notes: body.notes,
+        employeeIds: body.employeeIds as string[] | undefined,
+        status,
+      })
+    } catch (e) {
+      if (e instanceof AppError) {
+        return NextResponse.json({ error: e.message }, { status: e.statusCode })
+      }
+      // Two saves racing to put the same person or team on the row.
+      if ((e as { code?: string }).code === "P2002") {
+        return NextResponse.json(
+          { error: "Someone else just changed this plan. Refresh and try again." },
+          { status: 409 },
+        )
+      }
+      console.error("[WORKBOOK_TEAM_PUT]", e)
+      return NextResponse.json({ error: "Could not save that team's plan" }, { status: 500 })
+    }
+    const { team, created, addedEmployeeIds } = saved
 
+    // The plan is saved: a failed log or notification must not report a failed save.
+    try {
       const workbook = await db.projectWorkbook.findUnique({
         where: { id: workbookId },
         select: { name: true, periodMonth: true, project: { select: { name: true } } },
@@ -140,14 +154,11 @@ export const PUT = withWorkbookTeamContribute(
           })),
         )
       }
-
-      return NextResponse.json({ data: team })
     } catch (e) {
-      return NextResponse.json(
-        { error: e instanceof Error ? e.message : "Could not save that team's plan" },
-        { status: 422 },
-      )
+      console.error("[WORKBOOK_TEAM_PUT] saved, but logging or notifying failed", e)
     }
+
+    return NextResponse.json({ data: team })
   },
 )
 

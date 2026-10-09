@@ -25,7 +25,6 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/announcements",
     methods: {
       GET: {
-        doc: "the board. Open to every signed-in employee; a notice nobody can read is not a notice. Managers additionally see drafts and expired items.",
         query: ["month", "year", "category", "limit"],
         permissions: ["announcement:write"],
         guard: "withSession",
@@ -104,7 +103,6 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/attendance/export",
     methods: {
       GET: {
-        doc: "?dateFrom=&dateTo=&status=&employeeId= Streams the matching attendance logs as a CSV download (monthly report). `dateFrom` and `dateTo` are REQUIRED and span at most a year.",
         query: ["employeeId", "status", "dateFrom", "dateTo"],
         file: true,
         permissions: ["attendance:write"],
@@ -117,7 +115,6 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/attendance/floating-holidays/requests/[id]",
     methods: {
       PATCH: {
-        doc: "body: { action, rejectionReason? } HR (final) or the employee's own manager (first step) may act. Manager approval keeps it PENDING (awaiting HR); HR approval finalises it. HR can approve directly.",
         body: '{ action: "APPROVE" | "REJECT", rejectionReason?: string }',
         guard: "withSession",
       },
@@ -126,32 +123,15 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/attendance/floating-holidays/requests",
-    methods: {
-      GET: {
-        doc: "?status=PENDING Floating-holiday requests for an approver (manager of the employee, or HR).",
-        query: ["status", "page", "limit"],
-        guard: "withSession",
-      },
-    },
+    methods: { GET: { query: ["status", "page", "limit"], guard: "withSession" } },
     load: () => import("@/app/api/attendance/floating-holidays/requests/route"),
   },
   {
     path: "/api/attendance/floating-holidays",
     methods: {
-      GET: {
-        doc: "?year=2026 The optional holidays for the year + the current employee's requests (with status).",
-        query: ["year"],
-        guard: "withSession",
-      },
-      POST: {
-        doc: "body: { holidayId, reason? } Applies for a floating holiday. Creates a PENDING request and notifies the employee's manager + HR. It only counts once HR approves.",
-        guard: "withSession",
-      },
-      DELETE: {
-        doc: "?holidayId=... Withdraws the current employee's own floating-holiday request.",
-        query: ["holidayId"],
-        guard: "withSession",
-      },
+      GET: { query: ["year"], guard: "withSession" },
+      POST: { guard: "withSession" },
+      DELETE: { query: ["holidayId"], guard: "withSession" },
     },
     load: () => import("@/app/api/attendance/floating-holidays/route"),
   },
@@ -222,13 +202,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/birthdays",
-    methods: {
-      GET: {
-        doc: "?days=30 - today's and upcoming birthdays.",
-        query: ["year", "days"],
-        guard: "withSession",
-      },
-    },
+    methods: { GET: { query: ["year", "days"], guard: "withSession" } },
     load: () => import("@/app/api/birthdays/route"),
   },
   {
@@ -292,12 +266,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/careers",
     methods: {
-      GET: {
-        doc: "full careers tree (all statuses) for the admin manager.",
-        guard: "withErrorHandler",
-      },
+      GET: { guard: "withErrorHandler" },
       POST: {
-        doc: "create a career group.",
         body: "{ code: string, title: string, slug: any, jobsLabel: string, tone?: any, order?: number, status?: any }",
         guard: "withErrorHandler",
       },
@@ -327,7 +297,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/chat/attachments/[attachmentId]/file",
-    methods: { GET: { doc: "/api/chat/attachments/:id/file", query: ["download"], file: true } },
+    methods: { GET: { query: ["download"], file: true } },
     load: () => import("@/app/api/chat/attachments/[attachmentId]/file/route"),
   },
   {
@@ -337,14 +307,12 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/chat/conversations/[conversationId]/attachments",
-    methods: {
-      POST: { doc: "/api/chat/conversations/:id/attachments", upload: true, guard: "withSession" },
-    },
+    methods: { POST: { upload: true, guard: "withSession" } },
     load: () => import("@/app/api/chat/conversations/[conversationId]/attachments/route"),
   },
   {
     path: "/api/chat/conversations/[conversationId]/cards",
-    methods: { POST: { doc: "/api/chat/conversations/:id/cards", guard: "withSession" } },
+    methods: { POST: { guard: "withSession" } },
     load: () => import("@/app/api/chat/conversations/[conversationId]/cards/route"),
   },
   {
@@ -357,17 +325,12 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/chat/conversations/[conversationId]/pin",
-    methods: {
-      POST: {
-        doc: "/api/chat/conversations/:id/pin - pin or unpin the conversation for the caller. A toggle rather than a body flag: the client is acting on what it can already see, and a stale `pinned: true` from a second tab would fight it.",
-        guard: "withSession",
-      },
-    },
+    methods: { POST: { guard: "withSession" } },
     load: () => import("@/app/api/chat/conversations/[conversationId]/pin/route"),
   },
   {
     path: "/api/chat/conversations/[conversationId]/pinned",
-    methods: { GET: { doc: "/api/chat/conversations/:id/pinned", guard: "withSession" } },
+    methods: { GET: { guard: "withSession" } },
     load: () => import("@/app/api/chat/conversations/[conversationId]/pinned/route"),
   },
   {
@@ -377,9 +340,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/chat/conversations/[conversationId]/search",
-    methods: {
-      GET: { doc: "/api/chat/conversations/:id/search?q=", query: ["q"], guard: "withSession" },
-    },
+    methods: { GET: { query: ["q"], guard: "withSession" } },
     load: () => import("@/app/api/chat/conversations/[conversationId]/search/route"),
   },
   {
@@ -392,36 +353,25 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/chat/messages/[messageId]/pin",
-    methods: {
-      POST: {
-        doc: "/api/chat/messages/:id/pin - toggles, because a pin button that only pins would need a second route to undo itself.",
-        guard: "withSession",
-      },
-    },
+    methods: { POST: { guard: "withSession" } },
     load: () => import("@/app/api/chat/messages/[messageId]/pin/route"),
   },
   {
     path: "/api/chat/messages/[messageId]/react",
-    methods: {
-      POST: {
-        doc: "/api/chat/messages/:id/react { conversationId, emoji }",
-        body: "{ conversationId: string, emoji: string }",
-        guard: "withSession",
-      },
-    },
+    methods: { POST: { body: "{ conversationId: string, emoji: string }", guard: "withSession" } },
     load: () => import("@/app/api/chat/messages/[messageId]/react/route"),
   },
   {
     path: "/api/chat/messages/[messageId]",
     methods: {
-      PATCH: { doc: "edit your own message.", body: "{ body: string }", guard: "withSession" },
-      DELETE: { doc: "?scope=me|everyone", query: ["scope"], guard: "withSession" },
+      PATCH: { body: "{ body: string }", guard: "withSession" },
+      DELETE: { query: ["scope"], guard: "withSession" },
     },
     load: () => import("@/app/api/chat/messages/[messageId]/route"),
   },
   {
     path: "/api/chat/search",
-    methods: { GET: { doc: "?q=", query: ["q"], guard: "withSession" } },
+    methods: { GET: { query: ["q"], guard: "withSession" } },
     load: () => import("@/app/api/chat/search/route"),
   },
   {
@@ -442,87 +392,47 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/clients/[id]/activity",
     methods: {
-      GET: {
-        doc: "what this client's people did in the portal",
-        query: ["page", "limit"],
-        permissions: ["client:read"],
-        guard: "withClient",
-      },
+      GET: { query: ["page", "limit"], permissions: ["client:read"], guard: "withClient" },
     },
     load: () => import("@/app/api/clients/[id]/activity/route"),
   },
   {
     path: "/api/clients/[id]/contacts/[contactId]",
-    methods: {
-      PATCH: {
-        doc: "name, phone, or login on/off",
-        permissions: ["client:write"],
-        guard: "withClient",
-      },
-    },
+    methods: { PATCH: { permissions: ["client:write"], guard: "withClient" } },
     load: () => import("@/app/api/clients/[id]/contacts/[contactId]/route"),
   },
   {
     path: "/api/clients/[id]/contacts",
-    methods: {
-      POST: {
-        doc: "give someone at this client a portal login",
-        permissions: ["client:write"],
-        guard: "withClient",
-      },
-    },
+    methods: { POST: { permissions: ["client:write"], guard: "withClient" } },
     load: () => import("@/app/api/clients/[id]/contacts/route"),
   },
   {
     path: "/api/clients/[id]/grants/[grantId]",
     methods: {
-      PATCH: {
-        doc: "change sections, or pause / resume",
-        permissions: ["client:write"],
-        guard: "withClient",
-      },
-      DELETE: { doc: "take the project away", permissions: ["client:write"], guard: "withClient" },
+      PATCH: { permissions: ["client:write"], guard: "withClient" },
+      DELETE: { permissions: ["client:write"], guard: "withClient" },
     },
     load: () => import("@/app/api/clients/[id]/grants/[grantId]/route"),
   },
   {
     path: "/api/clients/[id]/grants",
-    methods: {
-      POST: {
-        doc: "give one of the client's people one of its projects",
-        permissions: ["client:write"],
-        guard: "withClient",
-      },
-    },
+    methods: { POST: { permissions: ["client:write"], guard: "withClient" } },
     load: () => import("@/app/api/clients/[id]/grants/route"),
   },
   {
     path: "/api/clients/[id]",
     methods: {
-      GET: {
-        doc: "one client with its projects, people and grants",
-        permissions: ["client:read"],
-        guard: "withClient",
-      },
-      PATCH: { doc: "edit the company", permissions: ["client:write"], guard: "withClient" },
-      DELETE: {
-        doc: "remove it (refused while anything hangs off it)",
-        permissions: ["client:write"],
-        guard: "withClient",
-      },
+      GET: { permissions: ["client:read"], guard: "withClient" },
+      PATCH: { permissions: ["client:write"], guard: "withClient" },
+      DELETE: { permissions: ["client:write"], guard: "withClient" },
     },
     load: () => import("@/app/api/clients/[id]/route"),
   },
   {
     path: "/api/clients",
     methods: {
-      GET: {
-        doc: "the directory (search, status, ownerId, page, limit)",
-        permissions: ["client:read"],
-        guard: "withAuth",
-      },
+      GET: { permissions: ["client:read"], guard: "withAuth" },
       POST: {
-        doc: "add a client",
         body: "{ name: string, status?: enum, industry: any, website: any, email?: string, phone: any, address: any, taxId: any, notes: any, ownerId?: string }",
         permissions: ["client:write"],
         guard: "withAuth",
@@ -543,33 +453,20 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/departments/[id]",
     methods: {
-      GET: { doc: "one department.", guard: "withErrorHandler" },
+      GET: { guard: "withErrorHandler" },
       PATCH: {
-        doc: "update a department; parentId moves it in the tree.",
         body: "{ name?: string, parentId?: string | null, headId?: string | null, isActive?: boolean, careersTone?: string | null, careersJobsLabel?: string | null }",
         guard: "withErrorHandler",
       },
-      DELETE: {
-        doc: "?permanent=true - deactivate or hard-delete.",
-        query: ["permanent"],
-        guard: "withErrorHandler",
-      },
+      DELETE: { query: ["permanent"], guard: "withErrorHandler" },
     },
     load: () => import("@/app/api/departments/[id]/route"),
   },
   {
     path: "/api/departments",
     methods: {
-      GET: {
-        doc: "?includeInactive=true - list departments.",
-        query: ["includeInactive"],
-        guard: "withErrorHandler",
-      },
-      POST: {
-        doc: "create a department, or a sub-department with parentId.",
-        body: "{ name: string, parentId?: string | null }",
-        guard: "withErrorHandler",
-      },
+      GET: { query: ["includeInactive"], guard: "withErrorHandler" },
+      POST: { body: "{ name: string, parentId?: string | null }", guard: "withErrorHandler" },
     },
     load: () => import("@/app/api/departments/route"),
   },
@@ -577,43 +474,24 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/designations/[id]",
     methods: {
       PATCH: {
-        doc: "update a designation.",
         body: "{ title?: string, level?: number, isActive?: boolean }",
         guard: "withErrorHandler",
       },
-      DELETE: {
-        doc: "?permanent=true - deactivate or hard-delete.",
-        query: ["permanent"],
-        guard: "withErrorHandler",
-      },
+      DELETE: { query: ["permanent"], guard: "withErrorHandler" },
     },
     load: () => import("@/app/api/designations/[id]/route"),
   },
   {
     path: "/api/designations",
     methods: {
-      GET: {
-        doc: "?includeInactive=true - list designations.",
-        query: ["includeInactive"],
-        guard: "withErrorHandler",
-      },
-      POST: {
-        doc: "create a designation.",
-        body: "{ title: string, level: number }",
-        guard: "withErrorHandler",
-      },
+      GET: { query: ["includeInactive"], guard: "withErrorHandler" },
+      POST: { body: "{ title: string, level: number }", guard: "withErrorHandler" },
     },
     load: () => import("@/app/api/designations/route"),
   },
   {
     path: "/api/document-requests/[id]",
-    methods: {
-      PATCH: {
-        doc: '{ action: "FULFILL" | "CANCEL" }. Employee can fulfill their own; HR (document:write) can fulfill or cancel any.',
-        permissions: ["document:write"],
-        guard: "withSession",
-      },
-    },
+    methods: { PATCH: { permissions: ["document:write"], guard: "withSession" } },
     load: () => import("@/app/api/document-requests/[id]/route"),
   },
   {
@@ -631,35 +509,22 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/documents/[id]",
     methods: {
-      GET: {
-        doc: "short-lived presigned URL (?download=1 forces download).",
-        query: ["download"],
-        file: true,
-        guard: "withErrorHandler",
-      },
-      DELETE: { doc: "delete a document.", guard: "withErrorHandler" },
+      GET: { query: ["download"], file: true, guard: "withErrorHandler" },
+      DELETE: { guard: "withErrorHandler" },
     },
     load: () => import("@/app/api/documents/[id]/route"),
   },
   {
     path: "/api/documents",
     methods: {
-      GET: {
-        doc: "list company-wide documents (paginated, optional category).",
-        query: ["category", "page", "limit"],
-        guard: "withErrorHandler",
-      },
-      POST: {
-        doc: "upload a document (multipart FormData).",
-        upload: true,
-        guard: "withErrorHandler",
-      },
+      GET: { query: ["category", "page", "limit"], guard: "withErrorHandler" },
+      POST: { upload: true, guard: "withErrorHandler" },
     },
     load: () => import("@/app/api/documents/route"),
   },
   {
     path: "/api/employees/[id]/activate",
-    methods: { POST: { doc: "reactivate a deactivated employee.", guard: "withErrorHandler" } },
+    methods: { POST: { guard: "withErrorHandler" } },
     load: () => import("@/app/api/employees/[id]/activate/route"),
   },
   {
@@ -669,68 +534,49 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/employees/[id]/deactivate",
-    methods: { POST: { doc: "soft-deactivate an employee.", guard: "withErrorHandler" } },
+    methods: { POST: { guard: "withErrorHandler" } },
     load: () => import("@/app/api/employees/[id]/deactivate/route"),
   },
   {
     path: "/api/employees/[id]/documents/[docId]",
     methods: {
-      GET: {
-        doc: "short-lived presigned download URL (?download=1 forces a download instead of an inline view).",
-        query: ["download"],
-        file: true,
-        guard: "withErrorHandler",
-      },
-      DELETE: { doc: "delete a personal document.", guard: "withErrorHandler" },
+      GET: { query: ["download"], file: true, guard: "withErrorHandler" },
+      DELETE: { guard: "withErrorHandler" },
     },
     load: () => import("@/app/api/employees/[id]/documents/[docId]/route"),
   },
   {
     path: "/api/employees/[id]/documents",
     methods: {
-      GET: { doc: "list an employee's personal documents.", guard: "withErrorHandler" },
-      POST: { doc: "upload a personal document.", upload: true, guard: "withErrorHandler" },
+      GET: { guard: "withErrorHandler" },
+      POST: { upload: true, guard: "withErrorHandler" },
     },
     load: () => import("@/app/api/employees/[id]/documents/route"),
   },
   {
     path: "/api/employees/[id]/photo",
     methods: {
-      GET: {
-        doc: "redirect to a presigned B2 URL. profilePhoto stores this stable route URL, so <img> tags resolve a signed URL without ever exposing the private bucket directly.",
-        file: true,
-        guard: "withSession",
-      },
+      GET: { file: true, guard: "withSession" },
       POST: { upload: true, guard: "withSession" },
-      PUT: { doc: "pick one of the preset avatars.", guard: "withSession" },
+      PUT: { guard: "withSession" },
       DELETE: { guard: "withSession" },
     },
     load: () => import("@/app/api/employees/[id]/photo/route"),
   },
   {
     path: "/api/employees/[id]/roles",
-    methods: {
-      PUT: {
-        doc: " Replace an employee's assignable (global, non-hidden) role grants. Hidden roles (e.g. admin_) are preserved untouched - they can never be stripped or granted through this endpoint, so an admin can't accidentally",
-        permissions: ["role:write"],
-        guard: "withAuth",
-      },
-    },
+    methods: { PUT: { permissions: ["role:write"], guard: "withAuth" } },
     load: () => import("@/app/api/employees/[id]/roles/route"),
   },
   {
     path: "/api/employees/[id]",
     methods: {
-      GET: { doc: 'one employee (id or "<code>-<name>" slug).', guard: "withErrorHandler" },
+      GET: { guard: "withErrorHandler" },
       PATCH: {
-        doc: "update an employee.",
         body: '{ employeeNo?: string, firstName?: string, lastName?: string, email?: string, personalEmail?: string, phone?: string, personalPhone?: string, dateOfBirth?: string, gender?: "MALE"|"FEMALE"|"OTHER"|"PREFER_NOT_TO_SAY", nationality?: string, bloodGroup?: string, departmentId?: string, designationId?: string, jobRoleId?: union, roleId?: string, managerId?: string, dottedManagerId?: string, employmentType?: "FULL_TIME"|"PART_TIME"|"CONTRACT"|"INTERN", dateOfJoining?: string, probationEndDate?: string, status?: "ACTIVE"|"ON_LEAVE"|"SUSPENDED"|"RESIGNED"|"TERMINATED", resignationDate?: string, lastWorkingDate?: string, deviceId?: string, onProbation?: boolean, probationMonths?: any, workLocation?: string, currentAddress?: any, permanentAddress?: any, emergencyContact?: any, password?: string, mustChangePassword?: boolean, gmailAppPassword?: any }',
         guard: "withErrorHandler",
       },
-      DELETE: {
-        doc: "permanently delete an (already deactivated) employee.",
-        guard: "withErrorHandler",
-      },
+      DELETE: { guard: "withErrorHandler" },
     },
     load: () => import("@/app/api/employees/[id]/route"),
   },
@@ -738,51 +584,34 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/employees/[id]/task-access",
     methods: {
       GET: { permissions: ["employee:write"], guard: "withAuth" },
-      PATCH: { doc: "{ enabled: boolean }", permissions: ["employee:write"], guard: "withAuth" },
+      PATCH: { permissions: ["employee:write"], guard: "withAuth" },
     },
     load: () => import("@/app/api/employees/[id]/task-access/route"),
   },
   {
     path: "/api/employees/bulk-terminate",
-    methods: {
-      POST: {
-        doc: "terminate many employees at once.",
-        body: "{ ids?: string[] }",
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { POST: { body: "{ ids?: string[] }", guard: "withErrorHandler" } },
     load: () => import("@/app/api/employees/bulk-terminate/route"),
   },
   {
     path: "/api/employees/check-email",
-    methods: {
-      GET: {
-        doc: "?email=...&excludeId=... - live availability check.",
-        query: ["email", "excludeId"],
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { GET: { query: ["email", "excludeId"], guard: "withErrorHandler" } },
     load: () => import("@/app/api/employees/check-email/route"),
   },
   {
     path: "/api/employees/codes",
-    methods: {
-      GET: { doc: "lightweight list of employees with their codes.", guard: "withErrorHandler" },
-    },
+    methods: { GET: { guard: "withErrorHandler" } },
     load: () => import("@/app/api/employees/codes/route"),
   },
   {
     path: "/api/employees/org-chart",
-    methods: {
-      GET: { doc: "reporting-line tree of active employees.", guard: "withErrorHandler" },
-    },
+    methods: { GET: { guard: "withErrorHandler" } },
     load: () => import("@/app/api/employees/org-chart/route"),
   },
   {
     path: "/api/employees",
     methods: {
       GET: {
-        doc: "paginated, filterable employee list.",
         query: [
           "search",
           "departmentId",
@@ -795,7 +624,6 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         guard: "withErrorHandler",
       },
       POST: {
-        doc: "create an employee.",
         body: '{ employeeNo?: string, firstName: string, lastName: string, email: string, personalEmail?: string, phone?: string, personalPhone?: string, dateOfBirth?: string, gender?: "MALE"|"FEMALE"|"OTHER"|"PREFER_NOT_TO_SAY", nationality?: string, bloodGroup?: string, departmentId?: string, designationId?: string, jobRoleId?: union, roleId?: string, managerId?: string, dottedManagerId?: string, employmentType?: "FULL_TIME"|"PART_TIME"|"CONTRACT"|"INTERN", dateOfJoining?: string, probationEndDate?: string, status?: "ACTIVE"|"ON_LEAVE"|"SUSPENDED"|"RESIGNED"|"TERMINATED", resignationDate?: string, lastWorkingDate?: string, deviceId?: string, onProbation?: boolean, probationMonths: any, workLocation?: string, currentAddress: any, permanentAddress: any, emergencyContact: any, password?: string, mustChangePassword?: boolean, gmailAppPassword: any }',
         guard: "withErrorHandler",
       },
@@ -809,13 +637,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/gallery/albums/[albumId]/photos",
-    methods: {
-      POST: {
-        doc: "/api/gallery/albums/:albumId/photos - upload one or more photos/videos.",
-        upload: true,
-        guard: "withSession",
-      },
-    },
+    methods: { POST: { upload: true, guard: "withSession" } },
     load: () => import("@/app/api/gallery/albums/[albumId]/photos/route"),
   },
   {
@@ -866,7 +688,6 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/hr-checklists/[id]/items",
     methods: {
       POST: {
-        doc: "/api/hr-checklists/:id/items - add an item to a live checklist, e.g. one more department clearance for a leaver who worked across teams.",
         body: '{ sectionTitle: string, text: string, helpText?: string, itemKind?: "TASK"|"CLEARANCE", assigneeId?: string, isRequired?: boolean, dueDate?: string }',
         guard: "withSession",
       },
@@ -880,39 +701,19 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/hr-checklists/items/[itemId]/assignee",
-    methods: {
-      PATCH: {
-        doc: "hand one item to somebody else, e.g. a stand-in while a head is away.",
-        body: "{ assigneeId: string }",
-        guard: "withSession",
-      },
-    },
+    methods: { PATCH: { body: "{ assigneeId: string }", guard: "withSession" } },
     load: () => import("@/app/api/hr-checklists/items/[itemId]/assignee/route"),
   },
   {
     path: "/api/hr-checklists/items/[itemId]",
-    methods: {
-      PATCH: {
-        doc: "tick or untick. Assignee-gated, not permission-gated: a clearance is its assignee's to sign, and setItemDone() decides that.",
-        body: "{ done: boolean, note?: string }",
-        guard: "withSession",
-      },
-    },
+    methods: { PATCH: { body: "{ done: boolean, note?: string }", guard: "withSession" } },
     load: () => import("@/app/api/hr-checklists/items/[itemId]/route"),
   },
   {
     path: "/api/hr-checklists",
     methods: {
-      GET: {
-        doc: "?kind=ONBOARDING - HR's list.",
-        query: ["kind", "status", "search", "page", "limit"],
-        guard: "withSession",
-      },
-      POST: {
-        doc: "start one by hand.",
-        body: '{ employeeId?: string, kind?: "ONBOARDING" | "EXIT" }',
-        guard: "withSession",
-      },
+      GET: { query: ["kind", "status", "search", "page", "limit"], guard: "withSession" },
+      POST: { body: '{ employeeId?: string, kind?: "ONBOARDING" | "EXIT" }', guard: "withSession" },
     },
     load: () => import("@/app/api/hr-checklists/route"),
   },
@@ -920,66 +721,42 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/job-roles/[id]",
     methods: {
       PATCH: {
-        doc: "update a job role.",
         body: "{ name?: string, departmentId?: string, isActive?: boolean }",
         guard: "withErrorHandler",
       },
-      DELETE: {
-        doc: "?permanent=true - deactivate or hard-delete.",
-        query: ["permanent"],
-        guard: "withErrorHandler",
-      },
+      DELETE: { query: ["permanent"], guard: "withErrorHandler" },
     },
     load: () => import("@/app/api/job-roles/[id]/route"),
   },
   {
     path: "/api/job-roles",
     methods: {
-      GET: {
-        doc: "?departmentId=&includeInactive=true - list job roles.",
-        query: ["departmentId", "includeInactive"],
-        guard: "withErrorHandler",
-      },
-      POST: {
-        doc: "create a job role under a department.",
-        body: "{ name: string, departmentId: string }",
-        guard: "withErrorHandler",
-      },
+      GET: { query: ["departmentId", "includeInactive"], guard: "withErrorHandler" },
+      POST: { body: "{ name: string, departmentId: string }", guard: "withErrorHandler" },
     },
     load: () => import("@/app/api/job-roles/route"),
   },
   {
     path: "/api/joinee-scorecards/[id]/days/[day]",
-    methods: {
-      PATCH: {
-        doc: "{ mgrJobRole?: 1-5|null, ... } - one day's scores.",
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { PATCH: { guard: "withErrorHandler" } },
     load: () => import("@/app/api/joinee-scorecards/[id]/days/[day]/route"),
   },
   {
     path: "/api/joinee-scorecards/[id]",
     methods: {
       PATCH: {
-        doc: "{ hrSpocId?, managerObservations?, hrObservations?, recommendation? }",
         body: "{ hrSpocId?: string | null, managerObservations?: string | null, hrObservations?: string | null, recommendation?: string | null }",
         guard: "withErrorHandler",
       },
-      DELETE: { doc: "throw the scorecard away (onboarding:write).", guard: "withErrorHandler" },
+      DELETE: { guard: "withErrorHandler" },
     },
     load: () => import("@/app/api/joinee-scorecards/[id]/route"),
   },
   {
     path: "/api/joinee-scorecards",
     methods: {
-      GET: {
-        doc: "?employeeId= - that employee's 15-day scorecard (or null) plus canEdit. The employee themself, or onboarding:read/write.",
-        query: ["employeeId"],
-        guard: "withErrorHandler",
-      },
+      GET: { query: ["employeeId"], guard: "withErrorHandler" },
       POST: {
-        doc: "{ employeeId, hrSpocId? } - start one by hand (onboarding:write).",
         body: "{ employeeId?: string, hrSpocId?: string | null }",
         guard: "withErrorHandler",
       },
@@ -988,46 +765,24 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/leave/apply/preview",
-    methods: {
-      GET: {
-        doc: " The envelope for the leave letter the CURRENT user is about to send: who it's addressed to, and whether HR is CC'd. Read-only - nothing is created.",
-        guard: "withSession",
-      },
-    },
+    methods: { GET: { guard: "withSession" } },
     load: () => import("@/app/api/leave/apply/preview/route"),
   },
   {
     path: "/api/leave/balances/directory",
-    methods: {
-      GET: {
-        doc: "?year= - every active employee's leave balances by type for the year (HR view). Requires leave:approve.",
-        query: ["year"],
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { GET: { query: ["year"], guard: "withErrorHandler" } },
     load: () => import("@/app/api/leave/balances/directory/route"),
   },
   {
     path: "/api/leave/balances/resync",
-    methods: {
-      POST: {
-        doc: "(re)generate balances from the policy matrix for all active employees for a year. Idempotent. Requires leave:approve.",
-        body: "{ year?: number }",
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { POST: { body: "{ year?: number }", guard: "withErrorHandler" } },
     load: () => import("@/app/api/leave/balances/resync/route"),
   },
   {
     path: "/api/leave/balances",
     methods: {
-      GET: {
-        doc: "?employeeId=&year= - leave balances for an employee.",
-        query: ["employeeId", "year"],
-        guard: "withErrorHandler",
-      },
+      GET: { query: ["employeeId", "year"], guard: "withErrorHandler" },
       POST: {
-        doc: "allocate a leave balance.",
         body: "{ employeeId: string, leaveTypeId: string, year: number, allocated: number, carried?: number }",
         guard: "withErrorHandler",
       },
@@ -1036,47 +791,29 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/leave/day-status",
-    methods: { GET: { doc: "?employeeId=&from=&to= -> AwayDay[]", guard: "withSession" } },
+    methods: { GET: { guard: "withSession" } },
     load: () => import("@/app/api/leave/day-status/route"),
   },
   {
     path: "/api/leave/decision/polish",
-    methods: {
-      POST: {
-        doc: "{ message, approved } Rewrites the approver's approve/reject note into three registers so they pick rather than accept whatever the model produced. Advisory only - nothing stored.",
-        guard: "withSession",
-      },
-    },
+    methods: { POST: { guard: "withSession" } },
     load: () => import("@/app/api/leave/decision/polish/route"),
   },
   {
     path: "/api/leave/decision/preview",
-    methods: {
-      GET: {
-        doc: "?requestId=<id> The signature block that will sign the decision reply. That reply is sent FROM whoever makes the call - the manager when the manager approves, HR when HR does - so we return the CURRENT USER's signature, falling back to the applicant's",
-        query: ["requestId"],
-        guard: "withSession",
-      },
-    },
+    methods: { GET: { query: ["requestId"], guard: "withSession" } },
     load: () => import("@/app/api/leave/decision/preview/route"),
   },
   {
     path: "/api/leave/my-team",
-    methods: {
-      GET: {
-        doc: "the current user's direct reports' leave requests (managers, identified by the reporting relationship - no permission required).",
-        query: ["status", "page", "limit"],
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { GET: { query: ["status", "page", "limit"], guard: "withErrorHandler" } },
     load: () => import("@/app/api/leave/my-team/route"),
   },
   {
     path: "/api/leave/policies",
     methods: {
-      GET: { doc: "leave types + the full entitlement matrix.", guard: "withErrorHandler" },
+      GET: { guard: "withErrorHandler" },
       PUT: {
-        doc: "upsert a batch of policy cells.",
         body: "{ entries: Array<{ employmentType: string; leaveTypeId: string; daysPerYear: number | null  }",
         guard: "withErrorHandler",
       },
@@ -1085,19 +822,13 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/leave/polish-reason",
-    methods: {
-      POST: {
-        doc: "{ reason, leaveType?, days?, startDate?, endDate? } Returns THREE rewrites of the employee's own reason, in different registers, so they choose rather than accept whatever the model produced. Advisory only: nothing is stored, and the employee can always keep their original words.",
-        guard: "withSession",
-      },
-    },
+    methods: { POST: { guard: "withSession" } },
     load: () => import("@/app/api/leave/polish-reason/route"),
   },
   {
     path: "/api/leave/requests/[id]",
     methods: {
       PATCH: {
-        doc: "cancel / approve / reject a leave request.",
         body: '{ action: "CANCEL" | "APPROVE" | "REJECT", rejectionReason?: string, emailBody?: string }',
         guard: "withErrorHandler",
       },
@@ -1108,12 +839,10 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/leave/requests",
     methods: {
       GET: {
-        doc: "?status=&employeeId=&leaveTypeId=&from=&to=&page=&limit=",
         query: ["status", "employeeId", "leaveTypeId", "from", "to", "page", "limit"],
         guard: "withErrorHandler",
       },
       POST: {
-        doc: "apply for leave.",
         body: "{ leaveTypeId: string, startDate: string, endDate: string, reason?: string, isHalfDay?: boolean, emailBody?: string, emailSubject?: string }",
         guard: "withErrorHandler",
       },
@@ -1122,66 +851,38 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/leave/team",
-    methods: {
-      GET: {
-        doc: "?status=&page=&limit= - leave requests for direct reports.",
-        query: ["status", "page", "limit"],
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { GET: { query: ["status", "page", "limit"], guard: "withErrorHandler" } },
     load: () => import("@/app/api/leave/team/route"),
   },
   {
     path: "/api/leave/types/[id]",
     methods: {
-      PATCH: { doc: "update a leave type.", guard: "withErrorHandler" },
-      DELETE: {
-        doc: "deactivate a leave type, or permanently delete it with ?permanent=1.",
-        query: ["permanent"],
-        guard: "withErrorHandler",
-      },
+      PATCH: { guard: "withErrorHandler" },
+      DELETE: { query: ["permanent"], guard: "withErrorHandler" },
     },
     load: () => import("@/app/api/leave/types/[id]/route"),
   },
   {
     path: "/api/leave/types/eligible",
-    methods: {
-      GET: {
-        doc: "leave types the current user can actually apply for (probation -> unpaid only; Maternity -> female employees only).",
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { GET: { guard: "withErrorHandler" } },
     load: () => import("@/app/api/leave/types/eligible/route"),
   },
   {
     path: "/api/leave/types",
-    methods: {
-      GET: { doc: "active leave types.", guard: "withErrorHandler" },
-      POST: { doc: "create a leave type.", guard: "withErrorHandler" },
-    },
+    methods: { GET: { guard: "withErrorHandler" }, POST: { guard: "withErrorHandler" } },
     load: () => import("@/app/api/leave/types/route"),
   },
   {
     path: "/api/message-polls/[pollId]/vote",
-    methods: {
-      POST: { doc: "/api/message-polls/:pollId/vote { optionId }", guard: "withSession" },
-    },
+    methods: { POST: { guard: "withSession" } },
     load: () => import("@/app/api/message-polls/[pollId]/vote/route"),
   },
   {
     path: "/api/notifications/inbox",
     methods: {
-      GET: {
-        doc: "paginated notifications for the current user",
-        query: ["page", "limit", "unread"],
-        guard: "withSession",
-      },
-      PATCH: { doc: "mark notifications as read", guard: "withSession" },
-      DELETE: {
-        doc: "permanently remove notifications. Always scoped to the caller's OWN rows: `employeeId` is taken from the session and used in the where clause, so passing someone else's id simply deletes nothing rather than their inbox. ?id=<id> remove one",
-        query: ["id", "all"],
-        guard: "withSession",
-      },
+      GET: { query: ["page", "limit", "unread"], guard: "withSession" },
+      PATCH: { guard: "withSession" },
+      DELETE: { query: ["id", "all"], guard: "withSession" },
     },
     load: () => import("@/app/api/notifications/inbox/route"),
   },
@@ -1190,7 +891,6 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: { guard: "withSession" },
       PATCH: {
-        doc: " { enabled, leadMinutes, reminderCount, repeatEveryMinutes } Invalid numbers throw a ZodError, which withSession turns into a 422 carrying the per-field messages the form shows.",
         body: "{ enabled: boolean, leadMinutes: any, reminderCount: any, repeatEveryMinutes: any }",
         guard: "withSession",
       },
@@ -1200,22 +900,13 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/notifications/templates",
     methods: {
-      GET: {
-        doc: "list all email templates",
-        permissions: ["email_template:read"],
-        guard: "withAuth",
-      },
+      GET: { permissions: ["email_template:read"], guard: "withAuth" },
       POST: {
-        doc: "create a new email template",
         body: "{ slug: any, name: string, subject: string, bodyHtml: string, bodyText?: string, mergeFields?: string[], isActive?: boolean, trigger?: string }",
         permissions: ["email_template:write"],
         guard: "withAuth",
       },
-      PATCH: {
-        doc: "update an existing template (id must be in body)",
-        permissions: ["email_template:write"],
-        guard: "withAuth",
-      },
+      PATCH: { permissions: ["email_template:write"], guard: "withAuth" },
     },
     load: () => import("@/app/api/notifications/templates/route"),
   },
@@ -1277,75 +968,39 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/performance/evaluations/[id]",
     methods: {
-      GET: {
-        doc: "one evaluation. Participants only. An employee can't see the manager's ratings/score until the manager has actually submitted them.",
-        guard: "withSession",
-      },
-      PATCH: {
-        doc: 'submit one side\'s ratings. body: { role: "SELF"|"MANAGER", ratings, comment? }',
-        permissions: ["performance:review"],
-        guard: "withSession",
-      },
-      DELETE: {
-        doc: "remove an evaluation (HR only).",
-        permissions: ["performance:review"],
-        guard: "withSession",
-      },
+      GET: { guard: "withSession" },
+      PATCH: { permissions: ["performance:review"], guard: "withSession" },
+      DELETE: { permissions: ["performance:review"], guard: "withSession" },
     },
     load: () => import("@/app/api/performance/evaluations/[id]/route"),
   },
   {
     path: "/api/performance/evaluations/bulk-delete",
-    methods: {
-      POST: {
-        doc: "{ ids } - delete many at once (HR).",
-        body: "{ ids?: string[] }",
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { POST: { body: "{ ids?: string[] }", guard: "withErrorHandler" } },
     load: () => import("@/app/api/performance/evaluations/bulk-delete/route"),
   },
   {
     path: "/api/performance/evaluations/generate",
-    methods: {
-      POST: {
-        doc: " Create TODAY's performance evaluation for EVERY active employee in one go, and notify each employee (and their manager). Idempotent: skips anyone who already has an evaluation for today's period, so clicking twice the same day is safe.",
-        permissions: ["performance:review"],
-        guard: "withSession",
-      },
-    },
+    methods: { POST: { permissions: ["performance:review"], guard: "withSession" } },
     load: () => import("@/app/api/performance/evaluations/generate/route"),
   },
   {
     path: "/api/performance/evaluations",
     methods: {
       GET: {
-        doc: "list evaluations. HR (performance:review) sees all; everyone else sees the ones they must act on: their own self-evaluations + ones they manage.",
         query: ["status", "period", "q", "page", "limit"],
         permissions: ["performance:review"],
         guard: "withSession",
       },
-      POST: {
-        doc: "create an evaluation for an employee (HR). Snapshots the active template's criteria, then notifies the employee + manager to fill it.",
-        permissions: ["performance:review"],
-        guard: "withSession",
-      },
+      POST: { permissions: ["performance:review"], guard: "withSession" },
     },
     load: () => import("@/app/api/performance/evaluations/route"),
   },
   {
     path: "/api/performance/kpi-profiles/[employeeId]",
     methods: {
-      GET: {
-        doc: "the employee's profile items (both sides) + employee summary.",
-        permissions: ["performance:review"],
-        guard: "withAuth",
-      },
-      PUT: {
-        doc: "replace the employee's entire profile in one shot. body: { items: [{ evaluator, section, label, description? }] }",
-        permissions: ["performance:review"],
-        guard: "withAuth",
-      },
+      GET: { permissions: ["performance:review"], guard: "withAuth" },
+      PUT: { permissions: ["performance:review"], guard: "withAuth" },
     },
     load: () => import("@/app/api/performance/kpi-profiles/[employeeId]/route"),
   },
@@ -1366,7 +1021,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/activity",
-    methods: { GET: { doc: "?key=1", query: ["limit", "key"], guard: "withProjectAccess" } },
+    methods: { GET: { query: ["limit", "key"], guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/activity/route"),
   },
   {
@@ -1376,49 +1031,25 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/brand/analyse",
-    methods: {
-      POST: {
-        doc: "body { assetIds?: string[] } Draft a brand brief + recommendations from the uploaded brief documents. Same guard as saving the brief (withProjectManager): the result is meant to be pasted into that field. Nothing is stored; the client applies it.",
-        guard: "withProjectManager",
-      },
-    },
+    methods: { POST: { guard: "withProjectManager" } },
     load: () => import("@/app/api/projects/[id]/brand/analyse/route"),
   },
   {
     path: "/api/projects/[id]/brand/assets/[assetId]",
     methods: {
-      GET: {
-        doc: "redirect to a short-lived signed download URL for the asset.",
-        file: true,
-        guard: "withProjectAccess",
-      },
-      DELETE: { doc: "remove the asset from storage + DB.", guard: "withProjectManager" },
+      GET: { file: true, guard: "withProjectAccess" },
+      DELETE: { guard: "withProjectManager" },
     },
     load: () => import("@/app/api/projects/[id]/brand/assets/[assetId]/route"),
   },
   {
     path: "/api/projects/[id]/brand/assets",
-    methods: {
-      POST: {
-        doc: 'upload a brand file (kind = "BRIEF" | "LOGO"). multipart/form-data.',
-        upload: true,
-        guard: "withProjectManager",
-      },
-    },
+    methods: { POST: { upload: true, guard: "withProjectManager" } },
     load: () => import("@/app/api/projects/[id]/brand/assets/route"),
   },
   {
     path: "/api/projects/[id]/brand",
-    methods: {
-      GET: {
-        doc: "the project's brand/strategy workspace (brief, overview, objectives, manifestation, guidelines) + uploaded assets with signed download URLs.",
-        guard: "withProjectAccess",
-      },
-      PUT: {
-        doc: "upsert the brand text/JSON sections (assets are handled separately).",
-        guard: "withProjectManager",
-      },
-    },
+    methods: { GET: { guard: "withProjectAccess" }, PUT: { guard: "withProjectManager" } },
     load: () => import("@/app/api/projects/[id]/brand/route"),
   },
   {
@@ -1428,13 +1059,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/deliverables/[deliverableId]",
-    methods: {
-      PATCH: {
-        doc: "edit an entry, and optionally move it (body may carry `status`, plus `reason` / `note`)",
-        guard: "withProjectAccess",
-      },
-      DELETE: { doc: "remove it (files stay)", guard: "withProjectAccess" },
-    },
+    methods: { PATCH: { guard: "withProjectAccess" }, DELETE: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/deliverables/[deliverableId]/route"),
   },
   {
@@ -1444,14 +1069,12 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/deliverables/[deliverableId]/status",
-    methods: {
-      POST: { doc: " { status, reason?, completedOn?, note? }", guard: "withProjectAccess" },
-    },
+    methods: { POST: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/deliverables/[deliverableId]/status/route"),
   },
   {
     path: "/api/projects/[id]/deliverables/[deliverableId]/verify",
-    methods: { POST: { doc: "{ verified: boolean }", guard: "withProjectAccess" } },
+    methods: { POST: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/deliverables/[deliverableId]/verify/route"),
   },
   {
@@ -1461,35 +1084,22 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/deliverables",
-    methods: {
-      GET: { doc: "the ledger + counts for one project", guard: "withProjectAccess" },
-      POST: { doc: "log something that was made, or plan it", guard: "withProjectAccess" },
-    },
+    methods: { GET: { guard: "withProjectAccess" }, POST: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/deliverables/route"),
   },
   {
     path: "/api/projects/[id]/drive/export",
-    methods: {
-      POST: {
-        doc: "body { fileId } A Google Sheet from the project's Drive folder as an .xlsx (all tabs), for the sheet importer. Binary response, not the JSON envelope: the browser hands the bytes straight to the spreadsheet parser.",
-        file: true,
-        guard: "withProjectAccess",
-      },
-    },
+    methods: { POST: { file: true, guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/drive/export/route"),
   },
   {
     path: "/api/projects/[id]/drive/file",
     methods: {
       PATCH: {
-        doc: "body { fileId, name?, folderId? } Rename and/or move a Drive file into a Files-tab folder (null = project root). Any member: both are recoverable, unlike DELETE below. The service refuses files that are not under this project's Drive folder (SEC-07).",
         body: "{ fileId: string, name?: string, folderId?: any }",
         guard: "withProjectAccess",
       },
-      DELETE: {
-        doc: "body { fileId } Move a file/folder to the Shared Drive trash (recoverable). Managers only.",
-        guard: "withProjectManager",
-      },
+      DELETE: { guard: "withProjectManager" },
     },
     load: () => import("@/app/api/projects/[id]/drive/file/route"),
   },
@@ -1497,7 +1107,6 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/projects/[id]/drive/new",
     methods: {
       POST: {
-        doc: 'body { kind: "doc"|"sheet", name, folderId? } Create a blank Google Doc / Sheet in the project folder (or in the Drive mirror of the given Files-tab folder).',
         body: '{ kind?: "doc" | "sheet", name?: string, folderId?: string | null }',
         guard: "withProjectAccess",
       },
@@ -1507,63 +1116,34 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/projects/[id]/drive",
     methods: {
-      GET: {
-        doc: "the project's Drive folder + its files. Any project member (owner / team member / project:read) may view.",
-        guard: "withProjectAccess",
-      },
-      POST: {
-        doc: "upload a file into the project folder (members).",
-        upload: true,
-        guard: "withProjectAccess",
-      },
+      GET: { guard: "withProjectAccess" },
+      POST: { upload: true, guard: "withProjectAccess" },
     },
     load: () => import("@/app/api/projects/[id]/drive/route"),
   },
   {
     path: "/api/projects/[id]/drive/sync",
-    methods: {
-      POST: {
-        doc: "re-align the folder's shared-with list to the current project members. Managers only (it changes who can see the files).",
-        guard: "withProjectManager",
-      },
-    },
+    methods: { POST: { guard: "withProjectManager" } },
     load: () => import("@/app/api/projects/[id]/drive/sync/route"),
   },
   {
     path: "/api/projects/[id]/files",
-    methods: {
-      GET: {
-        doc: "?folder=<folderId> One folder of the project's Files tree: sub-folders, Backblaze files, links and the mirrored Drive folder's files, in a single round trip. Omit `folder` for the top level. Any project member may read (withProjectAccess); thrown",
-        query: ["folder"],
-        guard: "withProjectAccess",
-      },
-    },
+    methods: { GET: { query: ["folder"], guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/files/route"),
   },
   {
     path: "/api/projects/[id]/folders/[folderId]",
     methods: {
-      PATCH: {
-        doc: "body { name?, parentId? } Rename and/or move. The service enforces creator-or-manager, sibling uniqueness and the no-cycle rule, and mirrors the change to Drive.",
-        body: "{ name?: any, parentId?: any }",
-        guard: "withProjectAccess",
-      },
-      DELETE: { doc: "only when empty (see service).", guard: "withProjectAccess" },
+      PATCH: { body: "{ name?: any, parentId?: any }", guard: "withProjectAccess" },
+      DELETE: { guard: "withProjectAccess" },
     },
     load: () => import("@/app/api/projects/[id]/folders/[folderId]/route"),
   },
   {
     path: "/api/projects/[id]/folders",
     methods: {
-      GET: {
-        doc: 'every folder in the project (flat; the client builds the tree). Used by "Move to..." pickers.',
-        guard: "withProjectAccess",
-      },
-      POST: {
-        doc: "body { name, parentId? } Any project member may make a folder - the same people who may upload into it.",
-        body: "{ parentId?: any }",
-        guard: "withProjectAccess",
-      },
+      GET: { guard: "withProjectAccess" },
+      POST: { body: "{ parentId?: any }", guard: "withProjectAccess" },
     },
     load: () => import("@/app/api/projects/[id]/folders/route"),
   },
@@ -1575,82 +1155,61 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/projects/[id]/goals/[goalId]",
     methods: {
-      PATCH: { doc: "edit title, dates, status, progress", guard: "withProjectAccess" },
-      DELETE: {
-        doc: "remove it (sub-goals cascade)",
-        query: ["permanent", "reason"],
-        guard: "withProjectAccess",
-      },
+      PATCH: { guard: "withProjectAccess" },
+      DELETE: { query: ["permanent", "reason"], guard: "withProjectAccess" },
     },
     load: () => import("@/app/api/projects/[id]/goals/[goalId]/route"),
   },
   {
     path: "/api/projects/[id]/goals/[goalId]/targets/[targetId]",
     methods: {
-      PATCH: { doc: "change it", guard: "withProjectAccess" },
-      DELETE: { doc: "drop it", guard: "withProjectAccess" },
+      PATCH: {
+        doc: "sends only what changed: an omitted period is left alone, null clears it (back to standing). Both write to the goal's history.",
+        guard: "withProjectAccess",
+      },
+      DELETE: { guard: "withProjectAccess" },
     },
     load: () => import("@/app/api/projects/[id]/goals/[goalId]/targets/[targetId]/route"),
   },
   {
     path: "/api/projects/[id]/goals/[goalId]/targets",
-    methods: {
-      POST: {
-        doc: " { deliverableType, quantity, periodStart?, periodEnd? }",
-        guard: "withProjectAccess",
-      },
-    },
+    methods: { POST: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/goals/[goalId]/targets/route"),
   },
   {
     path: "/api/projects/[id]/goals/[goalId]/tasks",
-    methods: { POST: { doc: "{ taskIds: string[] }", guard: "withProjectAccess" } },
+    methods: { POST: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/goals/[goalId]/tasks/route"),
   },
   {
     path: "/api/projects/[id]/goals",
     methods: {
-      GET: {
-        doc: "the goal tree, with progress rolled up",
-        query: ["includeInactive"],
-        guard: "withProjectAccess",
-      },
-      POST: { doc: "add a goal or a sub-goal", guard: "withProjectAccess" },
+      GET: { query: ["includeInactive"], guard: "withProjectAccess" },
+      POST: { guard: "withProjectAccess" },
     },
     load: () => import("@/app/api/projects/[id]/goals/route"),
   },
   {
     path: "/api/projects/[id]/integration",
     methods: {
-      GET: {
-        doc: "integration status + Meta dashboard data.",
-        query: ["days", "from", "to"],
-        guard: "withProjectAccess",
-      },
+      GET: { query: ["days", "from", "to"], guard: "withProjectAccess" },
       POST: {
-        doc: "connect/update Meta credentials (managers).",
         body: "{ appId?: string, appSecret?: string, accessToken?: string, adAccountId?: string }",
         guard: "withProjectManager",
       },
-      DELETE: { doc: "disconnect + remove synced data (managers).", guard: "withProjectManager" },
+      DELETE: { guard: "withProjectManager" },
     },
     load: () => import("@/app/api/projects/[id]/integration/route"),
   },
   {
     path: "/api/projects/[id]/integration/sync",
-    methods: {
-      POST: {
-        doc: "pull latest Meta data (managers). Optional body { lookbackDays } (default 30).",
-        guard: "withProjectManager",
-      },
-    },
+    methods: { POST: { guard: "withProjectManager" } },
     load: () => import("@/app/api/projects/[id]/integration/sync/route"),
   },
   {
     path: "/api/projects/[id]/links/[linkId]",
     methods: {
       PATCH: {
-        doc: "body { title?, url?, folderId?, tag?, description? } Whoever added the link, or a project manager (enforced in the service).",
         body: "{ title?: string, url?: any, folderId?: any, tag?: any, description?: string }",
         guard: "withProjectAccess",
       },
@@ -1661,9 +1220,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/projects/[id]/links",
     methods: {
-      GET: { doc: "every saved link in the project.", guard: "withProjectAccess" },
+      GET: { guard: "withProjectAccess" },
       POST: {
-        doc: "body { title, url, folderId?, tag?, description? } Any project member may save a link, like uploading a file.",
         body: "{ title: string, folderId?: any, tag?: any, description?: string }",
         guard: "withProjectAccess",
       },
@@ -1673,11 +1231,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/projects/[id]/logo",
     methods: {
-      GET: {
-        doc: "redirect to a presigned B2 URL. Readable by anyone who can see the project, so logos render on the list.",
-        file: true,
-        guard: "withProjectAccess",
-      },
+      GET: { file: true, guard: "withProjectAccess" },
       POST: { upload: true, guard: "withProjectManager" },
       DELETE: { guard: "withProjectManager" },
     },
@@ -1685,47 +1239,25 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/mailer/accounts/[mailerId]",
-    methods: {
-      PATCH: {
-        doc: "edit. A blank password keeps the stored one.",
-        body: "{ name: string, fromName: string, fromEmail: string, replyTo: any, host: string, port?: number, secure?: boolean, username: string, password?: string, isActive?: boolean }",
-        guard: "withMailerAccess",
-      },
-      DELETE: {
-        doc: "refused while a campaign is still sending from this account.",
-        guard: "withMailerAccess",
-      },
-    },
+    methods: { PATCH: { guard: "withMailerAccess" }, DELETE: { guard: "withMailerAccess" } },
     load: () => import("@/app/api/projects/[id]/mailer/accounts/[mailerId]/route"),
   },
   {
     path: "/api/projects/[id]/mailer/accounts/[mailerId]/test",
-    methods: {
-      POST: {
-        doc: "/api/projects/:id/mailer/accounts/:mailerId/test - verify THIS account's credentials and send a real test email, recording the outcome on the row.",
-        body: "{ to: string }",
-        guard: "withMailerAccess",
-      },
-    },
+    methods: { POST: { body: "{ to: string }", guard: "withMailerAccess" } },
     load: () => import("@/app/api/projects/[id]/mailer/accounts/[mailerId]/test/route"),
   },
   {
     path: "/api/projects/[id]/mailer/accounts",
-    methods: {
-      POST: {
-        doc: "/api/projects/:id/mailer/accounts - add a sending account.",
-        body: "{ name: string, fromName: string, fromEmail: string, replyTo: any, host: string, port?: number, secure?: boolean, username: string, password?: string, isActive?: boolean }",
-        guard: "withMailerAccess",
-      },
-    },
+    methods: { POST: { guard: "withMailerAccess" } },
     load: () => import("@/app/api/projects/[id]/mailer/accounts/route"),
   },
   {
     path: "/api/projects/[id]/mailer/campaigns/[campaignId]",
     methods: {
-      GET: { doc: "per-recipient outcome for this campaign", guard: "withMailerAccess" },
+      GET: { guard: "withMailerAccess" },
       DELETE: {
-        doc: "cancel: drops the outstanding queue, keeps the log of what went out",
+        doc: "cancels (keeps the log of what went out); ?purge=1 removes the campaign and its log. Explicit, never inferred from status, so stopping a send can't erase its record.",
         query: ["purge"],
         guard: "withMailerAccess",
       },
@@ -1736,7 +1268,6 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/projects/[id]/mailer/campaigns",
     methods: {
       POST: {
-        doc: "/api/projects/:id/mailer/campaigns - queue a bulk send. Returns at once; the scheduler drains the queue.",
         body: '{ mailerId: string, name: string, subject: string, bodyHtml: string, bodyMode?: "RICH"|"HTML", templateId?: string, tags?: string[] }',
         guard: "withMailerAccess",
       },
@@ -1745,23 +1276,12 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/mailer/images/[assetId]",
-    methods: {
-      DELETE: {
-        doc: "/api/projects/:id/mailer/images/:assetId Removes the B2 object. Refused (409) when a sent campaign still references it.",
-        guard: "withMailerAccess",
-      },
-    },
+    methods: { DELETE: { guard: "withMailerAccess" } },
     load: () => import("@/app/api/projects/[id]/mailer/images/[assetId]/route"),
   },
   {
     path: "/api/projects/[id]/mailer/images",
-    methods: {
-      POST: {
-        doc: "/api/projects/:id/mailer/images - upload an image for use in a template or campaign body. Returns the PUBLIC url to drop into an <img src>.",
-        upload: true,
-        guard: "withMailerAccess",
-      },
-    },
+    methods: { POST: { upload: true, guard: "withMailerAccess" } },
     load: () => import("@/app/api/projects/[id]/mailer/images/route"),
   },
   {
@@ -1778,15 +1298,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/projects/[id]/mailer/recipients/bulk",
     methods: {
-      POST: {
-        doc: "/api/projects/:id/mailer/recipients/bulk - paste-import a list.",
-        body: "{ raw: string, tags?: string[] }",
-        guard: "withMailerAccess",
-      },
-      DELETE: {
-        doc: "/api/projects/:id/mailer/recipients/bulk - remove the selected rows.",
-        guard: "withMailerAccess",
-      },
+      POST: { body: "{ raw: string, tags?: string[] }", guard: "withMailerAccess" },
+      DELETE: { guard: "withMailerAccess" },
     },
     load: () => import("@/app/api/projects/[id]/mailer/recipients/bulk/route"),
   },
@@ -1794,7 +1307,6 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/projects/[id]/mailer/recipients/import",
     methods: {
       POST: {
-        doc: "/api/projects/:id/mailer/recipients/import - commit a spreadsheet import.",
         body: "{ rows: any, tags?: string[], tagExisting?: boolean }",
         guard: "withMailerAccess",
       },
@@ -1813,12 +1325,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/mailer",
-    methods: {
-      GET: {
-        doc: "/api/projects/:id/mailer - settings, templates, recipients, campaigns.",
-        guard: "withMailerAccess",
-      },
-    },
+    methods: { GET: { guard: "withMailerAccess" } },
     load: () => import("@/app/api/projects/[id]/mailer/route"),
   },
   {
@@ -1849,57 +1356,32 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/members",
-    methods: {
-      GET: {
-        doc: " Flat, deduped list of everyone who belongs to the project (Account Manager + every team member) - used to power the @mention picker in messages.",
-        guard: "withProjectAccess",
-      },
-    },
+    methods: { GET: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/members/route"),
   },
   {
     path: "/api/projects/[id]/messages/[messageId]/attachments",
-    methods: {
-      POST: {
-        doc: "/api/projects/:id/messages/:messageId/attachments",
-        upload: true,
-        guard: "withProjectAccess",
-      },
-    },
+    methods: { POST: { upload: true, guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/messages/[messageId]/attachments/route"),
   },
   {
     path: "/api/projects/[id]/messages/[messageId]/cards",
-    methods: {
-      POST: { doc: "/api/projects/:id/messages/:messageId/cards", guard: "withProjectAccess" },
-    },
+    methods: { POST: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/messages/[messageId]/cards/route"),
   },
   {
     path: "/api/projects/[id]/messages/[messageId]/react",
-    methods: {
-      POST: {
-        doc: "/api/projects/:id/messages/:messageId/react { emoji, replyId? }",
-        body: "{ emoji?: string, replyId?: string }",
-        guard: "withProjectAccess",
-      },
-    },
+    methods: { POST: { body: "{ emoji?: string, replyId?: string }", guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/messages/[messageId]/react/route"),
   },
   {
     path: "/api/projects/[id]/messages/[messageId]/replies/[replyId]",
-    methods: {
-      PATCH: { doc: "edit own reply, within the 15 minute window.", guard: "withProjectAccess" },
-      DELETE: { doc: "delete own reply, within the 15 minute window.", guard: "withProjectAccess" },
-    },
+    methods: { PATCH: { guard: "withProjectAccess" }, DELETE: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/messages/[messageId]/replies/[replyId]/route"),
   },
   {
     path: "/api/projects/[id]/messages/[messageId]/replies",
-    methods: {
-      GET: { doc: "thread replies, oldest first.", guard: "withProjectAccess" },
-      POST: { doc: "post a reply (any member).", guard: "withProjectAccess" },
-    },
+    methods: { GET: { guard: "withProjectAccess" }, POST: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/messages/[messageId]/replies/route"),
   },
   {
@@ -1917,24 +1399,17 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/messages/unread",
-    methods: {
-      GET: {
-        doc: "> { count } of messages + replies posted by others since this user last opened the Messages tab.",
-        guard: "withProjectAccess",
-      },
-      POST: { doc: "> mark the tab as seen (now).", guard: "withProjectAccess" },
-    },
+    methods: { GET: { guard: "withProjectAccess" }, POST: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/messages/unread/route"),
   },
   {
     path: "/api/projects/[id]/monitoring/assets/[assetId]",
     methods: {
       PATCH: {
-        doc: "/api/projects/:id/monitoring/assets/:assetId - a later expiry resets reminders",
         body: "{ kind: enum, name: string, provider?: string, url?: string, expiresAt: string, autoRenew?: boolean, paymentMethod?: string, paymentExpiresAt: any, ownerId?: string, notes?: string }",
         guard: "withProjectAccess",
       },
-      DELETE: { doc: "/api/projects/:id/monitoring/assets/:assetId", guard: "withProjectAccess" },
+      DELETE: { guard: "withProjectAccess" },
     },
     load: () => import("@/app/api/projects/[id]/monitoring/assets/[assetId]/route"),
   },
@@ -1942,7 +1417,6 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/projects/[id]/monitoring/assets",
     methods: {
       POST: {
-        doc: "/api/projects/:id/monitoring/assets - add a renewal to this project.",
         body: "{ kind: enum, name: string, provider?: string, url?: string, expiresAt: string, autoRenew?: boolean, paymentMethod?: string, paymentExpiresAt: any, ownerId?: string, notes?: string }",
         guard: "withProjectAccess",
       },
@@ -1951,12 +1425,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/monitoring/incidents/[incidentId]/ack",
-    methods: {
-      POST: {
-        doc: '/api/projects/:id/monitoring/incidents/:incidentId/ack "I\'m on it" - freezes the escalation ladder. Does not resolve the incident.',
-        guard: "withProjectAccess",
-      },
-    },
+    methods: { POST: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/monitoring/incidents/[incidentId]/ack/route"),
   },
   {
@@ -1974,7 +1443,6 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/projects/[id]/monitoring/monitors",
     methods: {
       POST: {
-        doc: "/api/projects/:id/monitoring/monitors - start watching a URL.",
         body: "{ url: any, label?: string, ownerId?: string, isActive?: boolean }",
         guard: "withProjectAccess",
       },
@@ -1983,12 +1451,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/monitoring",
-    methods: {
-      GET: {
-        doc: "/api/projects/:id/monitoring - this project's monitors, renewals and recent incidents. withProjectAccess resolves the slug and proves the caller may manage the project, so the service can trust ctx.params.id.",
-        guard: "withProjectAccess",
-      },
-    },
+    methods: { GET: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/monitoring/route"),
   },
   {
@@ -1998,71 +1461,41 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/passwords",
-    methods: {
-      GET: {
-        doc: " Returns entries WITHOUT the decrypted password (use single-entry GET for reveal)",
-        guard: "withProjectManager",
-      },
-      POST: { guard: "withProjectManager" },
-    },
+    methods: { GET: { guard: "withProjectManager" }, POST: { guard: "withProjectManager" } },
     load: () => import("@/app/api/projects/[id]/passwords/route"),
   },
   {
     path: "/api/projects/[id]/progress",
-    methods: {
-      GET: {
-        doc: "delivery progress for one project: task completion and punctuality overall, per team and per member, the weekly pace, what is due next, and how the tracked sites are performing in search.",
-        query: ["from", "to"],
-        guard: "withProjectAccess",
-      },
-    },
+    methods: { GET: { query: ["from", "to"], guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/progress/route"),
   },
   {
     path: "/api/projects/[id]/requirements/[requirementId]",
-    methods: {
-      PATCH: { guard: "withProjectAccess" },
-      DELETE: {
-        doc: "the raiser withdrawing something they should not have asked for, or an admin clearing a duplicate. Linked tasks are unblocked by the SET NULL FK.",
-        guard: "withProjectAccess",
-      },
-    },
+    methods: { PATCH: { guard: "withProjectAccess" }, DELETE: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/requirements/[requirementId]/route"),
   },
   {
     path: "/api/projects/[id]/requirements",
-    methods: {
-      GET: {
-        doc: "everything the project is waiting on. Open items first, then by the date they are needed.",
-        guard: "withProjectAccess",
-      },
-      POST: { doc: "raise one.", guard: "withProjectAccess" },
-    },
+    methods: { GET: { guard: "withProjectAccess" }, POST: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/requirements/route"),
   },
   {
     path: "/api/projects/[id]/resources/[fileId]",
     methods: {
-      GET: {
-        doc: "returns metadata + signed download URL",
-        query: ["download"],
-        file: true,
-        guard: "withProjectAccess",
+      GET: { query: ["download"], file: true, guard: "withProjectAccess" },
+      DELETE: { guard: "withSession" },
+      PATCH: {
+        body: "{ tag?: any, fileName?: string, folderId?: any, isClientVisible?: boolean }",
+        guard: "withSession",
       },
-      DELETE: { doc: "uploader, team manager, or admin", guard: "withSession" },
-      PATCH: { doc: "retag a file.", guard: "withSession" },
     },
     load: () => import("@/app/api/projects/[id]/resources/[fileId]/route"),
   },
   {
     path: "/api/projects/[id]/resources",
     methods: {
-      GET: {
-        doc: "list resources (filterable)",
-        query: ["teamId", "category"],
-        guard: "withProjectAccess",
-      },
-      POST: { doc: "upload file (multipart/form-data)", upload: true, guard: "withSession" },
+      GET: { query: ["teamId", "category"], guard: "withProjectAccess" },
+      POST: { upload: true, guard: "withSession" },
     },
     load: () => import("@/app/api/projects/[id]/resources/route"),
   },
@@ -2085,13 +1518,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/projects/[id]/seo/[propertyId]/backlinks",
     methods: {
-      GET: {
-        doc: "referring-domain rollup + headline counts.",
-        permissions: ["project:read"],
-        guard: "withAuth",
-      },
+      GET: { permissions: ["project:read"], guard: "withAuth" },
       POST: {
-        doc: "import (paste) a backlink export and diff it against what we had.",
         body: '{ text: string, source?: "AWT"|"GSC"|"MANUAL", fullSnapshot?: boolean }',
         guard: "withProjectManager",
       },
@@ -2101,12 +1529,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/projects/[id]/seo/[propertyId]/competitors",
     methods: {
-      GET: {
-        doc: "the latest competitor gap analysis for this site.",
-        permissions: ["project:read"],
-        guard: "withAuth",
-      },
-      POST: { doc: "run a fresh competitor crawl + gap diff now.", guard: "withProjectManager" },
+      GET: { permissions: ["project:read"], guard: "withAuth" },
+      POST: { guard: "withProjectManager" },
     },
     load: () => import("@/app/api/projects/[id]/seo/[propertyId]/competitors/route"),
   },
@@ -2114,27 +1538,18 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/projects/[id]/seo/[propertyId]/content/[briefId]",
     methods: {
       PATCH: {
-        doc: 'update a brief\'s fields, or run its QA gate (action: "qa", url).',
         body: '{ action?: "update"|"qa", url?: string, status?: "BRIEF"|"WRITING"|"REVIEW"|"PUBLISHED"|"MEASURED"|"PARKED", outline?: string[], angle?: string, notes?: string, publishedUrl?: string }',
         guard: "withProjectManager",
       },
-      DELETE: { doc: "remove a brief.", guard: "withProjectManager" },
+      DELETE: { guard: "withProjectManager" },
     },
     load: () => import("@/app/api/projects/[id]/seo/[propertyId]/content/[briefId]/route"),
   },
   {
     path: "/api/projects/[id]/seo/[propertyId]/content",
     methods: {
-      GET: {
-        doc: "every content brief for this site.",
-        permissions: ["project:read"],
-        guard: "withAuth",
-      },
-      POST: {
-        doc: "create a brief from a backlog keyword or a free-typed target query.",
-        body: "{ keywordId?: string, targetQuery?: string }",
-        guard: "withProjectManager",
-      },
+      GET: { permissions: ["project:read"], guard: "withAuth" },
+      POST: { body: "{ keywordId?: string, targetQuery?: string }", guard: "withProjectManager" },
     },
     load: () => import("@/app/api/projects/[id]/seo/[propertyId]/content/route"),
   },
@@ -2142,151 +1557,89 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/projects/[id]/seo/[propertyId]/keywords/[keywordId]",
     methods: {
       PATCH: {
-        doc: "update a keyword's human fields (winnable / value / intent / status).",
         body: '{ winnable?: boolean, businessValue?: number, intent?: "commercial"|"informational"|"branded"|"navigational"|"other", status?: "BACKLOG"|"IN_PROGRESS"|"PUBLISHED"|"PARKED", notes?: string }',
         guard: "withProjectManager",
       },
-      DELETE: { doc: "drop a keyword from the backlog.", guard: "withProjectManager" },
+      DELETE: { guard: "withProjectManager" },
     },
     load: () => import("@/app/api/projects/[id]/seo/[propertyId]/keywords/[keywordId]/route"),
   },
   {
     path: "/api/projects/[id]/seo/[propertyId]/keywords",
     methods: {
-      GET: {
-        doc: "the prioritized keyword backlog for this site.",
-        permissions: ["project:read"],
-        guard: "withAuth",
-      },
-      POST: {
-        doc: "fill the backlog, either from our own Search Console queries (default) or by mining the latest competitor crawl for the phrases they target.",
-        guard: "withProjectManager",
-      },
+      GET: { permissions: ["project:read"], guard: "withAuth" },
+      POST: { guard: "withProjectManager" },
     },
     load: () => import("@/app/api/projects/[id]/seo/[propertyId]/keywords/route"),
   },
   {
     path: "/api/projects/[id]/seo/[propertyId]/monitor",
     methods: {
-      GET: {
-        doc: "the latest daily-monitor result for this site.",
-        permissions: ["project:read"],
-        guard: "withAuth",
-      },
-      POST: {
-        doc: "run the monitor check now (the daily cron does this automatically).",
-        guard: "withProjectManager",
-      },
+      GET: { permissions: ["project:read"], guard: "withAuth" },
+      POST: { guard: "withProjectManager" },
     },
     load: () => import("@/app/api/projects/[id]/seo/[propertyId]/monitor/route"),
   },
   {
     path: "/api/projects/[id]/seo/[propertyId]/overview",
-    methods: {
-      GET: {
-        doc: "the growth report for ONE tracked site: the chosen window vs the one before it, top queries/pages, money-keyword tracking, striking-distance and alerts.",
-        query: ["end", "weeks"],
-        permissions: ["project:read"],
-        guard: "withAuth",
-      },
-    },
+    methods: { GET: { query: ["end", "weeks"], permissions: ["project:read"], guard: "withAuth" } },
     load: () => import("@/app/api/projects/[id]/seo/[propertyId]/overview/route"),
   },
   {
     path: "/api/projects/[id]/seo/[propertyId]",
     methods: {
       PUT: {
-        doc: "update one tracked site.",
         body: "{ label: string, domain: any, siteUrl: any, gaPropertyId?: string, moneyKeywords?: any, moneyPages?: any, competitors?: any, targetClicks?: number, targetPosition?: number, isActive?: boolean, isPrimary?: boolean }",
         guard: "withProjectManager",
       },
-      DELETE: {
-        doc: "stop tracking a site. Snapshots cascade away with it.",
-        guard: "withProjectManager",
-      },
+      DELETE: { guard: "withProjectManager" },
     },
     load: () => import("@/app/api/projects/[id]/seo/[propertyId]/route"),
   },
   {
     path: "/api/projects/[id]/seo/[propertyId]/scorecard",
     methods: {
-      GET: {
-        doc: "the latest stored scorecard. If none exists yet but the site HAS data to score, build one on the spot: a site with weeks of Search Console history was showing an empty Scorecard tab purely because nothing had triggered the first build (the weekly cron only fills it going forward). Read stays cheap in the",
-        permissions: ["project:read"],
-        guard: "withAuth",
-      },
-      POST: { doc: "recompute now from whatever data is stored.", guard: "withProjectManager" },
+      GET: { permissions: ["project:read"], guard: "withAuth" },
+      POST: { guard: "withProjectManager" },
     },
     load: () => import("@/app/api/projects/[id]/seo/[propertyId]/scorecard/route"),
   },
   {
     path: "/api/projects/[id]/seo/[propertyId]/setup",
-    methods: {
-      GET: {
-        doc: "the guided setup checklist for this site: which steps are done, what each unlocks, and which scorecard points are still locked behind config.",
-        permissions: ["project:read"],
-        guard: "withAuth",
-      },
-    },
+    methods: { GET: { permissions: ["project:read"], guard: "withAuth" } },
     load: () => import("@/app/api/projects/[id]/seo/[propertyId]/setup/route"),
   },
   {
     path: "/api/projects/[id]/seo/[propertyId]/sync",
-    methods: {
-      POST: {
-        doc: "pull fresh Search Console data for ONE site. { backfill: true } → also fetch the previous weeks so the trend line has history immediately (used right after setup).",
-        guard: "withProjectManager",
-      },
-    },
+    methods: { POST: { guard: "withProjectManager" } },
     load: () => import("@/app/api/projects/[id]/seo/[propertyId]/sync/route"),
   },
   {
     path: "/api/projects/[id]/seo/[propertyId]/technical",
     methods: {
-      GET: {
-        doc: "the latest technical audit for this site.",
-        permissions: ["project:read"],
-        guard: "withAuth",
-      },
-      POST: { doc: "run a fresh audit now.", guard: "withProjectManager" },
+      GET: { permissions: ["project:read"], guard: "withAuth" },
+      POST: { guard: "withProjectManager" },
     },
     load: () => import("@/app/api/projects/[id]/seo/[propertyId]/technical/route"),
   },
   {
     path: "/api/projects/[id]/seo/[propertyId]/vitals",
     methods: {
-      GET: {
-        doc: "the latest Core Web Vitals reading per URL.",
-        permissions: ["project:read"],
-        guard: "withAuth",
-      },
-      POST: {
-        doc: "measure now. { traffic: true } also pulls GA4 for the same window.",
-        guard: "withProjectManager",
-      },
+      GET: { permissions: ["project:read"], guard: "withAuth" },
+      POST: { guard: "withProjectManager" },
     },
     load: () => import("@/app/api/projects/[id]/seo/[propertyId]/vitals/route"),
   },
   {
     path: "/api/projects/[id]/seo/rollup",
-    methods: {
-      GET: {
-        doc: "combined numbers across every site on the project, plus a per-site row and the actionable alerts tagged with the site they came from.",
-        permissions: ["project:read"],
-        guard: "withAuth",
-      },
-    },
+    methods: { GET: { permissions: ["project:read"], guard: "withAuth" } },
     load: () => import("@/app/api/projects/[id]/seo/rollup/route"),
   },
   {
     path: "/api/projects/[id]/seo",
     methods: {
-      GET: {
-        doc: "every site tracked under this project, plus whether Search Console credentials exist at all so the tab can explain what's missing.",
-        guard: "withProjectAccess",
-      },
+      GET: { guard: "withProjectAccess" },
       POST: {
-        doc: "which does resolve - had written the row under the real id.",
         body: "{ label: string, domain: any, siteUrl: any, gaPropertyId?: string, moneyKeywords?: any, moneyPages?: any, competitors?: any, targetClicks?: number, targetPosition?: number, isActive?: boolean, isPrimary?: boolean }",
         guard: "withProjectManager",
       },
@@ -2295,30 +1648,17 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/seo/sync",
-    methods: {
-      POST: {
-        doc: 'sync every active site on this project ("Sync all").',
-        guard: "withProjectManager",
-      },
-    },
+    methods: { POST: { guard: "withProjectManager" } },
     load: () => import("@/app/api/projects/[id]/seo/sync/route"),
   },
   {
     path: "/api/projects/[id]/sheets/[sheetId]/cells",
-    methods: {
-      PATCH: {
-        doc: "write cells at a row POSITION, creating the row if needed.",
-        guard: "withProjectAccess",
-      },
-    },
+    methods: { PATCH: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/sheets/[sheetId]/cells/route"),
   },
   {
     path: "/api/projects/[id]/sheets/[sheetId]/columns/[columnId]",
-    methods: {
-      PATCH: { guard: "withProjectAccess" },
-      DELETE: { doc: "manager only.", guard: "withProjectManager" },
-    },
+    methods: { PATCH: { guard: "withProjectAccess" }, DELETE: { guard: "withProjectManager" } },
     load: () => import("@/app/api/projects/[id]/sheets/[sheetId]/columns/[columnId]/route"),
   },
   {
@@ -2333,33 +1673,22 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/sheets/[sheetId]/import",
-    methods: {
-      POST: {
-        doc: "append many rows at once. body { rows: Record<columnId, value>[] }",
-        guard: "withProjectAccess",
-      },
-    },
+    methods: { POST: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/sheets/[sheetId]/import/route"),
   },
   {
     path: "/api/projects/[id]/sheets/[sheetId]/layout",
-    methods: { PATCH: { doc: "a column width or a row height.", guard: "withProjectAccess" } },
+    methods: { PATCH: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/sheets/[sheetId]/layout/route"),
   },
   {
     path: "/api/projects/[id]/sheets/[sheetId]",
-    methods: {
-      PATCH: { guard: "withProjectAccess" },
-      DELETE: { doc: "manager only.", guard: "withProjectManager" },
-    },
+    methods: { PATCH: { guard: "withProjectAccess" }, DELETE: { guard: "withProjectManager" } },
     load: () => import("@/app/api/projects/[id]/sheets/[sheetId]/route"),
   },
   {
     path: "/api/projects/[id]/sheets/[sheetId]/rows/[rowId]",
-    methods: {
-      PATCH: { doc: "write cells. Anyone on the project.", guard: "withProjectAccess" },
-      DELETE: { guard: "withProjectManager" },
-    },
+    methods: { PATCH: { guard: "withProjectAccess" }, DELETE: { guard: "withProjectManager" } },
     load: () => import("@/app/api/projects/[id]/sheets/[sheetId]/rows/[rowId]/route"),
   },
   {
@@ -2371,13 +1700,10 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/projects/[id]/sheets",
     methods: {
       GET: {
-        doc: "every calendar on the project, with its tab NAMES only.",
+        doc: "returns tab names only (a calendar has one edition per month); grids come from /workbooks/[workbookId]. Any project member may create tabs; only DELETE (on [sheetId]) is restricted.",
         guard: "withProjectAccess",
       },
-      POST: {
-        doc: "create a TAB inside a workbook. body { workbookId, name, description? }",
-        guard: "withProjectAccess",
-      },
+      POST: { guard: "withProjectAccess" },
     },
     load: () => import("@/app/api/projects/[id]/sheets/route"),
   },
@@ -2391,155 +1717,95 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/[id]/teams/[teamId]/members/[memberId]/promote",
-    methods: {
-      PATCH: {
-        doc: " Admin only - make this member the new manager. Previous manager stays as a regular member.",
-        guard: "withProjectManager",
-      },
-    },
+    methods: { PATCH: { guard: "withProjectManager" } },
     load: () => import("@/app/api/projects/[id]/teams/[teamId]/members/[memberId]/promote/route"),
   },
   {
     path: "/api/projects/[id]/teams/[teamId]/members/[memberId]",
-    methods: {
-      DELETE: {
-        doc: " Manager swap rule: if removing the manager and team has other members → 422",
-        guard: "withSession",
-      },
-    },
+    methods: { DELETE: { guard: "withSession" } },
     load: () => import("@/app/api/projects/[id]/teams/[teamId]/members/[memberId]/route"),
   },
   {
     path: "/api/projects/[id]/teams/[teamId]/members",
-    methods: {
-      GET: { guard: "withProjectAccess" },
-      POST: { doc: "add member (Admin or this team's Manager)", guard: "withSession" },
-    },
+    methods: { GET: { guard: "withProjectAccess" }, POST: { guard: "withSession" } },
     load: () => import("@/app/api/projects/[id]/teams/[teamId]/members/route"),
   },
   {
     path: "/api/projects/[id]/teams/[teamId]",
     methods: {
       PATCH: {
-        doc: "change the manager (Admin only). That is the only edit a team takes: its name and description are fixed (features/projects/lib/project-teams.ts), so a body carrying either is refused.",
         body: "{ name?: unknown, description?: unknown, managerId?: string | null }",
         guard: "withProjectManager",
       },
-      DELETE: { doc: "refused. Teams are fixed; remove people from a team instead." },
+      DELETE: {},
     },
     load: () => import("@/app/api/projects/[id]/teams/[teamId]/route"),
   },
   {
     path: "/api/projects/[id]/teams/[teamId]/tasks",
-    methods: {
-      GET: {
-        doc: "list tasks for team (all project members can view)",
-        guard: "withProjectAccess",
-      },
-      POST: { doc: "create task", guard: "withSession" },
-    },
+    methods: { GET: { guard: "withProjectAccess" }, POST: { guard: "withSession" } },
     load: () => import("@/app/api/projects/[id]/teams/[teamId]/tasks/route"),
   },
   {
     path: "/api/projects/[id]/teams",
     methods: {
-      GET: { doc: "a project's teams, in catalogue order", guard: "withProjectAccess" },
+      GET: { guard: "withProjectAccess" },
       POST: {
-        doc: "refused. Every project has the same six teams (features/projects/lib/project-teams.ts); they are created with the project and nobody, admin included, adds one. Staff a team instead.",
+        doc: "refused. Every project has the same fixed teams (features/projects/lib/project-teams.ts), made with the project; nobody, admin included, adds one. Staff a team instead.",
       },
     },
     load: () => import("@/app/api/projects/[id]/teams/route"),
   },
   {
     path: "/api/projects/[id]/workbooks/[workbookId]/assign",
-    methods: {
-      POST: {
-        doc: 'hand a workbook ("sheet" in the UI) to someone, or to nobody. body { employeeId: string | null }',
-        guard: "withTeamStaffing",
-      },
-    },
+    methods: { POST: { guard: "withTeamStaffing" } },
     load: () => import("@/app/api/projects/[id]/workbooks/[workbookId]/assign/route"),
   },
   {
     path: "/api/projects/[id]/workbooks/[workbookId]",
     methods: {
-      GET: {
-        doc: "ONE calendar in full: its tabs, their columns and rows, and the team plan.",
-        guard: "withProjectAccess",
-      },
-      PATCH: {
-        doc: 'rename a calendar, or set the month this edition covers. Anyone on the project. body { name?: string, periodMonth?: "2026-09" | null }',
-        guard: "withProjectAccess",
-      },
-      DELETE: {
-        doc: "manager only. Takes every tab with it (columns, rows, history), which is why it sits on the same side as deleting a tab.",
-        guard: "withProjectManager",
-      },
+      GET: { guard: "withProjectAccess" },
+      PATCH: { guard: "withProjectAccess" },
+      DELETE: { guard: "withProjectManager" },
     },
     load: () => import("@/app/api/projects/[id]/workbooks/[workbookId]/route"),
   },
   {
     path: "/api/projects/[id]/workbooks/[workbookId]/share",
-    methods: {
-      PATCH: {
-        doc: "publish this calendar to the client portal, or withdraw it.",
-        guard: "withProjectManager",
-      },
-    },
+    methods: { PATCH: { guard: "withProjectManager" } },
     load: () => import("@/app/api/projects/[id]/workbooks/[workbookId]/share/route"),
   },
   {
     path: "/api/projects/[id]/workbooks/[workbookId]/teams/[teamId]",
     methods: {
-      PUT: {
-        doc: "put a team on the plan, or change what it owes. Idempotent. body { quantity?, dueOn?, links?, notes?, employeeIds? }",
-        guard: "withWorkbookTeamContribute",
-      },
-      DELETE: { doc: "take a team off this month's plan.", guard: "withWorkbookTeamAccess" },
+      PUT: { guard: "withWorkbookTeamContribute" },
+      DELETE: { guard: "withWorkbookTeamAccess" },
     },
     load: () => import("@/app/api/projects/[id]/workbooks/[workbookId]/teams/[teamId]/route"),
   },
   {
     path: "/api/projects/[id]/workbooks/[workbookId]/teams",
-    methods: {
-      GET: {
-        doc: "the team plan for one month's calendar, in catalogue order.",
-        guard: "withProjectAccess",
-      },
-    },
+    methods: { GET: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/workbooks/[workbookId]/teams/route"),
   },
   {
     path: "/api/projects/[id]/workbooks",
-    methods: {
-      GET: {
-        doc: "every calendar on the project: name, month, manager, tab names.",
-        guard: "withProjectAccess",
-      },
-      POST: {
-        doc: 'create a calendar, or another MONTH of one that exists. body { name, firstTab?, periodMonth?: "2026-09" | null,',
-        guard: "withProjectAccess",
-      },
-    },
+    methods: { GET: { guard: "withProjectAccess" }, POST: { guard: "withProjectAccess" } },
     load: () => import("@/app/api/projects/[id]/workbooks/route"),
   },
   {
     path: "/api/projects/deliverables/export",
-    methods: {
-      GET: { doc: "?projectId&from&to&status&client=1", file: true, guard: "withSession" },
-    },
+    methods: { GET: { file: true, guard: "withSession" } },
     load: () => import("@/app/api/projects/deliverables/export/route"),
   },
   {
     path: "/api/projects/deliverables/progress",
-    methods: { GET: { doc: "?from&to&projectIds&teamIds&employeeIds", guard: "withSession" } },
+    methods: { GET: { guard: "withSession" } },
     load: () => import("@/app/api/projects/deliverables/progress/route"),
   },
   {
     path: "/api/projects/deliverables/report",
-    methods: {
-      GET: { doc: "?from&to&projectIds&teamIds&employeeIds&ai", file: true, guard: "withSession" },
-    },
+    methods: { GET: { file: true, guard: "withSession" } },
     load: () => import("@/app/api/projects/deliverables/report/route"),
   },
   {
@@ -2559,9 +1825,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/message-attachments/[attachmentId]/file",
-    methods: {
-      GET: { doc: "/api/projects/message-attachments/:id/file", query: ["download"], file: true },
-    },
+    methods: { GET: { query: ["download"], file: true } },
     load: () => import("@/app/api/projects/message-attachments/[attachmentId]/file/route"),
   },
   {
@@ -2571,20 +1835,13 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/performance/report",
-    methods: {
-      POST: {
-        doc: " Generate an AI briefing. The caller picks the report type, the scope (which projects / teams / people) and which sections it contains; the date window comes from the page filter. Advisory only - nothing is stored.",
-        permissions: ["project:write"],
-        guard: "withSession",
-      },
-    },
+    methods: { POST: { permissions: ["project:write"], guard: "withSession" } },
     load: () => import("@/app/api/projects/performance/report/route"),
   },
   {
     path: "/api/projects/performance",
     methods: {
       GET: {
-        doc: " Task-throughput performance for people and projects: how much is completed, and how much of it lands on time. Admins (project:write) see everything; anyone else sees the teams they manage, the projects they own, and their own tasks.",
         query: ["projectId", "from", "to"],
         permissions: ["project:write"],
         guard: "withSession",
@@ -2612,35 +1869,19 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/projects/weekly-hours",
-    methods: { GET: { doc: "?week=yyyy-mm-dd", query: ["week"], guard: "withSession" } },
+    methods: { GET: { query: ["week"], guard: "withSession" } },
     load: () => import("@/app/api/projects/weekly-hours/route"),
   },
   {
     path: "/api/recruitment/applicants/[id]/offer",
-    methods: {
-      POST: {
-        doc: " Body: { designation, ctc, joiningDate, location? } - emails a formatted offer letter to the applicant (sent FROM the acting HR user via sendEmailAs) and moves them to the OFFER stage.",
-        permissions: ["recruitment:write"],
-        guard: "withAuth",
-      },
-    },
+    methods: { POST: { permissions: ["recruitment:write"], guard: "withAuth" } },
     load: () => import("@/app/api/recruitment/applicants/[id]/offer/route"),
   },
   {
     path: "/api/recruitment/applicants/[id]/resume",
     methods: {
-      GET: {
-        doc: "open the CV.",
-        file: true,
-        permissions: ["recruitment:read"],
-        guard: "withAuth",
-      },
-      POST: {
-        doc: "upload a resume file.",
-        upload: true,
-        permissions: ["recruitment:write"],
-        guard: "withAuth",
-      },
+      GET: { file: true, permissions: ["recruitment:read"], guard: "withAuth" },
+      POST: { upload: true, permissions: ["recruitment:write"], guard: "withAuth" },
     },
     load: () => import("@/app/api/recruitment/applicants/[id]/resume/route"),
   },
@@ -2663,21 +1904,9 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/recruitment/applications/[id]",
     methods: {
-      GET: {
-        doc: "one application (HR detail view).",
-        permissions: ["recruitment:read"],
-        guard: "withAuth",
-      },
-      PATCH: {
-        doc: "move it through the pipeline / add notes.",
-        permissions: ["recruitment:write"],
-        guard: "withAuth",
-      },
-      DELETE: {
-        doc: "admin / HR manager only.",
-        permissions: ["recruitment:write"],
-        guard: "withAuth",
-      },
+      GET: { permissions: ["recruitment:read"], guard: "withAuth" },
+      PATCH: { permissions: ["recruitment:write"], guard: "withAuth" },
+      DELETE: { permissions: ["recruitment:write"], guard: "withAuth" },
     },
     load: () => import("@/app/api/recruitment/applications/[id]/route"),
   },
@@ -2685,7 +1914,6 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/recruitment/applications",
     methods: {
       GET: {
-        doc: "HR's inbox of careers applications. Filters: ?status= ?mode= ?q= (name/email/role) ?page= ?limit=",
         query: ["page", "limit", "status", "mode", "q"],
         permissions: ["recruitment:read"],
         guard: "withAuth",
@@ -2712,11 +1940,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/recruitment/jobs/[id]",
     methods: {
-      GET: {
-        doc: "returns include:{ applicants } - candidate names, emails, phones, resume URLs, HR notes. Gate on recruitment:read, matching the applicants/applications siblings; bare withSession leaks third-party PII to every staffer.",
-        permissions: ["recruitment:read"],
-        guard: "withAuth",
-      },
+      GET: { permissions: ["recruitment:read"], guard: "withAuth" },
       PATCH: { permissions: ["recruitment:write"], guard: "withAuth" },
       DELETE: { permissions: ["recruitment:write"], guard: "withAuth" },
     },
@@ -2738,31 +1962,18 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/referrals/[id]",
     methods: {
-      PATCH: {
-        doc: '{ action: "link-hire" | "mark-paid", ... }',
-        body: "{ action?: string }",
-        permissions: ["recruitment:write"],
-        guard: "withAuth",
-      },
+      PATCH: { body: "{ action?: string }", permissions: ["recruitment:write"], guard: "withAuth" },
     },
     load: () => import("@/app/api/referrals/[id]/route"),
   },
   {
     path: "/api/referrals/admin",
-    methods: {
-      GET: {
-        doc: "every referral in the business, for HR's queue. Gated on recruitment:write because this exposes candidate contact details and reward amounts derived from a new joiner's salary.",
-        permissions: ["recruitment:write"],
-        guard: "withAuth",
-      },
-    },
+    methods: { GET: { permissions: ["recruitment:write"], guard: "withAuth" } },
     load: () => import("@/app/api/referrals/admin/route"),
   },
   {
     path: "/api/referrals/roles",
-    methods: {
-      GET: { doc: "the roles any employee may refer somebody to.", guard: "withSession" },
-    },
+    methods: { GET: { guard: "withSession" } },
     load: () => import("@/app/api/referrals/roles/route"),
   },
   {
@@ -2770,7 +1981,6 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: { guard: "withSession" },
       POST: {
-        doc: "refer somebody for an open role.",
         body: "{ fullName: string, email: string, phone?: string, resumeUrl: any, linkedIn: any, careerRoleId: string, note?: string }",
         guard: "withSession",
       },
@@ -2780,54 +1990,30 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/resignations/[id]/review",
     methods: {
-      POST: {
-        doc: "the manager (or HR) approves or rejects.",
-        body: '{ action: "APPROVE" | "REJECT", note?: string }',
-        guard: "withErrorHandler",
-      },
+      POST: { body: '{ action: "APPROVE" | "REJECT", note?: string }', guard: "withErrorHandler" },
     },
     load: () => import("@/app/api/resignations/[id]/review/route"),
   },
   {
     path: "/api/resignations/[id]",
-    methods: {
-      DELETE: {
-        doc: "employee withdraws their own pending resignation.",
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { DELETE: { guard: "withErrorHandler" } },
     load: () => import("@/app/api/resignations/[id]/route"),
   },
   {
     path: "/api/resignations/review/count",
-    methods: {
-      GET: {
-        doc: "number of PENDING resignations the user may review.",
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { GET: { guard: "withErrorHandler" } },
     load: () => import("@/app/api/resignations/review/count/route"),
   },
   {
     path: "/api/resignations/review",
-    methods: {
-      GET: {
-        doc: "resignations the current user may act on (paginated).",
-        query: ["page", "limit"],
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { GET: { query: ["page", "limit"], guard: "withErrorHandler" } },
     load: () => import("@/app/api/resignations/review/route"),
   },
   {
     path: "/api/resignations",
     methods: {
-      GET: {
-        doc: "the current user's latest resignation (any status).",
-        guard: "withErrorHandler",
-      },
+      GET: { guard: "withErrorHandler" },
       POST: {
-        doc: "employee submits a resignation request.",
         body: "{ reason?: string, requestedLastWorkingDate?: string }",
         guard: "withErrorHandler",
       },
@@ -2837,104 +2023,50 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/roles/[id]",
     methods: {
-      GET: {
-        doc: "/api/roles/:id - fetch a single role with its full permission list",
-        permissions: ["role:read"],
-        guard: "withAuth",
-      },
-      PATCH: {
-        doc: "/api/roles/:id - update a role's displayName, description, and permissions",
-        permissions: ["role:write"],
-        guard: "withAuth",
-      },
-      DELETE: {
-        doc: "/api/roles/:id - delete a non-system role",
-        permissions: ["role:write"],
-        guard: "withAuth",
-      },
+      GET: { permissions: ["role:read"], guard: "withAuth" },
+      PATCH: { permissions: ["role:write"], guard: "withAuth" },
+      DELETE: { permissions: ["role:write"], guard: "withAuth" },
     },
     load: () => import("@/app/api/roles/[id]/route"),
   },
   {
     path: "/api/roles",
     methods: {
-      GET: {
-        doc: "list all roles with permission / employee counts",
-        permissions: ["role:read"],
-        guard: "withAuth",
-      },
-      POST: {
-        doc: "create a new (non-system) role",
-        permissions: ["role:write"],
-        guard: "withAuth",
-      },
+      GET: { permissions: ["role:read"], guard: "withAuth" },
+      POST: { permissions: ["role:write"], guard: "withAuth" },
     },
     load: () => import("@/app/api/roles/route"),
   },
   {
     path: "/api/seo/sites",
-    methods: {
-      GET: {
-        doc: "every Search Console property the service account can read. Used by the SEO tab so people pick the exact property id instead of typing it wrong.",
-        permissions: ["project:write"],
-        guard: "withAuth",
-      },
-    },
+    methods: { GET: { permissions: ["project:write"], guard: "withAuth" } },
     load: () => import("@/app/api/seo/sites/route"),
   },
   {
     path: "/api/stock/employees",
-    methods: {
-      GET: {
-        doc: "?q= - employees for the link dialog. Deliberately INCLUDES deactivated employees: the person a sheet names may have left, and linking their history is the point.",
-        query: ["q"],
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { GET: { query: ["q"], guard: "withErrorHandler" } },
     load: () => import("@/app/api/stock/employees/route"),
   },
   {
     path: "/api/stock/import",
-    methods: {
-      POST: {
-        doc: "bulk rows from the upload dialog (the dialog parses the workbook in the browser and sends plain JSON; see stock-import-dialog).",
-        body: "{ items: any, issues: any }",
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { POST: { body: "{ items: any, issues: any }", guard: "withErrorHandler" } },
     load: () => import("@/app/api/stock/import/route"),
   },
   {
     path: "/api/stock/issues/[id]",
-    methods: {
-      PATCH: {
-        doc: "edit, or link/unlink the employee (employeeId: string links, null unlinks, absent leaves it alone).",
-        guard: "withErrorHandler",
-      },
-      DELETE: { doc: "remove a register entry.", guard: "withErrorHandler" },
-    },
+    methods: { PATCH: { guard: "withErrorHandler" }, DELETE: { guard: "withErrorHandler" } },
     load: () => import("@/app/api/stock/issues/[id]/route"),
   },
   {
     path: "/api/stock/issues/bulk",
-    methods: {
-      POST: {
-        doc: '{ ids, action: "link"|"unlink"|"delete", employeeId? } One request for the table\'s selection bar instead of N PATCHes.',
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { POST: { guard: "withErrorHandler" } },
     load: () => import("@/app/api/stock/issues/bulk/route"),
   },
   {
     path: "/api/stock/issues",
     methods: {
-      GET: {
-        doc: "?q=&itemId=&unlinked=1&page=&limit= - the register, paginated.",
-        query: ["q", "itemId", "unlinked", "page", "limit"],
-        guard: "withErrorHandler",
-      },
+      GET: { query: ["q", "itemId", "unlinked", "page", "limit"], guard: "withErrorHandler" },
       POST: {
-        doc: "record an issue (item, holder, qty, date).",
         body: "{ itemId: string, holderName: string, employeeId?: string, quantity: number, issuedOn: any, notes?: string }",
         guard: "withErrorHandler",
       },
@@ -2943,20 +2075,14 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/stock/items/[id]",
-    methods: {
-      PATCH: { doc: "rename, reprice, or correct the purchased qty.", guard: "withErrorHandler" },
-    },
+    methods: { PATCH: { guard: "withErrorHandler" } },
     load: () => import("@/app/api/stock/items/[id]/route"),
   },
   {
     path: "/api/stock/items",
     methods: {
-      GET: {
-        doc: "the catalogue with computed issued/left quantities.",
-        guard: "withErrorHandler",
-      },
+      GET: { guard: "withErrorHandler" },
       POST: {
-        doc: "add an item (name, price, purchased quantity).",
         body: "{ name: string, pricePerPiece?: number, purchasedQty?: number, notes?: string }",
         guard: "withErrorHandler",
       },
@@ -2966,13 +2092,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/stock/register",
     methods: {
-      GET: {
-        doc: "?q=&itemId=&unlinked=1&page= - the register pivoted like the uploaded sheet: one row per holder+date, one column per item.",
-        query: ["q", "itemId", "unlinked", "page", "limit"],
-        guard: "withErrorHandler",
-      },
+      GET: { query: ["q", "itemId", "unlinked", "page", "limit"], guard: "withErrorHandler" },
       PATCH: {
-        doc: "write one edited row back (see registerRowSchema).",
         body: "{ holderName: string, employeeId: string, issuedOn: any, cells: any }",
         guard: "withErrorHandler",
       },
@@ -3002,75 +2123,47 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/tasks/[id]",
     methods: {
-      PATCH: {
-        doc: "(including a legitimate status change) 500s. A finite, non-negative number or explicit null only.",
-        permissions: ["project:write"],
-        guard: "withSession",
-      },
+      PATCH: { permissions: ["project:write"], guard: "withSession" },
       DELETE: { permissions: ["project:write"], guard: "withSession" },
     },
     load: () => import("@/app/api/tasks/[id]/route"),
   },
   {
     path: "/api/tasks/[id]/timeline",
-    methods: {
-      GET: {
-        doc: " Full status history for one task: when it was created, when it started, and how long it spent in each status. Readable by anyone who can see the project.",
-        guard: "withSession",
-      },
-    },
+    methods: { GET: { guard: "withSession" } },
     load: () => import("@/app/api/tasks/[id]/timeline/route"),
   },
   {
     path: "/api/tasks",
     methods: {
       GET: {
-        doc: "?mine=true[&scope=…] - the caller's task list.",
         query: ["mine", "scope", "status"],
         permissions: ["project:write"],
         guard: "withSession",
       },
-      POST: {
-        doc: "raise an ADHOC task: work that belongs to no client.",
-        permissions: ["project:write"],
-        guard: "withSession",
-      },
+      POST: { permissions: ["project:write"], guard: "withSession" },
     },
     load: () => import("@/app/api/tasks/route"),
   },
   {
     path: "/api/wfh/apply/preview",
-    methods: {
-      GET: {
-        doc: " The envelope for the WFH letter the CURRENT user is about to send: who it's addressed to, whether HR is Cc'd, and their signature block. Read-only.",
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { GET: { guard: "withErrorHandler" } },
     load: () => import("@/app/api/wfh/apply/preview/route"),
   },
   {
     path: "/api/wfh/eligibility",
-    methods: {
-      GET: { doc: "WFH tier/quota eligibility for the current user.", guard: "withErrorHandler" },
-    },
+    methods: { GET: { guard: "withErrorHandler" } },
     load: () => import("@/app/api/wfh/eligibility/route"),
   },
   {
     path: "/api/wfh/my-team",
-    methods: {
-      GET: {
-        doc: '?scope=team|all - WFH requests inbox. scope "team" = the caller\'s direct reports (manager tab); scope "all" = every request (HR).',
-        query: ["scope", "status", "page", "limit"],
-        guard: "withErrorHandler",
-      },
-    },
+    methods: { GET: { query: ["scope", "status", "page", "limit"], guard: "withErrorHandler" } },
     load: () => import("@/app/api/wfh/my-team/route"),
   },
   {
     path: "/api/wfh/requests/[id]",
     methods: {
       PATCH: {
-        doc: "cancel / approve / reject a WFH request. The server decides whether the actor is the advisory manager or final HR.",
         body: '{ action: "CANCEL" | "APPROVE" | "REJECT", rejectionReason?: string }',
         guard: "withErrorHandler",
       },
@@ -3081,12 +2174,10 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/wfh/requests",
     methods: {
       GET: {
-        doc: "list WFH requests (scoped to the caller unless they can approve).",
         query: ["status", "employeeId", "from", "to", "page", "limit"],
         guard: "withErrorHandler",
       },
       POST: {
-        doc: "apply for a WFH day.",
         body: "{ date: string, endDate?: string, reason?: string, isEmergency?: boolean, emailSubject?: string, emailBody?: string }",
         guard: "withErrorHandler",
       },
@@ -3095,13 +2186,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   },
   {
     path: "/api/work-reports",
-    methods: {
-      GET: {
-        doc: "?month=YYYY-MM&employeeIds=a,b&format=pptx|pdf|docx&ai=0|1",
-        file: true,
-        guard: "withSession",
-      },
-    },
+    methods: { GET: { file: true, guard: "withSession" } },
     load: () => import("@/app/api/work-reports/route"),
   },
   {

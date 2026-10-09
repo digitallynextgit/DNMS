@@ -4,6 +4,7 @@ import { withSession } from "@/server/api-handler"
 import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
+import { sortProjectTeams } from "@/features/projects/lib/project-teams"
 import type { Session } from "next-auth"
 
 // Not filtered by the current selection, or picking one option would strand you with no way back.
@@ -40,7 +41,6 @@ export const GET = withSession(
           project: { select: { name: true, code: true } },
           _count: { select: { members: true } },
         },
-        orderBy: [{ project: { name: "asc" } }, { name: "asc" }],
       })
 
       const members = await db.projectTeamMember.findMany({
@@ -65,13 +65,20 @@ export const GET = withSession(
       return NextResponse.json({
         data: {
           projects,
-          teams: teams.map((t) => ({
-            id: t.id,
-            name: t.name,
-            projectId: t.projectId,
-            projectName: t.project?.name ?? "",
-            memberCount: t._count.members,
-          })),
+          // By project, and each project's teams in catalogue order (the sort is stable).
+          teams: sortProjectTeams(teams)
+            .sort(
+              (a, b) =>
+                a.project.name.localeCompare(b.project.name) ||
+                a.projectId.localeCompare(b.projectId),
+            )
+            .map((t) => ({
+              id: t.id,
+              name: t.name,
+              projectId: t.projectId,
+              projectName: t.project?.name ?? "",
+              memberCount: t._count.members,
+            })),
           people,
         },
       })

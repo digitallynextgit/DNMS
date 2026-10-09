@@ -28,6 +28,7 @@ import {
 import { DateField } from "@/components/shared/date-field"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { TASK_STATUS_COLORS, TASK_STATUS_LABELS } from "@/lib/constants"
+import { ACCOUNT_MANAGER_TEAM } from "../lib/project-teams"
 import { useAssignableEmployees, useUpdateTask } from "../hooks/use-projects"
 import { useTaskList } from "./progress-task-list"
 import type { GoalNode } from "./goal-status"
@@ -163,8 +164,10 @@ function AddTaskForm({
   const [assigneeId, setAssigneeId] = React.useState(NONE)
   const [dueDate, setDueDate] = React.useState(goal.targetDate ?? "")
   const [hours, setHours] = React.useState("")
-  // The first team they manage, since a blank required field is a 400.
-  const [teamId, setTeamId] = React.useState(() => teams[0]?.id ?? NONE)
+  // A team is required (blank is a 400); skip AM, which rarely holds the work, when there's another.
+  const [teamId, setTeamId] = React.useState(
+    () => (teams.find((t) => t.name !== ACCOUNT_MANAGER_TEAM) ?? teams[0])?.id ?? NONE,
+  )
   const [producesOutput, setProducesOutput] = React.useState(true)
   const people = useAssignableEmployees(projectId)
   const invalidate = useInvalidateGoalWork(projectId)

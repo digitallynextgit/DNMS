@@ -31,7 +31,7 @@ import {
   usePerfKpiProfile,
   usePerfKpiProfiles,
   useSavePerfKpiProfile,
-  DEFAULT_KPI_PROFILE,
+  DEFAULT_KPI_LINES,
   SECTION_A_WEIGHT,
   SECTION_B_WEIGHT,
   type PerfKpiProfileRow,
@@ -40,7 +40,6 @@ import {
 } from "@/features/performance"
 
 interface Draft {
-  evaluator: EvalEvaluator
   section: EvalSection
   label: string
   description: string
@@ -54,7 +53,7 @@ const SIDES: { key: EvalEvaluator; title: string; accent: string }[] = [
 const SECTIONS: { key: EvalSection; title: string; noun: string; total: number }[] = [
   {
     key: "A",
-    title: "Section A · Role Performance (KRA & KPI)",
+    title: "Section A · Role Performance (KPI)",
     noun: "KPI",
     total: SECTION_A_WEIGHT,
   },
@@ -71,29 +70,26 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
   const save = useSavePerfKpiProfile(employeeId)
   const [draft, setDraft] = useState<Draft[]>([])
 
-  // Seed the editor whenever a different employee's profile loads.
+  // Seed the editor whenever a different employee's profile loads. Both sides hold the same list.
   const [seededFrom, setSeededFrom] = useState<typeof data>(undefined)
   if (data !== seededFrom) {
     setSeededFrom(data)
     if (data) {
+      const items = data.data.items
+      const side = items.some((i) => i.evaluator === "MANAGER") ? "MANAGER" : "SELF"
       setDraft(
-        data.data.items.map((i) => ({
-          evaluator: i.evaluator,
-          section: i.section,
-          label: i.label,
-          description: i.description ?? "",
-        })),
+        items
+          .filter((i) => i.evaluator === side)
+          .map((i) => ({ section: i.section, label: i.label, description: i.description ?? "" })),
       )
     }
   }
 
-  const rowsFor = (evaluator: EvalEvaluator, section: EvalSection) =>
-    draft
-      .map((d, idx) => ({ d, idx }))
-      .filter(({ d }) => d.evaluator === evaluator && d.section === section)
+  const rowsFor = (section: EvalSection) =>
+    draft.map((d, idx) => ({ d, idx })).filter(({ d }) => d.section === section)
 
-  function addRow(evaluator: EvalEvaluator, section: EvalSection) {
-    setDraft((prev) => [...prev, { evaluator, section, label: "", description: "" }])
+  function addRow(section: EvalSection) {
+    setDraft((prev) => [...prev, { section, label: "", description: "" }])
   }
   function updateRow(idx: number, patch: Partial<Draft>) {
     setDraft((prev) => prev.map((d, i) => (i === idx ? { ...d, ...patch } : d)))
@@ -103,8 +99,7 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
   }
   function loadDefaults() {
     setDraft(
-      DEFAULT_KPI_PROFILE.map((d) => ({
-        evaluator: d.evaluator,
+      DEFAULT_KPI_LINES.map((d) => ({
         section: d.section,
         label: d.label,
         description: d.description ?? "",
@@ -112,10 +107,11 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
     )
   }
   function handleSave() {
+    // The server copies this list to the employee's side.
     const items = draft
       .filter((d) => d.label.trim())
       .map((d) => ({
-        evaluator: d.evaluator,
+        evaluator: "MANAGER" as const,
         section: d.section,
         label: d.label.trim(),
         description: d.description.trim() || undefined,
@@ -178,69 +174,90 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {SIDES.map((side) => (
-          <div key={side.key} className="space-y-4">
-            <h3 className="text-sm font-semibold">{side.title}</h3>
-            {SECTIONS.map((sec) => {
-              const rows = rowsFor(side.key, sec.key)
-              const each = rows.length > 0 ? Math.round((sec.total / rows.length) * 10) / 10 : 0
-              return (
-                <Card key={sec.key} className="overflow-hidden">
-                  <CardHeader className={`py-2.5 ${side.accent}`}>
-                    <CardTitle className="flex items-center justify-between text-xs">
-                      <span>{sec.title}</span>
-                      <span className="text-muted-foreground font-normal">
-                        {rows.length} × {each}% = {sec.total}%
-                      </span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2 p-3">
-                    {rows.length === 0 && (
-                      <p className="text-muted-foreground py-2 text-center text-xs">
-                        No {sec.noun.toLowerCase()}s yet.
-                      </p>
-                    )}
-                    {rows.map(({ d, idx }) => (
-                      <div key={idx} className="flex items-start gap-2">
-                        <div className="flex-1 space-y-1">
-                          <Input
-                            value={d.label}
-                            placeholder={`${sec.noun} name`}
-                            className="h-8 text-sm"
-                            onChange={(e) => updateRow(idx, { label: e.target.value })}
-                          />
-                          <Input
-                            value={d.description}
-                            placeholder="Description (optional)"
-                            aria-label="Description (optional)"
-                            className="text-muted-foreground h-7 text-xs"
-                            onChange={(e) => updateRow(idx, { description: e.target.value })}
-                          />
-                        </div>
+        {SIDES.map((side) => {
+          const editable = side.key === "MANAGER"
+          return (
+            <div key={side.key} className="space-y-4">
+              <div className="flex items-baseline justify-between gap-2">
+                <h3 className="text-sm font-semibold">{side.title}</h3>
+                {!editable && (
+                  <span className="text-muted-foreground text-xs">
+                    Same list as the manager&apos;s
+                  </span>
+                )}
+              </div>
+              {SECTIONS.map((sec) => {
+                const rows = rowsFor(sec.key).filter(({ d }) => editable || d.label.trim())
+                const each = rows.length > 0 ? Math.round((sec.total / rows.length) * 10) / 10 : 0
+                return (
+                  <Card key={sec.key} className="overflow-hidden">
+                    <CardHeader className={`py-2.5 ${side.accent}`}>
+                      <CardTitle className="flex items-center justify-between text-xs">
+                        <span>{sec.title}</span>
+                        <span className="text-muted-foreground font-normal">
+                          {rows.length} × {each}% = {sec.total}%
+                        </span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 p-3">
+                      {rows.length === 0 && (
+                        <p className="text-muted-foreground py-2 text-center text-xs">
+                          No {sec.noun.toLowerCase()}s yet.
+                        </p>
+                      )}
+                      {rows.map(({ d, idx }) =>
+                        editable ? (
+                          <div key={idx} className="flex items-start gap-2">
+                            <div className="flex-1 space-y-1">
+                              <Input
+                                value={d.label}
+                                placeholder={`${sec.noun} name`}
+                                className="h-8 text-sm"
+                                onChange={(e) => updateRow(idx, { label: e.target.value })}
+                              />
+                              <Input
+                                value={d.description}
+                                placeholder="Description (optional)"
+                                aria-label="Description (optional)"
+                                className="text-muted-foreground h-7 text-xs"
+                                onChange={(e) => updateRow(idx, { description: e.target.value })}
+                              />
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:bg-destructive/10 shrink-0"
+                              onClick={() => removeRow(idx)}
+                              aria-label="Remove"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div key={idx} className="rounded-sm border px-3 py-1.5">
+                            <p className="text-sm">{d.label}</p>
+                            {d.description.trim() && (
+                              <p className="text-muted-foreground text-xs">{d.description}</p>
+                            )}
+                          </div>
+                        ),
+                      )}
+                      {editable && (
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:bg-destructive/10 shrink-0"
-                          onClick={() => removeRow(idx)}
-                          aria-label="Remove"
+                          className="text-muted-foreground w-full justify-start gap-1.5"
+                          onClick={() => addRow(sec.key)}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Plus className="h-3.5 w-3.5" /> Add {sec.noun.toLowerCase()}
                         </Button>
-                      </div>
-                    ))}
-                    <Button
-                      variant="ghost"
-                      className="text-muted-foreground w-full justify-start gap-1.5"
-                      onClick={() => addRow(side.key, sec.key)}
-                    >
-                      <Plus className="h-3.5 w-3.5" /> Add {sec.noun.toLowerCase()}
-                    </Button>
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
-        ))}
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )
+        })}
       </div>
 
       {isEmpty && (

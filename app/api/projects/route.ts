@@ -105,7 +105,7 @@ export const POST = withAuth(
         }
       }
 
-      // Every project gets the same six teams from day one (see ensureProjectTeams).
+      // Every project gets the whole team catalogue from day one, its owner on AM (see ensureProjectTeams).
       const teams = await ensureProjectTeams(project.id)
       // Share the Drive folder with the owner and team managers straight away.
       syncProjectFolderAccessAsync(project.id)

@@ -149,10 +149,10 @@ export interface TeamPlanSheetProps {
   projectTeams: ProjectTeam[]
   /** May edit ANY team's row (account manager, admin, calendar manager). */
   canPlanAll: boolean
-  /** The team this person manages, if any - they may edit that row alone. */
-  managedTeamId: string | null
-  /** The team this person is ON, if exactly one: links and files only. */
-  myTeamId: string | null
+  /** Teams this person manages - they may edit those rows. */
+  managedTeamIds: ReadonlySet<string>
+  /** Every team this person is on or manages: links, files and status on those rows. */
+  myTeamIds: ReadonlySet<string>
   focusTeamId: string | null
   onSave: (input: {
     teamId: string
@@ -169,16 +169,16 @@ export interface TeamPlanSheetProps {
 }
 
 export function TeamPlanSheet(props: TeamPlanSheetProps) {
-  const { open, onOpenChange, workbook, projectTeams, canPlanAll, managedTeamId, focusTeamId } =
+  const { open, onOpenChange, workbook, projectTeams, canPlanAll, managedTeamIds, focusTeamId } =
     props
 
   const onPlan = React.useMemo(() => new Set(workbook.teams.map((t) => t.teamId)), [workbook.teams])
 
-  /** A team manager may add only their own team (the server applies the same rule). */
+  /** A team manager may add only their own teams (the server applies the same rule). */
   const canAdd = React.useMemo(() => {
     const free = projectTeams.filter((t) => !onPlan.has(t.id))
-    return sortProjectTeams(canPlanAll ? free : free.filter((t) => t.id === managedTeamId))
-  }, [projectTeams, onPlan, canPlanAll, managedTeamId])
+    return sortProjectTeams(canPlanAll ? free : free.filter((t) => managedTeamIds.has(t.id)))
+  }, [projectTeams, onPlan, canPlanAll, managedTeamIds])
 
   const today = React.useMemo(() => localToday(), [])
   const overdue = workbook.teams.filter(
@@ -253,7 +253,11 @@ export function TeamPlanSheet(props: TeamPlanSheetProps) {
           {canAdd.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
               <span className="text-muted-foreground mr-1 text-[11px] font-medium">
-                {canPlanAll ? "Not on the plan" : "Add your team"}
+                {canPlanAll
+                  ? "Not on the plan"
+                  : canAdd.length === 1
+                    ? "Add your team"
+                    : "Add your teams"}
               </span>
               {canAdd.map((t) => (
                 <Button
@@ -281,17 +285,17 @@ function TeamPlanRow({
   today,
   autoFocus,
   canPlanAll,
-  managedTeamId,
-  myTeamId,
+  managedTeamIds,
+  myTeamIds,
   onSave,
   onRemove,
   pending,
   onFilesChanged,
   projectTeams,
 }: TeamPlanSheetProps & { team: WorkbookTeam; today: string; autoFocus: boolean }) {
-  const canPlan = canPlanAll || managedTeamId === team.teamId
-  const canContribute = canPlan || myTeamId === team.teamId
-  const isMine = myTeamId === team.teamId
+  const isMine = myTeamIds.has(team.teamId)
+  const canPlan = canPlanAll || managedTeamIds.has(team.teamId)
+  const canContribute = canPlan || isMine
 
   const tone = dueTone(team.dueOn, workbook.periodMonth, today)
   const progress = teamProgress(team)

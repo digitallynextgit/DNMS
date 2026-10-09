@@ -1,7 +1,11 @@
 import { db } from "@/server/db"
-import { PROJECT_TEAMS, type ProjectTeamName } from "@/features/projects/lib/project-teams"
+import {
+  ACCOUNT_MANAGER_TEAM,
+  PROJECT_TEAMS,
+  type ProjectTeamName,
+} from "@/features/projects/lib/project-teams"
 
-/** The app client. Tests hand in a fake shaped like the four calls made here. */
+/** The app client, or a transaction. Tests hand in a fake shaped like the calls made here. */
 type Client = typeof db
 
 export interface SeededTeam {
@@ -10,8 +14,9 @@ export interface SeededTeam {
 }
 
 /**
- * Give a project every catalogue team it is missing (existing teams are never touched). A new team
- * gets the person who manages it on most other projects; `managers` pins one explicitly.
+ * Give a project every catalogue team it is missing (existing teams are never touched). The AM team
+ * gets the project's Account Manager; any other new team gets the person who manages it on most
+ * other projects. `managers` pins one explicitly.
  */
 export async function ensureProjectTeams(
   projectId: string,
@@ -21,7 +26,7 @@ export async function ensureProjectTeams(
 
   const project = await client.project.findUnique({
     where: { id: projectId },
-    select: { tenantId: true },
+    select: { tenantId: true, ownerId: true },
   })
   if (!project) throw new Error(`ensureProjectTeams: project ${projectId} not found`)
 
@@ -35,17 +40,11 @@ export async function ensureProjectTeams(
   for (const name of PROJECT_TEAMS) {
     if (have.has(name)) continue
 
-    let managerId =
-      opts.managers?.[name] ?? (await usualManagerFor(name, projectId, project.tenantId, client))
-
-    // One team per person per project: if the usual manager is already on one, start unstaffed.
-    if (managerId) {
-      const elsewhere = await client.projectTeamMember.findFirst({
-        where: { projectId, employeeId: managerId },
-        select: { id: true },
-      })
-      if (elsewhere) managerId = null
-    }
+    const managerId =
+      opts.managers?.[name] ??
+      (name === ACCOUNT_MANAGER_TEAM
+        ? project.ownerId
+        : await usualManagerFor(name, projectId, project.tenantId, client))
 
     await client.projectTeam.create({
       data: {
@@ -58,6 +57,39 @@ export async function ensureProjectTeams(
     created.push({ name, managerId })
   }
   return created
+}
+
+/**
+ * Make the project's Account Manager the AM team's manager (and a member). The previous Account
+ * Manager stays on the team until someone removes them.
+ */
+export async function syncAccountManagerTeam(
+  projectId: string,
+  accountManagerId: string,
+  client: Client = db,
+): Promise<void> {
+  const team = await client.projectTeam.findUnique({
+    where: { projectId_name: { projectId, name: ACCOUNT_MANAGER_TEAM } },
+    select: { id: true, managerId: true },
+  })
+  if (!team) {
+    await ensureProjectTeams(projectId, {
+      client,
+      managers: { [ACCOUNT_MANAGER_TEAM]: accountManagerId },
+    })
+    return
+  }
+  await client.projectTeamMember.upsert({
+    where: { teamId_employeeId: { teamId: team.id, employeeId: accountManagerId } },
+    create: { teamId: team.id, projectId, employeeId: accountManagerId },
+    update: {},
+  })
+  if (team.managerId !== accountManagerId) {
+    await client.projectTeam.update({
+      where: { id: team.id },
+      data: { managerId: accountManagerId },
+    })
+  }
 }
 
 async function usualManagerFor(

@@ -278,7 +278,8 @@ export default function ProjectDetailPage() {
     )
   }
 
-  const totalMembers = teams.reduce((sum, t) => sum + t.members.length, 0)
+  // People, not seats: someone can be on several of the project's teams.
+  const totalMembers = new Set(teams.flatMap((t) => t.members.map((m) => m.employeeId))).size
   const totalTasks = teams.reduce((sum, t) => sum + t._count.tasks, 0)
 
   return (

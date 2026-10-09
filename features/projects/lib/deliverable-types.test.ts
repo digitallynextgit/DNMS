@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import { GENERIC_TYPES, cleanType, expectsOutput, suggestTypes, typeKey } from "./deliverable-types"
+import {
+  GENERIC_TYPES,
+  cleanType,
+  expectsOutput,
+  suggestTypes,
+  suggestTypesForTeams,
+  typeKey,
+} from "./deliverable-types"
 
 describe("cleanType", () => {
   it("trims and collapses runs of whitespace", () => {
@@ -49,6 +56,25 @@ describe("suggestTypes", () => {
     const list = suggestTypes("MAP - performance marketing")
     expect(new Set(list).size).toBe(list.length)
     expect(list).toContain("Report")
+  })
+
+  it("knows every catalogue team that has its own vocabulary", () => {
+    expect(suggestTypes("AM")[0]).toBe("Brief")
+    expect(suggestTypes("SEO")[0]).toBe("Keyword set")
+    expect(suggestTypes("PERFORMANCE")).toContain("Ad creative")
+    expect(suggestTypes("PR")[0]).toBe("Press release")
+    expect(suggestTypes("ALLIANCES & PARTNERSHIPS")[0]).toBe("Partnership")
+    expect(suggestTypes("ADMIN")).toEqual([...GENERIC_TYPES])
+  })
+})
+
+describe("suggestTypesForTeams", () => {
+  it("merges the words of every team a person is on, without repeats", () => {
+    const list = suggestTypesForTeams(["CONTENT", "SEO"])
+    expect(list.slice(0, 2)).toEqual(["Blog", "Script"])
+    expect(list).toContain("Backlink")
+    expect(new Set(list).size).toBe(list.length)
+    expect(list.slice(-GENERIC_TYPES.length)).toEqual([...GENERIC_TYPES])
   })
 })
 

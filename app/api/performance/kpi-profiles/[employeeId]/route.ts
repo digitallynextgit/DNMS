@@ -51,41 +51,35 @@ export const PUT = withAuth(
       return NextResponse.json({ error: "items array is required" }, { status: 400 })
     }
 
-    // Order is assigned per (evaluator, section) group.
-    const counters = new Map<string, number>()
-    const rows: {
-      employeeId: string
-      evaluator: EvalEvaluator
-      section: EvalSection
-      label: string
-      description: string | null
-      order: number
-    }[] = []
-    for (const raw of body.items as unknown[]) {
-      const it = raw as Record<string, unknown>
-      const label = typeof it.label === "string" ? it.label.trim() : ""
+    // One list, rated by both sides: the manager's lines (or, from an old client, the self lines)
+    // are saved for MANAGER and copied for SELF.
+    const lines: { section: EvalSection; label: string; description: string | null }[] = []
+    const input = body.items as Record<string, unknown>[]
+    const side = input.some((it) => it?.evaluator === "MANAGER") ? "MANAGER" : "SELF"
+    for (const it of input) {
+      const label = typeof it?.label === "string" ? it.label.trim() : ""
       if (!label) continue
-      if (!isSide(it.evaluator) || !isSection(it.section)) {
+      if ((it.evaluator !== undefined && !isSide(it.evaluator)) || !isSection(it.section)) {
         return NextResponse.json(
-          { error: "Each item needs evaluator (SELF|MANAGER) and section (A|B)" },
+          { error: "Each item needs a section (A|B) and, if given, evaluator (SELF|MANAGER)" },
           { status: 422 },
         )
       }
-      const key = `${it.evaluator}:${it.section}`
-      const order = counters.get(key) ?? 0
-      counters.set(key, order + 1)
-      rows.push({
-        employeeId,
-        evaluator: it.evaluator,
+      if (it.evaluator !== undefined && it.evaluator !== side) continue
+      lines.push({
         section: it.section,
         label,
         description:
           typeof it.description === "string" && it.description.trim()
             ? it.description.trim()
             : null,
-        order,
       })
     }
+
+    const rows = (["MANAGER", "SELF"] as const).flatMap((evaluator) => {
+      const counters = { A: 0, B: 0 }
+      return lines.map((l) => ({ employeeId, evaluator, ...l, order: counters[l.section]++ }))
+    })
 
     await db.$transaction([
       db.perfKpi.deleteMany({ where: { employeeId } }),

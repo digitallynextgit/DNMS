@@ -131,8 +131,8 @@ export const progressGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Use the boxes at the top right to narrow the page: the project (1), the team (2) - the same six teams exist on every project - and the person (3). Whole team shows everyone.",
-            hi: "ऊपर दाईं ओर के बॉक्स से पेज को छोटा करें: प्रोजेक्ट (1), टीम (2) - हर प्रोजेक्ट पर वही छह टीमें होती हैं - और व्यक्ति (3)। Whole team से सब दिखते हैं।",
+            en: "Use the boxes at the top right to narrow the page: the project (1), the team (2) - the same 11 teams exist on every project - and the person (3). Whole team shows everyone.",
+            hi: "ऊपर दाईं ओर के बॉक्स से पेज को छोटा करें: प्रोजेक्ट (1), टीम (2) - हर प्रोजेक्ट पर वही 11 टीमें होती हैं - और व्यक्ति (3)। Whole team से सब दिखते हैं।",
           },
           shot: {
             id: "progress-manager-filters",

@@ -1,10 +1,31 @@
 import { describe, expect, it } from "vitest"
 
-import { PROJECT_TEAMS, TEAMS_ARE_FIXED, sortProjectTeams } from "./project-teams"
+import {
+  ACCOUNT_MANAGER_TEAM,
+  PROJECT_TEAMS,
+  TEAMS_ARE_FIXED,
+  sortProjectTeams,
+} from "./project-teams"
 
 describe("project team catalogue", () => {
-  it("is the six fixed teams, in display order", () => {
-    expect(PROJECT_TEAMS).toEqual(["WEB", "DESIGN", "MAP", "VIDEO", "AMG/SMO", "ADMIN"])
+  it("is the eleven fixed teams, in display order", () => {
+    expect(PROJECT_TEAMS).toEqual([
+      "AM",
+      "WEB",
+      "DESIGN",
+      "VIDEO",
+      "CONTENT",
+      "SMO",
+      "SEO",
+      "PERFORMANCE",
+      "PR",
+      "ALLIANCES & PARTNERSHIPS",
+      "ADMIN",
+    ])
+  })
+
+  it("has the Account Manager team in the catalogue", () => {
+    expect(PROJECT_TEAMS).toContain(ACCOUNT_MANAGER_TEAM)
   })
 
   it("names every team in the refusal message", () => {
@@ -18,9 +39,9 @@ describe("project team catalogue", () => {
       { name: "WEB" },
       { name: "CONTENT" },
       { name: "MAP" },
-      { name: "AMG/SMO" },
+      { name: "AM" },
     ])
-    expect(sorted.map((t) => t.name)).toEqual(["WEB", "MAP", "AMG/SMO", "ADMIN", "CONTENT", "ZZZ"])
+    expect(sorted.map((t) => t.name)).toEqual(["AM", "WEB", "CONTENT", "ADMIN", "MAP", "ZZZ"])
   })
 
   it("returns a new array and leaves the input alone", () => {

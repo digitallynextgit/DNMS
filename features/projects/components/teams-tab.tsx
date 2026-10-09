@@ -27,6 +27,7 @@ import {
   useAssignableEmployees,
   type ProjectTeam,
 } from "@/features/projects/hooks/use-projects"
+import { PROJECT_TEAMS } from "@/features/projects/lib/project-teams"
 import {
   Crown,
   MoreVertical,
@@ -94,6 +95,17 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
     () => new Set(teams.flatMap((t) => t.members.map((m) => m.employeeId))).size,
     [teams],
   )
+
+  /** Each person's teams on this project, in catalogue order (teams arrive sorted). */
+  const teamsByPerson = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }[]>()
+    for (const t of teams) {
+      for (const m of t.members) {
+        map.set(m.employeeId, [...(map.get(m.employeeId) ?? []), { id: t.id, name: t.name }])
+      }
+    }
+    return map
+  }, [teams])
 
   const columns: DataTableColumn<ProjectTeam>[] = [
     {
@@ -168,8 +180,8 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
             )}
           </h3>
           <p className="text-muted-foreground text-xs">
-            Every project has the same six teams - add or remove people; the teams themselves
-            don&apos;t change.
+            Every project has the same {PROJECT_TEAMS.length} teams - add or remove people; the
+            teams themselves don&apos;t change. One person can be on more than one team.
           </p>
         </div>
         <ViewToggle value={viewMode} onChange={setViewMode} />
@@ -179,7 +191,7 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
         <EmptyState
           icon={Users}
           title="No teams yet"
-          description="Every project gets the standard six teams when it is created. If this one has none, ask an admin."
+          description="Every project gets the standard teams when it is created. If this one has none, ask an admin."
         />
       ) : viewMode === "table" ? (
         <>
@@ -195,6 +207,7 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
                 projectId={projectId}
                 canManage={canManage}
                 currentUserId={currentUserId}
+                teamsByPerson={teamsByPerson}
               />
             ))}
         </>
@@ -209,6 +222,7 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
               projectId={projectId}
               canManage={canManage}
               currentUserId={currentUserId}
+              teamsByPerson={teamsByPerson}
             />
           ))}
         </div>
@@ -224,6 +238,7 @@ function TeamCard({
   projectId,
   canManage,
   currentUserId,
+  teamsByPerson,
 }: {
   team: ProjectTeam
   open: boolean
@@ -231,6 +246,7 @@ function TeamCard({
   projectId: string
   canManage: boolean
   currentUserId: string
+  teamsByPerson: Map<string, { id: string; name: string }[]>
 }) {
   const isManager = team.managerId === currentUserId
   const canStaff = canManage || isManager
@@ -330,6 +346,7 @@ function TeamCard({
           teamId={team.id}
           teamName={team.name}
           existingMemberIds={team.members.map((m) => m.employeeId)}
+          teamsByPerson={teamsByPerson}
         />
       </CardContent>
     </Card>
@@ -412,7 +429,7 @@ function MemberRow({
         open={removeOpen}
         onOpenChange={setRemoveOpen}
         title="Remove member"
-        description={`Remove ${name} from this team? Their tasks stay on the project.`}
+        description={`Remove ${name} from this team? Their tasks stay on the project. They also come off this team's plan on the Calendars tab.`}
         confirmLabel="Remove"
         variant="destructive"
         isLoading={removeMember.isPending}
@@ -429,6 +446,7 @@ function AddMembersDialog({
   teamId,
   teamName,
   existingMemberIds,
+  teamsByPerson,
 }: {
   open: boolean
   onClose: () => void
@@ -436,6 +454,7 @@ function AddMembersDialog({
   teamId: string
   teamName: string
   existingMemberIds: string[]
+  teamsByPerson: Map<string, { id: string; name: string }[]>
 }) {
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState<string[]>([])
@@ -522,6 +541,7 @@ function AddMembersDialog({
         ) : (
           employees.map((e) => {
             const checked = selected.includes(e.id)
+            const otherTeams = (teamsByPerson.get(e.id) ?? []).filter((t) => t.id !== teamId)
             return (
               <button
                 key={e.id}
@@ -549,6 +569,11 @@ function AddMembersDialog({
                   <p className="text-muted-foreground truncate text-xs">
                     {e.employeeNo} · {e.designation?.title ?? "No designation"}
                   </p>
+                  {otherTeams.length > 0 && (
+                    <p className="text-muted-foreground truncate text-[11px]">
+                      Also on {otherTeams.map((t) => t.name).join(", ")}
+                    </p>
+                  )}
                 </div>
               </button>
             )

@@ -175,8 +175,8 @@ export const myProjectsGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Click Create Project (6). The project gets the six standard teams straight away - WEB, DESIGN, MAP, VIDEO, AMG/SMO and ADMIN - so you can start adding people.",
-            hi: "Create Project (6) पर क्लिक करें। प्रोजेक्ट में तुरंत छह तय टीमें बन जाती हैं - WEB, DESIGN, MAP, VIDEO, AMG/SMO और ADMIN - ताकि आप लोगों को जोड़ना शुरू कर सकें।",
+            en: "Click Create Project (6). The project gets the 11 standard teams straight away - AM, WEB, DESIGN, VIDEO, CONTENT, SMO, SEO, PERFORMANCE, PR, ALLIANCES & PARTNERSHIPS and ADMIN - with the Account Manager already on the AM team, so you can start adding people.",
+            hi: "Create Project (6) पर क्लिक करें। प्रोजेक्ट में तुरंत 11 तय टीमें बन जाती हैं - AM, WEB, DESIGN, VIDEO, CONTENT, SMO, SEO, PERFORMANCE, PR, ALLIANCES & PARTNERSHIPS और ADMIN - और Account Manager पहले से AM टीम में होते हैं, ताकि आप लोगों को जोड़ना शुरू कर सकें।",
           },
         },
       ],

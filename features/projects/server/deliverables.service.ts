@@ -179,13 +179,14 @@ function normaliseTitle(raw: string | undefined): string {
   return t
 }
 
-/** The team this person sits on for this project, or null. */
+/** This person's team on the project when they are on exactly one; null when none or several. */
 async function teamOf(projectId: string, employeeId: string): Promise<string | null> {
-  const m = await db.projectTeamMember.findUnique({
-    where: { projectId_employeeId: { projectId, employeeId } },
+  const rows = await db.projectTeamMember.findMany({
+    where: { projectId, employeeId },
     select: { teamId: true },
+    take: 2,
   })
-  return m?.teamId ?? null
+  return rows.length === 1 ? rows[0]!.teamId : null
 }
 
 async function managesTeamOf(session: Session, projectId: string, employeeId: string) {
@@ -224,14 +225,14 @@ export interface DeliverableOwner {
   loggedById?: string | null
 }
 
-/** Does this person manage whoever owns the row - the assignee, or the team? */
+/** Does this person manage the row's team - or, for a row with no team, any team of its assignee? */
 async function managesOwner(
   session: Session,
   projectId: string,
   owner: DeliverableOwner,
 ): Promise<boolean> {
-  if (owner.employeeId && (await managesTeamOf(session, projectId, owner.employeeId))) return true
-  return !!owner.teamId && managesTeam(session, projectId, owner.teamId)
+  if (owner.teamId) return managesTeam(session, projectId, owner.teamId)
+  return !!owner.employeeId && managesTeamOf(session, projectId, owner.employeeId)
 }
 
 /** Log for `employeeId`? Self: any member. Others: admin, AM, or their team's manager. */

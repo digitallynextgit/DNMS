@@ -3,8 +3,7 @@ import { canStaffTeam, resolveProjectId } from "@/features/projects/server/proje
 import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
-import { hasPermission } from "@/lib/permissions"
-import { PERMISSIONS } from "@/lib/constants"
+import { ACCOUNT_MANAGER_TEAM } from "@/features/projects/lib/project-teams"
 import { createNotification } from "@/lib/notifications"
 import { createAuditLog } from "@/lib/audit"
 import type { Session } from "next-auth"
@@ -36,6 +35,22 @@ export const DELETE = withSession(
         )
       }
 
+      if (team.name === ACCOUNT_MANAGER_TEAM) {
+        const project = await db.project.findUnique({
+          where: { id: projectId },
+          select: { ownerId: true },
+        })
+        if (project?.ownerId === member.employeeId) {
+          return NextResponse.json(
+            {
+              error:
+                "This is the project's Account Manager. Choose a new Account Manager in Edit project first.",
+            },
+            { status: 422 },
+          )
+        }
+      }
+
       if (member.employeeId === team.managerId && team.members.length > 1) {
         return NextResponse.json(
           {
@@ -48,6 +63,10 @@ export const DELETE = withSession(
 
       await db.$transaction(async (tx) => {
         await tx.projectTeamMember.delete({ where: { id: memberId } })
+        // Their seats on this team's calendar rows go too; seats on their other teams stay.
+        await tx.projectWorkbookTeamMember.deleteMany({
+          where: { employeeId: member.employeeId, workbookTeam: { teamId } },
+        })
         // If we just removed the only member (who was the manager), null out managerId
         if (member.employeeId === team.managerId) {
           await tx.projectTeam.update({ where: { id: teamId }, data: { managerId: null } })

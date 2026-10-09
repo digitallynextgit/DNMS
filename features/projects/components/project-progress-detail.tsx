@@ -174,19 +174,22 @@ export function ProjectProgressDetail({
 
   const peakWeek = Math.max(1, ...trend.map((t) => Math.max(t.completed, t.due)))
 
-  // Grouped by team; teamless members go in a trailing bucket.
+  // Grouped by each task's team, so someone on two teams shows under both with that team's share
+  // only. Work with no team goes in a trailing bucket.
+  type MemberRow = { member: MemberProgress; stats: MemberProgress["byTeam"][number] }
+  const NO_TEAM = "__no_team__"
   const memberGroups = Object.values(
-    byMember.reduce<Record<string, { team: string; members: MemberProgress[]; total: number }>>(
-      (acc, m) => {
-        const team = m.teamName ?? "No team"
-        acc[team] ??= { team, members: [], total: 0 }
-        acc[team]!.members.push(m)
-        acc[team]!.total += m.total
-        return acc
-      },
-      {},
-    ),
-  ).sort((a, b) => (a.team === "No team" ? 1 : b.team === "No team" ? -1 : b.total - a.total))
+    byMember.reduce<
+      Record<string, { id: string; team: string; members: MemberRow[]; total: number }>
+    >((acc, m) => {
+      for (const stats of m.byTeam) {
+        acc[stats.id] ??= { id: stats.id, team: stats.name, members: [], total: 0 }
+        acc[stats.id]!.members.push({ member: m, stats })
+        acc[stats.id]!.total += stats.total
+      }
+      return acc
+    }, {}),
+  ).sort((a, b) => (a.id === NO_TEAM ? 1 : b.id === NO_TEAM ? -1 : b.total - a.total))
 
   return (
     <div className="space-y-4">
@@ -354,7 +357,7 @@ export function ProjectProgressDetail({
             <div className="border-border border-b px-4 py-3">
               <p className="text-sm font-medium">Who is delivering</p>
               <p className="text-muted-foreground text-xs">
-                Grouped by team. Click a person to see their tasks.
+                Grouped by the team each task is in. Click a person to see all their tasks.
               </p>
             </div>
             <div className="overflow-x-auto">
@@ -371,7 +374,7 @@ export function ProjectProgressDetail({
                 </thead>
                 <tbody>
                   {memberGroups.map((g) => (
-                    <Fragment key={g.team}>
+                    <Fragment key={g.id}>
                       <tr className="bg-muted/40 border-border/60 border-b">
                         <td
                           colSpan={6}
@@ -384,7 +387,7 @@ export function ProjectProgressDetail({
                           </span>
                         </td>
                       </tr>
-                      {g.members.map((m) => (
+                      {g.members.map(({ member: m, stats }) => (
                         <tr
                           key={m.id}
                           onClick={() => onSelectMember?.(m)}
@@ -404,21 +407,21 @@ export function ProjectProgressDetail({
                               <span className="font-medium">{m.name}</span>
                             </div>
                           </td>
-                          <td className="px-4 py-2 text-right tabular-nums">{m.total}</td>
-                          <td className="px-4 py-2 text-right tabular-nums">{m.done}</td>
+                          <td className="px-4 py-2 text-right tabular-nums">{stats.total}</td>
+                          <td className="px-4 py-2 text-right tabular-nums">{stats.done}</td>
                           <td
                             className={cn(
                               "px-4 py-2 text-right tabular-nums",
-                              m.overdue > 0 && "font-medium text-red-600",
+                              stats.overdue > 0 && "font-medium text-red-600",
                             )}
                           >
-                            {m.overdue}
+                            {stats.overdue}
                           </td>
                           <td className="px-4 py-2 text-right">
-                            <Rate value={m.completionRate} />
+                            <Rate value={stats.completionRate} />
                           </td>
                           <td className="px-4 py-2 text-right">
-                            <Rate value={m.onTimeRate} />
+                            <Rate value={stats.onTimeRate} />
                           </td>
                         </tr>
                       ))}

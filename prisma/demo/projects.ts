@@ -1,4 +1,4 @@
-// Demo projects: the four dataset projects with the standard six teams and every project tab. Tasks live in
+// Demo projects: the four dataset projects with the standard 11 teams and every project tab. Tasks live in
 // tasks.ts (they need the goals and requirements made here).
 // Safety: production jobs read this database too, so nothing seeded here may wake one (monitors, SEO sites,
 // renewals, the Meta integration and the mailer are all stored inert - see each one below).
@@ -8,6 +8,7 @@ import { encrypt } from "@/lib/crypto"
 import { DEMO_EMAIL_DOMAIN } from "@/lib/demo"
 import { slugify } from "@/lib/utils"
 import { DEMO_PROJECTS, demoPerson } from "@/features/help/demo/dataset"
+import { PROJECT_TEAMS, type ProjectTeamName } from "@/features/projects/lib/project-teams"
 import {
   addDays,
   at,
@@ -23,36 +24,42 @@ import {
 } from "./context"
 
 const M = "Projects"
-export const TEAM_NAMES = ["WEB", "DESIGN", "MAP", "VIDEO", "AMG/SMO", "ADMIN"] as const
 
-/** Team managers and members per project (one team per person per project). */
+/** Team managers and members per project. One person may sit on several teams of a project. */
 const TEAMS: Record<
   string,
-  Partial<Record<(typeof TEAM_NAMES)[number], { manager: string | null; members: string[] }>>
+  Partial<Record<ProjectTeamName, { manager: string | null; members: string[] }>>
 > = {
-  // Rohan is the Account Manager on Sunmeadow and UrbanNest and manages DESIGN there; Priya is a DESIGN member.
+  // AM holds the project's Account Manager, as the app does. Rohan is the Account Manager on Sunmeadow and
+  // UrbanNest and manages DESIGN there too; Priya is a DESIGN member. Vikram and Ananya are on CONTENT and SEO.
   sunrise: {
-    // Guide requirement: WEB is the first staffed team.
+    // Guide requirement: AM (just Rohan) comes first, then WEB with a manager and a member.
+    AM: { manager: "rohan", members: [] },
     WEB: { manager: "karthik", members: ["rahul"] },
     DESIGN: { manager: "rohan", members: ["priya"] },
-    MAP: { manager: "vikram", members: ["ananya"] },
     VIDEO: { manager: "arjun", members: [] },
-    "AMG/SMO": { manager: "sneha", members: [] },
+    CONTENT: { manager: "vikram", members: ["ananya"] },
+    SMO: { manager: "sneha", members: [] },
+    SEO: { manager: "vikram", members: ["ananya"] },
   },
   urbannest: {
+    AM: { manager: "rohan", members: [] },
     WEB: { manager: "karthik", members: [] },
     DESIGN: { manager: "rohan", members: ["priya"] },
-    MAP: { manager: "vikram", members: ["ananya"] },
+    CONTENT: { manager: "vikram", members: ["ananya"] },
+    SEO: { manager: "vikram", members: [] },
   },
   fitlife: {
+    AM: { manager: "aarav", members: [] },
     DESIGN: { manager: "rohan", members: ["priya", "rahul"] },
     VIDEO: { manager: "arjun", members: [] },
-    "AMG/SMO": { manager: "sneha", members: [] },
+    SMO: { manager: "sneha", members: [] },
   },
   internal: {
+    AM: { manager: "aarav", members: [] },
     WEB: { manager: "karthik", members: [] },
     DESIGN: { manager: "rohan", members: ["priya"] },
-    MAP: { manager: "ananya", members: [] },
+    CONTENT: { manager: "ananya", members: [] },
   },
 }
 
@@ -119,7 +126,7 @@ async function seedProjectsAndTeams(ctx: DemoContext): Promise<void> {
     ctx.project[p.key] = projectId
     ctx.team[p.key] = {}
 
-    for (const name of TEAM_NAMES) {
+    for (const name of PROJECT_TEAMS) {
       const plan = TEAMS[p.key]?.[name]
       const id = await make(ctx, "projectTeam", {
         projectId,
@@ -155,7 +162,11 @@ async function seedProjectsAndTeams(ctx: DemoContext): Promise<void> {
   }
   await makeMany(ctx, "projectActivity", activity)
   ctx.summary.add(M, "projects", DEMO_PROJECTS.length)
-  ctx.summary.add(M, "teams (6 per project)", DEMO_PROJECTS.length * TEAM_NAMES.length)
+  ctx.summary.add(
+    M,
+    `teams (${PROJECT_TEAMS.length} per project)`,
+    DEMO_PROJECTS.length * PROJECT_TEAMS.length,
+  )
   ctx.summary.add(M, "team memberships", members)
 }
 
@@ -493,7 +504,7 @@ async function seedRequirementsAndChats(ctx: DemoContext): Promise<void> {
     {
       key: "req:meta",
       project: "sunrise",
-      team: "AMG/SMO",
+      team: "SMO",
       by: "sneha",
       from: "rohan",
       type: "ACCESS",
@@ -1014,7 +1025,7 @@ async function seedDeliverables(ctx: DemoContext): Promise<void> {
     },
     {
       project: "sunrise",
-      team: "AMG/SMO",
+      team: "SMO",
       who: "sneha",
       k: 0,
       type: "Post",
@@ -1026,7 +1037,7 @@ async function seedDeliverables(ctx: DemoContext): Promise<void> {
     },
     {
       project: "sunrise",
-      team: "MAP",
+      team: "CONTENT",
       who: "ananya",
       k: 0,
       type: "Blog",
@@ -1099,7 +1110,7 @@ async function seedDeliverables(ctx: DemoContext): Promise<void> {
     },
     {
       project: "sunrise",
-      team: "AMG/SMO",
+      team: "SMO",
       who: "sneha",
       k: -1,
       type: "Post",
@@ -1111,7 +1122,7 @@ async function seedDeliverables(ctx: DemoContext): Promise<void> {
     },
     {
       project: "sunrise",
-      team: "MAP",
+      team: "CONTENT",
       who: "ananya",
       k: -1,
       type: "Page",
@@ -1149,7 +1160,7 @@ async function seedDeliverables(ctx: DemoContext): Promise<void> {
     },
     {
       project: "sunrise",
-      team: "MAP",
+      team: "CONTENT",
       who: "vikram",
       k: -2,
       type: "Report",
@@ -1161,7 +1172,7 @@ async function seedDeliverables(ctx: DemoContext): Promise<void> {
     },
     {
       project: "sunrise",
-      team: "AMG/SMO",
+      team: "SMO",
       who: "sneha",
       k: -2,
       type: "Report",
@@ -1199,7 +1210,7 @@ async function seedDeliverables(ctx: DemoContext): Promise<void> {
     },
     {
       project: "sunrise",
-      team: "AMG/SMO",
+      team: "SMO",
       who: "sneha",
       k: -3,
       type: "Post",
@@ -1222,7 +1233,7 @@ async function seedDeliverables(ctx: DemoContext): Promise<void> {
     },
     {
       project: "urbannest",
-      team: "MAP",
+      team: "CONTENT",
       who: "vikram",
       k: 0,
       type: "Report",
@@ -1232,7 +1243,7 @@ async function seedDeliverables(ctx: DemoContext): Promise<void> {
     },
     {
       project: "urbannest",
-      team: "MAP",
+      team: "CONTENT",
       who: "ananya",
       k: 0,
       type: "Blog",
@@ -1268,7 +1279,7 @@ async function seedDeliverables(ctx: DemoContext): Promise<void> {
     },
     {
       project: "urbannest",
-      team: "MAP",
+      team: "CONTENT",
       who: "vikram",
       k: -1,
       type: "Report",
@@ -1323,10 +1334,8 @@ async function seedDeliverables(ctx: DemoContext): Promise<void> {
       status: "PLANNED",
     },
   ]
-  const managerOf = (project: string, team: string) => {
-    const t = TEAMS[project]?.[team as (typeof TEAM_NAMES)[number]]
-    return t?.manager ?? (project === "fitlife" ? "aarav" : "rohan")
-  }
+  const managerOf = (project: string, team: string) =>
+    TEAMS[project]?.[team as ProjectTeamName]?.manager ?? TEAMS[project]!.AM!.manager!
   const delivRows: Record<string, unknown>[] = []
   const eventRows: Record<string, unknown>[] = []
   const activity: Record<string, unknown>[] = []
@@ -1615,7 +1624,7 @@ async function seedCalendars(ctx: DemoContext): Promise<void> {
     // The month's team plan.
     const plan = [
       {
-        team: "AMG/SMO",
+        team: "SMO",
         qty: 12,
         who: ["sneha"],
         status: current ? "IN_PROGRESS" : "DONE",
@@ -1643,9 +1652,7 @@ async function seedCalendars(ctx: DemoContext): Promise<void> {
           ? p.team === "DESIGN"
             ? ["https://example.com/figma/sunmeadow-diwali"]
             : []
-          : [
-              `https://example.com/sunmeadow/${p.team === "AMG/SMO" ? "smo" : p.team.toLowerCase()}-${dayKey(month).slice(0, 7)}`,
-            ],
+          : [`https://example.com/sunmeadow/${p.team.toLowerCase()}-${dayKey(month).slice(0, 7)}`],
         notes: p.team === "VIDEO" ? "2 hamper reels + 2 recipe reels." : null,
         createdById: sneha,
         createdAt: at(addDays(month, -5), "12:30"),

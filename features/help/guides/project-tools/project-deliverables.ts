@@ -40,8 +40,8 @@ export const projectDeliverablesGuide: HelpGuide = {
       id: "about",
       title: { en: "What the Deliverables tab is for", hi: "Deliverables टैब किस काम का है" },
       intro: {
-        en: "A deliverable is one period of work promised to the client - usually one working week, Monday to Friday. Inside it, each team owes some items, like 4 blogs from WEB or 2 reels from VIDEO. The Account Manager plans it, the team makes the items and logs proof, and managers check and accept the work.",
-        hi: "एक deliverable काम का एक पीरियड है जो क्लाइंट से वादा किया गया है - आमतौर पर एक वर्किंग वीक, सोमवार से शुक्रवार। उसके अंदर हर टीम को कुछ आइटम देने होते हैं, जैसे WEB से 4 ब्लॉग या VIDEO से 2 रील। Account Manager इसे प्लान करते हैं, टीम आइटम बनाकर प्रूफ लॉग करती है, और मैनेजर काम चेक करके accept करते हैं।",
+        en: "A deliverable is one period of work promised to the client - usually one working week, Monday to Friday. Inside it, each team owes some items, like 4 blogs from CONTENT or 2 reels from VIDEO. The Account Manager plans it, the team makes the items and logs proof, and managers check and accept the work.",
+        hi: "एक deliverable काम का एक पीरियड है जो क्लाइंट से वादा किया गया है - आमतौर पर एक वर्किंग वीक, सोमवार से शुक्रवार। उसके अंदर हर टीम को कुछ आइटम देने होते हैं, जैसे CONTENT से 4 ब्लॉग या VIDEO से 2 रील। Account Manager इसे प्लान करते हैं, टीम आइटम बनाकर प्रूफ लॉग करती है, और मैनेजर काम चेक करके accept करते हैं।",
       },
       steps: [
         {
@@ -260,8 +260,8 @@ export const projectDeliverablesGuide: HelpGuide = {
       id: "review",
       title: { en: "Check, accept or send back", hi: "काम चेक करें, accept करें या वापस भेजें" },
       intro: {
-        en: "Made work is checked twice: first by the maker's team manager, then by the Account Manager, who gives the final yes.",
-        hi: "बने हुए काम को दो बार चेक किया जाता है: पहले बनाने वाले के टीम मैनेजर, फिर Account Manager, जो आखिरी हाँ देते हैं।",
+        en: "Made work is checked twice: first by the manager of the item's team, then by the Account Manager, who gives the final yes.",
+        hi: "बने हुए काम को दो बार चेक किया जाता है: पहले आइटम की टीम के मैनेजर, फिर Account Manager, जो आखिरी हाँ देते हैं।",
       },
       steps: [
         {

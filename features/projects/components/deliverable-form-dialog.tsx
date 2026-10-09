@@ -226,17 +226,32 @@ export function DeliverableFormDialog({
     if (!ids.has(employeeId) && owed) setEmployeeId(TEAM)
   }
 
-  /** Choosing a person fills the team in from them, when none was set. */
+  const teamsOf = React.useCallback(
+    (id: string) =>
+      teamList.filter(
+        (t) => t.managerId === id || (t.members ?? []).some((mem) => mem.employee?.id === id),
+      ),
+    [teamList],
+  )
+
+  /** Choosing a person fills the team in when they are on just one; several means the user picks. */
   function pickPerson(next: string) {
     setEmployeeId(next)
     if (next === TEAM || teamId !== NONE) return
-    const theirs = teamList.find(
-      (t) => t.managerId === next || (t.members ?? []).some((mem) => mem.employee?.id === next),
-    )
-    if (theirs) setTeamId(theirs.id)
+    const theirs = teamsOf(next)
+    if (theirs.length === 1) setTeamId(theirs[0]!.id)
   }
 
   const toTeam = employeeId === TEAM
+  // The maker's teams lead the Team list, so a person on several teams sees their choices first.
+  const makerTeams = React.useMemo(
+    () => (toTeam ? [] : teamsOf(employeeId)),
+    [toTeam, teamsOf, employeeId],
+  )
+  const severalTeams = makerTeams.length > 1
+  // A member logging their own work only chooses among their own teams.
+  const otherTeams = assigns ? teamList.filter((t) => !makerTeams.includes(t)) : []
+  const self = employeeId === currentUserId
   const canRepeat = owed && !entry
   const repeatN = Number(repeatCount)
   const repeats = canRepeat && repeatEvery !== "NONE"
@@ -297,6 +312,56 @@ export function DeliverableFormDialog({
     }
   }
 
+  const teamOption = (t: (typeof teamList)[number]) => (
+    <SelectItem key={t.id} value={t.id}>
+      {t.name}
+      <span className="text-muted-foreground ml-2 text-[11px]">{t.members?.length ?? 0}</span>
+    </SelectItem>
+  )
+  const teamField = (
+    <div className="space-y-1.5">
+      <Label required={toTeam} className="text-muted-foreground text-[11px]">
+        Team
+      </Label>
+      <Select value={teamId} onValueChange={pickTeam}>
+        <SelectTrigger className="h-9">
+          <SelectValue placeholder="Which team" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>
+            <span className="text-muted-foreground">
+              {toTeam ? "Pick a team" : severalTeams ? "No team" : "From the maker"}
+            </span>
+          </SelectItem>
+          {severalTeams ? (
+            <>
+              <SelectGroup>
+                <SelectLabel className="text-[11px]">
+                  {self ? "Your teams" : maker ? `${maker.firstName}'s teams` : "Their teams"}
+                </SelectLabel>
+                {makerTeams.map(teamOption)}
+              </SelectGroup>
+              {otherTeams.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel className="text-[11px]">Other teams</SelectLabel>
+                  {otherTeams.map(teamOption)}
+                </SelectGroup>
+              )}
+            </>
+          ) : (
+            teamList.map(teamOption)
+          )}
+        </SelectContent>
+      </Select>
+      {severalTeams && teamId === NONE && (
+        <p className="text-muted-foreground text-[11px]">
+          {self ? "You are" : `${maker?.firstName ?? "This person"} is`} on {makerTeams.length}{" "}
+          teams - pick the one this is for.
+        </p>
+      )}
+    </div>
+  )
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
@@ -323,34 +388,11 @@ export function DeliverableFormDialog({
         </DialogHeader>
 
         <div className="space-y-3">
-          {/* Team first, then person; picking a person with no team set fills the team in. */}
+          {/* Team first, then person; picking a person on just one team fills the team in. */}
+          {!assigns && !editing && severalTeams && teamField}
           {assigns && (
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label required={toTeam} className="text-muted-foreground text-[11px]">
-                  Team
-                </Label>
-                <Select value={teamId} onValueChange={pickTeam}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Which team" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NONE}>
-                      <span className="text-muted-foreground">
-                        {toTeam ? "Pick a team" : "From the maker"}
-                      </span>
-                    </SelectItem>
-                    {(teams.data?.data ?? []).map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name}
-                        <span className="text-muted-foreground ml-2 text-[11px]">
-                          {t.members?.length ?? 0}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {teamField}
 
               <div className="space-y-1.5">
                 <Label required={!owed && toTeam} className="text-muted-foreground text-[11px]">

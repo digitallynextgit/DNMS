@@ -114,7 +114,7 @@ export function MemberProgressDialog({
                 {member.name}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                {member.teamName ? `${member.teamName} · ` : ""}
+                {member.teamNames.length ? `${member.teamNames.join(", ")} · ` : ""}
                 {member.total} {member.total === 1 ? "task" : "tasks"} on this project
                 {range?.from ? " in the selected dates" : ""}
               </DialogDescription>

@@ -61,9 +61,12 @@ export async function listProjects(opts: ListProjectsOptions, session: Session) 
     db.project.count({ where }),
   ])
 
+  // Once per person: someone can be on several of the project's teams.
   const decorated = projects.map((p) => ({
     ...p,
-    members: p.teams.flatMap((t) => t.members),
+    members: [
+      ...new Map(p.teams.flatMap((t) => t.members).map((m) => [m.employee.id, m])).values(),
+    ],
   }))
 
   return {

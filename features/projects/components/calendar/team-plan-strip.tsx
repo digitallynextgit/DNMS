@@ -42,25 +42,27 @@ function localToday(): string {
 export function TeamPlanStrip({
   teams,
   periodMonth,
-  myTeamId,
+  myTeamIds,
   canPlan,
   onOpen,
 }: {
   teams: WorkbookTeam[]
   periodMonth: string | null
-  /** The viewer's own team on this project, when they are on exactly one. */
-  myTeamId: string | null
+  /** Every team the viewer is on (or manages) on this project. */
+  myTeamIds: ReadonlySet<string>
   canPlan: boolean
   onOpen: (focusTeamId?: string) => void
 }) {
   const today = React.useMemo(() => localToday(), [])
 
-  const ordered = React.useMemo(() => {
-    // The viewer's own team first, but only when they are on exactly one.
-    if (!myTeamId) return teams
-    const mine = teams.filter((t) => t.teamId === myTeamId)
-    return mine.length === 1 ? [...mine, ...teams.filter((t) => t.teamId !== myTeamId)] : teams
-  }, [teams, myTeamId])
+  // The viewer's own teams first; both halves keep catalogue order.
+  const ordered = React.useMemo(
+    () => [
+      ...teams.filter((t) => myTeamIds.has(t.teamId)),
+      ...teams.filter((t) => !myTeamIds.has(t.teamId)),
+    ],
+    [teams, myTeamIds],
+  )
 
   const overdue = React.useMemo(
     () =>
@@ -113,7 +115,7 @@ export function TeamPlanStrip({
       <div className="no-scrollbar flex items-stretch gap-2 overflow-x-auto">
         {ordered.map((t) => {
           const tone = dueTone(t.dueOn, periodMonth, today)
-          const isMine = t.teamId === myTeamId
+          const isMine = myTeamIds.has(t.teamId)
           const progress = teamProgress(t)
           return (
             <button

@@ -39,8 +39,8 @@ export const performanceAdminGuide: HelpGuide = {
       },
       tips: [
         {
-          en: "Each side has two parts: Section A, Role Performance (KRA & KPI), is worth 60%, and Section B, Workplace Discipline & Execution, is worth 40%. The items in a section share its weight equally.",
-          hi: "हर तरफ़ दो हिस्से होते हैं: Section A, Role Performance (KRA & KPI), 60% का है, और Section B, Workplace Discipline & Execution, 40% का। एक सेक्शन के सारे आइटम उसका वज़न बराबर बाँटते हैं।",
+          en: "Both sides rate the same list, in two parts: Section A, Role Performance (KPI), is worth 60%, and Section B, Workplace Discipline & Execution, is worth 40%. The items in a section share its weight equally.",
+          hi: "दोनों तरफ़ एक ही लिस्ट पर रेटिंग होती है, जिसके दो हिस्से हैं: Section A, Role Performance (KPI), 60% का है, और Section B, Workplace Discipline & Execution, 40% का। एक सेक्शन के सारे आइटम उसका वज़न बराबर बाँटते हैं।",
         },
         {
           en: "Every item is rated from 1 (Unacceptable) to 5 (Outstanding).",
@@ -87,8 +87,8 @@ export const performanceAdminGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Click a person to open their profile. The left side is what the manager rates (1), the right side is what the employee rates about themselves (2).",
-            hi: "किसी व्यक्ति पर क्लिक करके उसकी प्रोफ़ाइल खोलें। बाईं तरफ़ वो है जिस पर मैनेजर रेटिंग देता है (1), और दाईं तरफ़ वो जिस पर कर्मचारी खुद को रेटिंग देता है (2)।",
+            en: "Click a person to open their profile. You edit the list on the left, which the manager rates (1). The employee rates themselves on exactly the same list, shown on the right (2) - it updates as you type.",
+            hi: "किसी व्यक्ति पर क्लिक करके उसकी प्रोफ़ाइल खोलें। आप बाईं तरफ़ की लिस्ट बदलते हैं, जिस पर मैनेजर रेटिंग देता है (1)। कर्मचारी इसी लिस्ट पर खुद को रेटिंग देता है, जो दाईं तरफ़ दिखती है (2) - आप लिखते जाते हैं और ये साथ-साथ बदलती है।",
           },
           shot: {
             id: "performance-admin-kpi-editor",

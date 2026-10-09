@@ -21,6 +21,7 @@ import {
 } from "@/features/projects/lib/deliverable-lifecycle"
 import { todayUtc } from "@/lib/dates"
 import { periodProblem } from "@/features/projects/lib/delivery-period"
+import { sortProjectTeams } from "@/features/projects/lib/project-teams"
 import { cleanType, MAX_LINKS } from "@/features/projects/lib/deliverable-types"
 import { isSafeHttpUrl } from "@/features/projects/lib/task-links"
 import { mayWithdraw } from "../lib/plan-rules"
@@ -146,14 +147,12 @@ async function projectSlug(projectId: string): Promise<string> {
 
 /**
  * Team a client-planned row is filed under until the AM routes it - the DB check needs a
- * team on unassigned rows. ADMIN if the project has one, else the first team.
+ * team on unassigned rows. ADMIN if the project has one, else the first team in catalogue order.
  */
 async function intakeTeamId(projectId: string): Promise<string | null> {
-  const teams = await db.projectTeam.findMany({
-    where: { projectId },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  })
+  const teams = sortProjectTeams(
+    await db.projectTeam.findMany({ where: { projectId }, select: { id: true, name: true } }),
+  )
   const admin = teams.find((t) => t.name.trim().toUpperCase() === "ADMIN")
   return admin?.id ?? teams[0]?.id ?? null
 }
