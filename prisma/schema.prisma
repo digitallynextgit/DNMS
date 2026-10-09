@@ -638,6 +638,7 @@ model Employee {
 
   managedTeams           ProjectTeam[]          @relation("TeamManager")
   projectTeamMemberships ProjectTeamMember[]    @relation("ProjectTeamMembership")
+  ownedProjectServices   ProjectServiceOwner[]  @relation("ProjectServiceOwner")
   uploadedResources      ProjectResource[]      @relation("ResourceUploader")
   reviewedResources      ProjectResource[]      @relation("ResourceStaffReviewer")
   createdFolders         ProjectFolder[]        @relation("FolderCreator")
@@ -1549,6 +1550,10 @@ model Project {
   name           String        @map("name")
   description    String?       @map("description") @db.Text
   code           String        @map("code")
+  /// e.g. "DN", "H2S". Unique per company ignoring case (a lower() index in the migration).
+  shortName      String?       @map("short_name")
+  /// Codes from PROJECT_SERVICES (features/projects/lib/project-services.ts). Owners: serviceOwners.
+  services       String[]      @default([]) @map("services")
   // URL slug from the name at creation; null on old rows (reads fall back to id). Never regenerated on
   // rename, so shared links keep working.
   slug           String?       @map("slug")
@@ -1577,6 +1582,7 @@ model Project {
   currentPhase    ProjectPhase?          @relation(fields: [currentPhaseId], references: [id], onDelete: SetNull)
   members         ProjectMember[] // legacy - kept for migration safety
   teams           ProjectTeam[] // v2 - primary structure
+  serviceOwners   ProjectServiceOwner[]
   tasks           ProjectTask[]
   resources       ProjectResource[]
   folders         ProjectFolder[]
@@ -1846,6 +1852,8 @@ model ProjectWorkbook {
   /// Publishes this calendar to the client portal. Off by default on purpose: internal sheets must be shared
   /// deliberately.
   isClientVisible Boolean @default(false) @map("is_client_visible")
+  /// The project service (PROJECT_SERVICES code) this calendar is for; every month of the series carries it.
+  service      String?  @map("service")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -1865,6 +1873,7 @@ model ProjectWorkbook {
   @@index([assignedToId])
   @@index([createdByClientId])
   @@index([projectId, isClientVisible])
+  @@index([projectId, service])
   @@index([tenantId])
   @@map("project_workbooks")
 }
@@ -2056,6 +2065,27 @@ model ProjectTeamMember {
   @@index([employeeId])
   @@index([tenantId])
   @@map("project_team_members")
+}
+
+/// Who owns one of a project's services. Only for codes in Project.services, and only someone on the
+/// project (a team member or the Account Manager) - leaving the project drops the row.
+model ProjectServiceOwner {
+  tenantId   String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id         String   @id @default(uuid()) @map("id")
+  projectId  String   @map("project_id")
+  /// A PROJECT_SERVICES code, e.g. "SEO".
+  service    String   @map("service")
+  employeeId String   @map("employee_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  employee Employee @relation("ProjectServiceOwner", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, service])
+  @@index([employeeId])
+  @@index([tenantId])
+  @@map("project_service_owners")
 }
 
 /// Review state of a client-shared file. Null = not part of a review (not "not yet reviewed").

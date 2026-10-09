@@ -4,9 +4,15 @@ import { withAuth, withSession } from "@/server/api-handler"
 import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS, PROJECT_STAGE_LABELS } from "@/lib/constants"
 import { listProjects } from "@/features/projects/server/projects.queries"
-import { generateProjectSlug } from "@/features/projects/server/project-slug"
-import { ensureProjectTeams } from "@/features/projects/server/project-teams"
-import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
+import {
+  createProject,
+  ShortNameTakenError,
+} from "@/features/projects/server/project-create.service"
+import {
+  normaliseServices,
+  normaliseShortName,
+  shortNameProblem,
+} from "@/features/projects/lib/project-services"
 import type { Session } from "next-auth"
 
 export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: Session) => {
@@ -49,6 +55,10 @@ export const POST = withAuth(
         if (!client) return NextResponse.json({ error: "Client not found" }, { status: 422 })
       }
 
+      const shortName = normaliseShortName(body.shortName)
+      const shortNameError = shortName && shortNameProblem(shortName)
+      if (shortNameError) return NextResponse.json({ error: shortNameError }, { status: 422 })
+
       // The Account Manager defaults to the creator.
       const ownerId: string = accountManagerId || session.user.id
       const accountManager = await db.employee.findUnique({
@@ -65,50 +75,31 @@ export const POST = withAuth(
         )
       }
 
-      // Codes are fixed-width DN#####, so the highest string is the highest number - let the DB find it.
-      // Retries on the unique-violation race when two creates compute the same code.
-      let project
-      for (let attempt = 0; ; attempt++) {
-        const lastDn = await db.project.findFirst({
-          where: { code: { startsWith: "DN" } },
-          select: { code: true },
-          orderBy: { code: "desc" },
-        })
-        const lastMatch = lastDn?.code.match(/^DN(\d+)$/)
-        const maxNum = lastMatch ? parseInt(lastMatch[1] ?? "0", 10) : 0
-        const code = `DN${(maxNum + 1 + attempt).toString().padStart(5, "0")}`
-
-        try {
-          project = await db.project.create({
-            data: {
-              name,
-              description,
-              code,
-              slug: await generateProjectSlug(name, code),
-              status: status ?? "PLANNING",
-              priority: priority ?? "MEDIUM",
-              stage: stage as "LAUNCH" | "GROWTH" | "REBRANDING" | "DECLINE" | null,
-              ownerId,
-              clientId: clientId || null,
-              startDate: startDate ? new Date(startDate) : null,
-              budget: budget ? parseFloat(budget) : null,
-            },
-            include: {
-              owner: { select: { id: true, firstName: true, lastName: true } },
-            },
-          })
-          break
-        } catch (e) {
-          // P2002 on `code`: another create took this number; recompute (give up after 5).
-          if ((e as { code?: string }).code === "P2002" && attempt < 5) continue
-          throw e
+      let created
+      try {
+        created = await createProject(
+          {
+            name,
+            description,
+            status: status ?? "PLANNING",
+            priority: priority ?? "MEDIUM",
+            stage: stage as "LAUNCH" | "GROWTH" | "REBRANDING" | "DECLINE" | null,
+            ownerId,
+            clientId: clientId || null,
+            startDate: startDate ? new Date(startDate) : null,
+            budget: budget ? parseFloat(budget) : null,
+            shortName,
+            services: normaliseServices(body.services),
+          },
+          session.user.id,
+        )
+      } catch (e) {
+        if (e instanceof ShortNameTakenError) {
+          return NextResponse.json({ error: e.message }, { status: 409 })
         }
+        throw e
       }
-
-      // Every project gets the whole team catalogue from day one, its owner on AM (see ensureProjectTeams).
-      const teams = await ensureProjectTeams(project.id)
-      // Share the Drive folder with the owner and team managers straight away.
-      syncProjectFolderAccessAsync(project.id)
+      const { project, teams } = created
 
       await createAuditLog(session, {
         action: "CREATE",
@@ -118,6 +109,8 @@ export const POST = withAuth(
         changes: {
           name,
           code: project.code,
+          shortName: project.shortName,
+          services: project.services,
           status: project.status,
           clientId: clientId || null,
           teams: teams.map((t) => t.name),

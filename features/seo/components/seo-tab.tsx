@@ -62,6 +62,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { parseDateString, toDateString } from "@/components/shared/date-field"
 import { StatCard } from "@/components/shared/stat-card"
 import { EmptyState } from "@/components/shared/empty-state"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import {
   StatCardsSkeleton,
   TableSkeleton,
@@ -75,6 +76,7 @@ import type {
   SeoPropertySummary,
   SeoRollup,
   SeoRowStat,
+  SeoSiteTask,
   SetupField,
 } from "../types"
 import { TASK_STATUS_COLORS, TASK_STATUS_LABELS } from "@/lib/constants"
@@ -541,97 +543,115 @@ function SitesTable({
   properties: SeoPropertySummary[]
   onOpenSite: (id: string) => void
 }) {
+  // No data yet sorts last: null, not zero.
+  const measured = (p: SeoPropertySummary, v: number) => (p.period ? v : null)
+  const columns: DataTableColumn<SeoPropertySummary>[] = [
+    {
+      header: "Site",
+      sortValue: (p) => p.label,
+      cell: (p) => (
+        <>
+          <div className="flex items-center gap-1.5">
+            <Globe className="text-muted-foreground h-3.5 w-3.5" />
+            <span className="font-medium">{p.label}</span>
+            {!p.isActive && (
+              <Badge variant="outline" className="text-[10px]">
+                paused
+              </Badge>
+            )}
+          </div>
+          <p className="text-muted-foreground text-xs">{p.domain}</p>
+        </>
+      ),
+    },
+    {
+      header: "Clicks",
+      align: "right",
+      sortValue: (p) => measured(p, p.clicks.current),
+      cell: (p) =>
+        p.period ? (
+          <span className="inline-flex items-center gap-1.5">
+            {num(p.clicks.current)}
+            {p.clicks.comparable && (
+              <Delta change={p.clicks.change} changePct={p.clicks.changePct} />
+            )}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        ),
+    },
+    {
+      header: "Impr.",
+      align: "right",
+      sortValue: (p) => measured(p, p.impressions.current),
+      cell: (p) => (p.period ? num(p.impressions.current) : "-"),
+    },
+    {
+      header: "CTR",
+      align: "right",
+      sortValue: (p) => measured(p, p.ctr),
+      cell: (p) => (p.period ? pct(p.ctr) : "-"),
+    },
+    {
+      header: "Avg pos",
+      align: "right",
+      sortValue: (p) => measured(p, p.position.current),
+      cell: (p) => (p.period ? p.position.current.toFixed(1) : "-"),
+    },
+    {
+      header: "Work",
+      align: "right",
+      sortValue: (p) => p.openTasks,
+      cell: (p) =>
+        p.openTasks === 0 ? (
+          <span className="text-muted-foreground">-</span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            {p.openTasks} open
+            {p.overdueTasks > 0 && (
+              <Badge variant="outline" className="border-red-500/40 text-[10px] text-red-600">
+                {p.overdueTasks} late
+              </Badge>
+            )}
+          </span>
+        ),
+    },
+    {
+      header: "Synced",
+      align: "right",
+      className: "text-xs",
+      sortValue: (p) => p.lastSyncedAt,
+      cell: (p) =>
+        p.lastSyncError ? (
+          <span className="text-red-600">failed</span>
+        ) : p.lastSyncedAt ? (
+          new Date(p.lastSyncedAt).toLocaleDateString("en-IN")
+        ) : (
+          <span className="text-muted-foreground">never</span>
+        ),
+    },
+  ]
   return (
-    <Card>
-      <CardContent className="p-0">
-        <div className="border-border border-b px-4 py-3">
-          <p className="text-sm font-medium">Sites</p>
-          <p className="text-muted-foreground text-xs">Click a site for its full report.</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-muted-foreground border-border border-b text-xs">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium">Site</th>
-                <th className="px-4 py-2 text-right font-medium">Clicks</th>
-                <th className="px-4 py-2 text-right font-medium">Impr.</th>
-                <th className="px-4 py-2 text-right font-medium">CTR</th>
-                <th className="px-4 py-2 text-right font-medium">Avg pos</th>
-                <th className="px-4 py-2 text-right font-medium">Work</th>
-                <th className="px-4 py-2 text-right font-medium">Synced</th>
-              </tr>
-            </thead>
-            <tbody>
-              {properties.map((p) => (
-                <tr
-                  key={p.id}
-                  onClick={() => onOpenSite(p.id)}
-                  className="hover:bg-muted/50 border-border/60 cursor-pointer border-b last:border-0"
-                >
-                  <td className="px-4 py-2">
-                    <div className="flex items-center gap-1.5">
-                      <Globe className="text-muted-foreground h-3.5 w-3.5" />
-                      <span className="font-medium">{p.label}</span>
-                      {!p.isActive && (
-                        <Badge variant="outline" className="text-[10px]">
-                          paused
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-muted-foreground text-xs">{p.domain}</p>
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {p.period ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        {num(p.clicks.current)}
-                        {p.clicks.comparable && (
-                          <Delta change={p.clicks.change} changePct={p.clicks.changePct} />
-                        )}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {p.period ? num(p.impressions.current) : "-"}
-                  </td>
-                  <td className="px-4 py-2 text-right">{p.period ? pct(p.ctr) : "-"}</td>
-                  <td className="px-4 py-2 text-right">
-                    {p.period ? p.position.current.toFixed(1) : "-"}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {p.openTasks === 0 ? (
-                      <span className="text-muted-foreground">-</span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                        {p.openTasks} open
-                        {p.overdueTasks > 0 && (
-                          <Badge
-                            variant="outline"
-                            className="border-red-500/40 text-[10px] text-red-600"
-                          >
-                            {p.overdueTasks} late
-                          </Badge>
-                        )}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right text-xs">
-                    {p.lastSyncError ? (
-                      <span className="text-red-600">failed</span>
-                    ) : p.lastSyncedAt ? (
-                      new Date(p.lastSyncedAt).toLocaleDateString("en-IN")
-                    ) : (
-                      <span className="text-muted-foreground">never</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
+    <DataTable
+      tableId="seo-sites"
+      itemLabel="site"
+      columns={columns}
+      rows={properties}
+      rowKey={(p) => p.id}
+      onRowClick={(p) => onOpenSite(p.id)}
+      columnToggle={false}
+      toolbar={<TableTitle title="Sites" hint="Click a site for its full report." />}
+    />
+  )
+}
+
+/** A card table's heading, in the table's toolbar. */
+function TableTitle({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-sm font-medium">{title}</p>
+      {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
+    </div>
   )
 }
 
@@ -824,6 +844,7 @@ function SiteReport({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsBar
             spacing="none"
+            variant="underline"
             className="flex-wrap"
             items={TABS.map(({ value, label, Icon }) => ({
               value,
@@ -1119,6 +1140,8 @@ function GrowthReport({ o, canManage }: { o: SeoOverview; canManage: boolean }) 
   )
 }
 
+type MoneyKeyword = SeoOverview["moneyKeywords"][number]
+
 function MoneyKeywords({ o, onEditSite }: { o: SeoOverview; onEditSite?: () => void }) {
   if (o.moneyKeywords.length === 0) {
     return (
@@ -1141,59 +1164,61 @@ function MoneyKeywords({ o, onEditSite }: { o: SeoOverview; onEditSite?: () => v
       </Card>
     )
   }
+  const tracked = (k: MoneyKeyword, v: number) => (k.tracked ? v : null)
+  const columns: DataTableColumn<MoneyKeyword>[] = [
+    {
+      header: "Keyword",
+      sortValue: (k) => k.key,
+      cell: (k) => (
+        <>
+          <span className="font-medium">{k.key}</span>
+          {!k.tracked && (
+            <Badge variant="outline" className="ml-2 text-[10px]">
+              not ranking
+            </Badge>
+          )}
+        </>
+      ),
+    },
+    {
+      header: "Position",
+      align: "right",
+      sortValue: (k) => tracked(k, k.position),
+      cell: (k) =>
+        k.tracked ? (
+          <span className="inline-flex items-center gap-2">
+            {k.position.toFixed(1)}
+            {k.prevPosition !== null && (
+              <Delta change={-(k.position - k.prevPosition)} changePct={null} decimals={1} />
+            )}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        ),
+    },
+    {
+      header: "Clicks",
+      align: "right",
+      sortValue: (k) => tracked(k, k.clicks),
+      cell: (k) => (k.tracked ? num(k.clicks) : "-"),
+    },
+    {
+      header: "Impressions",
+      align: "right",
+      sortValue: (k) => tracked(k, k.impressions),
+      cell: (k) => (k.tracked ? num(k.impressions) : "-"),
+    },
+  ]
   return (
-    <Card>
-      <CardContent className="p-0">
-        <div className="border-border border-b px-4 py-3">
-          <p className="text-sm font-medium">Money keywords</p>
-          <p className="text-muted-foreground text-xs">The terms this site is judged on.</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-muted-foreground border-border border-b text-xs">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium">Keyword</th>
-                <th className="px-4 py-2 text-right font-medium">Position</th>
-                <th className="px-4 py-2 text-right font-medium">Clicks</th>
-                <th className="px-4 py-2 text-right font-medium">Impressions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {o.moneyKeywords.map((k) => (
-                <tr key={k.key} className="border-border/60 border-b last:border-0">
-                  <td className="px-4 py-2">
-                    <span className="font-medium">{k.key}</span>
-                    {!k.tracked && (
-                      <Badge variant="outline" className="ml-2 text-[10px]">
-                        not ranking
-                      </Badge>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {k.tracked ? (
-                      <span className="inline-flex items-center gap-2">
-                        {k.position.toFixed(1)}
-                        {k.prevPosition !== null && (
-                          <Delta
-                            change={-(k.position - k.prevPosition)}
-                            changePct={null}
-                            decimals={1}
-                          />
-                        )}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right">{k.tracked ? num(k.clicks) : "-"}</td>
-                  <td className="px-4 py-2 text-right">{k.tracked ? num(k.impressions) : "-"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
+    <DataTable
+      tableId="seo-money-keywords"
+      itemLabel="keyword"
+      columns={columns}
+      rows={o.moneyKeywords}
+      rowKey={(k) => k.key}
+      columnToggle={false}
+      toolbar={<TableTitle title="Money keywords" hint="The terms this site is judged on." />}
+    />
   )
 }
 
@@ -1218,59 +1243,63 @@ function StatTable({
       </Card>
     )
   }
+  const columns: DataTableColumn<SeoRowStat>[] = [
+    {
+      header: isUrl ? "Page" : "Query",
+      sortValue: (r) => r.key,
+      className: "max-w-[380px] truncate",
+      cell: (r) =>
+        isUrl ? (
+          <a
+            href={r.key}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={r.key}
+            className="hover:underline"
+          >
+            {r.key.replace(/^https?:\/\/[^/]+/, "") || "/"}
+          </a>
+        ) : (
+          <span title={r.key}>{r.key}</span>
+        ),
+    },
+    {
+      header: "Clicks",
+      align: "right",
+      sortValue: (r) => r.clicks,
+      cell: (r) => (
+        <span className="inline-flex items-center gap-2">
+          {num(r.clicks)}
+          {r.prevClicks !== null && r.prevClicks !== r.clicks && (
+            <Delta change={r.clicks - r.prevClicks} changePct={null} />
+          )}
+        </span>
+      ),
+    },
+    {
+      header: "Impr.",
+      align: "right",
+      sortValue: (r) => r.impressions,
+      cell: (r) => num(r.impressions),
+    },
+    { header: "CTR", align: "right", sortValue: (r) => r.ctr, cell: (r) => pct(r.ctr) },
+    {
+      header: "Position",
+      align: "right",
+      sortValue: (r) => r.position,
+      cell: (r) => r.position.toFixed(1),
+    },
+  ]
+  // The server already caps these at the top 15 to 20, so one page shows them all.
   return (
-    <Card>
-      <CardContent className="p-0">
-        <div className="border-border border-b px-4 py-3">
-          <p className="text-sm font-medium">{title}</p>
-          {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-muted-foreground border-border border-b text-xs">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium">{isUrl ? "Page" : "Query"}</th>
-                <th className="px-4 py-2 text-right font-medium">Clicks</th>
-                <th className="px-4 py-2 text-right font-medium">Impr.</th>
-                <th className="px-4 py-2 text-right font-medium">CTR</th>
-                <th className="px-4 py-2 text-right font-medium">Position</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.key} className="border-border/60 border-b last:border-0">
-                  <td className="max-w-[380px] truncate px-4 py-2" title={r.key}>
-                    {isUrl ? (
-                      <a
-                        href={r.key}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:underline"
-                      >
-                        {r.key.replace(/^https?:\/\/[^/]+/, "") || "/"}
-                      </a>
-                    ) : (
-                      r.key
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <span className="inline-flex items-center gap-2">
-                      {num(r.clicks)}
-                      {r.prevClicks !== null && r.prevClicks !== r.clicks && (
-                        <Delta change={r.clicks - r.prevClicks} changePct={null} />
-                      )}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-right">{num(r.impressions)}</td>
-                  <td className="px-4 py-2 text-right">{pct(r.ctr)}</td>
-                  <td className="px-4 py-2 text-right">{r.position.toFixed(1)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
+    <DataTable
+      columns={columns}
+      rows={rows}
+      rowKey={(r) => r.key}
+      columnToggle={false}
+      pageSize={false}
+      toolbar={<TableTitle title={title} hint={hint} />}
+    />
   )
 }
 
@@ -1290,62 +1319,59 @@ function SiteWork({ o }: { o: SeoOverview }) {
     )
   }
   const today = new Date().toISOString().slice(0, 10)
+  const columns: DataTableColumn<SeoSiteTask>[] = [
+    {
+      header: "Task",
+      sortValue: (t) => t.title,
+      className: "max-w-[380px] truncate",
+      cell: (t) => <span title={t.title}>{t.title}</span>,
+    },
+    {
+      header: "Status",
+      sortValue: (t) => TASK_STATUS_LABELS[t.status] ?? t.status,
+      cell: (t) => (
+        <span
+          className={cn(
+            "rounded-sm px-1.5 py-0.5 text-xs font-medium",
+            TASK_STATUS_COLORS[t.status] ?? "bg-muted",
+          )}
+        >
+          {TASK_STATUS_LABELS[t.status] ?? t.status}
+        </span>
+      ),
+    },
+    {
+      header: "Assignee",
+      sortValue: (t) => t.assigneeName,
+      className: "text-muted-foreground",
+      cell: (t) => t.assigneeName ?? "Unassigned",
+    },
+    {
+      header: "Due",
+      align: "right",
+      sortValue: (t) => t.dueDate,
+      cell: (t) => (
+        <span className={cn(!!t.dueDate && t.dueDate < today && "font-medium text-red-600")}>
+          {t.dueDate ?? "-"}
+        </span>
+      ),
+    },
+  ]
+  // The server sends at most 15, so one page shows them all.
   return (
-    <Card>
-      <CardContent className="p-0">
-        <div className="border-border border-b px-4 py-3">
-          <p className="text-sm font-medium">Open work - {o.config.label}</p>
-          <p className="text-muted-foreground text-xs">
-            Tasks tagged to this site, soonest due first.
-          </p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-muted-foreground border-border border-b text-xs">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium">Task</th>
-                <th className="px-4 py-2 text-left font-medium">Status</th>
-                <th className="px-4 py-2 text-left font-medium">Assignee</th>
-                <th className="px-4 py-2 text-right font-medium">Due</th>
-              </tr>
-            </thead>
-            <tbody>
-              {o.tasks.map((t) => {
-                const late = !!t.dueDate && t.dueDate < today
-                return (
-                  <tr key={t.id} className="border-border/60 border-b last:border-0">
-                    <td className="max-w-[380px] truncate px-4 py-2" title={t.title}>
-                      {t.title}
-                    </td>
-                    <td className="px-4 py-2">
-                      <span
-                        className={cn(
-                          "rounded-sm px-1.5 py-0.5 text-xs font-medium",
-                          TASK_STATUS_COLORS[t.status] ?? "bg-muted",
-                        )}
-                      >
-                        {TASK_STATUS_LABELS[t.status] ?? t.status}
-                      </span>
-                    </td>
-                    <td className="text-muted-foreground px-4 py-2">
-                      {t.assigneeName ?? "Unassigned"}
-                    </td>
-                    <td
-                      className={cn(
-                        "px-4 py-2 text-right whitespace-nowrap",
-                        late && "font-medium text-red-600",
-                      )}
-                    >
-                      {t.dueDate ?? "-"}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
+    <DataTable
+      columns={columns}
+      rows={o.tasks}
+      rowKey={(t) => t.id}
+      columnToggle={false}
+      pageSize={false}
+      toolbar={
+        <TableTitle
+          title={`Open work - ${o.config.label}`}
+          hint="Tasks tagged to this site, soonest due first."
+        />
+      }
+    />
   )
 }
 

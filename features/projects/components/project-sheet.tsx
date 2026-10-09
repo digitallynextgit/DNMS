@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { useQueryClient } from "@tanstack/react-query"
 import {
@@ -53,7 +54,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useAssignableEmployees, useProjectTeams } from "../hooks/use-projects"
+import { useAssignableEmployees, useProjectMembers, useProjectTeams } from "../hooks/use-projects"
 import {
   useSheetHistory,
   useSheetMutations,
@@ -68,6 +69,8 @@ import {
   parseMonth,
   type YearMonth,
 } from "../lib/calendar-months"
+import { LEAD_SERVICE } from "../lib/project-services"
+import { useStoredState } from "@/hooks/use-stored-state"
 import { CalendarMonthPicker, CalendarNamePicker } from "./calendar/calendar-picker"
 import { NewMonthDialog, SetMonthDialog } from "./calendar/month-dialogs"
 import { TeamPlanStrip } from "./calendar/team-plan-strip"
@@ -487,7 +490,7 @@ function PersonAvatar({ person, className }: { person: SheetAssignee; className?
 }
 
 function AssigneeChip({ person }: { person: SheetAssignee | null }) {
-  if (!person) return <span className="text-muted-foreground text-xs">No manager</span>
+  if (!person) return <span className="text-muted-foreground text-xs">No owner</span>
   return (
     <span
       className="flex min-w-0 items-center gap-1.5"
@@ -499,7 +502,10 @@ function AssigneeChip({ person }: { person: SheetAssignee | null }) {
   )
 }
 
-/** The calendar manager: one person answering for the month; managers can pick any active employee. */
+/**
+ * The calendar's owner: one person answering for the month. A service calendar's owner is the
+ * service's owner, so only people on the project can be picked; any active employee otherwise.
+ */
 function WorkbookAssignee({
   projectId,
   workbook,
@@ -508,16 +514,25 @@ function WorkbookAssignee({
   pending,
 }: {
   projectId: string
-  workbook: { assignedTo: SheetAssignee | null }
+  workbook: { assignedTo: SheetAssignee | null; service: string | null }
   canStaff: boolean
   onAssign: (employeeId: string | null) => void
   pending: boolean
 }) {
-  const people = useAssignableEmployees(projectId, canStaff)
+  const anyone = useAssignableEmployees(projectId, canStaff && !workbook.service)
+  const onProject = useProjectMembers(canStaff && workbook.service ? projectId : undefined)
+  const people: Array<{
+    id: string
+    firstName: string
+    lastName: string
+    profilePhoto?: string | null
+    designation?: { title: string } | null
+  }> = (workbook.service ? onProject.data?.data : anyone.data?.data) ?? []
 
   if (!canStaff) {
     return (
       <span className="flex items-center gap-1.5 px-2" title="Only a manager can change this">
+        <span className="text-muted-foreground text-xs">Owner</span>
         <AssigneeChip person={workbook.assignedTo} />
       </span>
     )
@@ -531,16 +546,21 @@ function WorkbookAssignee({
     >
       {/* Custom trigger content: shows the avatar, and still works if the owner was deactivated. */}
       <SelectTrigger
-        className="hover:bg-foreground/5 h-8 w-auto gap-1.5 border-transparent bg-transparent px-2"
-        title="Who manages this calendar"
+        className="w-auto gap-1.5 px-2.5"
+        title="Who owns this calendar"
+        aria-label="Calendar owner"
       >
-        <AssigneeChip person={workbook.assignedTo} />
+        {/* A div, not a span: the trigger line-clamps span children, which stacks the chip. */}
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="text-muted-foreground text-xs">Owner</span>
+          <AssigneeChip person={workbook.assignedTo} />
+        </div>
       </SelectTrigger>
       <SelectContent align="end" className="max-h-72">
         <SelectItem value={UNASSIGNED}>
-          <span className="text-muted-foreground text-xs">No manager</span>
+          <span className="text-muted-foreground text-xs">No owner</span>
         </SelectItem>
-        {(people.data?.data ?? []).map((p) => (
+        {people.map((p) => (
           <SelectItem key={p.id} value={p.id}>
             <span className="flex items-center gap-2">
               <PersonAvatar
@@ -609,9 +629,37 @@ export function ProjectSheetSection({
   /** The month asked for, which may not exist; null = whatever this calendar opens on. */
   const [requestedMonth, setRequestedMonth] = React.useState<YearMonth | null>(null)
 
+  // ?calendar=<id> (the services popup's links) opens that edition once the index has loaded.
+  const linkedId = useSearchParams().get("calendar")
+  const [openedLink, setOpenedLink] = React.useState<string | null>(null)
+  if (linkedId && index && openedLink !== linkedId) {
+    setOpenedLink(linkedId)
+    const linked = index.find((w) => w.id === linkedId)
+    if (linked) {
+      setSeriesName(linked.name)
+      setRequestedMonth(parseMonth(linked.periodMonth))
+    }
+  }
+
+  // Opens on: this person's last calendar here, else a hand-made one (where the work lives so far),
+  // else Campaign Planning (it leads the service calendars), else the first.
+  const [lastSeries, setLastSeries] = useStoredState(`dnms.calendar.${projectId}`, "")
+  const pickSeries = React.useCallback(
+    (name: string) => {
+      setSeriesName(name)
+      setLastSeries(name)
+    },
+    [setLastSeries],
+  )
   const activeSeries = React.useMemo(
-    () => series.find((x) => x.name === seriesName) ?? series[0] ?? null,
-    [series, seriesName],
+    () =>
+      series.find((x) => x.name === seriesName) ??
+      series.find((x) => x.name === lastSeries) ??
+      series.find((x) => x.editions.every((e) => !e.service)) ??
+      series.find((x) => x.editions.some((e) => e.service === LEAD_SERVICE)) ??
+      series[0] ??
+      null,
+    [series, seriesName, lastSeries],
   )
 
   /** Derived, not stored, so the name, month and id can't disagree. */
@@ -644,12 +692,12 @@ export function ProjectSheetSection({
     (workbookId: string) => {
       const found = (index ?? []).find((w) => w.id === workbookId)
       if (!found) return
-      setSeriesName(found.name)
+      pickSeries(found.name)
       setRequestedMonth(parseMonth(found.periodMonth))
       // The tab resets: the tab ids belong to the month being left.
       setActiveId(null)
     },
-    [index],
+    [index, pickSeries],
   )
   // Committed-but-not-yet-refetched values, keyed "position:columnId".
   const [overrides, setOverrides] = React.useState<Record<string, CellValue>>({})
@@ -665,7 +713,9 @@ export function ProjectSheetSection({
   )
   const [historyOpen, setHistoryOpen] = React.useState(false)
   const [importOpen, setImportOpen] = React.useState(false)
-  const [importIntent, setImportIntent] = React.useState<"new-tab" | "new-sheet" | undefined>()
+  const [importIntent, setImportIntent] = React.useState<
+    "new-tab" | "new-sheet" | "this-tab" | undefined
+  >()
   /** New month handed off to the importer, which creates the month itself - backing out leaves nothing behind. */
   const [monthUpload, setMonthUpload] = React.useState<{
     name: string
@@ -1031,7 +1081,7 @@ export function ProjectSheetSection({
           activeName={activeSeries?.name ?? null}
           onPick={(name) => {
             // Keep the month when switching calendars; `entry` falls back to the newest if it doesn't exist.
-            setSeriesName(name)
+            pickSeries(name)
             setActiveId(null)
           }}
         />
@@ -1043,11 +1093,11 @@ export function ProjectSheetSection({
           onSetMonth={() => setSetMonthOpen(true)}
           canCreate={canStaff}
         />
-        <Button variant="ghost" className="gap-1 px-2" onClick={() => setNewSheetOpen(true)}>
+        <Button variant="outline" className="gap-1.5 px-3" onClick={() => setNewSheetOpen(true)}>
           <Plus className="h-3.5 w-3.5" /> New calendar
         </Button>
 
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {workbook && (
             <>
               <WorkbookAssignee
@@ -1062,8 +1112,8 @@ export function ProjectSheetSection({
               {/* Managers only: this decides whether an outside party can read and write the sheet. */}
               {canManage && (
                 <Button
-                  variant={workbook.isClientVisible ? "secondary" : "ghost"}
-                  className="gap-1 px-2"
+                  variant={workbook.isClientVisible ? "secondary" : "outline"}
+                  className="gap-1.5 px-3"
                   disabled={m.shareWorkbook.isPending}
                   title={
                     workbook.isClientVisible
@@ -1089,16 +1139,16 @@ export function ProjectSheetSection({
             </>
           )}
           <Button
-            variant="ghost"
-            className="gap-1 px-2"
+            variant="outline"
+            className="gap-1.5 px-3"
             onClick={() => setColumnDialog({ column: null })}
             disabled={!active}
           >
             <Plus className="h-3.5 w-3.5" /> Column
           </Button>
           <Button
-            variant="ghost"
-            className="gap-1 px-2"
+            variant="outline"
+            className="gap-1.5 px-3"
             onClick={() => setHistoryOpen(true)}
             disabled={!active}
           >
@@ -1131,18 +1181,18 @@ export function ProjectSheetSection({
         />
       )}
 
-      <div className="flex items-center gap-1">
-        <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+      <div className="border-border flex items-end gap-2 border-b">
+        <div className="no-scrollbar flex min-w-0 flex-1 items-end gap-1 overflow-x-auto">
           {(sheets ?? []).map((s) => (
             <button
               key={s.id}
               type="button"
               onClick={() => setActiveId(s.id)}
               className={cn(
-                "shrink-0 rounded-sm border px-2.5 py-1 text-xs whitespace-nowrap transition-colors",
+                "-mb-px h-9 shrink-0 border-b-2 px-3 text-sm whitespace-nowrap transition-colors",
                 s.id === active?.id
-                  ? "border-primary/40 bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:bg-foreground/5 border-transparent",
+                  ? "border-primary text-foreground font-semibold"
+                  : "text-muted-foreground hover:text-foreground border-transparent",
               )}
             >
               {s.name}
@@ -1150,24 +1200,36 @@ export function ProjectSheetSection({
           ))}
         </div>
         <Button
-          variant="ghost"
-          className="shrink-0 gap-1 px-2 text-xs"
+          variant="outline"
+          className="mb-1.5 h-8 shrink-0 gap-1.5 px-3 text-xs"
           onClick={() => setNewTabOpen(true)}
           disabled={!workbook}
         >
           <Plus className="h-3.5 w-3.5" /> New tab
         </Button>
+        <Button
+          variant="outline"
+          className="mb-1.5 h-8 shrink-0 gap-1.5 px-3 text-xs"
+          onClick={() => {
+            setImportIntent("this-tab")
+            setImportOpen(true)
+          }}
+          disabled={!active}
+          title={active ? `Add rows to "${active.name}" from a file or a Google Sheet` : undefined}
+        >
+          <Upload className="h-3.5 w-3.5" /> Upload to this tab
+        </Button>
         {canManage && active && (sheets?.length ?? 0) > 1 && (
           <Button
             variant="ghost"
-            className="text-muted-foreground hover:text-destructive shrink-0 gap-1 px-2 text-xs"
+            className="text-muted-foreground hover:text-destructive mb-1.5 h-8 shrink-0 gap-1 px-2 text-xs"
             onClick={() => setConfirm({ kind: "sheet", id: active.id, label: active.name })}
           >
             <Trash2 className="h-3.5 w-3.5" /> Delete tab
           </Button>
         )}
 
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="mb-1.5 flex shrink-0 items-center gap-1">
           <div className="relative">
             <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
             <Input

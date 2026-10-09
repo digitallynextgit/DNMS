@@ -238,17 +238,17 @@ export const performanceAdminGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "On Evaluations, type a name in Search employee… (1), pick a batch in All periods (2) or a status in All statuses (3). Click Open (4) to see an evaluation.",
-            hi: "Evaluations पर Search employee… (1) में नाम लिखें, All periods (2) में कोई बैच चुनें या All statuses (3) में कोई status। इवैल्यूएशन देखने के लिए Open (4) पर क्लिक करें।",
+            en: "On Evaluations, pick a status in the Status menu (1), type a name in Search employee… (2), or pick a batch in All periods (3). Click Open (4) to see an evaluation.",
+            hi: "Evaluations पर Status मेन्यू (1) में कोई status चुनें, Search employee… (2) में नाम लिखें, या All periods (3) में कोई बैच चुनें। इवैल्यूएशन देखने के लिए Open (4) पर क्लिक करें।",
           },
           shot: {
             id: "performance-admin-list",
             as: "hr",
             path: "/performance/evaluations",
             highlight: [
+              { role: "button", name: "Status: All" },
               { placeholder: "Search employee…" },
               { css: "button[role=combobox]:has-text('All periods')" },
-              { css: "button[role=combobox]:has-text('All statuses')" },
               { role: "link", name: "Open", exact: true },
             ],
           },
@@ -317,6 +317,10 @@ export const performanceAdminGuide: HelpGuide = {
           en: "The employee can't see the manager's ratings until the manager submits.",
           hi: "जब तक मैनेजर सबमिट नहीं करता, कर्मचारी को मैनेजर की रेटिंग नहीं दिखती।",
         },
+        {
+          en: "To download evaluations as a spreadsheet, click Export above the table and pick CSV file or Excel file. It downloads the rows on the current page, or only the rows you have ticked.",
+          hi: "इवैल्यूएशन को spreadsheet में डाउनलोड करने के लिए टेबल के ऊपर Export पर क्लिक करें और CSV file या Excel file चुनें। इसमें चालू पेज की लाइनें आती हैं, या सिर्फ़ वो लाइनें जो आपने टिक की हैं।",
+        },
       ],
     },
     {
@@ -331,8 +335,8 @@ export const performanceAdminGuide: HelpGuide = {
         },
         {
           text: {
-            en: "To delete many - for example a batch made by mistake - pick that batch in All periods, tick the rows (1) or the box at the top to select the whole page, then click Delete (2) and confirm.",
-            hi: "कई एक साथ डिलीट करने हों - जैसे गलती से बना कोई बैच - तो All periods में वो बैच चुनें, लाइनें टिक करें (1) या पूरा पेज चुनने के लिए ऊपर वाला बॉक्स टिक करें, फिर Delete (2) पर क्लिक करके कन्फ़र्म करें।",
+            en: "To delete many - for example a batch made by mistake - pick that batch in All periods, tick the rows (1) or the box at the top to select the whole page, then click Delete (2) in the table's header row and confirm.",
+            hi: "कई एक साथ डिलीट करने हों - जैसे गलती से बना कोई बैच - तो All periods में वो बैच चुनें, लाइनें टिक करें (1) या पूरा पेज चुनने के लिए ऊपर वाला बॉक्स टिक करें, फिर टेबल की हेडर लाइन में Delete (2) पर क्लिक करके कन्फ़र्म करें।",
           },
           shot: {
             id: "performance-admin-bulk-delete",

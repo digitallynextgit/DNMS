@@ -36,8 +36,8 @@ export const projectWorkspaceGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "On My Projects, click a project to open it. The top of the page shows its logo, name and code, and the client it is for.",
-            hi: "My Projects पर किसी प्रोजेक्ट पर क्लिक करके उसे खोलें। पेज के ऊपर उसका लोगो, नाम, कोड और क्लाइंट का नाम दिखता है।",
+            en: "On My Projects, click a project to open it. The top of the page shows its logo, name, short name (like DN) and code, and the client it is for.",
+            hi: "My Projects पर किसी प्रोजेक्ट पर क्लिक करके उसे खोलें। पेज के ऊपर उसका लोगो, नाम, short name (जैसे DN), कोड और क्लाइंट का नाम दिखता है।",
           },
         },
         {
@@ -97,8 +97,8 @@ export const projectWorkspaceGuide: HelpGuide = {
         },
         {
           text: {
-            en: "The card below shows who the Account Manager (1) is, the project Code, and the Onboarding Date (2) - the day the client came on board.",
-            hi: "नीचे के कार्ड में दिखता है कि Account Manager (1) कौन है, प्रोजेक्ट का Code, और Onboarding Date (2) - जिस दिन क्लाइंट जुड़ा।",
+            en: "The card below shows who the Account Manager (1) is, the project Code and Short name, the Onboarding Date (2) - the day the client came on board - and the Services we provide on the project.",
+            hi: "नीचे के कार्ड में दिखता है कि Account Manager (1) कौन है, प्रोजेक्ट का Code और Short name, Onboarding Date (2) - जिस दिन क्लाइंट जुड़ा - और हम प्रोजेक्ट पर कौन-सी Services देते हैं।",
           },
           shot: {
             id: "project-workspace-overview",
@@ -115,6 +115,27 @@ export const projectWorkspaceGuide: HelpGuide = {
           text: {
             en: "The Goals card shows how far the project's goals have got. Click Open goals (3) to see them all. If the project tracks websites, a card for them shows here too.",
             hi: "Goals कार्ड बताता है कि प्रोजेक्ट के goals कितने आगे बढ़े हैं। सब देखने के लिए Open goals (3) पर क्लिक करें। अगर प्रोजेक्ट में वेबसाइट्स ट्रैक होती हैं, तो उनका कार्ड भी यहीं दिखता है।",
+          },
+        },
+        {
+          text: {
+            en: "Under Services, each service we provide on the project has an owner - the person who answers for it. The Account Manager and project admins pick the owner in the box next to the service (1). Only people on the project's teams are listed, so add someone to a team first. A service nobody owns yet says No owner yet (2).",
+            hi: "Services में, प्रोजेक्ट पर हम जो भी service देते हैं उसका एक owner होता है - वो व्यक्ति जो उस service के लिए ज़िम्मेदार है। Account Manager और प्रोजेक्ट एडमिन service के आगे वाले बॉक्स (1) में owner चुनते हैं। उसमें सिर्फ़ प्रोजेक्ट की टीमों के लोग दिखते हैं, इसलिए पहले व्यक्ति को किसी टीम में जोड़ें। जिस service का अभी कोई owner नहीं, उस पर No owner yet (2) लिखा होता है।",
+          },
+          shot: {
+            id: "project-workspace-services",
+            as: "manager",
+            path: "/projects/sunmeadow-organics-launch",
+            highlight: [
+              { role: "combobox", name: "Owner of Social Media" },
+              { text: "No owner yet", exact: true },
+            ],
+          },
+        },
+        {
+          text: {
+            en: "The new owner gets a notification. If an owner leaves the project's teams, their service goes back to No owner yet.",
+            hi: "नए owner को notification मिलता है। अगर owner प्रोजेक्ट की टीमों से हट जाए, तो उसकी service फिर से No owner yet हो जाती है।",
           },
         },
       ],

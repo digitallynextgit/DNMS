@@ -2,8 +2,7 @@
 
 // System roles can't be deleted or have their slug changed.
 
-import { useEffect, useMemo, useState, useCallback } from "react"
-import { useUrlPage } from "@/hooks/use-url-state"
+import { useEffect, useState, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { Plus, Pencil, Trash2, ShieldCheck } from "lucide-react"
@@ -31,8 +30,6 @@ interface RoleRow {
   }
 }
 
-const PAGE_SIZE = 10
-
 export default function RolesPage() {
   const { data: session } = useSession()
   const canWrite =
@@ -41,19 +38,6 @@ export default function RolesPage() {
 
   const [roles, setRoles] = useState<RoleRow[]>([])
   const [loading, setLoading] = useState(true)
-
-  // Client-side pagination over the full reused /api/roles list.
-  const [page, setPage] = useUrlPage()
-  const totalPages = Math.max(1, Math.ceil(roles.length / PAGE_SIZE))
-  const pagedRoles = useMemo(
-    () => roles.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [roles, page],
-  )
-
-  // Keep the current page in range when the list size changes (e.g. after a delete).
-  useEffect(() => {
-    if (!loading && page > totalPages) setPage(totalPages)
-  }, [page, totalPages, loading])
 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<RoleRow | null>(null)
@@ -122,6 +106,7 @@ export default function RolesPage() {
   const columns: DataTableColumn<RoleRow>[] = [
     {
       header: "Name",
+      sortValue: (role) => role.displayName,
       cell: (role) => (
         <div>
           <p className="text-foreground font-medium">{role.displayName}</p>
@@ -131,12 +116,18 @@ export default function RolesPage() {
     },
     {
       header: "Description",
-      className: "text-muted-foreground max-w-xs truncate text-sm",
-      cell: (role) => role.description ?? <span className="text-muted-foreground italic">-</span>,
+      className: "text-muted-foreground max-w-[280px] truncate text-sm",
+      cell: (role) =>
+        role.description ? (
+          <span title={role.description}>{role.description}</span>
+        ) : (
+          <span className="text-muted-foreground italic">-</span>
+        ),
     },
     {
       header: "Permissions",
       align: "center",
+      sortValue: (role) => role._count.rolePermissions,
       cell: (role) => (
         <span className="inline-flex min-w-[2rem] items-center justify-center rounded-sm bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
           {role._count.rolePermissions}
@@ -146,6 +137,7 @@ export default function RolesPage() {
     {
       header: "Employees",
       align: "center",
+      sortValue: (role) => role._count.employeeRoles,
       cell: (role) => (
         <span className="bg-muted text-muted-foreground inline-flex min-w-[2rem] items-center justify-center rounded-sm px-2.5 py-0.5 text-xs font-medium">
           {role._count.employeeRoles}
@@ -155,6 +147,7 @@ export default function RolesPage() {
     {
       header: "Type",
       align: "center",
+      sortValue: (role) => (role.isSystem ? "System" : "Custom"),
       cell: (role) =>
         role.isSystem ? (
           <Badge variant="secondary" className="gap-1">
@@ -215,13 +208,13 @@ export default function RolesPage() {
 
       {loading || roles.length > 0 ? (
         <DataTable
+          tableId="roles"
+          itemLabel="role"
           columns={columns}
-          rows={pagedRoles}
+          rows={roles}
           rowKey={(role) => role.id}
           showSerial
-          serialOffset={(page - 1) * PAGE_SIZE}
           loading={loading}
-          skeletonRows={PAGE_SIZE}
           mobileCard={(role) => (
             <div className="space-y-2.5">
               <div className="flex items-start justify-between gap-3">
@@ -276,13 +269,6 @@ export default function RolesPage() {
               )}
             </div>
           )}
-          pagination={{
-            page,
-            totalPages,
-            total: roles.length,
-            onPageChange: setPage,
-            itemLabel: "role",
-          }}
         />
       ) : (
         <EmptyState variant="card" title="No roles found." />

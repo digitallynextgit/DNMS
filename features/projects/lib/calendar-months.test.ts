@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  currentPlanMonth,
   dueLabel,
   dueTone,
   editionIndexForMonth,
@@ -215,5 +216,13 @@ describe("dueLabel", () => {
   it("shows the year only when it is not this one", () => {
     expect(formatDueDate("2026-09-30", "2026-01-01")).toBe("30 Sep")
     expect(formatDueDate("2027-01-04", "2026-01-01")).toBe("4 Jan 2027")
+  })
+})
+
+describe("currentPlanMonth", () => {
+  it("follows the month in India, not UTC", () => {
+    // 19:00 UTC on 30 Sep is already 1 Oct in India.
+    expect(currentPlanMonth(new Date("2026-09-30T19:00:00Z"))).toBe("2026-10")
+    expect(currentPlanMonth(new Date("2026-09-30T18:00:00Z"))).toBe("2026-09")
   })
 })

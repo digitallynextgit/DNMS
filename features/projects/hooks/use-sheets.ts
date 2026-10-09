@@ -135,11 +135,16 @@ export function useSheetMutations(projectId: string) {
       }),
     onSuccess: (res) => {
       void invalidate()
+      // A service calendar's owner is the service's owner too.
+      if (res.data.service) {
+        void qc.invalidateQueries({ queryKey: ["project"] })
+        void qc.invalidateQueries({ queryKey: ["projects"] })
+      }
       const who = res.data.assignedTo
       toast.success(
         who
-          ? `"${res.data.name}" assigned to ${who.firstName} ${who.lastName}`.trim()
-          : `"${res.data.name}" is now unassigned`,
+          ? `${who.firstName} ${who.lastName} now owns "${res.data.name}"`.trim()
+          : `"${res.data.name}" has no owner now`,
       )
     },
     onError: (e) => fail(e, "Could not assign the sheet"),

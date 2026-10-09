@@ -8,7 +8,6 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
-import { Pagination } from "@/components/shared/pagination"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { RejectReasonDialog } from "@/components/shared/reject-reason-dialog"
 import { useUrlPage } from "@/hooks/use-url-state"
@@ -58,7 +57,7 @@ export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" })
     },
     {
       header: "Date",
-      className: "text-muted-foreground whitespace-nowrap",
+      className: "text-muted-foreground",
       cell: (r) => {
         const days = formatWfhDaysCount(r.totalDays)
         return (
@@ -71,8 +70,8 @@ export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" })
     },
     {
       header: "Reason",
-      className: "text-muted-foreground max-w-[200px] truncate",
-      cell: (r) => r.reason ?? "-",
+      className: "text-muted-foreground max-w-[280px] truncate",
+      cell: (r) => <span title={r.reason ?? undefined}>{r.reason ?? "-"}</span>,
     },
     {
       header: "Type",
@@ -106,7 +105,9 @@ export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" })
               labelMap={LEAVE_STATUS_LABELS}
             />
             {r.rejectionReason && (
-              <p className="text-muted-foreground text-xs">{r.rejectionReason}</p>
+              <p className="text-muted-foreground truncate text-xs" title={r.rejectionReason}>
+                {r.rejectionReason}
+              </p>
             )}
           </div>
         ) : (
@@ -126,6 +127,7 @@ export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" })
     {
       header: "Action",
       align: "right",
+      hideable: false,
       cell: (r) =>
         r.status === "PENDING" ? (
           <div className="flex items-center justify-end gap-1">
@@ -168,12 +170,23 @@ export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" })
   return (
     <div className="space-y-4">
       <DataTable
+        tableId={scope === "all" ? "wfh-requests" : "team-wfh-requests"}
         columns={columns}
         rows={requests}
         rowKey={(r) => r.id}
         minWidth="min-w-[840px]"
         showSerial
         serialOffset={(page - 1) * PAGE_SIZE}
+        pagination={
+          pagination && {
+            page: pagination.page,
+            totalPages: pagination.totalPages,
+            total: pagination.total,
+            onPageChange: setPage,
+            itemLabel: "request",
+            pageSize: PAGE_SIZE,
+          }
+        }
         // Approving is this screen's job, so the phone card keeps full-size decision buttons.
         mobileCard={(r) => (
           <div className="space-y-2.5">
@@ -239,15 +252,6 @@ export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" })
           </div>
         )}
       />
-      {pagination && pagination.total > PAGE_SIZE && (
-        <Pagination
-          page={pagination.page}
-          totalPages={pagination.totalPages}
-          total={pagination.total}
-          onPageChange={setPage}
-          itemLabel="request"
-        />
-      )}
       <RejectReasonDialog
         open={!!rejectId}
         onOpenChange={(o) => !o && setRejectId(null)}

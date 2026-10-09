@@ -8,14 +8,12 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { StatCard } from "@/components/shared/stat-card"
-import { Pagination } from "@/components/shared/pagination"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { FormDialog } from "@/components/shared/form-dialog"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { DateField } from "@/components/shared/date-field"
-import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { useRowSelection } from "@/hooks/use-row-selection"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { TabsBar } from "@/components/shared/tabs-bar"
@@ -29,7 +27,7 @@ import {
   HolidayMonthCalendar,
 } from "@/features/attendance"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
-import { useUrlState, useUrlPage } from "@/hooks/use-url-state"
+import { useUrlState } from "@/hooks/use-url-state"
 import { HOLIDAY_TYPE_COLORS, HOLIDAY_TYPE_LABELS, PERMISSIONS } from "@/lib/constants"
 import { formatDate } from "@/lib/utils"
 import { YearSelect } from "./year-select"
@@ -53,18 +51,9 @@ export function HolidaysAdminView() {
   const publicCount = holidays.filter((h) => !h.isOptional).length
   const floatingCount = holidays.filter((h) => h.isOptional).length
 
-  const PAGE_SIZE = 10
-  const [page, setPage] = useUrlPage()
-  const totalPages = Math.max(1, Math.ceil(holidays.length / PAGE_SIZE))
-  const currentPage = Math.min(page, totalPages)
-  const pagedHolidays = holidays.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-  const selection = useRowSelection(pagedHolidays.map((h) => h.id))
+  const selection = useRowSelection(holidays.map((h) => h.id))
   const [bulkOpen, setBulkOpen] = useState(false)
 
-  function changeYear(next: number) {
-    setYear(next)
-    setPage(1)
-  }
   function prevMonth() {
     if (calMonth === 0) {
       setYear((y) => y - 1)
@@ -152,19 +141,23 @@ export function HolidaysAdminView() {
   }
 
   const columns: DataTableColumn<HolidayRow>[] = [
-    { header: "Name", className: "font-medium", cell: (h) => h.name },
+    { header: "Name", className: "font-medium", sortValue: (h) => h.name, cell: (h) => h.name },
     {
       header: "Date",
-      className: "text-muted-foreground whitespace-nowrap",
+      className: "text-muted-foreground",
+      sortValue: (h) => h.date,
+      exportValue: (h) => h.date.slice(0, 10),
       cell: (h) => formatDate(h.date, "EEE, dd MMM yyyy"),
     },
     {
       header: "Description",
-      className: "text-muted-foreground max-w-[300px] truncate",
-      cell: (h) => h.description ?? "-",
+      className: "text-muted-foreground max-w-[280px] truncate",
+      exportValue: (h) => h.description,
+      cell: (h) => <span title={h.description ?? undefined}>{h.description ?? "-"}</span>,
     },
     {
       header: "Type",
+      sortValue: (h) => HOLIDAY_TYPE_LABELS[h.isOptional ? "FLOATING" : "FIXED"],
       cell: (h) => (
         <StatusBadge
           status={h.isOptional ? "FLOATING" : "FIXED"}
@@ -219,7 +212,7 @@ export function HolidaysAdminView() {
             ]}
           />
           <div className="flex flex-wrap items-center gap-2">
-            <YearSelect value={year} onChange={changeYear} />
+            <YearSelect value={year} onChange={setYear} />
             {canWrite && (
               <Button className="gap-2" onClick={openAdd}>
                 <Plus className="h-4 w-4" />
@@ -253,20 +246,7 @@ export function HolidaysAdminView() {
           />
         </div>
 
-        <TabsContent value="table" className="space-y-4">
-          {canWrite && (
-            <BulkActionBar count={selection.count} onClear={selection.clear}>
-              <Button
-                variant="destructive"
-                onClick={() => setBulkOpen(true)}
-                disabled={deleteHoliday.isPending}
-              >
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                Delete
-              </Button>
-            </BulkActionBar>
-          )}
-
+        <TabsContent value="table">
           {isLoading ? (
             <ListSkeleton rows={6} height="h-14" />
           ) : holidays.length === 0 ? (
@@ -277,23 +257,30 @@ export function HolidaysAdminView() {
               action={canWrite ? { label: "Add First Holiday", onClick: openAdd } : undefined}
             />
           ) : (
-            <>
-              <DataTable
-                columns={columns}
-                rows={pagedHolidays}
-                rowKey={(h) => h.id}
-                showSerial
-                serialOffset={(currentPage - 1) * PAGE_SIZE}
-                selection={canWrite ? selection : undefined}
-              />
-              <Pagination
-                page={currentPage}
-                totalPages={totalPages}
-                total={holidays.length}
-                onPageChange={setPage}
-                itemLabel="holiday"
-              />
-            </>
+            <DataTable
+              tableId="holidays"
+              exportName={`holidays-${year}`}
+              itemLabel="holiday"
+              columns={columns}
+              rows={holidays}
+              rowKey={(h) => h.id}
+              showSerial
+              pageKey={String(year)}
+              selection={canWrite ? selection : undefined}
+              // Read-only viewers still tick rows to export them; they get no Delete.
+              selectionActions={
+                canWrite ? (
+                  <Button
+                    variant="destructive"
+                    onClick={() => setBulkOpen(true)}
+                    disabled={deleteHoliday.isPending}
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    Delete
+                  </Button>
+                ) : undefined
+              }
+            />
           )}
         </TabsContent>
 

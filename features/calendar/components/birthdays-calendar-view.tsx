@@ -10,7 +10,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { TabsBar } from "@/components/shared/tabs-bar"
 import { HolidayMonthCalendar } from "@/features/attendance"
 import { BirthdaysCard } from "@/features/noticeboard"
-import { useUrlState, useUrlPage } from "@/hooks/use-url-state"
+import { useUrlState } from "@/hooks/use-url-state"
 import { cn } from "@/lib/utils"
 import { useBirthdayCalendar, type CalendarBirthday } from "../hooks/use-birthday-calendar"
 import { daysFromToday, relativeDayLabel, todayKey } from "../lib/relative-day"
@@ -33,7 +33,6 @@ const MONTHS = [
   "December",
 ]
 const TABS = ["calendar", "table"] as const
-const PAGE_SIZE = 10
 const pad = (n: number) => String(n).padStart(2, "0")
 
 export function BirthdaysCalendarView() {
@@ -41,7 +40,6 @@ export function BirthdaysCalendarView() {
   const [tab, setTab] = useUrlState("tab", "calendar")
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
-  const [page, setPage] = useUrlPage()
   const { data, isLoading } = useBirthdayCalendar(year)
   const birthdays = data ?? []
   const inMonth = birthdays.filter((b) => b.date.startsWith(`${year}-${pad(month + 1)}`)).length
@@ -49,10 +47,6 @@ export function BirthdaysCalendarView() {
   // `tab` is shared with the other calendars in the URL; anything not ours means the grid.
   const activeTab = (TABS as readonly string[]).includes(tab) ? tab : "calendar"
 
-  function changeYear(next: number) {
-    setYear(next)
-    setPage(1)
-  }
   function prevMonth() {
     if (month === 0) {
       setYear((y) => y - 1)
@@ -66,13 +60,12 @@ export function BirthdaysCalendarView() {
     } else setMonth((m) => m + 1)
   }
 
-  const totalPages = Math.max(1, Math.ceil(birthdays.length / PAGE_SIZE))
-  const currentPage = Math.min(page, totalPages)
   const today = todayKey()
 
   const columns: DataTableColumn<CalendarBirthday>[] = [
     {
       header: "Employee",
+      sortValue: (b) => b.name,
       cell: (b) => (
         <div className="flex items-center gap-3">
           <AvatarDisplay
@@ -91,7 +84,7 @@ export function BirthdaysCalendarView() {
     },
     {
       header: "Birthday",
-      className: "whitespace-nowrap",
+      sortValue: (b) => b.date,
       cell: (b) =>
         new Date(`${b.date}T00:00:00Z`).toLocaleDateString("en-GB", {
           weekday: "short",
@@ -103,11 +96,13 @@ export function BirthdaysCalendarView() {
     {
       header: "Month",
       className: "text-muted-foreground",
+      sortValue: (b) => b.date,
       cell: (b) => MONTHS[Number(b.date.slice(5, 7)) - 1],
     },
     {
       header: "When",
       align: "right",
+      sortValue: (b) => daysFromToday(b.date),
       cell: (b) => {
         if (b.date === today)
           return (
@@ -139,7 +134,7 @@ export function BirthdaysCalendarView() {
             { value: "table", label: "Table" },
           ]}
         />
-        <YearSelect value={year} onChange={changeYear} />
+        <YearSelect value={year} onChange={setYear} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -177,19 +172,15 @@ export function BirthdaysCalendarView() {
       <TabsContent value="table">
         {isLoading || birthdays.length > 0 ? (
           <DataTable
+            tableId="birthdays"
+            itemLabel="birthday"
             columns={columns}
-            rows={birthdays.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)}
+            rows={birthdays}
             rowKey={(b) => b.id}
             showSerial
-            serialOffset={(currentPage - 1) * PAGE_SIZE}
             loading={isLoading}
-            pagination={{
-              page: currentPage,
-              totalPages,
-              total: birthdays.length,
-              onPageChange: setPage,
-              itemLabel: "birthday",
-            }}
+            pageKey={String(year)}
+            columnToggle={false}
           />
         ) : (
           <EmptyState variant="card" icon={Cake} title="No birthdays on file yet." />

@@ -16,40 +16,67 @@ export const TAB_TRACK_SCROLL = "no-scrollbar max-w-full overflow-x-auto"
 export const TAB_TRIGGER =
   "ring-offset-background focus-visible:ring-ring inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-sm px-3 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0"
 
-/** The selected option: a solid surface, tinted text and a ring, visible in both themes. */
-export const TAB_TRIGGER_ACTIVE =
-  "bg-background text-primary ring-primary/30 font-semibold shadow-sm ring-1"
+/** The selected option: a solid primary pill, so it can't be mistaken for its neighbours. */
+export const TAB_TRIGGER_ACTIVE = "bg-primary text-primary-foreground font-semibold shadow-sm"
 
 /** The same, as Radix state selectors. */
 export const TAB_TRIGGER_ACTIVE_DATA =
-  "data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:ring-primary/30 data-[state=active]:font-semibold data-[state=active]:shadow-sm data-[state=active]:ring-1"
+  "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:font-semibold data-[state=active]:shadow-sm"
 
-export const TAB_TRIGGER_IDLE = "hover:text-foreground"
+export const TAB_TRIGGER_IDLE = "text-foreground/75 hover:text-foreground hover:bg-background/70"
+
+/**
+ * Tabs nested inside a page's own tabs: an underlined row instead of a filled track, so the two
+ * levels never look alike.
+ */
+const UNDERLINE_LIST =
+  "border-border flex h-auto w-full items-end gap-1 rounded-none border-b bg-transparent p-0"
+const UNDERLINE_TRIGGER =
+  "ring-offset-background focus-visible:ring-ring text-muted-foreground hover:text-foreground -mb-px inline-flex h-9 shrink-0 items-center justify-center gap-1.5 border-b-2 border-transparent px-3 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:font-semibold [&_svg]:size-4 [&_svg]:shrink-0"
+
+export type TabsVariant = "pill" | "underline"
+
+const TabsVariantContext = React.createContext<TabsVariant>("pill")
 
 const Tabs = TabsPrimitive.Root
 
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.List
-    ref={ref}
-    className={cn(TAB_TRACK, TAB_TRACK_SCROLL, "justify-start", className)}
-    {...props}
-  />
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> & { variant?: TabsVariant }
+>(({ className, variant = "pill", ...props }, ref) => (
+  <TabsVariantContext.Provider value={variant}>
+    <TabsPrimitive.List
+      ref={ref}
+      className={cn(
+        variant === "underline" ? UNDERLINE_LIST : TAB_TRACK,
+        TAB_TRACK_SCROLL,
+        "justify-start",
+        className,
+      )}
+      {...props}
+    />
+  </TabsVariantContext.Provider>
 ))
 TabsList.displayName = TabsPrimitive.List.displayName
 
 const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.Trigger
-    ref={ref}
-    className={cn(TAB_TRIGGER, TAB_TRIGGER_IDLE, TAB_TRIGGER_ACTIVE_DATA, className)}
-    {...props}
-  />
-))
+>(({ className, ...props }, ref) => {
+  const variant = React.useContext(TabsVariantContext)
+  return (
+    <TabsPrimitive.Trigger
+      ref={ref}
+      className={cn(
+        variant === "underline"
+          ? UNDERLINE_TRIGGER
+          : [TAB_TRIGGER, TAB_TRIGGER_IDLE, TAB_TRIGGER_ACTIVE_DATA],
+        className,
+      )}
+      {...props}
+    />
+  )
+})
 TabsTrigger.displayName = TabsPrimitive.Trigger.displayName
 
 const TabsContent = React.forwardRef<

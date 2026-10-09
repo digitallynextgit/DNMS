@@ -120,6 +120,10 @@ export const projectContentCalendarGuide: HelpGuide = {
           hi: "New month… Account Manager, प्रोजेक्ट एडमिन और टीम मैनेजर्स को दिखता है।",
         },
         {
+          en: "Owner, at the top next to Share, is the person who answers for the calendar. A service's calendar (Social Media Calendar, SEO / AEO / GEO Calendar and so on) is owned by that service's owner: change it here or in the project's services and both stay the same. The new owner gets a notification and an email.",
+          hi: "ऊपर Share के पास दिखने वाला Owner वो व्यक्ति है जो इस कैलेंडर के लिए ज़िम्मेदार है। किसी service का कैलेंडर (Social Media Calendar, SEO / AEO / GEO Calendar वगैरह) उसी service के owner का होता है: इसे यहाँ बदलें या प्रोजेक्ट की services में - दोनों जगह एक ही व्यक्ति रहता है। नए owner को notification और ईमेल मिलता है।",
+        },
+        {
           en: "When you start from the latest month or from a file, Team plan from (that month) is ticked too: it carries over the teams, their people and quantities. Untick it to start the plan empty. Due dates and links are never carried over.",
           hi: "सबसे नए महीने से या फाइल से शुरू करने पर Team plan from (उस महीने) पर भी टिक लगा होता है: इससे टीमें, उनके लोग और संख्या आगे आ जाती है। खाली प्लान से शुरू करना हो तो टिक हटा दें। Due डेट और लिंक कभी आगे नहीं आते।",
         },
@@ -133,6 +137,18 @@ export const projectContentCalendarGuide: HelpGuide = {
           text: {
             en: "Click a cell and type - what you type replaces what was there. Double-click a cell to change what is already in it. Press Enter or Tab, or click somewhere else, to save it. Escape cancels. The arrow keys move you around, like in Excel. In a Long text cell, Enter starts a new line - press Ctrl+Enter to save.",
             hi: "किसी सेल पर क्लिक करके टाइप करें - जो टाइप करेंगे वो पुरानी वैल्यू की जगह ले लेगा। सेल में पहले से लिखी चीज़ बदलने के लिए उस पर डबल-क्लिक करें। सेव करने के लिए Enter या Tab दबाएँ, या कहीं और क्लिक करें। Escape दबाने से बदलाव रद्द हो जाता है। Excel की तरह एरो की से इधर-उधर जा सकते हैं। Long text सेल में Enter से नई लाइन शुरू होती है - सेव करने के लिए Ctrl+Enter दबाएँ।",
+          },
+        },
+        {
+          text: {
+            en: "Already have this tab's content in Excel or Google Sheets - say the Instagram plan? Open that tab and click Upload to this tab (1). Choose the file (or paste a Google Sheet link and click Fetch), pick which of its tabs to use - a tab named like this one is picked for you - and match its columns to this tab's. The rows are added below anything already in the tab.",
+            hi: "क्या इस टैब का कंटेंट पहले से Excel या Google Sheets में है - जैसे Instagram का प्लान? वो टैब खोलें और Upload to this tab (1) पर क्लिक करें। फाइल चुनें (या Google Sheet का लिंक पेस्ट करके Fetch पर क्लिक करें), उसका कौन-सा टैब लेना है चुनें - इस टैब जैसे नाम वाला टैब अपने आप चुना जाता है - और उसके कॉलम इस टैब के कॉलम से मिलाएँ। रो टैब में पहले से मौजूद रो के नीचे जुड़ जाते हैं।",
+          },
+          shot: {
+            id: "project-content-calendar-upload-tab",
+            as: "manager",
+            path: "/projects/sunmeadow-organics-launch?tab=calendar",
+            highlight: [{ role: "button", name: "Upload to this tab" }],
           },
         },
         {

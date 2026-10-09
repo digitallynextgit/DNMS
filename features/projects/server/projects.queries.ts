@@ -6,6 +6,7 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { resolveProjectId, canAccessProject } from "./project-access"
+import { SERVICE_OWNER_SELECT } from "./project-service-owners"
 
 export interface ListProjectsOptions {
   status?: string
@@ -55,6 +56,7 @@ export async function listProjects(opts: ListProjectsOptions, session: Session) 
             },
           },
         },
+        serviceOwners: { select: SERVICE_OWNER_SELECT },
         _count: { select: { tasks: true, teams: true, resources: true } },
       },
     }),

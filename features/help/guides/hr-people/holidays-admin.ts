@@ -132,15 +132,15 @@ export const holidaysAdminGuide: HelpGuide = {
             highlight: [
               { role: "button", name: "Edit", exact: true },
               { role: "button", name: "Delete", exact: true },
-              { role: "checkbox", name: "Select all" },
+              { role: "checkbox", name: "Select all rows on this page" },
             ],
             crop: { role: "table" },
           },
         },
         {
           text: {
-            en: "Click the bin (2) to delete a holiday, then Delete to confirm. To delete several at once, tick their boxes - or the box at the top (3) for the whole page - and click Delete in the bar that appears.",
-            hi: "छुट्टी delete करने के लिए डस्टबिन (2) पर क्लिक करें, फिर कन्फर्म करने के लिए Delete पर। कई एक साथ delete करनी हों तो उनके बॉक्स टिक करें - या पूरे पेज के लिए ऊपर वाला बॉक्स (3) - और जो बार दिखे उसमें Delete पर क्लिक करें।",
+            en: "Click the bin (2) to delete a holiday, then Delete to confirm. To delete several at once, tick their boxes - or the box at the top (3) for the whole page - and click Delete at the top of the table, next to the number selected.",
+            hi: "छुट्टी delete करने के लिए डस्टबिन (2) पर क्लिक करें, फिर कन्फर्म करने के लिए Delete पर। कई एक साथ delete करनी हों तो उनके बॉक्स टिक करें - या पूरे पेज के लिए ऊपर वाला बॉक्स (3) - और टेबल के ऊपर, चुनी गई छुट्टियों की गिनती के बगल में Delete पर क्लिक करें।",
           },
         },
       ],

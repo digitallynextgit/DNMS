@@ -55,6 +55,7 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
   const columns: DataTableColumn<LeaveRequest>[] = [
     {
       header: "Type",
+      sortValue: (r) => r.leaveType.name,
       cell: (r) => (
         <>
           <div className="flex items-center gap-1.5">
@@ -71,22 +72,24 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
     },
     {
       header: "From",
-      className: "whitespace-nowrap",
+      sortValue: (r) => r.startDate,
       cell: (r) => formatDate(r.startDate),
     },
     {
       header: "To",
-      className: "whitespace-nowrap",
+      sortValue: (r) => r.endDate,
       cell: (r) => formatDate(r.endDate),
     },
     {
       header: "Days",
       align: "center",
       className: "font-medium",
+      sortValue: (r) => r.totalDays,
       cell: (r) => r.totalDays,
     },
     {
       header: "Status",
+      sortValue: (r) => LEAVE_STATUS_LABELS[r.status] ?? r.status,
       cell: (r) => (
         <div className="flex items-center gap-1.5">
           <StatusBadge
@@ -109,8 +112,8 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
     },
     {
       header: "Reason",
-      className: "text-muted-foreground max-w-[200px] truncate",
-      cell: (r) => r.reason || "-",
+      className: "text-muted-foreground max-w-[280px] truncate",
+      cell: (r) => (r.reason ? <span title={r.reason}>{r.reason}</span> : "-"),
     },
   ]
 
@@ -192,7 +195,15 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
         ) : yearRequests.length === 0 ? (
           <EmptyState compact title={`No leave requests found for ${year}.`} />
         ) : (
-          <DataTable columns={columns} rows={yearRequests} rowKey={(r) => r.id} showSerial />
+          <DataTable
+            columns={columns}
+            rows={yearRequests}
+            rowKey={(r) => r.id}
+            showSerial
+            pageKey={String(year)}
+            itemLabel="request"
+            columnToggle={false}
+          />
         )}
       </div>
     </div>

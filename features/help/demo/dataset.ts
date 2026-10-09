@@ -284,6 +284,10 @@ export const DEMO_PROJECTS = [
   {
     key: "sunrise",
     name: "Sunmeadow Organics Launch",
+    shortName: "SUN",
+    services: ["SMO", "PM", "INF", "WEB", "CAMP"],
+    // CAMP left unowned so the guides show "No owner yet". Owners must be on the project's teams.
+    serviceOwners: { SMO: "sneha", PM: "rohan", INF: "sneha", WEB: "karthik" },
     client: "sunrise",
     accountManager: "rohan",
     members: ["priya", "ananya", "sneha", "vikram", "arjun"],
@@ -293,6 +297,9 @@ export const DEMO_PROJECTS = [
   {
     key: "urbannest",
     name: "UrbanNest Website & SEO",
+    shortName: "UN",
+    services: ["PM", "SEO", "WEB"],
+    serviceOwners: { PM: "rohan", SEO: "vikram", WEB: "karthik" },
     client: "urbannest",
     accountManager: "rohan",
     members: ["karthik", "vikram", "ananya", "priya"],
@@ -302,6 +309,9 @@ export const DEMO_PROJECTS = [
   {
     key: "fitlife",
     name: "FitLife App Rebrand",
+    shortName: "FL",
+    services: ["SMO", "DPR", "CAMP"],
+    serviceOwners: { SMO: "sneha", DPR: "aarav" },
     client: "fitlife",
     accountManager: "aarav",
     members: ["priya", "rahul", "arjun", "sneha"],
@@ -311,6 +321,9 @@ export const DEMO_PROJECTS = [
   {
     key: "internal",
     name: "Demo Company Website",
+    shortName: "DEMO",
+    services: ["SEO", "WEB"],
+    serviceOwners: { SEO: "ananya", WEB: "karthik" },
     client: null,
     accountManager: "aarav",
     members: ["karthik", "priya", "ananya"],

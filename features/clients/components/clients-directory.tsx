@@ -5,21 +5,15 @@ import { Plus, Building2, Eye, Pencil, FolderKanban, Users, Activity } from "luc
 
 import { Link } from "@/components/tenant-link"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { PageHeader } from "@/components/shared/page-header"
-import { SearchInput } from "@/components/shared/search-input"
-import { FilterToolbar } from "@/components/shared/filter-bar"
 import { StatStrip } from "@/components/shared/stat-strip"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { TableSearch } from "@/components/shared/table-search"
+import { TableViewMenu } from "@/components/shared/table-view-menu"
+import { useDebounce } from "@/hooks/use-debounce"
 import { useUrlPage, useUrlState } from "@/hooks/use-url-state"
 import { useUpdateEffect } from "@/hooks/use-update-effect"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
@@ -36,7 +30,9 @@ export function ClientsDirectory() {
   const { can } = usePermissions()
   const canWrite = can(PERMISSIONS.CLIENT_WRITE)
 
-  const [search, setSearch] = useState("")
+  const [query, setQuery] = useState("")
+  // Debounced: every keystroke would otherwise be a server request.
+  const search = useDebounce(query.trim())
   const [status, setStatus] = useUrlState("status", "")
   const [page, setPage] = useUrlPage()
   const [createOpen, setCreateOpen] = useState(false)
@@ -57,11 +53,12 @@ export function ClientsDirectory() {
     setPage(1)
   }, [search, status])
 
-  const hasFilters = !!search || !!status
+  const hasFilters = !!query || !!status
 
   const columns: DataTableColumn<ClientListItem>[] = [
     {
       header: "Client",
+      exportValue: (c) => c.name,
       cell: (c) => (
         <div className="flex items-center gap-2.5">
           <span className="bg-muted flex h-7 w-7 shrink-0 items-center justify-center rounded-sm">
@@ -80,7 +77,15 @@ export function ClientsDirectory() {
       ),
     },
     {
+      header: "Code",
+      defaultHidden: true,
+      className: "font-mono text-xs",
+      exportValue: (c) => c.code,
+      cell: (c) => c.code,
+    },
+    {
       header: "Status",
+      exportValue: (c) => CLIENT_STATUS_LABELS[c.status] ?? c.status,
       cell: (c) => (
         <StatusBadge
           status={c.status}
@@ -92,6 +97,7 @@ export function ClientsDirectory() {
     },
     {
       header: "Account Manager",
+      exportValue: (c) => (c.owner ? `${c.owner.firstName} ${c.owner.lastName}` : ""),
       cell: (c) =>
         c.owner ? (
           <div className="flex items-center gap-1.5">
@@ -112,6 +118,7 @@ export function ClientsDirectory() {
     {
       header: "Projects",
       align: "center",
+      exportValue: (c) => c.stats.projects,
       cell: (c) => (
         <span className="text-xs tabular-nums">
           {c.stats.projects}
@@ -124,6 +131,7 @@ export function ClientsDirectory() {
     {
       header: "Contacts",
       align: "center",
+      exportValue: (c) => c.stats.contacts,
       cell: (c) => (
         <span className="text-xs tabular-nums">
           {c.stats.contacts}
@@ -139,6 +147,7 @@ export function ClientsDirectory() {
     {
       header: "Last portal login",
       className: "text-muted-foreground text-xs",
+      exportValue: (c) => c.stats.lastLoginAt?.slice(0, 10) ?? "Never",
       cell: (c) => (c.stats.lastLoginAt ? formatRelativeTime(c.stats.lastLoginAt) : "Never"),
     },
     {
@@ -196,36 +205,10 @@ export function ClientsDirectory() {
         ]}
       />
 
-      <FilterToolbar
-        hasActiveFilters={hasFilters}
-        onClear={() => {
-          setSearch("")
-          setStatus("")
-        }}
-      >
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder="Search by name, code, email or website"
-          className="w-full max-w-sm"
-        />
-        <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v)}>
-          <SelectTrigger className="h-9 w-40">
-            <SelectValue placeholder="Any status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Any status</SelectItem>
-            {Object.entries(CLIENT_STATUS_LABELS).map(([k, v]) => (
-              <SelectItem key={k} value={k}>
-                {v}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FilterToolbar>
-
-      {isLoading || clients.length > 0 ? (
+      {isLoading || clients.length > 0 || hasFilters ? (
         <DataTable
+          tableId="clients"
+          exportName="clients"
           columns={columns}
           rows={clients}
           rowKey={(c) => c.id}
@@ -233,6 +216,29 @@ export function ClientsDirectory() {
           serialOffset={(page - 1) * PAGE_SIZE}
           loading={isLoading}
           minWidth="min-w-[920px]"
+          toolbar={
+            <>
+              <TableViewMenu
+                label="Status"
+                value={status || "ALL"}
+                options={[
+                  { value: "ALL", label: "All" },
+                  ...Object.entries(CLIENT_STATUS_LABELS).map(([value, label]) => ({
+                    value,
+                    label,
+                  })),
+                ]}
+                onChange={(v) => setStatus(v === "ALL" ? "" : v)}
+              />
+              <TableSearch
+                value={query}
+                onChange={setQuery}
+                placeholder="Search by name, code, email or website"
+                label="Search clients by name, code, email or website"
+                className="sm:max-w-sm"
+              />
+            </>
+          }
           pagination={
             pagination
               ? {
@@ -241,16 +247,11 @@ export function ClientsDirectory() {
                   total: pagination.total,
                   onPageChange: setPage,
                   itemLabel: "client",
+                  pageSize: PAGE_SIZE,
                 }
               : undefined
           }
-        />
-      ) : hasFilters ? (
-        <EmptyState
-          variant="card"
-          icon={Building2}
-          title="No clients match."
-          description="Try a different name, or clear the filters."
+          empty="No clients match. Try a different name, or clear the filters."
         />
       ) : (
         <EmptyState

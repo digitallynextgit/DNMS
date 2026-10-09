@@ -83,6 +83,7 @@ export async function completeExitChecklist(instanceId: string): Promise<ActionR
       }),
       db.projectTeamMember.deleteMany({ where: { employeeId: employee.id } }),
       db.projectTeam.updateMany({ where: { managerId: employee.id }, data: { managerId: null } }),
+      db.projectServiceOwner.deleteMany({ where: { employeeId: employee.id } }),
     ])
 
     // Outside the transaction: membership lives in the platform identity tables.

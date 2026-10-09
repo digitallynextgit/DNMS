@@ -147,6 +147,7 @@ function CompanyDocumentListInner({
           total={pagination.total}
           onPageChange={onPageChange}
           itemLabel="document"
+          pageSize={pagination.limit}
           className="pt-1"
         />
       )}

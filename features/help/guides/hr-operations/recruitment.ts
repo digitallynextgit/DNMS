@@ -128,16 +128,16 @@ export const recruitmentGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Find people with Search name, email or role… (1), a status (2), or Full-time / Internship (3). Re-applied means the person applied before. Role closed means the role was closed before they applied. Click View (4) to open an application.",
-            hi: "Search name, email or role… (1), status (2), या Full-time / Internship (3) से लोगों को ढूँढें। Re-applied का मतलब है व्यक्ति पहले भी अप्लाई कर चुका है। Role closed का मतलब है उनके अप्लाई करने से पहले role बंद हो चुका था। आवेदन खोलने के लिए View (4) पर क्लिक करें।",
+            en: "Find people by status in the Status menu (1), with Search name, email or role… (2), or by Full-time / Internship (3). Re-applied means the person applied before. Role closed means the role was closed before they applied. Click View (4) to open an application.",
+            hi: "Status मेन्यू (1) में status से, Search name, email or role… (2) से, या Full-time / Internship (3) से लोगों को ढूँढें। Re-applied का मतलब है व्यक्ति पहले भी अप्लाई कर चुका है। Role closed का मतलब है उनके अप्लाई करने से पहले role बंद हो चुका था। आवेदन खोलने के लिए View (4) पर क्लिक करें।",
           },
           shot: {
             id: "recruitment-applications",
             as: "hr",
             path: "/recruitment/applications",
             highlight: [
+              { role: "button", name: "Status: All" },
               { placeholder: "Search name, email or role…" },
-              { text: "All statuses", exact: true },
               { text: "All types", exact: true },
               { role: "button", name: "View", exact: true },
             ],
@@ -180,6 +180,10 @@ export const recruitmentGuide: HelpGuide = {
         {
           en: "Only HR Managers and Admins see the bin to delete an application. Deleting removes it for good.",
           hi: "आवेदन डिलीट करने का डस्टबिन सिर्फ़ HR Manager और Admin को दिखता है। डिलीट करने पर वो हमेशा के लिए हट जाता है।",
+        },
+        {
+          en: "To download applications as a spreadsheet, with each person's email and phone, click Export above the table and pick CSV file or Excel file. It downloads the rows on the current page, or only the rows you have ticked.",
+          hi: "आवेदनों को spreadsheet में डाउनलोड करने के लिए - हर व्यक्ति के ईमेल और फ़ोन के साथ - टेबल के ऊपर Export पर क्लिक करें और CSV file या Excel file चुनें। इसमें चालू पेज की लाइनें आती हैं, या सिर्फ़ वो लाइनें जो आपने टिक की हैं।",
         },
       ],
     },

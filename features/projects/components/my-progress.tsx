@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ProgressSkeleton } from "./progress-skeleton"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
 import type { DateRangeValue } from "@/components/shared/date-range-field"
 import { apiFetch } from "@/lib/api-fetch"
@@ -73,8 +74,6 @@ const STATUS_OPACITY: Record<DeliverableStatus, number> = {
 }
 
 const ALL = "all"
-const NOT_DONE_CAP = 40
-const DELIVERED_CAP = 20
 
 const pctOf = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 100))
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
@@ -307,6 +306,9 @@ export function MyProgress({ range, onFilterChange }: MyProgressProps) {
               what="Project"
               rows={data.byProject}
               onPick={showProjects && projectId === ALL ? pickProject : undefined}
+              tableId="progress-by-project"
+              itemLabel="project"
+              pageKey={qs}
               className="lg:col-span-3"
             />
           </div>
@@ -317,6 +319,9 @@ export function MyProgress({ range, onFilterChange }: MyProgressProps) {
               what="Person"
               rows={data.byPerson}
               onPick={showPeople ? pickPerson : undefined}
+              tableId="progress-by-person"
+              itemLabel="team member"
+              pageKey={qs}
             />
           )}
 
@@ -568,7 +573,8 @@ function ProgressBar({ done, overdue, total }: { done: number; overdue: number; 
   const o = pctOf(overdue, total)
   return (
     <div className="flex items-center gap-2">
-      <div className="bg-muted h-1.5 flex-1 overflow-hidden rounded-full">
+      {/* min-w: a nowrap table cell gives a flexing bar no width of its own. */}
+      <div className="bg-muted h-1.5 min-w-16 flex-1 overflow-hidden rounded-full">
         <div className="flex h-full">
           <div style={{ width: `${d}%`, background: "var(--state-done)" }} />
           <div style={{ width: `${o}%`, background: "var(--state-overdue)" }} />
@@ -584,85 +590,107 @@ function GroupCard({
   what,
   rows,
   onPick,
+  tableId,
+  itemLabel,
+  pageKey,
   className,
 }: {
   title: string
   what: string
   rows: ProgressGroup[]
   onPick?: (id: string) => void
+  tableId: string
+  /** Singular noun for the row count. */
+  itemLabel: string
+  /** The filter set; a new one returns the table to page 1. */
+  pageKey: string
   className?: string
 }) {
+  const columns: DataTableColumn<ProgressGroup>[] = [
+    {
+      header: what,
+      sortValue: (r) => r.label,
+      className: "max-w-[220px]",
+      cell: (r) => (
+        <>
+          {onPick ? (
+            <button
+              type="button"
+              onClick={() => onPick(r.id)}
+              className="block max-w-full truncate text-left font-medium hover:underline"
+              title={`Only ${r.label}`}
+            >
+              {r.label}
+            </button>
+          ) : (
+            <span className="block truncate font-medium" title={r.label}>
+              {r.label}
+            </span>
+          )}
+          {r.sub && (
+            <div className="text-muted-foreground truncate text-xs" title={r.sub}>
+              {r.sub}
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      header: "Completed",
+      sortValue: (r) => r.done,
+      className: "text-emerald-500 tabular-nums",
+      cell: (r) => r.done,
+    },
+    { header: "Open", sortValue: (r) => r.open, className: "tabular-nums", cell: (r) => r.open },
+    {
+      header: "Overdue",
+      sortValue: (r) => r.overdue,
+      className: "tabular-nums",
+      cell: (r) => (
+        <span className={r.overdue ? "text-red-500" : "text-muted-foreground/60"}>{r.overdue}</span>
+      ),
+    },
+    {
+      header: "Sent back",
+      sortValue: (r) => r.sentBack,
+      className: "tabular-nums",
+      cell: (r) => (
+        <span className={r.sentBack ? "text-amber-500" : "text-muted-foreground/60"}>
+          {r.sentBack}
+        </span>
+      ),
+    },
+    {
+      header: "All",
+      sortValue: (r) => r.total,
+      className: "font-medium tabular-nums",
+      cell: (r) => r.total,
+    },
+    {
+      header: "Progress",
+      sortValue: (r) => r.pct,
+      className: "w-28 sm:w-36",
+      headClassName: "w-28 sm:w-36",
+      cell: (r) => <ProgressBar done={r.done} overdue={r.overdue} total={r.total} />,
+    },
+  ]
+
   return (
-    <Card className={className}>
+    <Card className={cn("overflow-hidden", className)}>
       <CardHeader className="border-border/60 border-b pb-3">
         <CardTitle className="text-sm font-semibold">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="overflow-x-auto pt-4">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-muted-foreground text-[11px] tracking-wide uppercase">
-              <th className="py-1 text-left font-medium">{what}</th>
-              <th className="px-3 py-1 text-left font-medium whitespace-nowrap">Completed</th>
-              <th className="px-3 py-1 text-left font-medium whitespace-nowrap">Open</th>
-              <th className="px-3 py-1 text-left font-medium whitespace-nowrap">Overdue</th>
-              <th className="px-3 py-1 text-left font-medium whitespace-nowrap">Sent back</th>
-              <th className="px-3 py-1 text-left font-medium whitespace-nowrap">All</th>
-              <th className="w-28 py-1 pl-3 text-left font-medium whitespace-nowrap sm:w-36">
-                Progress
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-border/60 border-t">
-                <td className="max-w-[180px] py-2 pr-3">
-                  {onPick ? (
-                    <button
-                      type="button"
-                      onClick={() => onPick(r.id)}
-                      className="block truncate text-left font-medium hover:underline"
-                      title={`Only ${r.label}`}
-                    >
-                      {r.label}
-                    </button>
-                  ) : (
-                    <span className="block truncate font-medium" title={r.label}>
-                      {r.label}
-                    </span>
-                  )}
-                  {r.sub && <div className="text-muted-foreground truncate text-xs">{r.sub}</div>}
-                </td>
-                <td className="px-3 py-2 text-left whitespace-nowrap text-emerald-500 tabular-nums">
-                  {r.done}
-                </td>
-                <td className="px-3 py-2 text-left whitespace-nowrap tabular-nums">{r.open}</td>
-                <td
-                  className={cn(
-                    "px-3 py-2 text-left whitespace-nowrap tabular-nums",
-                    r.overdue ? "text-red-500" : "text-muted-foreground/60",
-                  )}
-                >
-                  {r.overdue}
-                </td>
-                <td
-                  className={cn(
-                    "px-3 py-2 text-left whitespace-nowrap tabular-nums",
-                    r.sentBack ? "text-amber-500" : "text-muted-foreground/60",
-                  )}
-                >
-                  {r.sentBack}
-                </td>
-                <td className="px-3 py-2 text-left font-medium whitespace-nowrap tabular-nums">
-                  {r.total}
-                </td>
-                <td className="py-2 pl-3">
-                  <ProgressBar done={r.done} overdue={r.overdue} total={r.total} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </CardContent>
+      {/* Borderless: the card is the frame. */}
+      <DataTable
+        className="rounded-none border-0"
+        tableId={tableId}
+        itemLabel={itemLabel}
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.id}
+        pageKey={pageKey}
+        columnToggle={false}
+      />
     </Card>
   )
 }
@@ -696,130 +724,105 @@ function ItemTitle({ item }: { item: ProgressItem }) {
   )
 }
 
+/** Deliverable, project and (for a manager) who - the columns both item lists open with. */
+function itemColumns(showWho: boolean): DataTableColumn<ProgressItem>[] {
+  return [
+    {
+      header: "Deliverable",
+      sortValue: (it) => it.title,
+      className: "max-w-[280px]",
+      cell: (it) => <ItemTitle item={it} />,
+    },
+    { header: "Project", sortValue: (it) => it.project, cell: (it) => it.project },
+    ...(showWho
+      ? [
+          {
+            header: "Who",
+            sortValue: (it: ProgressItem) => it.employee,
+            cell: (it: ProgressItem) =>
+              it.employee ?? <span className="text-muted-foreground">-</span>,
+          },
+        ]
+      : []),
+    {
+      header: "Status",
+      sortValue: (it) => STATUS_ORDER.indexOf(it.status),
+      cell: (it) => <StatusPill status={it.status} />,
+    },
+  ]
+}
+
 function NotDoneCard({ items, showWho }: { items: ProgressItem[]; showWho: boolean }) {
-  const shown = items.slice(0, NOT_DONE_CAP)
+  const columns: DataTableColumn<ProgressItem>[] = [
+    ...itemColumns(showWho),
+    {
+      header: "When",
+      sortValue: (it) => it.dueOn,
+      className: "text-xs",
+      cell: (it) => (
+        <span className={it.overdue ? "text-red-500" : "text-muted-foreground"}>{it.period}</span>
+      ),
+    },
+    {
+      header: "Why",
+      // The reason is the point of this list, so it wraps rather than truncates.
+      className: "text-muted-foreground min-w-[240px] text-xs whitespace-normal",
+      cell: (it) => it.why,
+    },
+  ]
   return (
-    <Card>
+    <Card className="overflow-hidden">
       <CardHeader className="border-border/60 border-b pb-3">
         <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           Still to do, and why
           <span className="text-muted-foreground text-xs font-normal">{items.length}</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="overflow-x-auto pt-4">
-        {items.length === 0 ? (
-          <p className="text-muted-foreground py-2 text-sm">
-            Everything in this window is completed.
-          </p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-muted-foreground text-[11px] tracking-wide uppercase">
-                <th className="py-1 text-left font-medium">Deliverable</th>
-                <th className="py-1 text-left font-medium">Project</th>
-                {showWho && <th className="py-1 text-left font-medium">Who</th>}
-                <th className="py-1 text-left font-medium">Status</th>
-                <th className="py-1 text-left font-medium">When</th>
-                <th className="py-1 text-left font-medium">Why</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((it) => (
-                <tr key={it.id} className="border-border/60 border-t align-top">
-                  <td className="max-w-[260px] py-2 pr-3">
-                    <ItemTitle item={it} />
-                  </td>
-                  <td className="py-2 pr-3 whitespace-nowrap">{it.project}</td>
-                  {showWho && (
-                    <td className="py-2 pr-3 whitespace-nowrap">
-                      {it.employee ?? <span className="text-muted-foreground">-</span>}
-                    </td>
-                  )}
-                  <td className="py-2 pr-3">
-                    <StatusPill status={it.status} />
-                  </td>
-                  <td
-                    className={cn(
-                      "py-2 pr-3 text-xs whitespace-nowrap",
-                      it.overdue ? "text-red-500" : "text-muted-foreground",
-                    )}
-                  >
-                    {it.period}
-                  </td>
-                  <td className="text-muted-foreground max-w-[360px] py-2 text-xs" title={it.why}>
-                    {it.why}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {items.length > shown.length && (
-          <p className="text-muted-foreground pt-2 text-xs">
-            and {items.length - shown.length} more - narrow the window or pick a project.
-          </p>
-        )}
-      </CardContent>
+      <DataTable
+        className="rounded-none border-0"
+        itemLabel="deliverable"
+        columns={columns}
+        rows={items}
+        rowKey={(it) => it.id}
+        columnToggle={false}
+        empty="Everything in this window is completed."
+      />
     </Card>
   )
 }
 
 function DeliveredCard({ items, showWho }: { items: ProgressItem[]; showWho: boolean }) {
-  const shown = items.slice(0, DELIVERED_CAP)
+  const columns: DataTableColumn<ProgressItem>[] = [
+    ...itemColumns(showWho),
+    {
+      header: "Finished",
+      sortValue: (it) => it.completedOn,
+      className: "text-muted-foreground text-xs",
+      cell: (it) => (
+        <>
+          {it.completedOn ? formatDate(it.completedOn, "d MMM yyyy") : "-"}
+          {it.late && <span className="ml-2 text-amber-500">late</span>}
+        </>
+      ),
+    },
+  ]
   return (
-    <Card>
+    <Card className="overflow-hidden">
       <CardHeader className="border-border/60 border-b pb-3">
         <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           Completed in this window
           <span className="text-muted-foreground text-xs font-normal">{items.length}</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="overflow-x-auto pt-4">
-        {items.length === 0 ? (
-          <p className="text-muted-foreground py-2 text-sm">
-            Nothing completed in this window yet.
-          </p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-muted-foreground text-[11px] tracking-wide uppercase">
-                <th className="py-1 text-left font-medium">Deliverable</th>
-                <th className="py-1 text-left font-medium">Project</th>
-                {showWho && <th className="py-1 text-left font-medium">Who</th>}
-                <th className="py-1 text-left font-medium">Status</th>
-                <th className="py-1 text-left font-medium">Finished</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((it) => (
-                <tr key={it.id} className="border-border/60 border-t align-top">
-                  <td className="max-w-[300px] py-2 pr-3">
-                    <ItemTitle item={it} />
-                  </td>
-                  <td className="py-2 pr-3 whitespace-nowrap">{it.project}</td>
-                  {showWho && (
-                    <td className="py-2 pr-3 whitespace-nowrap">
-                      {it.employee ?? <span className="text-muted-foreground">-</span>}
-                    </td>
-                  )}
-                  <td className="py-2 pr-3">
-                    <StatusPill status={it.status} />
-                  </td>
-                  <td className="text-muted-foreground py-2 text-xs whitespace-nowrap">
-                    {it.completedOn ? formatDate(it.completedOn, "d MMM yyyy") : "-"}
-                    {it.late && <span className="ml-2 text-amber-500">late</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {items.length > shown.length && (
-          <p className="text-muted-foreground pt-2 text-xs">
-            and {items.length - shown.length} more.
-          </p>
-        )}
-      </CardContent>
+      <DataTable
+        className="rounded-none border-0"
+        itemLabel="deliverable"
+        columns={columns}
+        rows={items}
+        rowKey={(it) => it.id}
+        columnToggle={false}
+        empty="Nothing completed in this window yet."
+      />
     </Card>
   )
 }

@@ -6,24 +6,21 @@ import { Link, useTenantPath } from "@/components/tenant-link"
 import { useSession } from "next-auth/react"
 import { Pencil, Users, UserCheck, UserX, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { TableSearch } from "@/components/shared/table-search"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { ATTENDANCE_STATUS_COLORS, ATTENDANCE_STATUS_LABELS } from "@/lib/constants"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { DateField } from "@/components/shared/date-field"
-import { EmptyState } from "@/components/shared/empty-state"
 import { ManualAttendanceDialog } from "@/features/attendance"
 import { useAttendanceDirectory, type AttendanceDirectoryRow } from "@/features/attendance"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
-import { cn, formatWorkHours, employeeSlug } from "@/lib/utils"
+import { formatWorkHours, employeeSlug } from "@/lib/utils"
 import { format } from "date-fns"
-
-const PAGE_SIZE = 10
 
 function fmtTime(iso: string | null): string {
   if (!iso) return "-"
@@ -47,7 +44,6 @@ export function AttendanceDirectoryClient() {
   const [to, setTo] = useState(today)
   const [search, setSearch] = useState("")
   const [correctOpen, setCorrectOpen] = useState(false)
-  const [page, setPage] = useState(1)
 
   const { data, isLoading } = useAttendanceDirectory(from, to)
   const isSingleDay = data?.isSingleDay ?? from === to
@@ -60,58 +56,61 @@ export function AttendanceDirectoryClient() {
       )
     : allRows
 
-  // The roster is fetched whole, so paging is a client-side slice clamped to totalPages.
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
-  const currentPage = Math.min(page, totalPages)
-  const pagedRows = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-
   function changeFrom(v: string) {
     setFrom(v)
-    setPage(1)
     if (v && to && v > to) setTo(v)
   }
   function changeTo(v: string) {
     setTo(v)
-    setPage(1)
     if (v && from && v < from) setFrom(v)
   }
   function clearFilters() {
     setFrom(today)
     setTo(today)
     setSearch("")
-    setPage(1)
   }
 
   if (sessionStatus === "authenticated" && !canWrite) return null
 
-  const employeeCol: DataTableColumn<AttendanceDirectoryRow> = {
-    header: "Employee",
-    cell: (r) => (
-      <Link
-        href={`/attendance/attendance-directory/${employeeSlug(r.employeeNo, r.firstName, r.lastName)}`}
-        className="group flex items-center gap-2.5"
-      >
-        <AvatarDisplay
-          src={r.profilePhoto}
-          firstName={r.firstName}
-          lastName={r.lastName}
-          size="sm"
-        />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium underline-offset-4 group-hover:underline">
-            {r.firstName} {r.lastName}
-          </p>
-          <p className="text-muted-foreground truncate text-xs">
-            {r.employeeNo}
-            {r.department ? ` · ${r.department}` : ""}
-          </p>
-        </div>
-      </Link>
-    ),
-  }
+  const employeeCols: DataTableColumn<AttendanceDirectoryRow>[] = [
+    {
+      header: "Employee",
+      sortValue: (r) => `${r.firstName} ${r.lastName}`.trim(),
+      cell: (r) => (
+        <Link
+          href={`/attendance/attendance-directory/${employeeSlug(r.employeeNo, r.firstName, r.lastName)}`}
+          className="group flex items-center gap-2.5"
+        >
+          <AvatarDisplay
+            src={r.profilePhoto}
+            firstName={r.firstName}
+            lastName={r.lastName}
+            size="sm"
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium underline-offset-4 group-hover:underline">
+              {r.firstName} {r.lastName}
+            </p>
+            <p className="text-muted-foreground truncate text-xs">
+              {r.employeeNo}
+              {r.department ? ` · ${r.department}` : ""}
+            </p>
+          </div>
+        </Link>
+      ),
+    },
+    {
+      header: "Employee No",
+      defaultHidden: true,
+      sortValue: (r) => r.employeeNo,
+      className: "font-mono text-xs",
+      cell: (r) => r.employeeNo,
+    },
+  ]
 
   const statusCol: DataTableColumn<AttendanceDirectoryRow> = {
     header: "Status",
+    sortValue: (r) => ATTENDANCE_STATUS_LABELS[r.status] ?? r.status,
     cell: (r) => (
       <StatusBadge
         status={r.status}
@@ -123,30 +122,57 @@ export function AttendanceDirectoryClient() {
 
   const columns: DataTableColumn<AttendanceDirectoryRow>[] = isSingleDay
     ? [
-        employeeCol,
-        { header: "Check In", className: "tabular-nums", cell: (r) => fmtTime(r.checkIn) },
-        { header: "Check Out", className: "tabular-nums", cell: (r) => fmtTime(r.checkOut) },
+        ...employeeCols,
+        {
+          header: "Check In",
+          className: "tabular-nums",
+          sortValue: (r) => r.checkIn,
+          exportValue: (r) => (r.checkIn ? fmtTime(r.checkIn) : null),
+          cell: (r) => fmtTime(r.checkIn),
+        },
+        {
+          header: "Check Out",
+          className: "tabular-nums",
+          sortValue: (r) => r.checkOut,
+          exportValue: (r) => (r.checkOut ? fmtTime(r.checkOut) : null),
+          cell: (r) => fmtTime(r.checkOut),
+        },
         {
           header: "Work Hours",
           className: "tabular-nums",
+          sortValue: (r) => r.workHours,
           cell: (r) => (r.workHours != null ? formatWorkHours(r.workHours) : "-"),
         },
         statusCol,
       ]
     : [
-        employeeCol,
+        ...employeeCols,
         {
           header: "Present",
           align: "right",
           className: "tabular-nums",
+          sortValue: (r) => r.presentDays,
           cell: (r) => r.presentDays,
         },
-        { header: "Half Day", align: "right", className: "tabular-nums", cell: (r) => r.halfDays },
-        { header: "Absent", align: "right", className: "tabular-nums", cell: (r) => r.absentDays },
+        {
+          header: "Half Day",
+          align: "right",
+          className: "tabular-nums",
+          sortValue: (r) => r.halfDays,
+          cell: (r) => r.halfDays,
+        },
+        {
+          header: "Absent",
+          align: "right",
+          className: "tabular-nums",
+          sortValue: (r) => r.absentDays,
+          cell: (r) => r.absentDays,
+        },
         {
           header: "Avg Hours",
           align: "right",
           className: "tabular-nums",
+          sortValue: (r) => r.avgHours,
           cell: (r) => (r.avgHours ? formatWorkHours(r.avgHours) : "-"),
         },
       ]
@@ -202,19 +228,8 @@ export function AttendanceDirectoryClient() {
         />
       </div>
 
+      {/* The dates also drive the cards above, so they stay out of the table's toolbar. */}
       <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-[200px] flex-1 space-y-1.5">
-          <Label htmlFor="dir-search">Employee</Label>
-          <Input
-            id="dir-search"
-            placeholder="Search by name or ID..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
-          />
-        </div>
         <div className="w-44 space-y-1.5">
           <Label>From</Label>
           <DateField value={from} onChange={changeFrom} endMonth={new Date()} />
@@ -230,26 +245,27 @@ export function AttendanceDirectoryClient() {
         )}
       </div>
 
-      {isLoading || rows.length > 0 ? (
-        <DataTable
-          columns={columns}
-          rows={pagedRows}
-          rowKey={(r) => r.employeeId}
-          showSerial
-          serialOffset={(currentPage - 1) * PAGE_SIZE}
-          minWidth="min-w-[720px]"
-          loading={isLoading}
-          pagination={{
-            page: currentPage,
-            totalPages,
-            total: rows.length,
-            onPageChange: setPage,
-            itemLabel: "employee",
-          }}
-        />
-      ) : (
-        <EmptyState variant="card" title="No employees found." />
-      )}
+      <DataTable
+        tableId="attendance-directory"
+        exportName={from === to ? `attendance-${from}` : `attendance-${from}-to-${to}`}
+        itemLabel="employee"
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.employeeId}
+        showSerial
+        minWidth="min-w-[720px]"
+        loading={isLoading}
+        pageKey={`${from}|${to}|${q}`}
+        toolbar={
+          <TableSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by name or ID..."
+            label="Search employees by name or ID"
+          />
+        }
+        empty={q ? "No employee matches that search." : "No employees found."}
+      />
 
       <ManualAttendanceDialog open={correctOpen} onOpenChange={setCorrectOpen} />
     </div>

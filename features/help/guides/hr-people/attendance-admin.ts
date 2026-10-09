@@ -48,15 +48,15 @@ export const attendanceAdminGuide: HelpGuide = {
             path: "/attendance/attendance-directory",
             highlight: [
               { text: "Total Employees" },
-              { label: "Employee" },
+              { placeholder: "Search by name or ID..." },
               { role: "button", name: "Correct Punch" },
             ],
           },
         },
         {
           text: {
-            en: "The table has one row per active employee, with their Check In, Check Out, Work Hours and Status. To find someone, type their name or employee code under Employee (2).",
-            hi: "टेबल में हर active employee की एक लाइन है, जिसमें उनका Check In, Check Out, Work Hours और Status है। किसी को ढूँढने के लिए Employee (2) के नीचे उनका नाम या employee code टाइप करें।",
+            en: "The table has one row per active employee, with their Check In, Check Out, Work Hours and Status. To find someone, type their name or employee code in the search box at the top of the table (2).",
+            hi: "टेबल में हर active employee की एक लाइन है, जिसमें उनका Check In, Check Out, Work Hours और Status है। किसी को ढूँढने के लिए टेबल के ऊपर वाले सर्च बॉक्स (2) में उनका नाम या employee code टाइप करें।",
           },
         },
         {

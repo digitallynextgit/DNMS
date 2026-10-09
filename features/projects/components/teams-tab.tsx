@@ -145,14 +145,19 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
     {
       header: "",
       align: "right",
-      cell: (team) => (
-        <Button
-          variant="ghost"
-          onClick={() => setCollapsed({ ...collapsed, [team.id]: !collapsed[team.id] })}
-        >
-          {collapsed[team.id] === false ? "Hide" : "View"}
-        </Button>
-      ),
+      // In the table a team is shown only once explicitly opened (false); undefined still reads as shut.
+      cell: (team) => {
+        const shown = collapsed[team.id] === false
+        return (
+          <Button
+            variant="ghost"
+            aria-expanded={shown}
+            onClick={() => setCollapsed({ ...collapsed, [team.id]: shown })}
+          >
+            {shown ? "Hide" : "View"}
+          </Button>
+        )
+      },
     },
   ]
 
@@ -195,7 +200,15 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
         />
       ) : viewMode === "table" ? (
         <>
-          <DataTable columns={columns} rows={teams} rowKey={(team) => team.id} showSerial />
+          {/* The fixed set of teams: one page, no column picker. */}
+          <DataTable
+            columns={columns}
+            rows={teams}
+            rowKey={(team) => team.id}
+            showSerial
+            pageSize={false}
+            columnToggle={false}
+          />
           {teams
             .filter((t) => collapsed[t.id] === false)
             .map((team) => (

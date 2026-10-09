@@ -1,5 +1,9 @@
 import { Skeleton } from "@/components/ui/skeleton"
-import { PageHeaderSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
+import {
+  DataTableSkeleton,
+  PageHeaderSkeleton,
+  TableSkeleton,
+} from "@/components/shared/loading-skeleton"
 
 export default function Loading() {
   return (
@@ -7,17 +11,8 @@ export default function Loading() {
       <PageHeaderSkeleton />
 
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Skeleton className="bg-muted h-9 w-56 animate-pulse rounded-sm" />
-          <div className="flex items-center gap-2">
-            <Skeleton className="bg-muted h-9 w-[170px] animate-pulse rounded-sm" />
-            <Skeleton className="bg-muted h-9 w-[150px] animate-pulse rounded-sm" />
-          </div>
-        </div>
-
-        <div className="border-border bg-card rounded-sm border">
-          <TableSkeleton rows={4} cols={6} />
-        </div>
+        <Skeleton className="bg-muted h-9 w-56 animate-pulse rounded-sm" />
+        <DataTableSkeleton cols={6} rows={4} filters={1} />
       </div>
 
       <div className="border-border bg-card rounded-sm border">
@@ -25,7 +20,7 @@ export default function Loading() {
           <Skeleton className="bg-muted h-4 w-48 animate-pulse" />
           <Skeleton className="bg-muted h-3 w-72 animate-pulse" />
         </div>
-        <TableSkeleton rows={4} cols={3} />
+        <TableSkeleton rows={4} cols={3} serial={false} />
       </div>
     </div>
   )

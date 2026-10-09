@@ -180,14 +180,14 @@ export const storageGuide: HelpGuide = {
         },
         {
           text: {
-            en: "The folder tiles, like Profile Photos, Employee Documents, Project Files, Photo Gallery, Chat Media and Resumes, filter the list below. Search files or owner... finds a file by its name or owner, and All, In use and Orphaned filter by status.",
-            hi: "Profile Photos, Employee Documents, Project Files, Photo Gallery, Chat Media और Resumes जैसी फ़ोल्डर टाइल्स नीचे की लिस्ट को फ़िल्टर करती हैं। Search files or owner... से फ़ाइल उसके नाम या मालिक से ढूँढें, और All, In use और Orphaned से स्टेटस के हिसाब से फ़िल्टर करें।",
+            en: "The folder tiles, like Profile Photos, Employee Documents, Project Files, Photo Gallery, Chat Media and Resumes, filter the list below. Above the list, Search files or owner... finds a file by its name or owner, and the status menu next to it (All, In use or Orphaned) filters by status.",
+            hi: "Profile Photos, Employee Documents, Project Files, Photo Gallery, Chat Media और Resumes जैसी फ़ोल्डर टाइल्स नीचे की लिस्ट को फ़िल्टर करती हैं। लिस्ट के ऊपर Search files or owner... से फ़ाइल उसके नाम या मालिक से ढूँढें, और उसके बगल वाले स्टेटस मेन्यू (All, In use या Orphaned) से स्टेटस के हिसाब से फ़िल्टर करें।",
           },
         },
         {
           text: {
-            en: "Each file has View, Download and Delete buttons at the end of its row.",
-            hi: "हर फ़ाइल की लाइन के आखिर में View, Download और Delete बटन होते हैं।",
+            en: "Each file has View, Download and Delete buttons at the end of its row. Click a column heading, like Size, to sort by it. Export, above the list, downloads the file list as a CSV or Excel file.",
+            hi: "हर फ़ाइल की लाइन के आखिर में View, Download और Delete बटन होते हैं। किसी कॉलम के नाम पर, जैसे Size, क्लिक करके उसी से sort करें। लिस्ट के ऊपर Export से फ़ाइलों की लिस्ट CSV या Excel file में डाउनलोड होती है।",
           },
         },
         {

@@ -81,6 +81,10 @@ export const employeeDirectoryGuide: HelpGuide = {
           en: "Your search, filters and page number are kept in the web address, so you can bookmark a filtered list or share it with a colleague.",
           hi: "आपका सर्च, फिल्टर और पेज नंबर वेब एड्रेस (URL) में रहते हैं, इसलिए फिल्टर की हुई लिस्ट को बुकमार्क कर सकते हैं या किसी साथी को भेज सकते हैं।",
         },
+        {
+          en: "Need the Employee No or Email as its own column? Click the columns button at the top right of the table and tick it. The Export file always includes both.",
+          hi: "Employee No या Email अलग कॉलम में चाहिए? टेबल में ऊपर दाईं ओर कॉलम वाले बटन पर क्लिक करें और उस पर टिक करें। Export वाली फाइल में ये दोनों हमेशा होते हैं।",
+        },
       ],
       faq: [
         {
@@ -302,16 +306,16 @@ export const employeeDirectoryGuide: HelpGuide = {
         },
         {
           text: {
-            en: "To act on many people at once, tick the boxes on the left, or the box in the header for the whole page. A bar appears with Export CSV (1), which downloads the selected rows, and Terminate (2), which marks them all as terminated and deactivates them.",
-            hi: "कई लोगों पर एक साथ काम करना है तो बाईं ओर के बॉक्स टिक करें, या पूरे पेज के लिए हेडर वाला बॉक्स। एक बार दिखेगी जिसमें Export CSV (1) है, जो चुनी हुई लाइनें डाउनलोड करता है, और Terminate (2), जो सबको terminated मार्क करके deactivate कर देता है।",
+            en: "To act on many people at once, tick the boxes on the left, or the box in the header for the whole page. Export (1) at the top right of the table downloads the ticked rows as a CSV file or Excel file. The header row shows how many you picked, with Terminate (2), which marks them all as terminated and deactivates them.",
+            hi: "कई लोगों पर एक साथ काम करना है तो बाईं ओर के बॉक्स टिक करें, या पूरे पेज के लिए हेडर वाला बॉक्स। टेबल में ऊपर दाईं ओर Export (1) टिक की हुई लाइनें CSV file या Excel file में डाउनलोड करता है। हेडर वाली लाइन में दिखता है कि कितने लोग चुने गए, और साथ में Terminate (2) होता है, जो सबको terminated मार्क करके deactivate कर देता है।",
           },
           shot: {
             id: "employee-directory-bulk",
             as: "hr",
             path: "/employees/employee-directory",
-            actions: [{ click: { role: "checkbox", name: "Select all" } }],
+            actions: [{ click: { role: "checkbox", name: "Select all rows on this page" } }],
             highlight: [
-              { role: "button", name: "Export CSV" },
+              { role: "button", name: "Export", exact: true },
               { role: "button", name: "Terminate" },
             ],
           },

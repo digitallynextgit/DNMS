@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useUrlPage, useUrlState } from "@/hooks/use-url-state"
+import { useUrlState } from "@/hooks/use-url-state"
 import { PageHeader } from "@/components/shared/page-header"
 import {
   LeaveTypeForm,
@@ -24,9 +24,6 @@ import { PERMISSIONS, SYSTEM_ROLES, TONE } from "@/lib/constants"
 import { Plus, Pencil, ToggleLeft, ToggleRight, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useRowSelection } from "@/hooks/use-row-selection"
-import { BulkActionBar } from "@/components/shared/bulk-action-bar"
-
-const PAGE_SIZE = 10
 
 export default function LeaveTypesAndPolicyPage() {
   const { can, roles, isAdmin_ } = usePermissions()
@@ -47,15 +44,10 @@ export default function LeaveTypesAndPolicyPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingType, setEditingType] = useState<LeaveType | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [page, setPage] = useUrlPage()
 
-  // Paginated locally: the list is reused as a lookup elsewhere, so the API stays unpaginated.
+  // The API stays unpaginated (the list is reused as a lookup elsewhere); the table pages it.
   const leaveTypes = data?.data ?? []
-  const total = leaveTypes.length
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const currentPage = Math.min(page, totalPages)
-  const pagedTypes = leaveTypes.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-  const selection = useRowSelection(pagedTypes.map((t) => t.id))
+  const selection = useRowSelection(leaveTypes.map((t) => t.id))
   const [bulkOpen, setBulkOpen] = useState(false)
 
   function openCreate() {
@@ -111,11 +103,15 @@ export default function LeaveTypesAndPolicyPage() {
   const columns: DataTableColumn<LeaveType>[] = [
     {
       header: "Name",
+      sortValue: (type) => type.name,
       cell: (type) => (
         <>
           <p className="font-medium">{type.name}</p>
           {type.description && (
-            <p className="text-muted-foreground max-w-[200px] truncate text-xs">
+            <p
+              className="text-muted-foreground max-w-[200px] truncate text-xs"
+              title={type.description}
+            >
               {type.description}
             </p>
           )}
@@ -124,12 +120,14 @@ export default function LeaveTypesAndPolicyPage() {
     },
     {
       header: "Code",
+      sortValue: (type) => type.code,
       cell: (type) => (
         <code className="bg-muted rounded-sm px-1.5 py-0.5 font-mono text-xs">{type.code}</code>
       ),
     },
     {
       header: "Type",
+      sortValue: (type) => (type.isPaid ? "Paid" : "Unpaid"),
       cell: (type) => (
         <Badge className={cn("border-0 text-xs", type.isPaid ? TONE.green : TONE.neutral)}>
           {type.isPaid ? "Paid" : "Unpaid"}
@@ -139,11 +137,14 @@ export default function LeaveTypesAndPolicyPage() {
     {
       header: "Max Days / Year",
       className: "text-muted-foreground",
+      // 0 means unlimited, so it sorts after every capped type.
+      sortValue: (type) => (type.maxDaysPerYear === 0 ? Infinity : type.maxDaysPerYear),
       cell: (type) => (type.maxDaysPerYear === 0 ? "Unlimited" : `${type.maxDaysPerYear} days`),
     },
     {
       header: "Carry Forward",
       className: "text-muted-foreground",
+      sortValue: (type) => (type.carryForward ? type.maxCarryDays : -1),
       cell: (type) =>
         type.carryForward ? (
           <span>
@@ -159,10 +160,12 @@ export default function LeaveTypesAndPolicyPage() {
     {
       header: "Approval",
       className: "text-muted-foreground",
+      sortValue: (type) => (type.requiresApproval ? "Required" : "Auto-approved"),
       cell: (type) => (type.requiresApproval ? "Required" : "Auto-approved"),
     },
     {
       header: "Status",
+      sortValue: (type) => (type.isActive ? "Active" : "Inactive"),
       cell: (type) => (
         <Badge className={cn("border-0 text-xs", type.isActive ? TONE.green : TONE.neutral)}>
           {type.isActive ? "Active" : "Inactive"}
@@ -233,35 +236,28 @@ export default function LeaveTypesAndPolicyPage() {
         />
 
         {canManageTypes && (
-          <TabsContent value="types" className="space-y-6">
-            <BulkActionBar count={selection.count} onClear={selection.clear}>
-              <Button
-                variant="destructive"
-                onClick={() => setBulkOpen(true)}
-                disabled={deleteLeaveType.isPending}
-              >
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                Deactivate
-              </Button>
-            </BulkActionBar>
-
+          <TabsContent value="types">
             {isLoading || leaveTypes.length > 0 ? (
               <DataTable
+                tableId="leave-types"
+                itemLabel="leave type"
                 columns={columns}
-                rows={pagedTypes}
+                rows={leaveTypes}
                 rowKey={(type) => type.id}
                 showSerial
-                serialOffset={(currentPage - 1) * PAGE_SIZE}
                 selection={selection}
+                selectionActions={
+                  <Button
+                    variant="destructive"
+                    onClick={() => setBulkOpen(true)}
+                    disabled={deleteLeaveType.isPending}
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    Deactivate
+                  </Button>
+                }
                 loading={isLoading}
-                skeletonRows={PAGE_SIZE}
-                pagination={{
-                  page: currentPage,
-                  totalPages,
-                  total,
-                  onPageChange: setPage,
-                  itemLabel: "leave type",
-                }}
+                skeletonRows={5}
               />
             ) : (
               <EmptyState

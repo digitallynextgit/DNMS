@@ -203,6 +203,7 @@ function toWorkbook(w: WorkbookRecord): SheetWorkbook {
     createdByClientId: w.createdByClientId,
     assignedTo: w.assignedTo,
     isClientVisible: w.isClientVisible,
+    service: w.service,
     updatedAt: w.updatedAt.toISOString(),
     sheets: w.sheets.map(toSheet),
   }
@@ -289,6 +290,7 @@ export async function listWorkbookIndex(projectId: string): Promise<WorkbookInde
       position: true,
       createdByClientId: true,
       isClientVisible: true,
+      service: true,
       updatedAt: true,
       createdBy: { select: { firstName: true, lastName: true } },
       createdByClient: { select: { name: true } },
@@ -306,6 +308,7 @@ export async function listWorkbookIndex(projectId: string): Promise<WorkbookInde
     createdByClientId: w.createdByClientId,
     assignedTo: w.assignedTo,
     isClientVisible: w.isClientVisible,
+    service: w.service,
     updatedAt: w.updatedAt.toISOString(),
     tabs: w.sheets,
   }))
@@ -433,6 +436,8 @@ export async function createWorkbook(
     actorClientId?: string | null
     /** "2026-09" or "2026-09-01". Omitted / null = an undated calendar. */
     periodMonth?: string | null
+    /** The project service this calendar is for (PROJECT_SERVICES code). */
+    service?: string | null
     /** Start from an existing edition - see copyEditionInto for what is (not) copied. */
     copyFrom?: {
       workbookId: string
@@ -468,6 +473,18 @@ export async function createWorkbook(
     : null
   if (input.copyFrom && !source) throw new Error("The calendar to copy from was not found")
 
+  // A series keeps its service from month to month, however the new month is started.
+  const service =
+    input.service ??
+    source?.service ??
+    (
+      await db.projectWorkbook.findFirst({
+        where: { projectId, name: title, service: { not: null } },
+        select: { service: true },
+      })
+    )?.service ??
+    null
+
   const book = await db.projectWorkbook.create({
     data: {
       projectId,
@@ -480,6 +497,7 @@ export async function createWorkbook(
       isClientVisible: input.isClientVisible ?? false,
       // The calendar manager carries forward to the next month.
       assignedToId: source?.assignedToId ?? null,
+      service,
     },
   })
 

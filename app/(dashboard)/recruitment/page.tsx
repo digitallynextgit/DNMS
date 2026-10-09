@@ -443,6 +443,7 @@ export default function RecruitmentPage() {
           total={jobs.length}
           onPageChange={setPage}
           itemLabel="job posting"
+          pageSize={PAGE_SIZE}
         />
       )}
 

@@ -49,7 +49,8 @@ interface Tab {
   rows: Raw[][]
 }
 type Mode = "all" | "one"
-type Intent = "new-tab" | "new-sheet"
+/** "this-tab": the tab strip's Upload - one file tab, column by column, into the open tab. */
+type Intent = "new-tab" | "new-sheet" | "this-tab"
 type Target = "current" | "new"
 
 /** Create as another month of an existing calendar; `name` is used verbatim (no "(2)") so it stays one calendar. */
@@ -361,13 +362,25 @@ function Body({
     }
     setSourceName(name)
     setTabs(nextTabs)
-    setTabIndex(0)
+    // Into this tab: start on the file tab named like it ("Instagram" finds "Instagram - Oct").
+    const named =
+      intent === "this-tab" && sheet
+        ? nextTabs.findIndex((t) => normalise(t.name).includes(normalise(sheet.name)))
+        : -1
+    const start = Math.max(0, named)
+    setTabIndex(start)
     // New tab / sheet / month always imports all tabs; otherwise several tabs usually mean "tabs of one sheet".
-    setMode(createAs || intent || nextTabs.length > 1 || !sheet ? "all" : "one")
+    setMode(
+      intent === "this-tab" && sheet
+        ? "one"
+        : createAs || intent || nextTabs.length > 1 || !sheet
+          ? "all"
+          : "one",
+    )
     setNewSheetName(stripExt(name) || "Imported sheet")
     // Every tab with rows starts ticked.
     setChosen(new Set(nextTabs.flatMap((t, i) => (split(t, hasHeader).rows.length > 0 ? [i] : []))))
-    if (sheet) setMapping(autoMap(split(nextTabs[0]!, hasHeader).headers, sheet.columns))
+    if (sheet) setMapping(autoMap(split(nextTabs[start]!, hasHeader).headers, sheet.columns))
   }
 
   function remap(nextIndex: number, nextHasHeader: boolean) {

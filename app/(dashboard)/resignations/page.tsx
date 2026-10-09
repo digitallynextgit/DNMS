@@ -179,6 +179,7 @@ export default function ResignationsPage() {
           total={pagination.total}
           onPageChange={setPage}
           itemLabel="request"
+          pageSize={pagination.limit}
         />
       )}
 

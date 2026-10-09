@@ -5,9 +5,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
   ChevronDown,
   ChevronRight,
   Cloud,
@@ -80,7 +77,6 @@ import {
   subtitleOf,
   TYPE_LABEL,
   type FileType,
-  type SortKey,
   type Source,
   type UnifiedFile,
 } from "../lib/file-row"
@@ -120,7 +116,6 @@ import { FolderPickerDialog } from "./files/folder-picker-dialog"
 import { FilePreviewSheet, type PreviewItem } from "./files/file-preview-sheet"
 
 /** A folder is fetched whole, so paging is client-side. The card grid uses 24 (divides by 2, 3, 4 and 6). */
-const TABLE_PAGE_SIZE = 25
 const GRID_PAGE_SIZE = 24
 
 /** How many deletes / moves / thumbnails run at once. */
@@ -262,9 +257,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const [typeFilter, setTypeFilter] = useState<"all" | FileType>("all")
   const [tagFilter, setTagFilter] = useState<"all" | DocTag>("all")
   const [view, setView] = useViewMode("project-repository-view", "card")
-  const [sortKey, setSortKey] = useState<SortKey>("modified")
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
-  // Keyed to the filter set (see below), so a filter or folder change lands on page 1.
+  // The card grid's page, keyed to the filter set (see below) so a filter or folder change lands on page 1.
   const [pageState, setPageState] = useState<{ key: string; page: number }>({ key: "", page: 1 })
 
   const driveConfigured = data?.drive.configured ?? false
@@ -361,27 +354,24 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         return false
       return true
     })
-    const dir = sortDir === "asc" ? 1 : -1
-    // Folders always lead; they follow the sort direction only when sorting by name.
-    const folders = filtered
-      .filter((f) => f.source === "folder")
-      .sort((a, b) => byName(a, b) * (sortKey === "name" ? dir : 1))
+    // Folders first (A-Z), then the newest items; a table header click re-sorts from there.
+    const folders = filtered.filter((f) => f.source === "folder").sort(byName)
     const items = filtered
       .filter((f) => f.source !== "folder")
-      .sort((a, b) => compare(a, b, sortKey) * dir || byName(a, b))
+      .sort((a, b) => compare(b, a, "modified") || byName(a, b))
     return [...folders, ...items]
-  }, [allRows, sourceFilter, typeFilter, tagFilter, q, sortKey, sortDir])
+  }, [allRows, sourceFilter, typeFilter, tagFilter, q])
 
-  const pageSize = view === "card" ? GRID_PAGE_SIZE : TABLE_PAGE_SIZE
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const totalPages = Math.max(1, Math.ceil(rows.length / GRID_PAGE_SIZE))
   // The page is stored with its filter set and falls back to 1 when the set changes; clamped too.
   const filterKey = `${folderId ?? ""}|${q}|${sourceFilter}|${typeFilter}|${tagFilter}`
   const page = pageState.key === filterKey ? Math.min(pageState.page, totalPages) : 1
   const setPage = (p: number) => setPageState({ key: filterKey, page: p })
 
+  // The card grid's page; the table pages itself.
   const paged = useMemo(
-    () => rows.slice((page - 1) * pageSize, page * pageSize),
-    [rows, page, pageSize],
+    () => rows.slice((page - 1) * GRID_PAGE_SIZE, page * GRID_PAGE_SIZE),
+    [rows, page],
   )
   const rowKey = (f: UnifiedFile) => `${f.source}-${f.id}`
   const pageIds = useMemo(() => paged.map(rowKey), [paged])
@@ -396,14 +386,6 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const goToFolder = (id: string | null) => {
     selection.clear()
     setFolderParam(id)
-  }
-
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"))
-    else {
-      setSortKey(key)
-      setSortDir(key === "modified" || key === "size" ? "desc" : "asc")
-    }
   }
 
   // Permissions: the API enforces; these only decide what to show.
@@ -707,29 +689,10 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     updateDriveFile.isPending ||
     updateResource.isPending
 
-  // A plain element factory, not a component: a component defined in render would remount and lose focus.
-  const sortHeader = (label: string, k: SortKey) => {
-    const active = sortKey === k
-    const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown
-    return (
-      <button
-        type="button"
-        onClick={() => toggleSort(k)}
-        className={cn(
-          "hover:text-foreground inline-flex items-center gap-1 whitespace-nowrap",
-          active && "text-foreground",
-        )}
-        title={`Sort by ${label.toLowerCase()}`}
-      >
-        {label}
-        <Icon className={cn("h-3 w-3", !active && "opacity-50")} />
-      </button>
-    )
-  }
-
   const columns: DataTableColumn<UnifiedFile>[] = [
     {
-      header: sortHeader("Name", "name"),
+      header: "Name",
+      sortValue: (f) => f.name,
       // The one flexing column: `w-full max-w-0` takes the leftover width and still lets the child truncate.
       className: "w-full max-w-0",
       headClassName: "w-full",
@@ -762,7 +725,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     },
     {
       header: "Tag",
-      className: "whitespace-nowrap",
+      sortValue: (f) => (f.tag ? DOC_TAG_LABEL[f.tag] : null),
       cell: (f) => {
         if (f.source === "folder") return <span className="text-muted-foreground">-</span>
         // Only stored tags (B2 files and links) are editable; a Drive file has no row of ours.
@@ -809,28 +772,34 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       },
     },
     {
-      header: sortHeader("Type", "type"),
-      className: "whitespace-nowrap",
+      header: "Type",
+      sortValue: (f) => TYPE_LABEL[f.type],
       cell: (f) => TYPE_LABEL[f.type],
     },
-    { header: "Storage", className: "whitespace-nowrap", cell: (f) => <StorageCell f={f} /> },
     {
-      header: sortHeader("Added by", "addedBy"),
-      className: "max-w-[160px] whitespace-nowrap",
+      header: "Storage",
+      sortValue: (f) => (f.source === "folder" ? null : f.source),
+      cell: (f) => <StorageCell f={f} />,
+    },
+    {
+      header: "Added by",
+      sortValue: (f) => f.addedBy?.name,
+      className: "max-w-[160px]",
       cell: (f) => <PersonCell p={f.addedBy} />,
     },
     {
-      header: sortHeader("Size", "size"),
+      header: "Size",
       align: "right",
-      className: "whitespace-nowrap tabular-nums",
+      sortValue: (f) => f.size,
+      className: "tabular-nums",
       cell: (f) => fmtBytes(f.size),
     },
     {
-      header: sortHeader("Modified", "modified"),
-      className: "whitespace-nowrap",
+      header: "Modified",
+      sortValue: (f) => f.modified,
       cell: (f) => (f.modified ? new Date(f.modified).toLocaleDateString("en-IN") : "-"),
     },
-    { header: "", align: "right", className: "whitespace-nowrap", cell: (f) => rowActions(f) },
+    { header: "", align: "right", cell: (f) => rowActions(f) },
   ]
 
   /** A card's whole action set, so Download lives here too (the table also shows it as a button). */
@@ -977,6 +946,40 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const del = deleteCopy(deleteTarget)
   const deleting =
     delB2.isPending || delDrive.isPending || deleteFolder.isPending || deleteLink.isPending
+
+  // Delete needs manage rights (as per-row for Drive files); move and download are open to all.
+  const bulkButtons = (
+    <>
+      <Button
+        variant="outline"
+        onClick={() => void runBulkDownload()}
+        loading={dlProgress !== null}
+        disabled={dlProgress !== null || bulkProgress !== null || downloadable === 0}
+        title={downloadable === 0 ? "Only stored (Backblaze) files download here" : undefined}
+      >
+        <Download className="mr-1.5 h-3.5 w-3.5" />
+        {dlProgress
+          ? `Downloading ${dlProgress.done}/${dlProgress.total}`
+          : `Download ${downloadable}`}
+      </Button>
+      <Button
+        variant="outline"
+        onClick={() => setMoveTargets(selectedRows)}
+        disabled={bulkProgress !== null || dlProgress !== null}
+      >
+        <FolderInput className="mr-1.5 h-3.5 w-3.5" /> Move {selectedRows.length}
+      </Button>
+      {canManage && (
+        <Button
+          variant="destructive"
+          onClick={() => setBulkOpen(true)}
+          disabled={bulkProgress !== null || dlProgress !== null}
+        >
+          <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete {selectedRows.length}
+        </Button>
+      )}
+    </>
+  )
 
   return (
     <div
@@ -1238,37 +1241,12 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         </div>
       </div>
 
-      {/* Delete needs manage rights (as per-row for Drive files); move and download are open to all. */}
-      <BulkActionBar count={selection.count} onClear={selection.clear} label="selected">
-        <Button
-          variant="outline"
-          onClick={() => void runBulkDownload()}
-          loading={dlProgress !== null}
-          disabled={dlProgress !== null || bulkProgress !== null || downloadable === 0}
-          title={downloadable === 0 ? "Only stored (Backblaze) files download here" : undefined}
-        >
-          <Download className="mr-1.5 h-3.5 w-3.5" />
-          {dlProgress
-            ? `Downloading ${dlProgress.done}/${dlProgress.total}`
-            : `Download ${downloadable}`}
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => setMoveTargets(selectedRows)}
-          disabled={bulkProgress !== null || dlProgress !== null}
-        >
-          <FolderInput className="mr-1.5 h-3.5 w-3.5" /> Move {selection.count}
-        </Button>
-        {canManage && (
-          <Button
-            variant="destructive"
-            onClick={() => setBulkOpen(true)}
-            disabled={bulkProgress !== null || dlProgress !== null}
-          >
-            <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete {selection.count}
-          </Button>
-        )}
-      </BulkActionBar>
+      {/* The grid has no header row to carry the selection; the table shows it in its own. */}
+      {view === "card" && (
+        <BulkActionBar count={selectedRows.length} onClear={selection.clear} label="selected">
+          {bulkButtons}
+        </BulkActionBar>
+      )}
 
       {allRows.length === 0 ? (
         <EmptyState
@@ -1297,25 +1275,22 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
                 total={rows.length}
                 onPageChange={setPage}
                 itemLabel="item"
+                pageSize={GRID_PAGE_SIZE}
               />
             </div>
           ) : (
             <DataTable
+              tableId="project-repository"
+              itemLabel="item"
               columns={columns}
-              rows={paged}
+              rows={rows}
               rowKey={rowKey}
               showSerial
-              serialOffset={(page - 1) * pageSize}
               selection={selection}
+              selectionActions={bulkButtons}
+              pageKey={filterKey}
               minWidth="min-w-[980px]"
               mobileCard={(f) => <FileCard file={f} actions={rowActions(f)} />}
-              pagination={{
-                page,
-                totalPages,
-                total: rows.length,
-                onPageChange: setPage,
-                itemLabel: "item",
-              }}
             />
           )}
         </div>

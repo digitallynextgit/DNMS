@@ -192,6 +192,7 @@ export default function FloatingHolidaysPage() {
         total={optionalHolidays.length}
         onPageChange={setPage}
         itemLabel="holiday"
+        pageSize={PAGE_SIZE}
       />
 
       {atLimit && (

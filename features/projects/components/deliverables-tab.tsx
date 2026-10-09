@@ -51,6 +51,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { Pagination } from "@/components/shared/pagination"
 import { TabsBar } from "@/components/shared/tabs-bar"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
@@ -98,7 +99,7 @@ import { formatHours } from "../lib/format-hours"
 
 // Row buttons come from nextActions(status, actor) - the table the server uses - so none offers a refused move.
 
-/** Deliverables per page; the items inside one are never paged. */
+/** Deliverables per page in the card view (the table pages itself); the items inside one are never paged. */
 const PERIODS_PER_PAGE = 20
 
 /** Mirrors OPEN_STATUSES - STUCK is owed too. */
@@ -929,227 +930,258 @@ function PeriodItemsTable({
   rowProps: (r: DeliverableRow) => RowHandlers
   hideTeam?: boolean
 }) {
+  const columns: DataTableColumn<DeliverableRow>[] = [
+    ...(hideTeam
+      ? []
+      : [
+          {
+            header: "Team",
+            sortValue: (r: DeliverableRow) => r.team?.name,
+            className: "font-medium",
+            cell: (r: DeliverableRow) =>
+              r.team?.name ?? <span className="text-muted-foreground">-</span>,
+          },
+        ]),
+    {
+      header: "Deliverable",
+      sortValue: (r) => r.title,
+      // The one flexing column: takes the slack and lets the title truncate (min-w keeps it on phones).
+      className: "w-full max-w-0 min-w-48",
+      headClassName: "w-full",
+      cell: (r) => (
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="border-border/70 text-muted-foreground shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+            {r.type}
+          </span>
+          <span className="truncate font-medium" title={r.title}>
+            {r.title}
+          </span>
+          {r.locked && (
+            <Lock className="text-muted-foreground h-3 w-3 shrink-0" aria-label="Period closed" />
+          )}
+        </span>
+      ),
+    },
+    {
+      header: "Done",
+      align: "right",
+      sortValue: (r) => r.deliveredQuantity,
+      className: "tabular-nums",
+      cell: (r) => (
+        <>
+          <span
+            className={cn(
+              r.deliveredQuantity >= r.quantity
+                ? "text-emerald-500"
+                : r.deliveredQuantity > 0
+                  ? "text-foreground"
+                  : "text-muted-foreground",
+            )}
+          >
+            {r.deliveredQuantity}
+          </span>
+          <span className="text-muted-foreground">/{r.quantity}</span>
+        </>
+      ),
+    },
+    {
+      header: "Owned by",
+      sortValue: (r) => r.employee?.name,
+      cell: (r) => {
+        const h = rowProps(r)
+        return r.employee ? (
+          <OwnerCell r={r} onAssign={h.onAssign} />
+        ) : h.onAssign ? (
+          <button
+            type="button"
+            onClick={() => h.onAssign?.(r)}
+            className="text-primary inline-flex items-center gap-1 hover:underline"
+            title={`Owed by ${r.team?.name ?? "the team"} - put a name to it`}
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            {h.claimable ? "Take this" : "Assign"}
+          </button>
+        ) : (
+          <span className="text-muted-foreground/70 italic">Unassigned</span>
+        )
+      },
+    },
+    {
+      header: "Status",
+      sortValue: (r) => STATUS_ORDER.indexOf(r.status),
+      cell: (r) => {
+        const h = rowProps(r)
+        return (
+          <span className="flex flex-col items-start">
+            <StatusMenu r={r} actor={h.actor} onStatus={h.onStatus} />
+            <SignOff r={r} />
+          </span>
+        )
+      },
+    },
+    {
+      header: "Proof",
+      sortValue: (r) => r.links.length + r.files.length,
+      cell: (r) => {
+        const proof = r.links.length + r.files.length
+        return proof > 0 ? (
+          <a
+            href={r.links[0] ?? r.files[0]?.url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary inline-flex items-center gap-1 hover:underline"
+            title={`Open what was made (${proof} attached)`}
+          >
+            {r.links.length > 0 ? (
+              <Link2 className="h-3.5 w-3.5" />
+            ) : (
+              <FileText className="h-3.5 w-3.5" />
+            )}
+            {proof}
+          </a>
+        ) : (
+          <span className="text-muted-foreground/50">-</span>
+        )
+      },
+    },
+    {
+      header: "Log work",
+      cell: (r) => {
+        const h = rowProps(r)
+        return h.onLogWork ? (
+          <Button
+            variant="outline"
+            className="h-7 px-2 text-xs"
+            onClick={h.onLogWork}
+            title="Record what is finished, with the link or file"
+          >
+            Log work
+          </Button>
+        ) : (
+          <span className="text-muted-foreground/50">-</span>
+        )
+      },
+    },
+    {
+      header: "Actions",
+      align: "right",
+      cell: (r) => {
+        const h = rowProps(r)
+        return (
+          <span className="inline-flex justify-end">
+            <RowIconActions
+              r={r}
+              onVerify={h.onVerify}
+              onHistory={h.onHistory}
+              onEdit={h.onEdit}
+              onDelete={h.onDelete}
+            />
+          </span>
+        )
+      },
+    },
+  ]
+
+  // A deliverable's items for one team: few, so never paged, and no column picker.
   return (
-    <table className="w-full text-left text-xs">
-      <thead className="bg-muted/30 text-muted-foreground border-b text-[11px]">
-        <tr>
-          <th className="w-14 px-4 py-2 font-medium whitespace-nowrap">S.No</th>
-          {!hideTeam && <th className="px-4 py-2 font-medium">Team</th>}
-          <th className="w-full px-4 py-2 font-medium">Deliverable</th>
-          <th className="px-4 py-2 text-right font-medium">Done</th>
-          <th className="px-4 py-2 font-medium">Owned by</th>
-          <th className="px-4 py-2 font-medium">Status</th>
-          <th className="px-4 py-2 font-medium">Proof</th>
-          <th className="px-4 py-2 font-medium whitespace-nowrap">Log work</th>
-          <th className="w-px px-4 py-2 text-right font-medium whitespace-nowrap">Actions</th>
-        </tr>
-      </thead>
-      <tbody className="divide-border/60 divide-y">
-        {rows.map((r, i) => {
-          const h = rowProps(r)
-          const proof = r.links.length + r.files.length
-          return (
-            <tr key={r.id} className="hover:bg-muted/30 transition-colors">
-              <td className="text-muted-foreground px-4 py-2.5 tabular-nums">{i + 1}</td>
-              {!hideTeam && (
-                <td className="px-4 py-2.5 font-medium whitespace-nowrap">
-                  {r.team?.name ?? <span className="text-muted-foreground">-</span>}
-                </td>
-              )}
-              <td className="px-4 py-2.5">
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="border-border/70 text-muted-foreground shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                    {r.type}
-                  </span>
-                  <span className="truncate font-medium" title={r.title}>
-                    {r.title}
-                  </span>
-                  {r.locked && (
-                    <Lock
-                      className="text-muted-foreground h-3 w-3 shrink-0"
-                      aria-label="Period closed"
-                    />
-                  )}
-                </span>
-              </td>
-              <td className="px-4 py-2.5 text-right tabular-nums">
-                <span
-                  className={cn(
-                    r.deliveredQuantity >= r.quantity
-                      ? "text-emerald-500"
-                      : r.deliveredQuantity > 0
-                        ? "text-foreground"
-                        : "text-muted-foreground",
-                  )}
-                >
-                  {r.deliveredQuantity}
-                </span>
-                <span className="text-muted-foreground">/{r.quantity}</span>
-              </td>
-              <td className="px-4 py-2.5 whitespace-nowrap">
-                {r.employee ? (
-                  <OwnerCell r={r} onAssign={h.onAssign} />
-                ) : h.onAssign ? (
-                  <button
-                    type="button"
-                    onClick={() => h.onAssign?.(r)}
-                    className="text-primary inline-flex items-center gap-1 hover:underline"
-                    title={`Owed by ${r.team?.name ?? "the team"} - put a name to it`}
-                  >
-                    <UserPlus className="h-3.5 w-3.5" />
-                    {h.claimable ? "Take this" : "Assign"}
-                  </button>
-                ) : (
-                  <span className="text-muted-foreground/70 italic">Unassigned</span>
-                )}
-              </td>
-              <td className="px-4 py-2.5">
-                <span className="flex flex-col items-start">
-                  <StatusMenu r={r} actor={h.actor} onStatus={h.onStatus} />
-                  <SignOff r={r} />
-                </span>
-              </td>
-              <td className="px-4 py-2.5 whitespace-nowrap">
-                {proof > 0 ? (
-                  <a
-                    href={r.links[0] ?? r.files[0]?.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-primary inline-flex items-center gap-1 hover:underline"
-                    title={`Open what was made (${proof} attached)`}
-                  >
-                    {r.links.length > 0 ? (
-                      <Link2 className="h-3.5 w-3.5" />
-                    ) : (
-                      <FileText className="h-3.5 w-3.5" />
-                    )}
-                    {proof}
-                  </a>
-                ) : (
-                  <span className="text-muted-foreground/50">-</span>
-                )}
-              </td>
-              <td className="px-4 py-2.5 whitespace-nowrap">
-                {h.onLogWork ? (
-                  <Button
-                    variant="outline"
-                    className="h-7 px-2 text-xs"
-                    onClick={h.onLogWork}
-                    title="Record what is finished, with the link or file"
-                  >
-                    Log work
-                  </Button>
-                ) : (
-                  <span className="text-muted-foreground/50">-</span>
-                )}
-              </td>
-              <td className="w-px px-4 py-2.5 text-right whitespace-nowrap">
-                <RowIconActions
-                  r={r}
-                  onVerify={h.onVerify}
-                  onHistory={h.onHistory}
-                  onEdit={h.onEdit}
-                  onDelete={h.onDelete}
-                />
-              </td>
-            </tr>
-          )
-        })}
-      </tbody>
-    </table>
+    <DataTable
+      columns={columns}
+      rows={rows}
+      rowKey={(r) => r.id}
+      showSerial
+      pageSize={false}
+      columnToggle={false}
+      itemLabel="item"
+      minWidth="min-w-[860px]"
+    />
   )
 }
 
-/** One <table>, not one per period, so the columns line up. */
 function PeriodTable({
   periods,
-  serialOffset,
+  pageKey,
+  footerNote,
   hrefFor,
   onDeletePeriod,
 }: {
   periods: Period[]
-  serialOffset: number
+  /** The filter set; a new one returns the table to page 1. */
+  pageKey: string
+  footerNote?: React.ReactNode
   hrefFor: (p: Period) => string
   onDeletePeriod?: (p: Period) => void
 }) {
+  const columns: DataTableColumn<Period>[] = [
+    {
+      header: "Deliverable",
+      sortValue: (p) => p.start,
+      cell: (p) => <PeriodHeadline p={p} />,
+    },
+    {
+      header: "Teams",
+      // The one variable-width column: takes the slack and truncates.
+      className: "text-muted-foreground w-full max-w-0 min-w-40 truncate",
+      headClassName: "w-full",
+      cell: (p) => <span title={p.teams.join(", ")}>{p.teams.join(", ") || "-"}</span>,
+    },
+    {
+      header: "Planned",
+      align: "right",
+      sortValue: (p) => p.planned,
+      className: "tabular-nums",
+      cell: (p) => p.planned,
+    },
+    {
+      header: "Delivered",
+      sortValue: (p) => (p.planned > 0 ? p.made / p.planned : 0),
+      cell: (p) => <PeriodProgress p={p} />,
+    },
+    {
+      header: "Actions",
+      align: "right",
+      cell: (p) => (
+        <span className="inline-flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            aria-label="Open deliverable"
+            title={`Open · ${p.rows.length} ${p.rows.length === 1 ? "item" : "items"}`}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <Link href={hrefFor(p)}>
+              <Eye className="h-4 w-4" />
+            </Link>
+          </Button>
+          {onDeletePeriod && p.key !== UNPLANNED_KEY && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Delete deliverable"
+              title="Delete this deliverable and every item under it"
+              onClick={() => onDeletePeriod(p)}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </span>
+      ),
+    },
+  ]
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] table-auto text-left text-sm">
-        <thead className="bg-muted/40 border-b">
-          <tr>
-            <th className="text-muted-foreground w-16 px-4 py-3 font-medium whitespace-nowrap">
-              S.No
-            </th>
-            <th className="text-muted-foreground px-4 py-3 font-medium whitespace-nowrap">
-              Deliverable
-            </th>
-            <th className="text-muted-foreground w-full px-4 py-3 font-medium">Teams</th>
-            <th className="text-muted-foreground px-4 py-3 text-right font-medium whitespace-nowrap">
-              Planned
-            </th>
-            <th className="text-muted-foreground px-4 py-3 font-medium whitespace-nowrap">
-              Delivered
-            </th>
-            <th className="text-muted-foreground w-px px-4 py-3 text-right font-medium whitespace-nowrap">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        {periods.map((p, i) => {
-          return (
-            <tbody key={p.key} className="border-b">
-              <tr className="hover:bg-muted/30 transition-colors">
-                <td className="text-muted-foreground px-4 py-3 align-middle tabular-nums">
-                  {serialOffset + i + 1}
-                </td>
-                <td className="px-4 py-3 align-middle whitespace-nowrap">
-                  <PeriodHeadline p={p} />
-                </td>
-                {/* The one variable-width column: takes the slack and truncates. */}
-                <td className="text-muted-foreground max-w-0 min-w-40 truncate px-4 py-3 align-middle">
-                  {p.teams.join(", ") || "-"}
-                </td>
-                <td className="px-4 py-3 text-right align-middle tabular-nums">{p.planned}</td>
-                <td className="px-4 py-3 align-middle whitespace-nowrap">
-                  <PeriodProgress p={p} />
-                </td>
-                <td className="w-px px-4 py-3 text-right align-middle whitespace-nowrap">
-                  <span className="inline-flex items-center gap-0.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      asChild
-                      aria-label="Open deliverable"
-                      title={`Open · ${p.rows.length} ${p.rows.length === 1 ? "item" : "items"}`}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <Link href={hrefFor(p)}>
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                    {onDeletePeriod && p.key !== UNPLANNED_KEY && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Delete deliverable"
-                        title="Delete this deliverable and every item under it"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onDeletePeriod(p)
-                        }}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          )
-        })}
-      </table>
-    </div>
+    <DataTable
+      tableId="project-deliverables"
+      itemLabel="deliverable"
+      columns={columns}
+      rows={periods}
+      rowKey={(p) => p.key}
+      showSerial
+      pageKey={pageKey}
+      minWidth="min-w-[720px]"
+      footerNote={footerNote}
+    />
   )
 }
 
@@ -1346,7 +1378,7 @@ export function DeliverablesTab({
 
   const totalPages = Math.max(1, Math.ceil(periods.length / PERIODS_PER_PAGE))
   // Stored with the filters, so the page falls back to 1 when they change.
-  const pageKey = range.from ?? ""
+  const pageKey = `${range.from ?? ""}|${range.to ?? ""}`
   const page = pageState.key === pageKey ? Math.min(pageState.page, totalPages) : 1
   const setPage = (p: number) => setPageState({ key: pageKey, page: p })
   const pagedPeriods = React.useMemo(
@@ -1355,6 +1387,9 @@ export function DeliverablesTab({
   )
 
   const filtersOn = Boolean(range.from)
+  const truncatedNote = data?.truncated
+    ? `Showing the latest ${rows.length} of ${data.entries} items. Narrow the range to see the rest; the counts above cover all of them.`
+    : undefined
 
   const membersOf = React.useCallback(
     (id: string | null | undefined) =>
@@ -1481,6 +1516,7 @@ export function DeliverablesTab({
 
             <Tabs value={activeTeam} onValueChange={setTeamTab}>
               <TabsBar
+                variant="underline"
                 items={itemsByTeam.map((t) => ({
                   value: t.key,
                   label: t.name,
@@ -1489,11 +1525,7 @@ export function DeliverablesTab({
               />
               {itemsByTeam.map((t) => (
                 <TabsContent key={t.key} value={t.key}>
-                  <Card>
-                    <CardContent className="p-0">
-                      <PeriodItemsTable rows={t.rows} rowProps={rowProps} hideTeam />
-                    </CardContent>
-                  </Card>
+                  <PeriodItemsTable rows={t.rows} rowProps={rowProps} hideTeam />
                 </TabsContent>
               ))}
             </Tabs>
@@ -1520,42 +1552,44 @@ export function DeliverablesTab({
           </>
         ))}
 
-      {!periodKey && (
-        <Card>
-          <CardContent className="p-0">
-            {periods.length === 0 ? (
-              emptyBoard
-            ) : view === "table" ? (
-              <PeriodTable
-                periods={pagedPeriods}
-                serialOffset={(page - 1) * PERIODS_PER_PAGE}
-                hrefFor={hrefFor}
-                onDeletePeriod={canManage ? setDeletingPeriod : undefined}
+      {!periodKey &&
+        (periods.length > 0 && view === "table" ? (
+          <PeriodTable
+            periods={periods}
+            pageKey={pageKey}
+            footerNote={truncatedNote}
+            hrefFor={hrefFor}
+            onDeletePeriod={canManage ? setDeletingPeriod : undefined}
+          />
+        ) : (
+          <Card>
+            <CardContent className="p-0">
+              {periods.length === 0 ? (
+                emptyBoard
+              ) : (
+                <PeriodCards
+                  periods={pagedPeriods}
+                  hrefFor={hrefFor}
+                  onDeletePeriod={canManage ? setDeletingPeriod : undefined}
+                />
+              )}
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                total={periods.length}
+                onPageChange={setPage}
+                itemLabel="deliverable"
+                pageSize={PERIODS_PER_PAGE}
+                className="border-t px-4 py-2"
               />
-            ) : (
-              <PeriodCards
-                periods={pagedPeriods}
-                hrefFor={hrefFor}
-                onDeletePeriod={canManage ? setDeletingPeriod : undefined}
-              />
-            )}
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              total={periods.length}
-              onPageChange={setPage}
-              itemLabel="deliverable"
-              className="border-t px-4 py-2"
-            />
-            {data?.truncated && (
-              <p className="text-muted-foreground border-border/60 border-t px-4 py-2 text-[11px]">
-                Showing the latest {rows.length} of {data.entries} items. Narrow the range to see
-                the rest; the counts above cover all of them.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {truncatedNote && (
+                <p className="text-muted-foreground border-border/60 border-t px-4 py-2 text-[11px]">
+                  {truncatedNote}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        ))}
 
       <EditItemDialog
         projectId={projectId}

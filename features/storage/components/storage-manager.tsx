@@ -22,10 +22,9 @@ import {
 import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
-import { SegmentedControl } from "@/components/shared/segmented-control"
+import { TableSearch } from "@/components/shared/table-search"
+import { TableViewMenu } from "@/components/shared/table-view-menu"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { SearchInput } from "@/components/shared/search-input"
-import { Pagination } from "@/components/shared/pagination"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Button } from "@/components/ui/button"
@@ -107,38 +106,36 @@ export function StorageManager({
   const [status, setStatus] = useState<"all" | "live" | "orphan">("all")
   const [deleteTarget, setDeleteTarget] = useState<StorageFile | null>(null)
   const [cleanupOpen, setCleanupOpen] = useState(false)
-  const [page, setPage] = useState(1)
-
-  // Paginated: rendering every row of a large bucket is slow even after the data arrives.
-  const PAGE_SIZE = 25
 
   const files = useMemo(() => data?.files ?? [], [data])
   const q = search.trim().toLowerCase()
+  const inCategory = useMemo(
+    () => (category === "all" ? files : files.filter((f) => f.category === category)),
+    [files, category],
+  )
   const rows = useMemo(
     () =>
-      files.filter((f) => {
-        if (category !== "all" && f.category !== category) return false
+      inCategory.filter((f) => {
         if (status === "live" && !f.referenced) return false
         if (status === "orphan" && f.referenced) return false
         if (q && !`${f.name} ${f.owner ?? ""}`.toLowerCase().includes(q)) return false
         return true
       }),
-    [files, category, status, q],
+    [inCategory, status, q],
   )
-
-  // Changing a filter can leave you past the end of the new result set.
-  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
-  const safePage = Math.min(page, pageCount)
-  const pagedRows = useMemo(
-    () => rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [rows, safePage],
-  )
+  const liveCount = inCategory.filter((f) => f.referenced).length
+  const statusViews = [
+    { value: "all" as const, label: "All", count: inCategory.length },
+    { value: "live" as const, label: "In use", count: liveCount },
+    { value: "orphan" as const, label: "Orphaned", count: inCategory.length - liveCount },
+  ]
 
   const usedPct = data && data.freeTierBytes ? (data.totalBytes / data.freeTierBytes) * 100 : 0
 
   const columns: DataTableColumn<StorageFile>[] = [
     {
       header: "File",
+      sortValue: (f) => f.name,
       cell: (f) => {
         const Icon = CATEGORY_META[f.category].icon
         return (
@@ -151,20 +148,46 @@ export function StorageManager({
             >
               <Icon className="h-4 w-4" />
             </div>
-            <span className="min-w-0 font-medium break-all">{f.name}</span>
+            <span className="max-w-[280px] min-w-0 truncate font-medium" title={f.name}>
+              {f.name}
+            </span>
           </div>
         )
       },
     },
-    { header: "Category", cell: (f) => CATEGORY_LABELS[f.category] },
-    { header: "Owner", cell: (f) => f.owner ?? <span className="text-muted-foreground">-</span> },
-    { header: "Size", align: "right", className: "tabular-nums", cell: (f) => fmtBytes(f.size) },
+    {
+      header: "Category",
+      sortValue: (f) => CATEGORY_LABELS[f.category],
+      cell: (f) => CATEGORY_LABELS[f.category],
+    },
+    {
+      header: "Owner",
+      className: "max-w-[240px] truncate",
+      sortValue: (f) => f.owner,
+      cell: (f) =>
+        f.owner ? (
+          <span title={f.owner}>{f.owner}</span>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        ),
+    },
+    {
+      header: "Size",
+      align: "right",
+      className: "tabular-nums",
+      sortValue: (f) => f.size,
+      exportValue: (f) => fmtBytes(f.size),
+      cell: (f) => fmtBytes(f.size),
+    },
     {
       header: "Modified",
+      sortValue: (f) => f.lastModified,
+      exportValue: (f) => f.lastModified?.slice(0, 10),
       cell: (f) => (f.lastModified ? new Date(f.lastModified).toLocaleDateString("en-IN") : "-"),
     },
     {
       header: "Status",
+      sortValue: (f) => STATUS_LABELS[f.referenced ? "LIVE" : "ORPHAN"],
       cell: (f) => (
         <StatusBadge
           status={f.referenced ? "LIVE" : "ORPHAN"}
@@ -310,45 +333,38 @@ export function StorageManager({
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder="Search files or owner..."
-          className="max-w-xs"
+      {isLoading || files.length > 0 ? (
+        <DataTable
+          tableId="storage-files"
+          exportName="storage-files"
+          itemLabel="file"
+          columns={columns}
+          rows={rows}
+          rowKey={(f) => f.key}
+          showSerial
+          loading={isLoading}
+          minWidth="min-w-[820px]"
+          pageKey={`${category}|${status}|${q}`}
+          toolbar={
+            <>
+              <TableViewMenu
+                label="File status"
+                value={status}
+                options={statusViews}
+                onChange={setStatus}
+              />
+              <TableSearch
+                value={search}
+                onChange={setSearch}
+                placeholder="Search files or owner..."
+                label="Search files by name or owner"
+              />
+            </>
+          }
+          empty="No files match this view."
         />
-        <SegmentedControl
-          aria-label="File status"
-          value={status}
-          onChange={setStatus}
-          options={[
-            { value: "all", label: "All" },
-            { value: "live", label: "In use" },
-            { value: "orphan", label: "Orphaned" },
-          ]}
-        />
-      </div>
-
-      {isLoading || rows.length > 0 ? (
-        <>
-          <DataTable
-            columns={columns}
-            rows={pagedRows}
-            rowKey={(f) => f.key}
-            showSerial
-            loading={isLoading}
-            minWidth="min-w-[820px]"
-          />
-          <Pagination
-            page={safePage}
-            totalPages={pageCount}
-            total={rows.length}
-            itemLabel="file"
-            onPageChange={setPage}
-          />
-        </>
       ) : (
-        <EmptyState variant="card" icon={Files} title="No files match this view." />
+        <EmptyState variant="card" icon={Files} title="No files in this bucket yet." />
       )}
 
       <ConfirmDialog

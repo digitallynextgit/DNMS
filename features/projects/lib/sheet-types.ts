@@ -120,6 +120,8 @@ export interface SheetWorkbook {
   assignedTo: SheetAssignee | null
   /** Published to the client portal, where the client may fill its cells. */
   isClientVisible: boolean
+  /** The project service this calendar is for (PROJECT_SERVICES code), or null. */
+  service: string | null
   updatedAt: string
   /** Its tabs, in order. Never empty: a workbook is created with one. */
   sheets: ProjectSheet[]
@@ -176,6 +178,8 @@ export interface WorkbookIndexEntry {
   createdByClientId: string | null
   assignedTo: SheetAssignee | null
   isClientVisible: boolean
+  /** The project service this calendar is for (PROJECT_SERVICES code), or null. */
+  service: string | null
   updatedAt: string
   /** Tab names only, in order - enough for the importer to match one by name. */
   tabs: { id: string; name: string; position: number }[]

@@ -1,26 +1,18 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { useUrlPage } from "@/hooks/use-url-state"
-import { useUpdateEffect } from "@/hooks/use-update-effect"
+import { useMemo, useState } from "react"
 import { Link } from "@/components/tenant-link"
 import { useQuery } from "@tanstack/react-query"
-import { Plus, FolderKanban, Calendar, Users, MoreHorizontal, Eye, Pencil } from "lucide-react"
+import { Plus, FolderKanban, Eye, Pencil } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
-import { Pagination } from "@/components/shared/pagination"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { TableSearch } from "@/components/shared/table-search"
+import { TableViewMenu } from "@/components/shared/table-view-menu"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
-import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import {
   PERMISSIONS,
@@ -29,16 +21,34 @@ import {
   PROJECT_STATUS_LABELS,
   PROJECT_STATUS_COLORS,
 } from "@/lib/constants"
-import { formatDate } from "@/lib/utils"
-import { ProjectFormDialog, ProjectLogo, projectHref } from "@/features/projects"
+import { cn } from "@/lib/utils"
+import {
+  PROJECT_SERVICES,
+  ProjectFormDialog,
+  ProjectLogo,
+  ProjectServicesDialog,
+  ServiceChips,
+  projectHref,
+  servicesText,
+  type ServiceOwner,
+} from "@/features/projects"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 // Leaf helper, not the clients barrel: the barrel would pull the whole client book into this bundle.
 import { clientHref } from "@/features/clients/lib/client-href"
-import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 
 interface Project {
   id: string
   name: string
   code: string
+  shortName: string | null
+  services: string[]
+  serviceOwners: ServiceOwner[]
   slug: string | null
   description: string | null
   /** Stable route URL for the logo; null when none has been uploaded. */
@@ -59,7 +69,8 @@ interface Project {
   _count: { tasks: number; teams?: number; resources?: number }
 }
 
-const PAGE_SIZE = 10
+const ALL_SERVICES = "__all__"
+const ALL_STATUSES = "ALL"
 
 /** Status groups, top to bottom. CANCELLED must be here or an all-cancelled list renders blank. */
 const STATUS_ORDER = ["PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"] as const
@@ -77,14 +88,24 @@ export function ProjectsClient() {
   const userId = session?.user?.id ?? ""
 
   const { data, isLoading } = useQuery({ queryKey: ["projects"], queryFn: fetchProjects })
+  const [service, setService] = useState(ALL_SERVICES)
   // Once per person, so counts and avatars agree: someone can be on several of a project's teams.
-  const projects = useMemo(
+  const allProjects = useMemo(
     () =>
       (data?.data ?? []).map((p) => ({
         ...p,
+        services: p.services ?? [],
+        serviceOwners: p.serviceOwners ?? [],
         members: [...new Map(p.members.map((m) => [m.employee.id, m])).values()],
       })),
     [data],
+  )
+  const projects = useMemo(
+    () =>
+      service === ALL_SERVICES
+        ? allProjects
+        : allProjects.filter((p) => p.services.includes(service)),
+    [allProjects, service],
   )
 
   // The account manager (owner) can manage their own project even without project:write.
@@ -93,51 +114,83 @@ export function ProjectsClient() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<Project | null>(null)
-  // Card/table only: a stored "board" preference from the removed board view falls back to cards.
-  const [storedView, setViewMode] = useViewMode("projects:list")
-  const viewMode = storedView === "kanban" ? "card" : storedView
-  const [page, setPage] = useUrlPage()
+  // By id, so the popup shows fresh owners after a change refetches the list.
+  const [servicesOfId, setServicesOfId] = useState<string | null>(null)
+  const servicesOf = allProjects.find((p) => p.id === servicesOfId) ?? null
 
-  const total = projects.length
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-
-  // Skips mount so a deep-linked ?page=N isn't clobbered on first render.
-  useUpdateEffect(() => {
-    setPage(1)
-  }, [viewMode])
-
-  useEffect(() => {
-    if (!isLoading && page > totalPages) setPage(totalPages)
-  }, [page, totalPages, isLoading])
-
-  // Only the table view is paginated; the result is regrouped by status.
-  const paginated = viewMode === "table"
-  const pageProjects = useMemo(() => {
-    if (!paginated) return projects
-    const start = (page - 1) * PAGE_SIZE
-    return projects.slice(start, start + PAGE_SIZE)
-  }, [projects, page, paginated])
-
-  const pageStatusGroups = STATUS_ORDER.map(
-    (status) => [status, pageProjects.filter((p) => p.status === status)] as const,
+  const servicesButton = (p: Project, className?: string) => (
+    <button
+      type="button"
+      onClick={() => setServicesOfId(p.id)}
+      aria-label={`Services of ${p.name}`}
+      title="Owners and calendars"
+      className={cn(
+        "hover:bg-accent/60 focus-visible:ring-ring -m-1 rounded-sm p-1 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none",
+        className,
+      )}
+    >
+      <ServiceChips services={p.services} owners={p.serviceOwners} />
+    </button>
   )
 
-  // One table per status group, so the S.No restarts within each group.
+  // A status view and a search narrow the list further.
+  const [status, setStatus] = useState<string>(ALL_STATUSES)
+  const [query, setQuery] = useState("")
+  const needle = query.trim().toLowerCase()
+  const tableProjects = projects.filter(
+    (p) =>
+      (status === ALL_STATUSES || p.status === status) &&
+      (!needle ||
+        [p.name, p.code, p.shortName, p.client?.name, `${p.owner.firstName} ${p.owner.lastName}`]
+          .filter(Boolean)
+          .some((v) => v!.toLowerCase().includes(needle))),
+  )
+  const statusViews = [
+    { value: ALL_STATUSES, label: "All", count: projects.length },
+    ...STATUS_ORDER.map((s) => ({
+      value: s,
+      label: PROJECT_STATUS_LABELS[s] ?? s,
+      count: projects.filter((p) => p.status === s).length,
+    })),
+  ]
+  const budgetOf = (p: Project) => (canManageProject(p) && p.budget != null ? p.budget : null)
+
   const tableColumns: DataTableColumn<Project>[] = [
-    { header: "Code", className: "font-mono text-xs", cell: (p) => p.code },
     {
-      header: "Name",
+      header: "Project",
+      sortValue: (p) => p.name,
       cell: (p) => (
         <div className="flex items-center gap-2">
-          <ProjectLogo src={p.logo} name={p.name} className="h-6 w-6" />
-          <Link href={projectHref(p)} className="font-medium hover:underline">
-            {p.name}
-          </Link>
+          <ProjectLogo src={p.logo} name={p.name} className="h-7 w-7" />
+          <div className="min-w-0">
+            <Link href={projectHref(p)} className="block font-medium hover:underline">
+              {p.name}
+            </Link>
+            <span className="text-muted-foreground font-mono text-[11px]">{p.code}</span>
+          </div>
         </div>
       ),
     },
     {
+      header: "Code",
+      defaultHidden: true,
+      sortValue: (p) => p.code,
+      className: "font-mono text-xs",
+      cell: (p) => p.code,
+    },
+    {
+      header: "Short name",
+      sortValue: (p) => p.shortName,
+      cell: (p) =>
+        p.shortName ? (
+          <span className="font-semibold">{p.shortName}</span>
+        ) : (
+          <span className="text-muted-foreground text-xs">-</span>
+        ),
+    },
+    {
       header: "Client",
+      sortValue: (p) => p.client?.name ?? "Internal",
       cell: (p) =>
         p.client ? (
           <Link href={clientHref(p.client)} className="text-xs hover:underline">
@@ -148,20 +201,38 @@ export function ProjectsClient() {
         ),
     },
     {
-      header: "Phase",
-      cell: (p) =>
-        p.stage ? (
+      header: "Services",
+      exportValue: (p) => servicesText(p.services, p.serviceOwners),
+      // min-width on the button: table cells ignore it.
+      cell: (p) => servicesButton(p, "block min-w-[240px]"),
+    },
+    {
+      header: "Status / Phase",
+      sortValue: (p) => STATUS_ORDER.indexOf(p.status as (typeof STATUS_ORDER)[number]),
+      exportValue: (p) =>
+        [PROJECT_STATUS_LABELS[p.status] ?? p.status, p.stage && PROJECT_STAGE_LABELS[p.stage]]
+          .filter(Boolean)
+          .join(" · "),
+      cell: (p) => (
+        <div className="flex items-center gap-1.5">
           <StatusBadge
-            status={p.stage}
-            colorMap={PROJECT_STAGE_COLORS}
-            labelMap={PROJECT_STAGE_LABELS}
+            status={p.status}
+            colorMap={PROJECT_STATUS_COLORS}
+            labelMap={PROJECT_STATUS_LABELS}
           />
-        ) : (
-          <span className="text-muted-foreground text-xs">-</span>
-        ),
+          {p.stage && (
+            <StatusBadge
+              status={p.stage}
+              colorMap={PROJECT_STAGE_COLORS}
+              labelMap={PROJECT_STAGE_LABELS}
+            />
+          )}
+        </div>
+      ),
     },
     {
       header: "Account Manager",
+      sortValue: (p) => `${p.owner.firstName} ${p.owner.lastName}`.trim(),
       cell: (p) => (
         <div className="flex items-center gap-1.5">
           <AvatarDisplay
@@ -179,12 +250,14 @@ export function ProjectsClient() {
     {
       header: "Tasks",
       align: "center",
+      sortValue: (p) => p._count.tasks,
       className: "text-muted-foreground",
       cell: (p) => p._count.tasks,
     },
     {
-      header: "Members",
+      header: "Employees",
       align: "center",
+      sortValue: (p) => p.members.length,
       className: "text-muted-foreground",
       cell: (p) => p.members.length,
     },
@@ -194,12 +267,15 @@ export function ProjectsClient() {
             header: "Budget",
             align: "right" as const,
             className: "text-xs",
-            cell: (p: Project) =>
-              canManageProject(p) && p.budget != null ? (
-                `₹${p.budget.toLocaleString("en-IN")}`
+            sortValue: budgetOf,
+            cell: (p: Project) => {
+              const budget = budgetOf(p)
+              return budget != null ? (
+                `₹${budget.toLocaleString("en-IN")}`
               ) : (
                 <span className="text-muted-foreground">-</span>
-              ),
+              )
+            },
           },
         ]
       : []),
@@ -235,8 +311,7 @@ export function ProjectsClient() {
         title="Projects"
         description="Manage projects, teams, tasks, and resources."
         actions={
-          <div className="flex items-center gap-2">
-            <ViewToggle value={viewMode} onChange={setViewMode} />
+          <div className="flex flex-wrap items-center gap-2">
             {canWrite && (
               <Button className="gap-2" onClick={() => setCreateOpen(true)}>
                 <Plus className="h-4 w-4" /> New Project
@@ -246,9 +321,7 @@ export function ProjectsClient() {
         }
       />
 
-      {isLoading ? (
-        <CardGridSkeleton />
-      ) : projects.length === 0 ? (
+      {!isLoading && allProjects.length === 0 ? (
         <EmptyState
           variant="card"
           icon={FolderKanban}
@@ -260,184 +333,61 @@ export function ProjectsClient() {
           }
         />
       ) : (
-        <div className="space-y-6">
-          {pageStatusGroups.map(([status, group]) =>
-            group.length === 0 ? null : (
-              <div key={status}>
-                <div className="mb-3 flex items-center gap-2">
-                  <StatusBadge
-                    status={status}
-                    colorMap={PROJECT_STATUS_COLORS}
-                    labelMap={PROJECT_STATUS_LABELS}
-                    size="button"
-                  />
-                  <span className="text-muted-foreground text-xs">
-                    {group.length} project{group.length !== 1 ? "s" : ""}
-                  </span>
-                </div>
-
-                {viewMode === "table" ? (
-                  <DataTable
-                    columns={tableColumns}
-                    rows={group}
-                    rowKey={(p) => p.id}
-                    showSerial
-                    minWidth="min-w-[860px]"
-                  />
-                ) : (
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {group.map((project) => (
-                      <div
-                        key={project.id}
-                        className="group bg-card hover:border-foreground/20 hover:bg-muted/30 relative flex flex-col gap-3 rounded-sm border p-4 transition-colors"
-                      >
-                        {/* Stretched link: the whole card is clickable; interactive bits sit above it (relative z-10). */}
-                        <Link
-                          href={projectHref(project)}
-                          aria-label={`Open ${project.name}`}
-                          className="focus-visible:ring-ring absolute inset-0 rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-                        />
-                        <div className="flex items-start justify-between gap-2">
-                          <ProjectLogo
-                            src={project.logo}
-                            name={project.name}
-                            className="h-10 w-10"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="line-clamp-1 text-sm font-medium group-hover:underline">
-                              {project.name}
-                            </p>
-                            <div className="mt-0.5 flex items-center gap-2">
-                              <p className="text-muted-foreground font-mono text-xs">
-                                {project.code}
-                              </p>
-                              {project.stage && (
-                                <StatusBadge
-                                  status={project.stage}
-                                  colorMap={PROJECT_STAGE_COLORS}
-                                  labelMap={PROJECT_STAGE_LABELS}
-                                  size="xs"
-                                />
-                              )}
-                            </div>
-                            {project.client && (
-                              <p className="text-muted-foreground mt-0.5 truncate text-xs">
-                                for{" "}
-                                <Link
-                                  href={clientHref(project.client)}
-                                  className="relative z-10 hover:underline"
-                                >
-                                  {project.client.name}
-                                </Link>
-                              </p>
-                            )}
-                          </div>
-                          {canWrite && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="relative z-10 shrink-0"
-                                  aria-label="More actions"
-                                >
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="z-20">
-                                <DropdownMenuItem asChild>
-                                  <Link href={projectHref(project)}>View Details</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setEditing(project)}>
-                                  Edit
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                        </div>
-
-                        {project.description && (
-                          <p className="text-muted-foreground line-clamp-2 text-xs">
-                            {project.description}
-                          </p>
-                        )}
-
-                        <div className="flex items-center gap-2 text-xs">
-                          <AvatarDisplay
-                            src={project.owner.profilePhoto}
-                            firstName={project.owner.firstName}
-                            lastName={project.owner.lastName}
-                            size="xs"
-                          />
-                          <span className="text-muted-foreground">Account Manager:</span>
-                          <span className="font-medium">
-                            {project.owner.firstName} {project.owner.lastName}
-                          </span>
-                        </div>
-
-                        <div className="text-muted-foreground flex items-center gap-3 text-xs">
-                          <span className="flex items-center gap-1">
-                            <FolderKanban className="h-3 w-3" />
-                            {project._count.tasks} tasks
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            {project.members.length} members
-                          </span>
-                          {project.endDate && (
-                            <span className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              {formatDate(project.endDate)}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                          {project.members.slice(0, 5).map((m) => (
-                            <AvatarDisplay
-                              key={m.employee.id}
-                              src={m.employee.profilePhoto}
-                              firstName={m.employee.firstName}
-                              lastName={m.employee.lastName}
-                              size="chip"
-                              className="border-background -ml-1 border-2 first:ml-0"
-                            />
-                          ))}
-                          {project.members.length > 5 && (
-                            <span className="text-muted-foreground ml-1 text-xs">
-                              +{project.members.length - 5}
-                            </span>
-                          )}
-                        </div>
-
-                        {canWrite && project.budget !== null && (
-                          <div className="text-muted-foreground text-[11px]">
-                            Budget:{" "}
-                            <span className="text-foreground font-medium">
-                              ₹{project.budget.toLocaleString("en-IN")}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ),
-          )}
-        </div>
-      )}
-
-      {!isLoading && paginated && total > 0 && (
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          total={total}
-          onPageChange={setPage}
+        <DataTable
+          loading={isLoading}
+          tableId="projects"
+          exportName="projects"
           itemLabel="project"
+          columns={tableColumns}
+          rows={tableProjects}
+          rowKey={(p) => p.id}
+          showSerial
+          pageKey={`${service}|${status}|${needle}`}
+          toolbar={
+            <>
+              <TableViewMenu
+                label="Status"
+                value={status}
+                options={statusViews}
+                onChange={setStatus}
+              />
+              <TableSearch
+                value={query}
+                onChange={setQuery}
+                placeholder="Name, short name, client or AM"
+                label="Search projects"
+              />
+              <Select value={service} onValueChange={setService}>
+                <SelectTrigger className="h-9 w-48" aria-label="Filter by service">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_SERVICES}>All services</SelectItem>
+                  {PROJECT_SERVICES.map((s) => (
+                    <SelectItem key={s.code} value={s.code}>
+                      {s.label} <span className="text-muted-foreground">· {s.name}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          }
+          empty={
+            needle
+              ? "No project matches that search."
+              : service !== ALL_SERVICES
+                ? "No projects include this service."
+                : "No projects with this status."
+          }
         />
       )}
 
+      <ProjectServicesDialog
+        project={servicesOf}
+        projectPath={servicesOf ? projectHref(servicesOf) : ""}
+        canManage={servicesOf ? canManageProject(servicesOf) : false}
+        onClose={() => setServicesOfId(null)}
+      />
       <ProjectFormDialog open={createOpen} onClose={() => setCreateOpen(false)} mode="create" />
       {editing && (
         <ProjectFormDialog
@@ -448,6 +398,8 @@ export function ProjectsClient() {
           logo={editing.logo}
           initial={{
             name: editing.name,
+            shortName: editing.shortName ?? "",
+            services: editing.services,
             code: editing.code,
             description: editing.description ?? "",
             status: editing.status,

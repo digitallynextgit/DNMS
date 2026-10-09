@@ -27,18 +27,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { TabsBar } from "@/components/shared/tabs-bar"
 import { IntegrationDialog } from "./integration-tab"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { StatCard } from "@/components/shared/stat-card"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { TableSearch } from "@/components/shared/table-search"
+import { TableViewMenu } from "@/components/shared/table-view-menu"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { SegmentedControl } from "@/components/shared/segmented-control"
-import { SearchInput } from "@/components/shared/search-input"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { TONE } from "@/lib/constants"
@@ -52,7 +46,12 @@ export function InsightsTab({ projectId, canManage }: { projectId: string; canMa
   return (
     <Tabs defaultValue="meta" className="mt-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <TabsBar spacing="none" items={[{ value: "meta", label: "Meta Ads", icon: MetaAdsIcon }]} />
+        <TabsBar
+          spacing="none"
+          variant="underline"
+          className="w-auto flex-1"
+          items={[{ value: "meta", label: "Meta Ads", icon: MetaAdsIcon }]}
+        />
         <Button variant="outline" className="gap-1.5" onClick={() => setConnections(true)}>
           <Plug className="h-3.5 w-3.5" /> Connections
         </Button>
@@ -84,16 +83,11 @@ const RANGES: { label: string; days?: number }[] = [
   { label: "All", days: undefined },
 ]
 
-type SortKey = "spend" | "roas" | "purchases" | "impressions" | "clicks"
-const SORTS: { value: SortKey; label: string }[] = [
-  { value: "spend", label: "Spend" },
-  { value: "roas", label: "ROAS" },
-  { value: "purchases", label: "Purchases" },
-  { value: "impressions", label: "Impressions" },
-  { value: "clicks", label: "Clicks" },
-]
-
-const PAGE_SIZE = 10
+const CAMPAIGN_STATUSES = [
+  { value: "active", label: "Active" },
+  { value: "paused", label: "Paused" },
+  { value: "completed", label: "Completed" },
+] as const
 
 function MetaInsights({ projectId, canManage }: { projectId: string; canManage: boolean }) {
   const [rangeDays, setRangeDays] = useState<number | undefined>(30)
@@ -107,23 +101,22 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
 
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | string>("all")
-  const [sortBy, setSortBy] = useState<SortKey>("spend")
-  const [page, setPage] = useState(1)
 
   const allCampaigns = data?.topCampaigns ?? []
   const q = search.trim().toLowerCase()
-  const filtered = useMemo(() => {
-    const rows = allCampaigns.filter((c) => {
-      if (statusFilter !== "all" && c.status !== statusFilter) return false
-      if (q && !c.name.toLowerCase().includes(q)) return false
-      return true
-    })
-    return [...rows].sort((a, b) => b[sortBy] - a[sortBy])
-  }, [allCampaigns, statusFilter, q, sortBy])
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const currentPage = Math.min(page, totalPages)
-  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  // Biggest spend first until someone sorts by a column heading.
+  const filtered = useMemo(
+    () =>
+      allCampaigns
+        .filter(
+          (c) =>
+            (statusFilter === "all" || c.status === statusFilter) &&
+            (!q || c.name.toLowerCase().includes(q)),
+        )
+        .sort((a, b) => b.spend - a.spend),
+    [allCampaigns, statusFilter, q],
+  )
+  const rangeKey = customRange ? `${customRange.from}~${customRange.to}` : String(rangeDays)
 
   if (isLoading && !data) return <ListSkeleton rows={3} height="h-24" />
 
@@ -140,9 +133,19 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
 
   const t = data.totals
   const columns: DataTableColumn<(typeof allCampaigns)[number]>[] = [
-    { header: "Campaign", cell: (c) => <span className="font-medium">{c.name}</span> },
+    {
+      header: "Campaign",
+      sortValue: (c) => c.name,
+      className: "max-w-[320px] truncate",
+      cell: (c) => (
+        <span className="font-medium" title={c.name}>
+          {c.name}
+        </span>
+      ),
+    },
     {
       header: "Status",
+      sortValue: (c) => c.status,
       cell: (c) => (
         <StatusBadge
           status={c.status}
@@ -152,26 +155,49 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
         />
       ),
     },
-    { header: "Spend", align: "right", className: "tabular-nums", cell: (c) => inr(c.spend) },
+    {
+      header: "Spend",
+      align: "right",
+      className: "tabular-nums",
+      sortValue: (c) => c.spend,
+      cell: (c) => inr(c.spend),
+    },
     {
       header: "Impr.",
       align: "right",
       className: "tabular-nums",
+      sortValue: (c) => c.impressions,
       cell: (c) => c.impressions.toLocaleString("en-IN"),
     },
     {
       header: "Clicks",
       align: "right",
       className: "tabular-nums",
+      sortValue: (c) => c.clicks,
       cell: (c) => c.clicks.toLocaleString("en-IN"),
     },
-    { header: "Purchases", align: "right", className: "tabular-nums", cell: (c) => c.purchases },
+    {
+      header: "Purchases",
+      align: "right",
+      className: "tabular-nums",
+      sortValue: (c) => c.purchases,
+      cell: (c) => c.purchases,
+    },
     {
       header: "ROAS",
       align: "right",
       className: "tabular-nums",
+      sortValue: (c) => c.roas,
       cell: (c) => c.roas.toFixed(2) + "x",
     },
+  ]
+  const statusViews = [
+    { value: "all", label: "All", count: allCampaigns.length },
+    ...CAMPAIGN_STATUSES.map((s) => ({
+      value: s.value,
+      label: s.label,
+      count: allCampaigns.filter((c) => c.status === s.value).length,
+    })),
   ]
 
   return (
@@ -186,7 +212,6 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
           onChange={(days) => {
             setRangeDays(days === ALL_RANGE ? undefined : Number(days))
             setCustomRange(undefined)
-            setPage(1)
           }}
           options={RANGES.map((r) => ({
             value: r.days === undefined ? ALL_RANGE : String(r.days),
@@ -196,14 +221,8 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
 
         <DateRangePicker
           value={customRange}
-          onChange={(range) => {
-            setCustomRange(range)
-            setPage(1)
-          }}
-          onClear={() => {
-            setCustomRange(undefined)
-            setPage(1)
-          }}
+          onChange={setCustomRange}
+          onClear={() => setCustomRange(undefined)}
         />
         {data.lastSyncedAt && (
           <span className="text-muted-foreground text-xs">
@@ -329,57 +348,6 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
         </Card>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <SearchInput
-          value={search}
-          onChange={(v) => {
-            setSearch(v)
-            setPage(1)
-          }}
-          placeholder="Search campaigns..."
-          className="max-w-xs"
-        />
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => {
-            setStatusFilter(v)
-            setPage(1)
-          }}
-        >
-          <SelectTrigger className="w-36">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="paused">Paused</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select
-          value={sortBy}
-          onValueChange={(v) => {
-            setSortBy(v as SortKey)
-            // A new sort makes the page number meaningless.
-            setPage(1)
-          }}
-        >
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Sort by" />
-          </SelectTrigger>
-          <SelectContent>
-            {SORTS.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                Sort: {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <span className="text-muted-foreground ml-auto text-xs tabular-nums">
-          {filtered.length} of {allCampaigns.length} campaigns
-        </span>
-      </div>
-
       {allCampaigns.length === 0 ? (
         <EmptyState
           compact
@@ -387,24 +355,35 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
           title="No campaign data yet."
           description="Click Sync now to pull the latest from Meta."
         />
-      ) : filtered.length === 0 ? (
-        <EmptyState compact icon={ExternalLink} title="No campaigns match these filters." />
       ) : (
-        // Composite key: Meta campaign names can repeat within an account. A stable campaign id would be better.
+        // Name + index in the unfiltered list: Meta names can repeat, and ticks survive a filter change.
         <DataTable
+          tableId="meta-campaigns"
+          exportName="meta-campaigns"
+          itemLabel="campaign"
           columns={columns}
-          rows={paged}
-          rowKey={(c, i) => `${c.name}|${i}`}
+          rows={filtered}
+          rowKey={(c) => `${c.name}|${allCampaigns.indexOf(c)}`}
           showSerial
-          serialOffset={(currentPage - 1) * PAGE_SIZE}
           minWidth="min-w-[760px]"
-          pagination={{
-            page: currentPage,
-            totalPages,
-            total: filtered.length,
-            onPageChange: setPage,
-            itemLabel: "campaigns",
-          }}
+          pageKey={`${rangeKey}|${statusFilter}|${q}`}
+          toolbar={
+            <>
+              <TableViewMenu
+                label="Status"
+                value={statusFilter}
+                options={statusViews}
+                onChange={setStatusFilter}
+              />
+              <TableSearch
+                value={search}
+                onChange={setSearch}
+                placeholder="Search campaigns"
+                label="Search campaigns by name"
+              />
+            </>
+          }
+          empty="No campaigns match these filters."
         />
       )}
     </div>

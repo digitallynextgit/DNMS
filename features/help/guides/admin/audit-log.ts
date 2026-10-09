@@ -55,8 +55,8 @@ export const auditLogGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Click Refresh at the top right to load the newest lines. Use the page numbers under the table to go further back.",
-            hi: "सबसे नई लाइनें देखने के लिए ऊपर दाईं ओर Refresh पर क्लिक करें। और पीछे की लाइनें देखने के लिए टेबल के नीचे पेज नंबर इस्तेमाल करें।",
+            en: "Click Refresh at the top right to load the newest lines. Use the Next page and Previous page arrows under the table to go further back.",
+            hi: "सबसे नई लाइनें देखने के लिए ऊपर दाईं ओर Refresh पर क्लिक करें। और पीछे की लाइनें देखने के लिए टेबल के नीचे Next page और Previous page वाले तीर इस्तेमाल करें।",
           },
         },
       ],
@@ -77,8 +77,8 @@ export const auditLogGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Use the filters above the table. Pick a module in the first box (1), type part of an action in Filter by action (2), or pick a From date (3) and a To date (4).",
-            hi: "टेबल के ऊपर वाले फ़िल्टर इस्तेमाल करें। पहले बॉक्स (1) में मॉड्यूल चुनें, Filter by action (2) में action का कोई हिस्सा टाइप करें, या From date (3) और To date (4) चुनें।",
+            en: "Use the filters at the top of the table. Pick a module in the first box (1), type part of an action in Filter by action (2), or pick a From date (3) and a To date (4).",
+            hi: "टेबल में सबसे ऊपर वाले फ़िल्टर इस्तेमाल करें। पहले बॉक्स (1) में मॉड्यूल चुनें, Filter by action (2) में action का कोई हिस्सा टाइप करें, या From date (3) और To date (4) चुनें।",
           },
           shot: {
             id: "audit-log-filters",
@@ -94,8 +94,8 @@ export const auditLogGuide: HelpGuide = {
         },
         {
           text: {
-            en: "For example, type role (1) and press Enter to see only role changes. The line above the table says how many entries match. Click Clear filters (2) to see everything again.",
-            hi: "जैसे, role (1) टाइप करें और Enter दबाएँ - सिर्फ़ रोल के बदलाव दिखेंगे। टेबल के ऊपर वाली लाइन बताती है कि कितनी एंट्री मिलीं। सब कुछ फिर से देखने के लिए Clear filters (2) पर क्लिक करें।",
+            en: "For example, type role (1) to see only role changes - the list updates as you type. The count under the table says how many entries match. Click Clear filters (2) to see everything again.",
+            hi: "जैसे, role (1) टाइप करें - सिर्फ़ रोल के बदलाव दिखेंगे, लिस्ट टाइप करते ही बदल जाती है। टेबल के नीचे वाली गिनती बताती है कि कितनी एंट्री मिलीं। सब कुछ फिर से देखने के लिए Clear filters (2) पर क्लिक करें।",
           },
           shot: {
             id: "audit-log-filter-role",
@@ -103,7 +103,6 @@ export const auditLogGuide: HelpGuide = {
             path: "/admin/audit-log",
             actions: [
               { fill: { role: "textbox", name: "Filter by action" }, value: "role" },
-              { press: "Enter" },
               { waitFor: { role: "button", name: "Clear filters" } },
             ],
             highlight: [

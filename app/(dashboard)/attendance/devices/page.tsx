@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useUrlPage } from "@/hooks/use-url-state"
 import {
   Plus,
   RefreshCw,
@@ -16,12 +15,10 @@ import {
 import { Spinner } from "@/components/shared/spinner"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
-import { Pagination } from "@/components/shared/pagination"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { useRowSelection } from "@/hooks/use-row-selection"
 import {
   DeviceFormDialog,
@@ -47,12 +44,7 @@ export default function DevicesPage() {
   const testDevice = useTestDevice()
   const { progress, isRunning, start: startSync, cancel: cancelSync } = useSyncProgress()
 
-  const PAGE_SIZE = 10
-  const [page, setPage] = useUrlPage()
-  const totalPages = Math.max(1, Math.ceil(devices.length / PAGE_SIZE))
-  const currentPage = Math.min(page, totalPages)
-  const pagedDevices = devices.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-  const selection = useRowSelection(pagedDevices.map((d) => d.id))
+  const selection = useRowSelection(devices.map((d) => d.id))
 
   const [formOpen, setFormOpen] = useState(false)
   const [editDevice, setEditDevice] = useState<HikvisionDevice | null>(null)
@@ -118,27 +110,32 @@ export default function DevicesPage() {
     {
       header: "Name",
       className: "font-medium",
+      sortValue: (device) => device.name,
       cell: (device) => device.name,
     },
     {
       header: "Serial",
       className: "text-muted-foreground font-mono text-xs",
+      sortValue: (device) => device.deviceSerial,
       cell: (device) => device.deviceSerial,
     },
     {
       header: "IP Address",
       className: "text-muted-foreground",
+      sortValue: (device) => `${device.ipAddress}:${device.port}`,
       cell: (device) => `${device.ipAddress}:${device.port}`,
     },
     {
       header: "Location",
       className: "text-muted-foreground",
+      sortValue: (device) => device.location,
       cell: (device) => device.location ?? "-",
     },
     {
       // "Enabled", not "Active": isActive means "DNMS should poll this device", not that it's
       // reachable now. The Test button answers reachability.
       header: "Enabled",
+      sortValue: (device) => (device.isActive ? "Enabled" : "Disabled"),
       cell: (device) => (
         <StatusBadge
           status={device.isActive ? "ACTIVE" : "INACTIVE"}
@@ -151,6 +148,7 @@ export default function DevicesPage() {
     {
       header: "Last Sync",
       className: "text-muted-foreground text-xs",
+      sortValue: (device) => device.lastSyncAt,
       cell: (device) => (device.lastSyncAt ? formatDateTime(device.lastSyncAt) : "Never"),
     },
     ...(canWrite
@@ -242,19 +240,6 @@ export default function DevicesPage() {
         }
       />
 
-      {canWrite && (
-        <BulkActionBar count={selection.count} onClear={selection.clear}>
-          <Button
-            variant="destructive"
-            onClick={() => setBulkOpen(true)}
-            disabled={deleteDevice.isPending}
-          >
-            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-            Delete
-          </Button>
-        </BulkActionBar>
-      )}
-
       {/* Above the table so it stays visible for the whole run (minutes on a full backfill). */}
       <SyncProgressBar progress={progress} onCancel={cancelSync} />
 
@@ -262,13 +247,24 @@ export default function DevicesPage() {
 
       {isLoading || devices.length > 0 ? (
         <DataTable
+          tableId="devices"
+          itemLabel="device"
           columns={columns}
-          rows={pagedDevices}
+          rows={devices}
           rowKey={(d) => d.id}
           minWidth="min-w-[820px]"
           showSerial
-          serialOffset={(currentPage - 1) * PAGE_SIZE}
           selection={canWrite ? selection : undefined}
+          selectionActions={
+            <Button
+              variant="destructive"
+              onClick={() => setBulkOpen(true)}
+              disabled={deleteDevice.isPending}
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+              Delete
+            </Button>
+          }
           loading={isLoading}
           skeletonRows={4}
         />
@@ -290,14 +286,6 @@ export default function DevicesPage() {
           }
         />
       )}
-
-      <Pagination
-        page={currentPage}
-        totalPages={totalPages}
-        total={devices.length}
-        onPageChange={setPage}
-        itemLabel="device"
-      />
 
       {canWrite && devices.length > 0 && (
         <EmployeeSyncPanel

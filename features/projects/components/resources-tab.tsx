@@ -2,7 +2,6 @@
 
 import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
@@ -90,18 +89,30 @@ export function ResourcesTab({ projectId, currentUserId, isProjectAdmin }: Props
   const teams = teamsData?.data ?? []
   const resources = data?.data ?? []
 
+  const filtered = teamFilter !== "all" || categoryFilter !== "all"
+  const uploaderName = (r: ProjectResource) =>
+    r.uploadedBy
+      ? `${r.uploadedBy.firstName} ${r.uploadedBy.lastName}`
+      : (r.uploadedByClient?.name ?? "Client")
+
   const columns: DataTableColumn<ProjectResource>[] = [
     {
       header: "File",
+      sortValue: (r) => r.fileName,
+      className: "max-w-[280px]",
       cell: (r) => {
         const Icon = fileIcon(r.mimeType)
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <Icon className="text-muted-foreground h-5 w-5 shrink-0" />
             <div className="min-w-0">
-              <p className="truncate font-medium">{r.fileName}</p>
+              <p className="truncate font-medium" title={r.fileName}>
+                {r.fileName}
+              </p>
               {r.description && (
-                <p className="text-muted-foreground truncate text-xs">{r.description}</p>
+                <p className="text-muted-foreground truncate text-xs" title={r.description}>
+                  {r.description}
+                </p>
               )}
             </div>
           </div>
@@ -110,6 +121,7 @@ export function ResourcesTab({ projectId, currentUserId, isProjectAdmin }: Props
     },
     {
       header: "Category",
+      sortValue: (r) => CATEGORY_LABELS[r.category] ?? r.category,
       cell: (r) => (
         <StatusBadge
           status={r.category}
@@ -120,6 +132,7 @@ export function ResourcesTab({ projectId, currentUserId, isProjectAdmin }: Props
     },
     {
       header: "Scope",
+      sortValue: (r) => r.team?.name ?? "Project-level",
       cell: (r) =>
         r.team ? (
           <span className="text-xs">
@@ -132,11 +145,14 @@ export function ResourcesTab({ projectId, currentUserId, isProjectAdmin }: Props
     },
     {
       header: "Size",
-      className: "text-muted-foreground text-xs",
+      align: "right",
+      sortValue: (r) => r.fileSize,
+      className: "text-muted-foreground text-xs tabular-nums",
       cell: (r) => formatBytes(r.fileSize),
     },
     {
       header: "Uploaded by",
+      sortValue: uploaderName,
       // uploadedBy is null for client-portal uploads (a client isn't an employee).
       cell: (r) => (
         <div className="flex items-center gap-1.5">
@@ -146,17 +162,14 @@ export function ResourcesTab({ projectId, currentUserId, isProjectAdmin }: Props
             lastName={r.uploadedBy?.lastName ?? ""}
             size="xs"
           />
-          <span className="text-xs">
-            {r.uploadedBy
-              ? `${r.uploadedBy.firstName} ${r.uploadedBy.lastName}`
-              : (r.uploadedByClient?.name ?? "Client")}
-          </span>
+          <span className="text-xs">{uploaderName(r)}</span>
           {!r.uploadedBy && <span className="text-muted-foreground text-[10px]">· client</span>}
         </div>
       ),
     },
     {
       header: "When",
+      sortValue: (r) => r.createdAt,
       className: "text-muted-foreground text-xs",
       cell: (r) => formatDate(r.createdAt),
     },
@@ -174,56 +187,67 @@ export function ResourcesTab({ projectId, currentUserId, isProjectAdmin }: Props
     },
   ]
 
+  const uploadButton = (
+    <Button onClick={() => setUploadOpen(true)}>
+      <Upload className="mr-1 h-4 w-4" />
+      Upload File
+    </Button>
+  )
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Label className="text-xs">Scope</Label>
-            <Select value={teamFilter} onValueChange={setTeamFilter}>
-              <SelectTrigger className="h-8 w-44 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All resources</SelectItem>
-                <SelectItem value="project">Project-level only</SelectItem>
-                {teams.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Label className="text-xs">Category</Label>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="h-8 w-36 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All categories</SelectItem>
-                {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>
-                    {v}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <Button onClick={() => setUploadOpen(true)}>
-          <Upload className="mr-1 h-4 w-4" />
-          Upload File
-        </Button>
-      </div>
-
-      {isLoading ? (
-        <Skeleton className="h-64 rounded-sm" />
-      ) : resources.length === 0 ? (
-        <EmptyState compact icon={Inbox} title="No files uploaded yet." />
+      {/* The filters live in the table, so it stays up whenever one is set, even while loading. */}
+      {!isLoading && resources.length === 0 && !filtered ? (
+        <EmptyState
+          compact
+          icon={Inbox}
+          title="No files uploaded yet."
+          action={{ label: "Upload File", onClick: () => setUploadOpen(true) }}
+        />
       ) : (
-        <DataTable columns={columns} rows={resources} rowKey={(r) => r.id} showSerial />
+        <DataTable
+          tableId="project-resources"
+          itemLabel="file"
+          columns={columns}
+          rows={resources}
+          rowKey={(r) => r.id}
+          showSerial
+          loading={isLoading}
+          pageKey={`${teamFilter}|${categoryFilter}`}
+          toolbar={
+            <>
+              <Select value={teamFilter} onValueChange={setTeamFilter}>
+                <SelectTrigger className="h-9 w-44" aria-label="Scope">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All resources</SelectItem>
+                  <SelectItem value="project">Project-level only</SelectItem>
+                  {teams.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="h-9 w-40" aria-label="Category">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All categories</SelectItem>
+                  {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          }
+          toolbarEnd={uploadButton}
+          empty="No files match these filters."
+        />
       )}
 
       <UploadDialog

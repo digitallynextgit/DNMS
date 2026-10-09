@@ -3,7 +3,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
-import { TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TabsList, TabsTrigger, type TabsVariant } from "@/components/ui/tabs"
 
 // Tab strips declared as data: a page says which tabs it has, this decides how a tab looks.
 
@@ -40,17 +40,20 @@ export function TabsBar({
   items,
   /** `none` is for strips inside a header row that already spaces itself. */
   spacing = "default",
+  /** `underline` for tabs nested inside a page's own tabs (e.g. the sections of a project tab). */
+  variant = "pill",
   className,
 }: {
   items: readonly TabEntry[]
   spacing?: "default" | "none"
+  variant?: TabsVariant
   className?: string
 }) {
   const tabs = items.filter((i): i is TabItem => Boolean(i))
   if (tabs.length === 0) return null
 
   return (
-    <TabsList className={cn(spacing === "default" && "mb-4", className)}>
+    <TabsList variant={variant} className={cn(spacing === "default" && "mb-4", className)}>
       {tabs.map((tab) => {
         const Icon = tab.icon
         return (

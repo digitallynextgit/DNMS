@@ -222,8 +222,8 @@ export const stockRegisterGuide: HelpGuide = {
         },
         {
           text: {
-            en: "To work on many rows at once, tick them. A bar appears with Link to employee, Unlink, Delete and Clear.",
-            hi: "कई लाइनों पर एक साथ काम करना हो तो उन्हें टिक करें। एक पट्टी आती है जिसमें Link to employee, Unlink, Delete और Clear होते हैं।",
+            en: "To work on many rows at once, tick them. The table's header row then shows how many are ticked, with Clear, Link to employee, Unlink and Delete.",
+            hi: "कई लाइनों पर एक साथ काम करना हो तो उन्हें टिक करें। तब टेबल की हेडर लाइन में दिखता है कि कितनी लाइनें टिक हैं, और साथ में Clear, Link to employee, Unlink और Delete होते हैं।",
           },
         },
       ],

@@ -20,15 +20,19 @@ export function useRowSelection<T extends string = string>(pageIds: T[]) {
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
   const someSelected = pageIds.some((id) => selected.has(id)) && !allSelected
 
-  const toggleAll = useCallback(() => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      const all = pageIds.length > 0 && pageIds.every((id) => next.has(id))
-      if (all) pageIds.forEach((id) => next.delete(id))
-      else pageIds.forEach((id) => next.add(id))
-      return next
-    })
-  }, [pageIds])
+  // DataTable passes the rows it is showing, which beats `pageIds` when it pages or sorts itself.
+  const toggleAll = useCallback(
+    (ids: T[] = pageIds) => {
+      setSelected((prev) => {
+        const next = new Set(prev)
+        const all = ids.length > 0 && ids.every((id) => next.has(id))
+        if (all) ids.forEach((id) => next.delete(id))
+        else ids.forEach((id) => next.add(id))
+        return next
+      })
+    },
+    [pageIds],
+  )
 
   const clear = useCallback(() => setSelected(new Set()), [])
 

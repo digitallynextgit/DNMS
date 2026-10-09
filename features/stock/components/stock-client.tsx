@@ -20,9 +20,10 @@ import { SearchInput } from "@/components/shared/search-input"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { TableSearch } from "@/components/shared/table-search"
 import { DateField } from "@/components/shared/date-field"
-import { Pagination } from "@/components/shared/pagination"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { useDebounce } from "@/hooks/use-debounce"
 import { useRowSelection } from "@/hooks/use-row-selection"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -80,7 +81,9 @@ export function StockClient() {
   const { can } = usePermissions()
   const canWrite = can(PERMISSIONS.EMPLOYEE_WRITE)
 
-  const [q, setQ] = useState("")
+  const [query, setQuery] = useState("")
+  // Debounced: every keystroke would otherwise be a server request.
+  const q = useDebounce(query.trim())
   const [itemFilter, setItemFilter] = useState("all")
   const [unlinkedOnly, setUnlinkedOnly] = useState(false)
   const [page, setPage] = useState(1)
@@ -104,7 +107,7 @@ export function StockClient() {
 
   const rows = register.data?.rows ?? []
   const meta = register.data?.meta
-  const hasFilters = Boolean(q) || itemFilter !== "all" || unlinkedOnly
+  const hasFilters = Boolean(query) || itemFilter !== "all" || unlinkedOnly
 
   // Selection is per matrix ROW KEY; ids resolve only for rows on screen, so filter/page changes clear it.
   const selection = useRowSelection(rows.map((r) => r.key))
@@ -262,6 +265,8 @@ export function StockClient() {
     ...(items.data ?? []).map(
       (item): DataTableColumn<StockMatrixRow> => ({
         header: item.name,
+        // By id, so a renamed item keeps its hidden/shown choice.
+        key: item.id,
         cell: (r) => {
           const qty = r.cells[item.id]?.quantity ?? 0
           return qty > 0 ? (
@@ -422,120 +427,120 @@ export function StockClient() {
         )}
       </section>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <SearchInput
-          value={q}
-          onChange={(value) => {
-            setQ(value)
-            resetPaging()
-          }}
-          placeholder="Search holder, employee or item…"
-          className="w-full sm:w-72"
-        />
-        <Select
-          value={itemFilter}
-          onValueChange={(value) => {
-            setItemFilter(value)
-            resetPaging()
-          }}
-        >
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All items" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All items</SelectItem>
-            {(items.data ?? []).map((i) => (
-              <SelectItem key={i.id} value={i.id}>
-                {i.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          variant={unlinkedOnly ? "default" : "outline"}
-          onClick={() => {
-            setUnlinkedOnly((v) => !v)
-            resetPaging()
-          }}
-        >
-          <UserX className="mr-1.5 h-3.5 w-3.5" />
-          Unlinked only
-        </Button>
-      </div>
-
-      {canWrite && selection.count > 0 && (
-        <div className="border-border bg-muted/40 flex flex-wrap items-center gap-2 rounded-sm border px-3 py-2">
-          <span className="text-sm font-medium">{selection.count} selected</span>
-          <div className="ml-auto flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setBulkLinkOpen(true)}
-              disabled={bulk.isPending}
-            >
-              <Link2 className="mr-1.5 h-3.5 w-3.5" />
-              Link to employee
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => runBulk(selectedIssueIds(), "unlink")}
-              disabled={bulk.isPending}
-            >
-              <Link2Off className="mr-1.5 h-3.5 w-3.5" />
-              Unlink
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => setBulkDeleteOpen(true)}
-              disabled={bulk.isPending}
-            >
-              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-              Delete
-            </Button>
-            <Button variant="ghost" onClick={selection.clear} disabled={bulk.isPending}>
-              Clear
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {!register.isLoading && rows.length === 0 ? (
+      {/* Filters stay on screen when they match nothing, so they can be undone. */}
+      {!register.isLoading && rows.length === 0 && !hasFilters ? (
         <EmptyState
           icon={Package}
           title={
-            register.isError
-              ? "Couldn't load the register. Try reloading."
-              : hasFilters
-                ? "Nothing matches these filters."
-                : "No stock issued yet."
+            register.isError ? "Couldn't load the register. Try reloading." : "No stock issued yet."
           }
           description={
-            !register.isError && !hasFilters
+            !register.isError
               ? "Import the Excel workbook or record an issue to get started."
               : undefined
           }
         />
       ) : (
-        <>
-          <DataTable
-            columns={columns}
-            rows={rows}
-            rowKey={(r) => r.key}
-            loading={register.isLoading}
-            minWidth="min-w-[860px]"
-            showSerial
-            serialOffset={meta ? (meta.page - 1) * meta.limit : 0}
-            selection={canWrite ? selection : undefined}
-          />
-          {meta && (
-            <Pagination
-              page={meta.page}
-              totalPages={meta.totalPages}
-              total={meta.total}
-              onPageChange={(next) => resetPaging(next)}
-              itemLabel="row"
-            />
-          )}
-        </>
+        <DataTable
+          tableId="stock-register"
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => r.key}
+          loading={register.isLoading}
+          minWidth="min-w-[860px]"
+          showSerial
+          serialOffset={meta ? (meta.page - 1) * meta.limit : 0}
+          selection={canWrite ? selection : undefined}
+          selectionActions={
+            canWrite ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setBulkLinkOpen(true)}
+                  disabled={bulk.isPending}
+                >
+                  <Link2 className="mr-1.5 h-3.5 w-3.5" />
+                  Link to employee
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => runBulk(selectedIssueIds(), "unlink")}
+                  disabled={bulk.isPending}
+                >
+                  <Link2Off className="mr-1.5 h-3.5 w-3.5" />
+                  Unlink
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => setBulkDeleteOpen(true)}
+                  disabled={bulk.isPending}
+                >
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  Delete
+                </Button>
+              </>
+            ) : undefined
+          }
+          toolbar={
+            <>
+              <TableSearch
+                value={query}
+                onChange={(value) => {
+                  setQuery(value)
+                  resetPaging()
+                }}
+                placeholder="Search holder, employee or item…"
+                label="Search the register by holder, employee or item"
+              />
+              <Select
+                value={itemFilter}
+                onValueChange={(value) => {
+                  setItemFilter(value)
+                  resetPaging()
+                }}
+              >
+                <SelectTrigger className="h-9 w-40" aria-label="Item">
+                  <SelectValue placeholder="All items" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All items</SelectItem>
+                  {(items.data ?? []).map((i) => (
+                    <SelectItem key={i.id} value={i.id}>
+                      {i.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant={unlinkedOnly ? "default" : "outline"}
+                onClick={() => {
+                  setUnlinkedOnly((v) => !v)
+                  resetPaging()
+                }}
+              >
+                <UserX className="mr-1.5 h-3.5 w-3.5" />
+                Unlinked only
+              </Button>
+            </>
+          }
+          pagination={
+            meta
+              ? {
+                  page: meta.page,
+                  totalPages: meta.totalPages,
+                  total: meta.total,
+                  onPageChange: (next) => resetPaging(next),
+                  itemLabel: "row",
+                  pageSize: meta.limit,
+                }
+              : undefined
+          }
+          empty={
+            register.isError
+              ? "Couldn't load the register. Try reloading."
+              : "Nothing matches these filters."
+          }
+        />
       )}
 
       <StockImportDialog open={importOpen} onOpenChange={setImportOpen} />

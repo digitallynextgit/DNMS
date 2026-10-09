@@ -10,12 +10,11 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { StatCard } from "@/components/shared/stat-card"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
-import { Pagination } from "@/components/shared/pagination"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { TabsBar } from "@/components/shared/tabs-bar"
 import { useHolidays, FloatingRequestsInbox, HolidayMonthCalendar } from "@/features/attendance"
-import { useUrlState, useUrlPage } from "@/hooks/use-url-state"
+import { useUrlState } from "@/hooks/use-url-state"
 import {
   FLOATING_REQUEST_STATUS_COLORS,
   FLOATING_REQUEST_STATUS_LABELS,
@@ -30,7 +29,6 @@ import { YearSelect } from "./year-select"
 
 const CURRENT_YEAR = new Date().getFullYear()
 const TABS = ["calendar", "table", "floating", "requests"]
-const TABLE_PAGE_SIZE = 10
 
 interface FloatingHoliday {
   id: string
@@ -81,10 +79,6 @@ export function HolidaysCalendarView() {
   const [tab, setTab] = useUrlState("tab", "calendar")
   const [year, setYear] = useState(CURRENT_YEAR)
   const [calMonth, setCalMonth] = useState(new Date().getMonth())
-  const [floatPage, setFloatPage] = useUrlPage()
-  const FLOAT_PAGE_SIZE = 8
-  // Its own page, not the URL's: the floating list already owns ?page.
-  const [tablePage, setTablePage] = useState(1)
 
   const { data: holidaysData, isLoading } = useHolidays(year)
   const holidays = holidaysData?.data ?? []
@@ -143,33 +137,33 @@ export function HolidaysCalendarView() {
   const activeTab =
     !TABS.includes(tab) || (tab === "requests" && fd && !fd.isApprover) ? "calendar" : tab
 
-  function changeYear(next: number) {
-    setYear(next)
-    setTablePage(1)
-  }
-
   type HolidayRow = (typeof holidays)[number]
-  const tableTotalPages = Math.max(1, Math.ceil(holidays.length / TABLE_PAGE_SIZE))
-  const tableCurrentPage = Math.min(tablePage, tableTotalPages)
   const holidayColumns: DataTableColumn<HolidayRow>[] = [
     {
       header: "Holiday",
+      sortValue: (h) => h.name,
       cell: (h) => (
         <div className="min-w-0">
           <p className="font-medium">{h.name}</p>
           {h.description && (
-            <p className="text-muted-foreground max-w-[320px] truncate text-xs">{h.description}</p>
+            <p
+              className="text-muted-foreground max-w-[320px] truncate text-xs"
+              title={h.description}
+            >
+              {h.description}
+            </p>
           )}
         </div>
       ),
     },
     {
       header: "Date",
-      className: "whitespace-nowrap",
+      sortValue: (h) => h.date,
       cell: (h) => formatDate(h.date, "EEE, dd MMM yyyy"),
     },
     {
       header: "Type",
+      sortValue: (h) => HOLIDAY_TYPE_LABELS[h.isOptional ? "FLOATING" : "FIXED"],
       cell: (h) => (
         <div className="flex flex-wrap items-center gap-1.5">
           <StatusBadge
@@ -221,7 +215,7 @@ export function HolidaysCalendarView() {
             fd?.isApprover && { value: "requests", label: "Floating Requests" },
           ]}
         />
-        <YearSelect value={year} onChange={changeYear} />
+        <YearSelect value={year} onChange={setYear} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -255,22 +249,15 @@ export function HolidaysCalendarView() {
       <TabsContent value="table">
         {isLoading || holidays.length > 0 ? (
           <DataTable
+            tableId="holiday-calendar"
+            itemLabel="holiday"
             columns={holidayColumns}
-            rows={holidays.slice(
-              (tableCurrentPage - 1) * TABLE_PAGE_SIZE,
-              tableCurrentPage * TABLE_PAGE_SIZE,
-            )}
+            rows={holidays}
             rowKey={(h) => h.id}
             showSerial
-            serialOffset={(tableCurrentPage - 1) * TABLE_PAGE_SIZE}
             loading={isLoading}
-            pagination={{
-              page: tableCurrentPage,
-              totalPages: tableTotalPages,
-              total: holidays.length,
-              onPageChange: setTablePage,
-              itemLabel: "holiday",
-            }}
+            pageKey={String(year)}
+            columnToggle={false}
           />
         ) : (
           <EmptyState variant="card" icon={CalendarDays} title={`No holidays for ${year}.`} />
@@ -297,11 +284,13 @@ export function HolidaysCalendarView() {
                 {
                   header: "Holiday",
                   className: "font-medium",
+                  sortValue: (h: FloatingHoliday) => h.name,
                   cell: (h: FloatingHoliday) => h.name,
                 },
                 {
                   header: "Date",
-                  className: "text-muted-foreground whitespace-nowrap",
+                  className: "text-muted-foreground",
+                  sortValue: (h: FloatingHoliday) => h.date,
                   cell: (h: FloatingHoliday) => formatDate(h.date, "EEE, dd MMM yyyy"),
                 },
                 {
@@ -321,7 +310,12 @@ export function HolidaysCalendarView() {
                           labelMap={FLOATING_REQUEST_STATUS_LABELS}
                         />
                         {sel.status === "REJECTED" && sel.rejectionReason && (
-                          <p className="text-muted-foreground text-xs">{sel.rejectionReason}</p>
+                          <p
+                            className="text-muted-foreground truncate text-xs"
+                            title={sel.rejectionReason}
+                          >
+                            {sel.rejectionReason}
+                          </p>
                         )}
                       </div>
                     )
@@ -369,23 +363,14 @@ export function HolidaysCalendarView() {
                 },
               ] as DataTableColumn<FloatingHoliday>[]
             }
-            rows={fd.optionalHolidays.slice(
-              (floatPage - 1) * FLOAT_PAGE_SIZE,
-              floatPage * FLOAT_PAGE_SIZE,
-            )}
+            tableId="floating-holidays"
+            itemLabel="holiday"
+            rows={fd.optionalHolidays}
             rowKey={(h) => h.id}
             showSerial
-            serialOffset={(floatPage - 1) * FLOAT_PAGE_SIZE}
             minWidth="min-w-[560px]"
-          />
-        )}
-        {fd && fd.optionalHolidays.length > FLOAT_PAGE_SIZE && (
-          <Pagination
-            page={floatPage}
-            totalPages={Math.ceil(fd.optionalHolidays.length / FLOAT_PAGE_SIZE)}
-            total={fd.optionalHolidays.length}
-            onPageChange={setFloatPage}
-            itemLabel="holiday"
+            pageKey={String(year)}
+            columnToggle={false}
           />
         )}
         {atLimit && (

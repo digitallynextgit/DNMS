@@ -57,6 +57,8 @@ import {
 import { ProjectFormDialog } from "@/features/projects/components/project-form-dialog"
 import { clientHref } from "@/features/clients/lib/client-href"
 import { ProjectLogo } from "@/features/projects/components/project-logo"
+import { ProjectServicesPanel } from "@/features/projects/components/project-services-panel"
+import { projectHref } from "@/features/projects/lib/project-href"
 import {
   ProjectTabsBar,
   type ProjectTabItem,
@@ -292,6 +294,11 @@ export default function ProjectDetailPage() {
         title={project.name}
         titleSuffix={
           <>
+            {project.shortName && (
+              <span className="bg-primary text-primary-foreground shrink-0 rounded-sm px-2 py-0.5 text-xs font-bold">
+                {project.shortName}
+              </span>
+            )}
             <span className="bg-muted/50 text-muted-foreground shrink-0 rounded-sm border px-2 py-0.5 font-mono text-xs">
               {project.code}
             </span>
@@ -434,10 +441,22 @@ export default function ProjectDetailPage() {
 
               <div className="grid grid-cols-1 gap-4 border-t pt-3 text-sm sm:grid-cols-3">
                 <InfoRow label="Code" value={project.code} mono />
+                <InfoRow label="Short name" value={project.shortName} />
                 <InfoRow
                   label="Onboarding Date"
                   value={project.startDate ? formatDate(project.startDate) : "-"}
                   icon={Calendar}
+                />
+              </div>
+
+              <div className="space-y-2 border-t pt-3">
+                <p className="text-muted-foreground text-xs tracking-wide uppercase">Services</p>
+                <ProjectServicesPanel
+                  projectId={projectRef}
+                  projectPath={projectHref(project)}
+                  services={project.services ?? []}
+                  owners={project.serviceOwners ?? []}
+                  canManage={canManage}
                 />
               </div>
             </CardContent>
@@ -522,6 +541,8 @@ export default function ProjectDetailPage() {
         logo={project.logo}
         initial={{
           name: project.name,
+          shortName: project.shortName ?? "",
+          services: project.services ?? [],
           code: project.code,
           description: project.description ?? "",
           status: project.status,

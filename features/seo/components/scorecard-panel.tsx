@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { StatCardsSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { cn } from "@/lib/utils"
-import type { ScorecardView, VitalsView } from "../types"
+import type { ScorecardMetricView, ScorecardView, VitalsView } from "../types"
 import { useRebuildScorecard, useRunVitals, useScorecard, useVitals } from "../hooks/use-seo"
 import { exportScorecard } from "../lib/seo-export"
 
@@ -157,59 +158,21 @@ export function ScorecardPanel({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-0">
-              <div className="border-border border-b px-4 py-3">
-                <p className="text-sm font-medium">Metric breakdown</p>
-                <p className="text-muted-foreground text-xs">
-                  Unmeasured metrics are excluded from the score rather than counted as zero.
-                </p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-muted-foreground border-border border-b text-xs">
-                    <tr>
-                      <th className="px-4 py-2 text-left font-medium">Metric</th>
-                      <th className="px-4 py-2 text-right font-medium">Weight</th>
-                      <th className="px-4 py-2 text-right font-medium">Points</th>
-                      <th className="px-4 py-2 text-left font-medium">Detail</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {card.metrics.map((m) => (
-                      <tr
-                        key={m.key}
-                        className={cn(
-                          "border-border/60 border-b last:border-0",
-                          !m.available && "opacity-60",
-                        )}
-                      >
-                        <td className="px-4 py-2 font-medium whitespace-nowrap">{m.label}</td>
-                        <td className="px-4 py-2 text-right tabular-nums">{m.weight}</td>
-                        <td className="px-4 py-2 text-right tabular-nums">
-                          {m.available ? (
-                            <span
-                              className={cn(
-                                m.ratio !== null && m.ratio >= 0.8 && "text-emerald-600",
-                                m.ratio !== null && m.ratio < 0.4 && "text-red-600",
-                              )}
-                            >
-                              {m.points.toFixed(1)}
-                            </span>
-                          ) : (
-                            <Badge variant="outline" className="text-[10px]">
-                              no data
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="text-muted-foreground px-4 py-2 text-xs">{m.note}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+          {/* A fixed set of metrics, so one page shows them all. */}
+          <DataTable
+            columns={METRIC_COLUMNS}
+            rows={card.metrics}
+            rowKey={(m) => m.key}
+            columnToggle={false}
+            pageSize={false}
+            rowClassName={(m) => (m.available ? undefined : "opacity-60")}
+            toolbar={
+              <TableTitle
+                title="Metric breakdown"
+                hint="Unmeasured metrics are excluded from the score rather than counted as zero."
+              />
+            }
+          />
         </>
       )}
 
@@ -237,84 +200,145 @@ function VitalsTable({ rows }: { rows: VitalsView[] }) {
   }
   const anyLab = rows.some((r) => r.source === "PSI_LAB")
   return (
-    <Card>
-      <CardContent className="p-0">
-        <div className="border-border border-b px-4 py-3">
-          <p className="text-sm font-medium">Core Web Vitals</p>
-          <p className="text-muted-foreground text-xs">
-            Field data comes from real Chrome users and is what Google ranks on.
-            {anyLab &&
-              " Lab rows are a simulation - used only where a page has too little traffic for field data."}
-          </p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-muted-foreground border-border border-b text-xs">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium">Page</th>
-                <th className="px-4 py-2 text-left font-medium">Source</th>
-                <th className="px-4 py-2 text-right font-medium">LCP</th>
-                <th className="px-4 py-2 text-right font-medium">INP</th>
-                <th className="px-4 py-2 text-right font-medium">CLS</th>
-                <th className="px-4 py-2 text-left font-medium">Verdict</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-border/60 border-b last:border-0">
-                  <td className="max-w-[320px] truncate px-4 py-2" title={r.url}>
-                    <a
-                      href={r.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:underline"
-                    >
-                      {r.url.replace(/^https?:\/\/[^/]+/, "") || "/"}
-                    </a>
-                  </td>
-                  <td className="px-4 py-2 text-xs">
-                    {r.source === "CRUX_FIELD" ? (
-                      <span className="text-emerald-600">field</span>
-                    ) : (
-                      <span className="text-muted-foreground">lab</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums">
-                    {r.lcpMs !== null ? `${(r.lcpMs / 1000).toFixed(1)}s` : "-"}
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums">
-                    {r.inpMs !== null ? `${r.inpMs}ms` : "-"}
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums">
-                    {r.cls !== null ? r.cls.toFixed(2) : "-"}
-                  </td>
-                  <td className="px-4 py-2">
-                    {r.verdict ? (
-                      <span
-                        className={cn(
-                          "rounded-sm px-1.5 py-0.5 text-xs font-medium",
-                          VERDICTS[r.verdict]?.cls,
-                        )}
-                      >
-                        {VERDICTS[r.verdict]?.label}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {rows.some((r) => r.source === "PSI_LAB" && r.inpMs === null) && (
-          <div className="text-muted-foreground flex gap-2 border-t px-4 py-2 text-[11px]">
+    <DataTable
+      tableId="seo-vitals"
+      itemLabel="page"
+      columns={VITALS_COLUMNS}
+      rows={rows}
+      rowKey={(r) => r.id}
+      columnToggle={false}
+      toolbar={
+        <TableTitle
+          title="Core Web Vitals"
+          hint={`Field data comes from real Chrome users and is what Google ranks on.${
+            anyLab
+              ? " Lab rows are a simulation - used only where a page has too little traffic for field data."
+              : ""
+          }`}
+        />
+      }
+      footerNote={
+        rows.some((r) => r.source === "PSI_LAB" && r.inpMs === null) ? (
+          <span className="flex gap-2">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
             INP cannot be measured in a lab run - it needs a real user interaction. Those rows show
             “-” rather than a substitute metric.
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          </span>
+        ) : undefined
+      }
+    />
+  )
+}
+
+const METRIC_COLUMNS: DataTableColumn<ScorecardMetricView>[] = [
+  { header: "Metric", sortValue: (m) => m.label, className: "font-medium", cell: (m) => m.label },
+  {
+    header: "Weight",
+    align: "right",
+    className: "tabular-nums",
+    sortValue: (m) => m.weight,
+    cell: (m) => m.weight,
+  },
+  {
+    header: "Points",
+    align: "right",
+    className: "tabular-nums",
+    sortValue: (m) => (m.available ? m.points : null),
+    cell: (m) =>
+      m.available ? (
+        <span
+          className={cn(
+            m.ratio !== null && m.ratio >= 0.8 && "text-emerald-600",
+            m.ratio !== null && m.ratio < 0.4 && "text-red-600",
+          )}
+        >
+          {m.points.toFixed(1)}
+        </span>
+      ) : (
+        <Badge variant="outline" className="text-[10px]">
+          no data
+        </Badge>
+      ),
+  },
+  {
+    header: "Detail",
+    className: "text-muted-foreground min-w-[240px] text-xs whitespace-normal",
+    cell: (m) => m.note,
+  },
+]
+
+const VITALS_COLUMNS: DataTableColumn<VitalsView>[] = [
+  {
+    header: "Page",
+    sortValue: (r) => r.url,
+    className: "max-w-[320px] truncate",
+    cell: (r) => (
+      <a
+        href={r.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={r.url}
+        className="hover:underline"
+      >
+        {r.url.replace(/^https?:\/\/[^/]+/, "") || "/"}
+      </a>
+    ),
+  },
+  {
+    header: "Source",
+    sortValue: (r) => r.source,
+    className: "text-xs",
+    cell: (r) =>
+      r.source === "CRUX_FIELD" ? (
+        <span className="text-emerald-600">field</span>
+      ) : (
+        <span className="text-muted-foreground">lab</span>
+      ),
+  },
+  {
+    header: "LCP",
+    align: "right",
+    className: "tabular-nums",
+    sortValue: (r) => r.lcpMs,
+    cell: (r) => (r.lcpMs !== null ? `${(r.lcpMs / 1000).toFixed(1)}s` : "-"),
+  },
+  {
+    header: "INP",
+    align: "right",
+    className: "tabular-nums",
+    sortValue: (r) => r.inpMs,
+    cell: (r) => (r.inpMs !== null ? `${r.inpMs}ms` : "-"),
+  },
+  {
+    header: "CLS",
+    align: "right",
+    className: "tabular-nums",
+    sortValue: (r) => r.cls,
+    cell: (r) => (r.cls !== null ? r.cls.toFixed(2) : "-"),
+  },
+  {
+    header: "Verdict",
+    // Good first, poor last.
+    sortValue: (r) => (r.verdict ? Object.keys(VERDICTS).indexOf(r.verdict) : null),
+    cell: (r) =>
+      r.verdict ? (
+        <span
+          className={cn("rounded-sm px-1.5 py-0.5 text-xs font-medium", VERDICTS[r.verdict]?.cls)}
+        >
+          {VERDICTS[r.verdict]?.label}
+        </span>
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      ),
+  },
+]
+
+/** A card table's heading, in the table's toolbar. */
+function TableTitle({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-sm font-medium">{title}</p>
+      {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
+    </div>
   )
 }

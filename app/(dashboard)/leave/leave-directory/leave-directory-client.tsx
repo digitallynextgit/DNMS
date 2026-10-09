@@ -5,14 +5,12 @@ import { useSession } from "next-auth/react"
 import { X } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
-import { SearchInput } from "@/components/shared/search-input"
 import { DateField } from "@/components/shared/date-field"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { TableSearch } from "@/components/shared/table-search"
+import { TableViewMenu } from "@/components/shared/table-view-menu"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { EmptyState } from "@/components/shared/empty-state"
-import { Pagination } from "@/components/shared/pagination"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { TabsBar } from "@/components/shared/tabs-bar"
 import {
@@ -36,6 +34,14 @@ import { PERMISSIONS, LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/con
 import { formatDate } from "@/lib/utils"
 
 const PAGE_SIZE = 10
+
+const STATUS_VIEWS = [
+  { value: "all", label: "All" },
+  { value: "PENDING", label: "Pending" },
+  { value: "APPROVED", label: "Approved" },
+  { value: "REJECTED", label: "Rejected" },
+  { value: "CANCELLED", label: "Cancelled" },
+]
 
 export function LeaveDirectoryClient() {
   const { data: session } = useSession()
@@ -79,25 +85,22 @@ export function LeaveDirectoryClient() {
   )
   const { data: balanceData, isLoading: balancesLoading } = useLeaveBalanceDirectory(balanceYear)
   const balanceEmployees = balanceData?.data ?? []
-  const filteredBalances = employeeSearch
-    ? balanceEmployees.filter((e) => {
-        const q = employeeSearch.toLowerCase()
-        return (
+  const q = employeeSearch.trim().toLowerCase()
+  const filteredBalances = q
+    ? balanceEmployees.filter(
+        (e) =>
           `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
-          e.employeeNo.toLowerCase().includes(q)
-        )
-      })
+          e.employeeNo.toLowerCase().includes(q),
+      )
     : balanceEmployees
 
-  // Client-side name search over the current page (the API filters by id).
-  const filtered = employeeSearch
-    ? requests.filter((r) => {
-        const q = employeeSearch.toLowerCase()
-        return (
+  // Client-side name search over the current page (the API has no name search).
+  const filtered = q
+    ? requests.filter(
+        (r) =>
           `${r.employee.firstName} ${r.employee.lastName}`.toLowerCase().includes(q) ||
-          r.employee.employeeNo.toLowerCase().includes(q)
-        )
-      })
+          r.employee.employeeNo.toLowerCase().includes(q),
+      )
     : requests
 
   const resetPage = () => setPage(1)
@@ -155,7 +158,7 @@ export function LeaveDirectoryClient() {
     },
     {
       header: "Dates",
-      className: "text-muted-foreground whitespace-nowrap",
+      className: "text-muted-foreground",
       cell: (r) => (
         <>
           {formatDate(r.startDate)}
@@ -175,6 +178,91 @@ export function LeaveDirectoryClient() {
       ),
     },
   ]
+
+  const search = (
+    <TableSearch
+      value={employeeSearch}
+      onChange={setEmployeeSearch}
+      placeholder="Search employee..."
+      label="Search employees by name or employee number"
+    />
+  )
+  const clearButton = hasFilters ? (
+    <Button className="h-9 gap-1" variant="ghost" onClick={clearFilters}>
+      <X className="h-3.5 w-3.5" />
+      Clear
+    </Button>
+  ) : null
+
+  // Type and dates narrow both request tabs; the status view is Requests only.
+  const requestFilters = (
+    <>
+      {!onLeave && (
+        <TableViewMenu
+          label="Status"
+          value={status}
+          options={STATUS_VIEWS}
+          onChange={(v) => {
+            setStatus(v)
+            resetPage()
+          }}
+        />
+      )}
+      {search}
+      <Select
+        value={leaveTypeId}
+        onValueChange={(v) => {
+          setLeaveTypeId(v)
+          resetPage()
+        }}
+      >
+        <SelectTrigger className="h-9 w-[170px]">
+          <SelectValue placeholder="Leave type" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All types</SelectItem>
+          {leaveTypes.map((t) => (
+            <SelectItem key={t.id} value={t.id}>
+              {t.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <div className="flex items-center gap-2">
+        <div className="w-[150px]">
+          <DateField
+            value={from}
+            onChange={(v) => {
+              setFrom(v)
+              resetPage()
+            }}
+            placeholder="From"
+          />
+        </div>
+        <span className="text-muted-foreground text-sm">-</span>
+        <div className="w-[150px]">
+          <DateField
+            value={to}
+            onChange={(v) => {
+              setTo(v)
+              resetPage()
+            }}
+            placeholder="To"
+          />
+        </div>
+      </div>
+      {clearButton}
+    </>
+  )
+
+  const requestPagination = pagination && {
+    page: pagination.page,
+    totalPages: pagination.totalPages,
+    total: pagination.total,
+    onPageChange: setPage,
+    pageSize: PAGE_SIZE,
+  }
+  const noMatch = q ? "No request on this page matches that search." : undefined
 
   return (
     <div className="space-y-6">
@@ -201,175 +289,68 @@ export function LeaveDirectoryClient() {
           }
         />
 
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[180px] flex-1">
-            <SearchInput
-              placeholder="Search employee..."
-              value={employeeSearch}
-              onChange={setEmployeeSearch}
-            />
-          </div>
+        <TabsContent value="requests">
+          <LeaveRequestTable
+            tableId="leave-requests"
+            requests={filtered}
+            showEmployee
+            canApprove
+            currentUserId={session?.user.id}
+            loading={isLoading}
+            serialOffset={(page - 1) * PAGE_SIZE}
+            pagination={requestPagination && { ...requestPagination, itemLabel: "request" }}
+            toolbar={requestFilters}
+            empty={noMatch}
+          />
+        </TabsContent>
 
-          {/* Year picker applies to the Balances tab only. */}
-          {balancesTab && (
-            <Select value={String(balanceYear)} onValueChange={(v) => setBalanceYear(Number(v))}>
-              <SelectTrigger className="w-[130px]">
-                <SelectValue placeholder="Year" />
-              </SelectTrigger>
-              <SelectContent>
-                {balanceYearOptions.map((y) => (
-                  <SelectItem key={y} value={String(y)}>
-                    {y}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+        <TabsContent value="on-leave">
+          <DataTable
+            tableId="on-leave"
+            columns={onLeaveColumns}
+            rows={filtered}
+            rowKey={(r) => r.id}
+            minWidth="min-w-[640px]"
+            showSerial
+            serialOffset={(page - 1) * PAGE_SIZE}
+            loading={isLoading}
+            skeletonRows={5}
+            pagination={requestPagination && { ...requestPagination, itemLabel: "record" }}
+            toolbar={requestFilters}
+            empty={noMatch ?? "No one is on leave for the selected filters."}
+          />
+        </TabsContent>
 
-          {/* Type / status / date apply to the Requests & On Leave tabs only. */}
-          {!balancesTab && (
-            <>
-              <Select
-                value={leaveTypeId}
-                onValueChange={(v) => {
-                  setLeaveTypeId(v)
-                  resetPage()
-                }}
-              >
-                <SelectTrigger className="w-[170px]">
-                  <SelectValue placeholder="Leave type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All types</SelectItem>
-                  {leaveTypes.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {!onLeave && (
+        <TabsContent value="balances">
+          <LeaveBalanceDirectory
+            employees={filteredBalances}
+            leaveTypes={leaveTypes}
+            loading={balancesLoading}
+            year={balanceYear}
+            pageKey={`${balanceYear}|${q}`}
+            toolbar={
+              <>
+                {search}
                 <Select
-                  value={status}
-                  onValueChange={(v) => {
-                    setStatus(v)
-                    resetPage()
-                  }}
+                  value={String(balanceYear)}
+                  onValueChange={(v) => setBalanceYear(Number(v))}
                 >
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Status" />
+                  <SelectTrigger className="h-9 w-[130px]" aria-label="Year">
+                    <SelectValue placeholder="Year" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All statuses</SelectItem>
-                    <SelectItem value="PENDING">Pending</SelectItem>
-                    <SelectItem value="APPROVED">Approved</SelectItem>
-                    <SelectItem value="REJECTED">Rejected</SelectItem>
-                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                    {balanceYearOptions.map((y) => (
+                      <SelectItem key={y} value={String(y)}>
+                        {y}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-              )}
-
-              <div className="flex items-center gap-2">
-                <div className="w-[150px]">
-                  <DateField
-                    value={from}
-                    onChange={(v) => {
-                      setFrom(v)
-                      resetPage()
-                    }}
-                    placeholder="From"
-                  />
-                </div>
-                <span className="text-muted-foreground text-sm">-</span>
-                <div className="w-[150px]">
-                  <DateField
-                    value={to}
-                    onChange={(v) => {
-                      setTo(v)
-                      resetPage()
-                    }}
-                    placeholder="To"
-                  />
-                </div>
-              </div>
-            </>
-          )}
-
-          {hasFilters && (
-            <Button className="gap-1" variant="ghost" onClick={clearFilters}>
-              <X className="h-3.5 w-3.5" />
-              Clear
-            </Button>
-          )}
-        </div>
-
-        <TabsContent value="requests" className="space-y-4">
-          {isLoading ? (
-            <ListSkeleton rows={6} height="h-14" />
-          ) : (
-            <LeaveRequestTable
-              requests={filtered}
-              showEmployee
-              canApprove
-              currentUserId={session?.user.id}
-              serialOffset={(page - 1) * PAGE_SIZE}
-            />
-          )}
-          {pagination && pagination.total > 0 && (
-            <Pagination
-              page={pagination.page}
-              totalPages={pagination.totalPages}
-              total={pagination.total}
-              onPageChange={setPage}
-              itemLabel="request"
-            />
-          )}
-        </TabsContent>
-
-        <TabsContent value="on-leave" className="space-y-4">
-          {isLoading ? (
-            <ListSkeleton rows={6} height="h-14" />
-          ) : filtered.length === 0 ? (
-            <EmptyState compact title="No one is on leave for the selected filters." />
-          ) : (
-            <DataTable
-              columns={onLeaveColumns}
-              rows={filtered}
-              rowKey={(r) => r.id}
-              minWidth="min-w-[640px]"
-              showSerial
-              serialOffset={(page - 1) * PAGE_SIZE}
-            />
-          )}
-          {pagination && pagination.total > 0 && (
-            <Pagination
-              page={pagination.page}
-              totalPages={pagination.totalPages}
-              total={pagination.total}
-              onPageChange={setPage}
-              itemLabel="record"
-            />
-          )}
-        </TabsContent>
-
-        <TabsContent value="balances" className="space-y-3">
-          {balancesLoading ? (
-            <ListSkeleton rows={6} height="h-14" />
-          ) : filteredBalances.length === 0 ? (
-            <EmptyState
-              compact
-              title={
-                employeeSearch
-                  ? "No employees match your search."
-                  : "No leave balances to show yet."
-              }
-            />
-          ) : (
-            <>
-              <LeaveBalanceDirectory employees={filteredBalances} leaveTypes={leaveTypes} />
-            </>
-          )}
+                {clearButton}
+              </>
+            }
+            empty={q ? "No employees match your search." : "No leave balances to show yet."}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -43,6 +43,8 @@ export function EmployeeActionsSkeleton() {
 // Mirrors the columns in employee-directory-client.tsx (cells never render while loading).
 const COLUMNS: DataTableColumn<never>[] = [
   { header: "Employee", cell: () => null, skeleton: <EmployeeCellSkeleton /> },
+  { header: "Employee No", cell: () => null, defaultHidden: true },
+  { header: "Email", cell: () => null, defaultHidden: true },
   { header: "Department", cell: () => null },
   { header: "Designation", cell: () => null },
   { header: "Status", cell: () => null, skeleton: <EmployeeStatusSkeleton /> },
@@ -66,19 +68,25 @@ export function EmployeeDirectorySkeleton() {
       <PageHeader
         title="Employees"
         description={<Skeleton className="h-4 w-36" />}
-        actions={<Skeleton className="h-9 w-36" />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Skeleton className="h-9 w-[82px]" />
+            <Skeleton className="h-9 w-36" />
+          </div>
+        }
       />
 
-      <div className="flex flex-wrap items-start gap-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-          <Skeleton className="h-9 max-w-sm min-w-[200px] flex-1" />
-          <Skeleton className="h-9 w-[180px]" />
-          <Skeleton className="h-9 w-[150px]" />
-        </div>
-        <Skeleton className="h-9 w-[82px]" />
-      </div>
-
+      {/* Same tableId, so the columns someone hid stay hidden here too. */}
       <DataTable
+        tableId="employees"
+        toolbar={
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+            <Skeleton className="h-9 max-w-sm min-w-[200px] flex-1" />
+            <Skeleton className="h-9 w-[180px]" />
+            <Skeleton className="h-9 w-[150px]" />
+          </div>
+        }
+        toolbarEnd={<Skeleton className="h-9 w-[92px]" />}
         columns={COLUMNS}
         rows={[]}
         rowKey={() => ""}

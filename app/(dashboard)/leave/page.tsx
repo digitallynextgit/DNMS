@@ -6,15 +6,16 @@ import { useSession } from "next-auth/react"
 import { Link } from "@/components/tenant-link"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
-import { Pagination } from "@/components/shared/pagination"
 import { EmptyState } from "@/components/shared/empty-state"
-import { CardGridSkeleton, ListSkeleton } from "@/components/shared/loading-skeleton"
+import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { TabsBar } from "@/components/shared/tabs-bar"
 import { LeaveBalanceCard } from "@/features/leave"
 import { LeaveRequestTable } from "@/features/leave"
 import { useLeaveBalances, useMyLeaveRequests, useMyTeamLeaveRequests } from "@/features/leave"
 import { Plus } from "lucide-react"
+
+const PAGE_SIZE = 10
 
 export default function LeaveDashboardPage() {
   const { data: session } = useSession()
@@ -29,12 +30,12 @@ export default function LeaveDashboardPage() {
   )
   const { data: requestsData, isLoading: requestsLoading } = useMyLeaveRequests({
     page,
-    limit: 10,
+    limit: PAGE_SIZE,
   })
   // Direct reports' requests - drives the manager tab (only shown when isManager).
   const { data: team, isLoading: teamLoading } = useMyTeamLeaveRequests({
     page: teamPage,
-    limit: 10,
+    limit: PAGE_SIZE,
   })
 
   const balances = balancesData?.data ?? []
@@ -74,27 +75,25 @@ export default function LeaveDashboardPage() {
 
       <section className="space-y-4">
         <h2 className="text-foreground text-base font-semibold">Recent Requests</h2>
-        {requestsLoading ? (
-          <ListSkeleton rows={4} height="h-14" />
-        ) : (
-          <>
-            <LeaveRequestTable
-              requests={requests}
-              showEmployee={false}
-              canApprove={false}
-              currentUserId={session?.user.id}
-            />
-            {pagination && (
-              <Pagination
-                page={pagination.page}
-                totalPages={pagination.totalPages}
-                total={pagination.total}
-                onPageChange={setPage}
-                itemLabel="request"
-              />
-            )}
-          </>
-        )}
+        <LeaveRequestTable
+          tableId="my-leave-requests"
+          requests={requests}
+          showEmployee={false}
+          canApprove={false}
+          currentUserId={session?.user.id}
+          loading={requestsLoading}
+          serialOffset={(page - 1) * PAGE_SIZE}
+          pagination={
+            pagination && {
+              page: pagination.page,
+              totalPages: pagination.totalPages,
+              total: pagination.total,
+              onPageChange: setPage,
+              itemLabel: "request",
+              pageSize: PAGE_SIZE,
+            }
+          }
+        />
       </section>
     </>
   )
@@ -137,27 +136,26 @@ export default function LeaveDashboardPage() {
         </TabsContent>
 
         <TabsContent value="requests" className="space-y-4">
-          {teamLoading ? (
-            <ListSkeleton rows={6} height="h-14" />
-          ) : (
-            <>
-              <LeaveRequestTable
-                requests={team?.requests ?? []}
-                showEmployee
-                canApprove
-                currentUserId={session?.user.id}
-              />
-              {team?.pagination && team.pagination.total > 0 && (
-                <Pagination
-                  page={team.pagination.page}
-                  totalPages={team.pagination.totalPages}
-                  total={team.pagination.total}
-                  onPageChange={setTeamPage}
-                  itemLabel="request"
-                />
-              )}
-            </>
-          )}
+          <LeaveRequestTable
+            tableId="team-leave-requests"
+            requests={team?.requests ?? []}
+            showEmployee
+            canApprove
+            currentUserId={session?.user.id}
+            loading={teamLoading}
+            serialOffset={(teamPage - 1) * PAGE_SIZE}
+            pagination={
+              team?.pagination && {
+                page: team.pagination.page,
+                totalPages: team.pagination.totalPages,
+                total: team.pagination.total,
+                onPageChange: setTeamPage,
+                itemLabel: "request",
+                pageSize: PAGE_SIZE,
+              }
+            }
+            empty="No leave requests from your team."
+          />
         </TabsContent>
       </Tabs>
     </div>

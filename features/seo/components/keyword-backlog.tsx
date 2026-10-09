@@ -4,7 +4,6 @@ import { useMemo, useState } from "react"
 import { Download, ListChecks, RefreshCw, Swords, ThumbsDown, ThumbsUp } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
   Select,
@@ -15,6 +14,8 @@ import {
 } from "@/components/ui/select"
 import { EmptyState } from "@/components/shared/empty-state"
 import { TableSkeleton } from "@/components/shared/loading-skeleton"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { TableViewMenu } from "@/components/shared/table-view-menu"
 import { cn } from "@/lib/utils"
 import type { KeywordView } from "../types"
 import {
@@ -62,15 +63,19 @@ export function KeywordBacklog({
   const [winFilter, setWinFilter] = useState("all")
   const [sourceFilter, setSourceFilter] = useState("all")
 
-  const rows = useMemo(() => {
+  // Every filter but status, so the status menu's counts match what picking one shows.
+  const narrowed = useMemo(() => {
     let list = keywords ?? []
     if (intentFilter !== "all") list = list.filter((k) => k.intent === intentFilter)
-    if (statusFilter !== "all") list = list.filter((k) => k.status === statusFilter)
     if (winFilter === "winnable") list = list.filter((k) => k.winnable === true)
     if (winFilter === "unassessed") list = list.filter((k) => k.winnable === null)
     if (sourceFilter !== "all") list = list.filter((k) => k.source === sourceFilter)
     return list
-  }, [keywords, intentFilter, statusFilter, winFilter, sourceFilter])
+  }, [keywords, intentFilter, winFilter, sourceFilter])
+  const rows = useMemo(
+    () => (statusFilter === "all" ? narrowed : narrowed.filter((k) => k.status === statusFilter)),
+    [narrowed, statusFilter],
+  )
 
   if (isLoading)
     return (
@@ -83,6 +88,171 @@ export function KeywordBacklog({
     k: KeywordView,
     p: Parameters<typeof update.mutate>[0] extends infer T ? Partial<T> : never,
   ) => propertyId && update.mutate({ propertyId, keywordId: k.id, ...(p as object) })
+
+  const statusOrder = Object.keys(STATUS_LABEL)
+  const statusViews = [
+    { value: "all", label: "All", count: narrowed.length },
+    ...statusOrder.map((s) => ({
+      value: s,
+      label: STATUS_LABEL[s] ?? s,
+      count: narrowed.filter((k) => k.status === s).length,
+    })),
+  ]
+
+  const columns: DataTableColumn<KeywordView>[] = [
+    {
+      header: "Keyword",
+      sortValue: (k) => k.query,
+      className: "max-w-[280px] truncate font-medium",
+      cell: (k) => <span title={k.query}>{k.query}</span>,
+    },
+    {
+      header: "Source",
+      sortValue: (k) =>
+        k.source === "COMPETITOR" ? (k.sourceDomain ?? "competitor") : "Search Console",
+      cell: (k) =>
+        k.source === "COMPETITOR" ? (
+          <span
+            className="inline-flex items-center gap-1 rounded-sm bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-600"
+            title={
+              k.sourceDomain
+                ? `Mined from ${k.sourceDomain}. We cannot see their ranking, so verify it.`
+                : "Mined from a competitor's pages"
+            }
+          >
+            <Swords className="h-3 w-3" />
+            {k.sourceDomain ?? "competitor"}
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-[10px]">Search Console</span>
+        ),
+    },
+    {
+      header: "Intent",
+      sortValue: (k) => k.intent,
+      cell: (k) => (
+        <span
+          className={cn(
+            "rounded-sm px-1.5 py-0.5 text-[10px] font-medium",
+            INTENT_STYLE[k.intent] ?? INTENT_STYLE.other,
+          )}
+        >
+          {k.intent}
+        </span>
+      ),
+    },
+    {
+      header: "Impr.",
+      align: "right",
+      className: "tabular-nums",
+      sortValue: (k) => k.impressions,
+      cell: (k) => num(k.impressions),
+    },
+    {
+      header: "Pos",
+      align: "right",
+      className: "tabular-nums",
+      sortValue: (k) => k.position,
+      cell: (k) => {
+        const striking = k.position >= 5 && k.position <= 20
+        return (
+          <span
+            className={cn(striking && "font-medium text-emerald-600")}
+            title={striking ? "Striking distance (5-20) - fastest win" : undefined}
+          >
+            {k.position.toFixed(1)}
+          </span>
+        )
+      },
+    },
+    {
+      header: "Winnable?",
+      align: "center",
+      // Not assessed sorts last.
+      sortValue: (k) => (k.winnable === null ? null : k.winnable ? 1 : 0),
+      cell: (k) => (
+        <div className="flex items-center justify-center gap-1">
+          <button
+            type="button"
+            disabled={!canManage}
+            onClick={() => patch(k, { winnable: k.winnable === true ? null : true })}
+            className={cn(
+              "rounded-sm p-1",
+              k.winnable === true
+                ? "bg-emerald-500/20 text-emerald-600"
+                : "text-muted-foreground hover:bg-muted",
+            )}
+            title="Winnable"
+          >
+            <ThumbsUp className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            disabled={!canManage}
+            onClick={() => patch(k, { winnable: k.winnable === false ? null : false })}
+            className={cn(
+              "rounded-sm p-1",
+              k.winnable === false
+                ? "bg-red-500/20 text-red-600"
+                : "text-muted-foreground hover:bg-muted",
+            )}
+            title="Not winnable"
+          >
+            <ThumbsDown className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ),
+    },
+    {
+      header: "Value",
+      align: "center",
+      sortValue: (k) => k.businessValue,
+      cell: (k) => (
+        <div className="flex items-center justify-center gap-0.5">
+          {[1, 2, 3, 4, 5].map((v) => (
+            <button
+              key={v}
+              type="button"
+              disabled={!canManage}
+              onClick={() => patch(k, { businessValue: v })}
+              className={cn("h-2 w-2 rounded-sm", v <= k.businessValue ? "bg-primary" : "bg-muted")}
+              title={`Business value ${v}/5`}
+            />
+          ))}
+        </div>
+      ),
+    },
+    {
+      header: "Score",
+      align: "right",
+      className: "font-semibold tabular-nums",
+      sortValue: (k) => k.score,
+      cell: (k) => k.score.toFixed(1),
+    },
+    {
+      header: "Status",
+      sortValue: (k) => statusOrder.indexOf(k.status),
+      cell: (k) =>
+        canManage ? (
+          <Select value={k.status} onValueChange={(v) => patch(k, { status: v })}>
+            <SelectTrigger className="h-7 w-32 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(STATUS_LABEL).map(([v, l]) => (
+                <SelectItem key={v} value={v}>
+                  {l}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Badge variant="outline" className="text-[10px]">
+            {STATUS_LABEL[k.status] ?? k.status}
+          </Badge>
+        ),
+    },
+  ]
 
   return (
     <div className="space-y-4">
@@ -138,206 +308,50 @@ export function KeywordBacklog({
         />
       ) : (
         <>
-          <div className="flex flex-wrap gap-2">
-            <Filter
-              value={statusFilter}
-              onChange={setStatusFilter}
-              width="w-36"
-              options={[
-                ["all", "All statuses"],
-                ["BACKLOG", "Backlog"],
-                ["IN_PROGRESS", "In progress"],
-                ["PUBLISHED", "Published"],
-                ["PARKED", "Parked"],
-              ]}
-            />
-            <Filter
-              value={intentFilter}
-              onChange={setIntentFilter}
-              width="w-40"
-              options={[
-                ["all", "All intent"],
-                ["commercial", "Commercial"],
-                ["informational", "Informational"],
-                ["branded", "Branded"],
-                ["navigational", "Navigational"],
-                ["other", "Other"],
-              ]}
-            />
-            <Filter
-              value={winFilter}
-              onChange={setWinFilter}
-              width="w-40"
-              options={[
-                ["all", "All"],
-                ["winnable", "Winnable only"],
-                ["unassessed", "Not assessed"],
-              ]}
-            />
-          </div>
-
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-muted-foreground border-border border-b text-xs">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-medium">Keyword</th>
-                      <th className="px-3 py-2 text-left font-medium">Source</th>
-                      <th className="px-3 py-2 text-left font-medium">Intent</th>
-                      <th className="px-3 py-2 text-right font-medium">Impr.</th>
-                      <th className="px-3 py-2 text-right font-medium">Pos</th>
-                      <th className="px-3 py-2 text-center font-medium">Winnable?</th>
-                      <th className="px-3 py-2 text-center font-medium">Value</th>
-                      <th className="px-3 py-2 text-right font-medium">Score</th>
-                      <th className="px-3 py-2 text-left font-medium">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((k) => {
-                      const striking = k.position >= 5 && k.position <= 20
-                      return (
-                        <tr key={k.id} className="border-border/60 border-b last:border-0">
-                          <td
-                            className="max-w-[280px] truncate px-3 py-2 font-medium"
-                            title={k.query}
-                          >
-                            {k.query}
-                          </td>
-                          <td className="px-3 py-2">
-                            {k.source === "COMPETITOR" ? (
-                              <span
-                                className="inline-flex items-center gap-1 rounded-sm bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-600"
-                                title={
-                                  k.sourceDomain
-                                    ? `Mined from ${k.sourceDomain}. We cannot see their ranking, so verify it.`
-                                    : "Mined from a competitor's pages"
-                                }
-                              >
-                                <Swords className="h-3 w-3" />
-                                {k.sourceDomain ?? "competitor"}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground text-[10px]">
-                                Search Console
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2">
-                            <span
-                              className={cn(
-                                "rounded-sm px-1.5 py-0.5 text-[10px] font-medium",
-                                INTENT_STYLE[k.intent] ?? INTENT_STYLE.other,
-                              )}
-                            >
-                              {k.intent}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-right tabular-nums">
-                            {num(k.impressions)}
-                          </td>
-                          <td className="px-3 py-2 text-right tabular-nums">
-                            <span
-                              className={cn(striking && "font-medium text-emerald-600")}
-                              title={
-                                striking ? "Striking distance (5-20) - fastest win" : undefined
-                              }
-                            >
-                              {k.position.toFixed(1)}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                type="button"
-                                disabled={!canManage}
-                                onClick={() =>
-                                  patch(k, { winnable: k.winnable === true ? null : true })
-                                }
-                                className={cn(
-                                  "rounded-sm p-1",
-                                  k.winnable === true
-                                    ? "bg-emerald-500/20 text-emerald-600"
-                                    : "text-muted-foreground hover:bg-muted",
-                                )}
-                                title="Winnable"
-                              >
-                                <ThumbsUp className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={!canManage}
-                                onClick={() =>
-                                  patch(k, { winnable: k.winnable === false ? null : false })
-                                }
-                                className={cn(
-                                  "rounded-sm p-1",
-                                  k.winnable === false
-                                    ? "bg-red-500/20 text-red-600"
-                                    : "text-muted-foreground hover:bg-muted",
-                                )}
-                                title="Not winnable"
-                              >
-                                <ThumbsDown className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2">
-                            <div className="flex items-center justify-center gap-0.5">
-                              {[1, 2, 3, 4, 5].map((v) => (
-                                <button
-                                  key={v}
-                                  type="button"
-                                  disabled={!canManage}
-                                  onClick={() => patch(k, { businessValue: v })}
-                                  className={cn(
-                                    "h-2 w-2 rounded-sm",
-                                    v <= k.businessValue ? "bg-primary" : "bg-muted",
-                                  )}
-                                  title={`Business value ${v}/5`}
-                                />
-                              ))}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 text-right font-semibold tabular-nums">
-                            {k.score.toFixed(1)}
-                          </td>
-                          <td className="px-3 py-2">
-                            {canManage ? (
-                              <Select
-                                value={k.status}
-                                onValueChange={(v) => patch(k, { status: v })}
-                              >
-                                <SelectTrigger className="h-7 w-32 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Object.entries(STATUS_LABEL).map(([v, l]) => (
-                                    <SelectItem key={v} value={v}>
-                                      {l}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <Badge variant="outline" className="text-[10px]">
-                                {STATUS_LABEL[k.status] ?? k.status}
-                              </Badge>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              {rows.length === 0 && (
-                <p className="text-muted-foreground p-6 text-center text-sm">
-                  No keywords match these filters.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          <DataTable
+            tableId="seo-keyword-backlog"
+            itemLabel="keyword"
+            columns={columns}
+            rows={rows}
+            rowKey={(k) => k.id}
+            pageKey={`${statusFilter}|${intentFilter}|${winFilter}|${sourceFilter}`}
+            toolbar={
+              <>
+                <TableViewMenu
+                  label="Status"
+                  value={statusFilter}
+                  options={statusViews}
+                  onChange={setStatusFilter}
+                />
+                <Filter
+                  value={intentFilter}
+                  onChange={setIntentFilter}
+                  width="w-40"
+                  label="Intent"
+                  options={[
+                    ["all", "All intent"],
+                    ["commercial", "Commercial"],
+                    ["informational", "Informational"],
+                    ["branded", "Branded"],
+                    ["navigational", "Navigational"],
+                    ["other", "Other"],
+                  ]}
+                />
+                <Filter
+                  value={winFilter}
+                  onChange={setWinFilter}
+                  width="w-40"
+                  label="Winnable"
+                  options={[
+                    ["all", "All"],
+                    ["winnable", "Winnable only"],
+                    ["unassessed", "Not assessed"],
+                  ]}
+                />
+              </>
+            }
+            empty="No keywords match these filters."
+          />
 
           <p className="text-muted-foreground text-[11px]">
             Score = demand (impressions) × position opportunity × winnability × business value.
@@ -358,15 +372,17 @@ function Filter({
   onChange,
   options,
   width,
+  label,
 }: {
   value: string
   onChange: (v: string) => void
   options: [string, string][]
   width: string
+  label: string
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className={cn("h-8", width)}>
+      <SelectTrigger className={cn("h-9", width)} aria-label={label}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

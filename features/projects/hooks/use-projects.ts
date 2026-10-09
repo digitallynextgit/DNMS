@@ -16,11 +16,18 @@ import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
 import { afterTaskPatch } from "../lib/after-task-patch"
 import { followUpConflictFrom } from "../lib/follow-up-conflict"
+import type { ServiceOwner } from "../lib/project-services"
 
 export interface ProjectListItem {
   id: string
   name: string
   code: string
+  /** e.g. "DN"; null until someone sets it. */
+  shortName: string | null
+  /** Service codes (PROJECT_SERVICES). */
+  services: string[]
+  /** Who owns each service; a service with no row has no owner yet. */
+  serviceOwners: ServiceOwner[]
   /** URL identifier. Null on rows created before slugs existed - fall back to id. */
   slug: string | null
   description: string | null
@@ -404,6 +411,8 @@ export function useAddTeamMembers(projectId: string, teamId: string) {
       if (added > 0) toast.success(`${added} ${added === 1 ? "person" : "people"} added`)
       if (failed.length) toast.error(`${failed.length} could not be added`, { description: reason })
       qc.invalidateQueries({ queryKey: ["project-teams", projectId] })
+      // New people can now own a service.
+      qc.invalidateQueries({ queryKey: ["project-members", projectId] })
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Could not add members"),
   })
@@ -417,10 +426,13 @@ export function useRemoveTeamMember(projectId: string, teamId: string) {
         apiFetch(`/api/projects/${projectId}/teams/${teamId}/members/${memberId}`, {
           method: "DELETE",
         }),
-      // Removal also clears their seats on this team's calendar rows.
+      // Removal also clears their seats on this team's calendar rows, and their services if they
+      // are now off the project.
       invalidate: [
         ["project-teams", projectId],
         ["project-workbook", projectId],
+        ["project-members", projectId],
+        ["project", projectId],
       ],
       success: "Member removed",
     }),
@@ -1036,6 +1048,58 @@ export function useAssignableEmployees(projectId: string | undefined, enabled = 
     enabled: enabled && !!projectId,
     staleTime: 60_000,
   })
+}
+
+/** Set (or with null, clear) who owns one of the project's services. */
+export function useSetServiceOwner(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (body: { service: string; employeeId: string | null }) =>
+        apiFetch<{ data: ServiceOwner[] }>(`/api/projects/${projectId}/service-owners`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      // The owner also becomes the service calendar's manager.
+      invalidate: [["project"], ["projects"], ["project-sheets"], ["project-workbook"]],
+      success: (_d, vars) => (vars.employeeId ? "Owner set" : "Owner removed"),
+    }),
+  )
+}
+
+/** Tick or untick a project's services: new ones get their calendar, removed ones lose their owner. */
+export function useSetProjectServices(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (services: string[]) =>
+        apiFetch(`/api/projects/${projectId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ services }),
+        }),
+      invalidate: [["project"], ["projects"], ["project-sheets", projectId]],
+      success: "Services updated",
+    }),
+  )
+}
+
+/** Start a ticked service's calendar when it has none (e.g. it was deleted). */
+export function useCreateServiceCalendar(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (service: string) =>
+        apiFetch<{ data: { created: number } }>(`/api/projects/${projectId}/service-calendars`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ service }),
+        }),
+      invalidate: [["project-sheets", projectId]],
+      success: "Calendar created",
+    }),
+  )
 }
 
 // Everyone on the project (Account Manager + all team members) - powers @mentions.

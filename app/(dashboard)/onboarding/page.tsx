@@ -9,10 +9,11 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
-import { SearchInput } from "@/components/shared/search-input"
+import { TableSearch } from "@/components/shared/table-search"
 import { TabsBar } from "@/components/shared/tabs-bar"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
+import { useDebounce } from "@/hooks/use-debounce"
 import { useUrlPage, useUrlState } from "@/hooks/use-url-state"
 import { useTenantPath } from "@/components/tenant-link"
 import { PERMISSIONS, CHECKLIST_STATUS_COLORS, CHECKLIST_STATUS_LABELS } from "@/lib/constants"
@@ -32,8 +33,13 @@ export default function OnboardingPage() {
   const [status, setStatus] = useUrlState("status", "IN_PROGRESS")
   const [page, setPage] = useUrlPage()
   const [search, setSearch] = React.useState("")
+  const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useChecklists("ONBOARDING", { status, page, search })
+  const { data, isLoading } = useChecklists("ONBOARDING", {
+    status,
+    page,
+    search: debouncedSearch,
+  })
   const rows = data?.data ?? []
   const pagination = data?.pagination
 
@@ -107,17 +113,30 @@ export default function OnboardingPage() {
           }
         />
 
-        <SearchInput value={search} onChange={setSearch} placeholder="Search name or number" />
-
         <TabsContent value={status} className="space-y-6">
-          {isLoading || rows.length > 0 ? (
+          {/* Kept while searching, so the search box stays reachable when nothing matches. */}
+          {isLoading || rows.length > 0 || search ? (
             <DataTable
+              tableId="onboarding"
               columns={columns}
               rows={rows}
               rowKey={(row) => row.id}
               onRowClick={(row) => router.push(tp(`/onboarding/${row.id}`))}
               loading={isLoading}
               skeletonRows={8}
+              serialOffset={pagination ? (pagination.page - 1) * pagination.limit : 0}
+              toolbar={
+                <TableSearch
+                  value={search}
+                  onChange={(v) => {
+                    setSearch(v)
+                    setPage(1)
+                  }}
+                  placeholder="Search name or number"
+                  label="Search by name or employee number"
+                />
+              }
+              empty="No one matches that search."
               pagination={
                 pagination
                   ? {
@@ -126,6 +145,7 @@ export default function OnboardingPage() {
                       total: pagination.total,
                       onPageChange: setPage,
                       itemLabel: "checklist",
+                      pageSize: pagination.limit,
                     }
                   : undefined
               }

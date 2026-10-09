@@ -129,9 +129,6 @@ export const calendarGuide: HelpGuide = {
             id: "calendar-holidays-table",
             as: "employee",
             path: "/calendar?tab=table",
-            // Page 2: page 1 is the start of the year, all Passed. The table's page
-            // is local state (not in the URL), so it takes a click on Next.
-            actions: [{ click: { role: "button", name: "Next", exact: true } }],
             highlight: [{ css: "th:text-is('Type')" }, { css: "th:text-is('When')" }],
             crop: { role: "table" },
           },
@@ -166,8 +163,7 @@ export const calendarGuide: HelpGuide = {
           shot: {
             id: "calendar-floating",
             as: "employee",
-            // Page 1 is the year's past holidays; this list keeps its page in the URL, so open page 2.
-            path: "/calendar?tab=floating&page=2",
+            path: "/calendar?tab=floating",
             highlight: [
               { role: "button", name: "Apply", exact: true },
               { role: "button", name: "Withdraw" },

@@ -42,6 +42,7 @@ export async function sweepOverdueExits(now: Date = new Date()): Promise<ExitSwe
         // Same cleanup as the normal exit path, so rosters and pickers drop the leaver.
         db.projectTeamMember.deleteMany({ where: { employeeId: e.id } }),
         db.projectTeam.updateMany({ where: { managerId: e.id }, data: { managerId: null } }),
+        db.projectServiceOwner.deleteMany({ where: { employeeId: e.id } }),
       ])
       try {
         await setMembershipActive({ employeeId: e.id }, false)

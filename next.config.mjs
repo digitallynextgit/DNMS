@@ -4,7 +4,7 @@ const nextConfig = {
   // builds use their own dir: NEXT_DIST_DIR=.next-verify pnpm build
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   reactStrictMode: true,
-  allowedDevOrigins: ["187.127.159.101", "digitallynext.tech", "dnms.digitallynext.com"],
+  allowedDevOrigins: ["187.127.159.101", "dnms.digitallynext.com"],
   // Not bundled: these do dynamic requires or read files from their own package dir at runtime
   // (pdfjs workers, pdfkit .afm font metrics) and break silently when bundled.
   serverExternalPackages: ["exceljs", "sharp", "pdf-parse", "mammoth", "pptxgenjs", "pdfkit"],

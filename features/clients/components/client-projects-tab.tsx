@@ -25,6 +25,10 @@ import { ProjectLogo } from "@/features/projects/components/project-logo"
 import { projectHref } from "@/features/projects/lib/project-href"
 import { clientKeys, type ClientProject, type ClientRecord } from "../hooks/use-clients"
 
+// Lifecycle order, not alphabetical, when a column is sorted.
+const STATUS_ORDER = Object.keys(PROJECT_STATUS_LABELS)
+const PRIORITY_ORDER = Object.keys(TASK_PRIORITY_LABELS)
+
 /** The client's projects; the new-project form opens with this client already chosen. */
 export function ClientProjectsTab({ client }: { client: ClientRecord }) {
   const { can } = usePermissions()
@@ -33,9 +37,15 @@ export function ClientProjectsTab({ client }: { client: ClientRecord }) {
   const [createOpen, setCreateOpen] = useState(false)
 
   const columns: DataTableColumn<ClientProject>[] = [
-    { header: "Code", className: "font-mono text-xs", cell: (p) => p.code },
+    {
+      header: "Code",
+      className: "font-mono text-xs",
+      sortValue: (p) => p.code,
+      cell: (p) => p.code,
+    },
     {
       header: "Project",
+      sortValue: (p) => p.name,
       cell: (p) => (
         <div className="flex items-center gap-2">
           <ProjectLogo src={p.logo} name={p.name} className="h-6 w-6" />
@@ -47,6 +57,7 @@ export function ClientProjectsTab({ client }: { client: ClientRecord }) {
     },
     {
       header: "Status",
+      sortValue: (p) => STATUS_ORDER.indexOf(p.status),
       cell: (p) => (
         <StatusBadge
           status={p.status}
@@ -58,6 +69,7 @@ export function ClientProjectsTab({ client }: { client: ClientRecord }) {
     },
     {
       header: "Priority",
+      sortValue: (p) => PRIORITY_ORDER.indexOf(p.priority),
       cell: (p) => (
         <StatusBadge
           status={p.priority}
@@ -69,6 +81,7 @@ export function ClientProjectsTab({ client }: { client: ClientRecord }) {
     },
     {
       header: "Account Manager",
+      sortValue: (p) => `${p.owner.firstName} ${p.owner.lastName}`.trim(),
       cell: (p) => (
         <div className="flex items-center gap-1.5">
           <AvatarDisplay
@@ -87,11 +100,13 @@ export function ClientProjectsTab({ client }: { client: ClientRecord }) {
       header: "Tasks",
       align: "center",
       className: "text-muted-foreground tabular-nums",
+      sortValue: (p) => p._count.tasks,
       cell: (p) => p._count.tasks,
     },
     {
       header: "Onboarded",
       className: "text-muted-foreground text-xs",
+      sortValue: (p) => p.startDate,
       cell: (p) => (p.startDate ? formatDate(p.startDate) : "-"),
     },
     {
@@ -135,6 +150,8 @@ export function ClientProjectsTab({ client }: { client: ClientRecord }) {
         />
       ) : (
         <DataTable
+          tableId="client-projects"
+          itemLabel="project"
           columns={columns}
           rows={client.projects}
           rowKey={(p) => p.id}

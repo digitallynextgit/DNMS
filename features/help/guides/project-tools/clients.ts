@@ -54,16 +54,16 @@ export const clientsGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Search by name, code, email or website (1), or pick a status (2): Prospect, Active or Inactive. Each row shows the Account Manager, how many Projects and Contacts the client has, and the Last portal login. Click a client's name, or the eye icon, to open it.",
-            hi: "नाम, कोड, ईमेल या वेबसाइट से खोजें (1), या स्टेटस (2) चुनें: Prospect, Active या Inactive। हर लाइन में Account Manager, क्लाइंट के कितने Projects और Contacts हैं, और Last portal login दिखता है। क्लाइंट खोलने के लिए उसके नाम पर, या आँख वाले आइकन पर क्लिक करें।",
+            en: "Pick a status in the Status menu (1) - Prospect, Active or Inactive - or search by name, code, email or website (2). Each row shows the Account Manager, how many Projects and Contacts the client has, and the Last portal login. Click a client's name, or the eye icon, to open it. Export, above the table, downloads the clients on the page - or only the ticked ones - as a CSV or Excel file.",
+            hi: "Status मेन्यू (1) में स्टेटस चुनें - Prospect, Active या Inactive - या नाम, कोड, ईमेल या वेबसाइट से खोजें (2)। हर लाइन में Account Manager, क्लाइंट के कितने Projects और Contacts हैं, और Last portal login दिखता है। क्लाइंट खोलने के लिए उसके नाम पर, या आँख वाले आइकन पर क्लिक करें। टेबल के ऊपर Export से पेज के क्लाइंट्स - या सिर्फ़ टिक किए हुए - CSV या Excel file में डाउनलोड होते हैं।",
           },
           shot: {
             id: "clients-list",
             as: "admin",
             path: "/projects/clients",
             highlight: [
+              { role: "button", name: "Status: All" },
               { placeholder: "Search by name, code, email or website" },
-              { text: "Any status", exact: true },
               { role: "button", name: "New Client" },
             ],
           },

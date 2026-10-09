@@ -4,16 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useTenantPath } from "@/components/tenant-link"
 import { useSession } from "next-auth/react"
-import {
-  Plus,
-  Trash2,
-  Save,
-  Sparkles,
-  Search,
-  ArrowLeft,
-  ChevronRight,
-  CheckCircle2,
-} from "lucide-react"
+import { Plus, Trash2, Save, Sparkles, ArrowLeft, ChevronRight, CheckCircle2 } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -25,6 +16,7 @@ import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { TableSearch } from "@/components/shared/table-search"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import {
@@ -273,7 +265,6 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
 function EmployeeList({ onSelect }: { onSelect: (row: PerfKpiProfileRow) => void }) {
   const { data, isLoading } = usePerfKpiProfiles()
   const [search, setSearch] = useState("")
-  const [page, setPage] = useState(1)
 
   const rows = data?.data ?? []
   const q = search.trim().toLowerCase()
@@ -285,14 +276,10 @@ function EmployeeList({ onSelect }: { onSelect: (row: PerfKpiProfileRow) => void
       )
     : rows
 
-  const PAGE_SIZE = 10
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const currentPage = Math.min(page, totalPages)
-  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-
   const columns: DataTableColumn<PerfKpiProfileRow>[] = [
     {
       header: "Employee",
+      sortValue: (r) => `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim(),
       cell: (r) => (
         <div className="flex items-center gap-2.5">
           <AvatarDisplay
@@ -315,22 +302,26 @@ function EmployeeList({ onSelect }: { onSelect: (row: PerfKpiProfileRow) => void
     },
     {
       header: "Department",
+      sortValue: (r) => r.department,
       cell: (r) => <span className="text-muted-foreground">{r.department ?? "-"}</span>,
     },
     {
       header: "Manager KPIs",
       align: "center",
       className: "tabular-nums",
+      sortValue: (r) => r.managerCount,
       cell: (r) => r.managerCount || <span className="text-muted-foreground">-</span>,
     },
     {
       header: "Self KPIs",
       align: "center",
       className: "tabular-nums",
+      sortValue: (r) => r.selfCount,
       cell: (r) => r.selfCount || <span className="text-muted-foreground">-</span>,
     },
     {
       header: "Status",
+      sortValue: (r) => (r.configured ? 0 : 1),
       cell: (r) => (
         <StatusBadge
           status={r.configured ? "CONFIGURED" : "DEFAULT"}
@@ -352,45 +343,31 @@ function EmployeeList({ onSelect }: { onSelect: (row: PerfKpiProfileRow) => void
     },
   ]
 
-  return (
-    <div className="space-y-4">
-      <div className="relative max-w-xs">
-        <Search className="text-muted-foreground absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
-        <Input
-          placeholder="Search employee…"
-          aria-label="Search employee"
+  return isLoading || rows.length > 0 ? (
+    <DataTable
+      tableId="kpi-profiles"
+      itemLabel="employee"
+      columns={columns}
+      rows={filtered}
+      rowKey={(r) => r.id}
+      onRowClick={onSelect}
+      showSerial
+      minWidth="min-w-[680px]"
+      loading={isLoading}
+      skeletonRows={10}
+      pageKey={q}
+      toolbar={
+        <TableSearch
           value={search}
-          onChange={(e) => {
-            setSearch(e.target.value)
-            setPage(1)
-          }}
-          className="h-9 pl-8"
+          onChange={setSearch}
+          placeholder="Search employee…"
+          label="Search employee"
         />
-      </div>
-
-      {isLoading || filtered.length > 0 ? (
-        <DataTable
-          columns={columns}
-          rows={paged}
-          rowKey={(r) => r.id}
-          onRowClick={onSelect}
-          showSerial
-          serialOffset={(currentPage - 1) * PAGE_SIZE}
-          minWidth="min-w-[680px]"
-          loading={isLoading}
-          skeletonRows={PAGE_SIZE}
-          pagination={{
-            page: currentPage,
-            totalPages,
-            total: filtered.length,
-            onPageChange: setPage,
-            itemLabel: "employee",
-          }}
-        />
-      ) : (
-        <EmptyState variant="card" title="No employees found." />
-      )}
-    </div>
+      }
+      empty="No employees match that search."
+    />
+  ) : (
+    <EmptyState variant="card" title="No employees found." />
   )
 }
 

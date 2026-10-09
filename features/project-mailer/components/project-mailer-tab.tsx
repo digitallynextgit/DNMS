@@ -37,7 +37,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Progress } from "@/components/ui/progress"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
-import { BulkActionBar } from "@/components/shared/bulk-action-bar"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { TableSearch } from "@/components/shared/table-search"
+import { TableViewMenu } from "@/components/shared/table-view-menu"
 import { useRowSelection } from "@/hooks/use-row-selection"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { TabsBar } from "@/components/shared/tabs-bar"
@@ -224,6 +226,7 @@ export function ProjectMailerTab({
     <Tabs defaultValue="campaigns" className="space-y-4">
       <TabsBar
         spacing="none"
+        variant="underline"
         items={[
           { value: "campaigns", label: "Campaigns", icon: Send },
           { value: "templates", label: "Templates", icon: FileText },
@@ -936,44 +939,6 @@ function TemplateDialog({
 const TAG_ALL = "__all__"
 const TAG_UNTAGGED = "__untagged__"
 
-/**
- * Rows rendered at once; search and tag chips reach the rest. Also bounds "select all" to what's
- * on screen, and stays under RECIPIENT_DELETE_LIMIT (500) so one request covers it.
- */
-const ROW_CAP = 200
-
-function TagChip({
-  label,
-  count,
-  active,
-  muted,
-  onClick,
-}: {
-  label: string
-  count: number
-  active: boolean
-  muted?: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-[11px] transition-colors",
-        active
-          ? "border-primary bg-primary text-primary-foreground"
-          : "hover:bg-muted text-muted-foreground",
-        muted && !active && "border-dashed",
-      )}
-    >
-      <span className={cn(!muted && "font-medium")}>{label}</span>
-      <span className={cn("tabular-nums", active ? "opacity-80" : "opacity-60")}>{count}</span>
-    </button>
-  )
-}
-
 function RecipientsSection({
   base,
   recipients,
@@ -1045,10 +1010,9 @@ function RecipientsSection({
     })
   }, [recipients, search, tag])
 
-  // The rows on screen - "select all" covers exactly these.
-  const visible = React.useMemo(() => filtered.slice(0, ROW_CAP), [filtered])
-  const visibleIds = React.useMemo(() => visible.map((r) => r.id), [visible])
-  const selection = useRowSelection(visibleIds)
+  // At most 500 load (the server's cap), so a selection never passes RECIPIENT_DELETE_LIMIT.
+  const filteredIds = React.useMemo(() => filtered.map((r) => r.id), [filtered])
+  const selection = useRowSelection(filteredIds)
   const { clear: clearSelection, setSelected } = selection
 
   // Narrowing the list clears the selection, so no hidden row stays selected. Returning `prev`
@@ -1077,6 +1041,63 @@ function RecipientsSection({
     onError: (e: Error) => toast.error(e.message),
   })
 
+  // Counted server-side over the whole list, not just the loaded rows.
+  const segments = [
+    { value: TAG_ALL, label: "All", count: recipientCount },
+    ...tagCounts.map((t) => ({ value: t.tag, label: t.tag, count: t.count })),
+    ...(untaggedCount > 0
+      ? [{ value: TAG_UNTAGGED, label: "Untagged", count: untaggedCount }]
+      : []),
+  ]
+
+  const columns: DataTableColumn<Recipient>[] = [
+    {
+      header: "Email",
+      sortValue: (r) => r.email,
+      className: "max-w-[280px] truncate text-xs",
+      cell: (r) => <span title={r.email}>{r.email}</span>,
+    },
+    {
+      header: "Name",
+      sortValue: (r) => r.name,
+      className: "text-muted-foreground text-xs",
+      cell: (r) => r.name ?? "-",
+    },
+    {
+      header: "Tags",
+      exportValue: (r) => r.tags.join(", "),
+      cell: (r) => (
+        <div className="flex gap-1">
+          {r.tags.map((t) => (
+            <Badge key={t} variant="secondary" className="text-[10px]">
+              {t}
+            </Badge>
+          ))}
+        </div>
+      ),
+    },
+    {
+      header: "Subscribed",
+      sortValue: (r) => (r.isSubscribed ? "Yes" : "No"),
+      cell: (r) => <Switch checked={r.isSubscribed} onCheckedChange={() => toggle.mutate(r)} />,
+    },
+    {
+      header: "Actions",
+      align: "right",
+      cell: (r) => (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground hover:text-destructive"
+          aria-label={`Remove ${r.email}`}
+          onClick={() => setRemoving(r)}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      ),
+    },
+  ]
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1096,54 +1117,6 @@ function RecipientsSection({
         </div>
       </div>
 
-      {recipients.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <TagChip
-            label="All"
-            count={recipientCount}
-            active={tag === TAG_ALL}
-            onClick={() => setTag(TAG_ALL)}
-          />
-          {tagCounts.map((t) => (
-            <TagChip
-              key={t.tag}
-              label={t.tag}
-              count={t.count}
-              active={tag === t.tag}
-              onClick={() => setTag(tag === t.tag ? TAG_ALL : t.tag)}
-            />
-          ))}
-          {untaggedCount > 0 && (
-            <TagChip
-              label="Untagged"
-              count={untaggedCount}
-              muted
-              active={tag === TAG_UNTAGGED}
-              onClick={() => setTag(tag === TAG_UNTAGGED ? TAG_ALL : TAG_UNTAGGED)}
-            />
-          )}
-        </div>
-      )}
-
-      {recipients.length > 0 && (
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name or email"
-          aria-label="Search name or email"
-          className="h-9 max-w-xs text-sm"
-        />
-      )}
-
-      {/* A filter matching nothing must say so, or it reads as a failed import. */}
-      {!isPending && recipients.length > 0 && filtered.length === 0 && (
-        <p className="text-muted-foreground rounded-sm border border-dashed p-3 text-xs">
-          Nobody matches {tag !== TAG_ALL && <>this segment</>}
-          {tag !== TAG_ALL && search.trim() && " and "}
-          {search.trim() && <>“{search.trim()}”</>}.
-        </p>
-      )}
-
       {isPending && <Skeleton className="h-20 rounded-sm" />}
 
       {!isPending && recipients.length === 0 && (
@@ -1155,95 +1128,47 @@ function RecipientsSection({
         />
       )}
 
-      <BulkActionBar count={selection.count} onClear={selection.clear}>
-        <Button
-          variant="destructive"
-          className="gap-1.5"
-          disabled={removeMany.isPending}
-          onClick={() => setRemovingMany(true)}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          Remove
-        </Button>
-      </BulkActionBar>
-
-      {filtered.length > 0 && (
-        <div className="overflow-x-auto rounded-sm border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-muted-foreground">
-              <tr>
-                <th className="w-10 px-3 py-2.5 text-left">
-                  <Checkbox
-                    checked={
-                      selection.allSelected
-                        ? true
-                        : selection.someSelected
-                          ? "indeterminate"
-                          : false
-                    }
-                    onCheckedChange={selection.toggleAll}
-                    aria-label={
-                      selection.allSelected ? "Clear selection" : "Select all shown recipients"
-                    }
-                  />
-                </th>
-                <th className="px-3 py-2.5 text-left text-xs font-medium">Email</th>
-                <th className="px-3 py-2.5 text-left text-xs font-medium">Name</th>
-                <th className="px-3 py-2.5 text-left text-xs font-medium">Tags</th>
-                <th className="px-3 py-2.5 text-left text-xs font-medium">Subscribed</th>
-                <th className="px-3 py-2.5 text-right text-xs font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((r) => (
-                <tr
-                  key={r.id}
-                  className={cn("border-t", selection.isSelected(r.id) && "bg-accent/40")}
-                >
-                  <td className="px-3 py-2.5">
-                    <Checkbox
-                      checked={selection.isSelected(r.id)}
-                      onCheckedChange={() => selection.toggle(r.id)}
-                      aria-label={`Select ${r.email}`}
-                    />
-                  </td>
-                  <td className="px-3 py-2.5 text-xs">{r.email}</td>
-                  <td className="text-muted-foreground px-3 py-2.5 text-xs">{r.name ?? "-"}</td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex flex-wrap gap-1">
-                      {r.tags.map((t) => (
-                        <Badge key={t} variant="secondary" className="text-[10px]">
-                          {t}
-                        </Badge>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <Switch checked={r.isSubscribed} onCheckedChange={() => toggle.mutate(r)} />
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive"
-                      aria-label={`Remove ${r.email}`}
-                      onClick={() => setRemoving(r)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {(filtered.length > ROW_CAP || !loadedAll) && (
-            <p className="text-muted-foreground border-t px-3 py-2 text-[11px]">
-              Showing {visible.length} of {filtered.length} loaded
-              {!loadedAll && ` · ${recipientCount} on the list in total`}. Narrow with search or a
-              segment.
-            </p>
-          )}
-        </div>
+      {recipients.length > 0 && (
+        <DataTable
+          tableId="mailer-recipients"
+          exportName="mailer-recipients"
+          itemLabel="recipient"
+          columns={columns}
+          rows={filtered}
+          rowKey={(r) => r.id}
+          selection={selection}
+          selectionActions={
+            <Button
+              variant="destructive"
+              className="gap-1.5"
+              disabled={removeMany.isPending}
+              onClick={() => setRemovingMany(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Remove
+            </Button>
+          }
+          pageKey={`${tag}|${search.trim()}`}
+          toolbar={
+            <>
+              <TableViewMenu label="Segment" value={tag} options={segments} onChange={setTag} />
+              <TableSearch value={search} onChange={setSearch} placeholder="Search name or email" />
+            </>
+          }
+          // A filter matching nothing must say so, or it reads as a failed import.
+          empty={
+            <>
+              Nobody matches {tag !== TAG_ALL && <>this segment</>}
+              {tag !== TAG_ALL && search.trim() && " and "}
+              {search.trim() && <>“{search.trim()}”</>}.
+            </>
+          }
+          footerNote={
+            loadedAll
+              ? undefined
+              : `Showing the newest ${recipients.length} of the ${recipientCount} on the list.`
+          }
+        />
       )}
 
       <ImportDialog

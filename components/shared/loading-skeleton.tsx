@@ -1,36 +1,111 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
-export function TableSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {
-  return (
-    <div className="w-full space-y-0">
-      <div className="border-border flex items-center gap-4 border-b px-4 py-3">
-        {Array.from({ length: cols }).map((_, i) => (
-          <Skeleton
-            key={i}
-            className={cn(
-              "bg-muted h-3 animate-pulse",
-              i === 0 ? "w-32" : i === cols - 1 ? "ml-auto w-16" : "flex-1",
-            )}
-          />
-        ))}
-      </div>
-      {Array.from({ length: rows }).map((_, rowIdx) => (
-        <div
-          key={rowIdx}
-          className="border-border flex items-center gap-4 border-b px-4 py-3 last:border-0"
-        >
-          {Array.from({ length: cols }).map((_, colIdx) => (
-            <Skeleton
-              key={colIdx}
-              className={cn(
-                "bg-muted h-3 animate-pulse",
-                colIdx === 0 ? "w-32" : colIdx === cols - 1 ? "ml-auto w-16" : "flex-1",
-              )}
-            />
-          ))}
-        </div>
+/** Bar width per column: a wide identity column first, narrow trailing ones. */
+function cellWidth(index: number, cols: number) {
+  if (index === 0) return "w-40"
+  if (index === cols - 1) return "w-12"
+  return index % 2 ? "w-24" : "w-20"
+}
+
+/** Header and rows of a DataTable, unframed - for a table that sits inside a card. */
+export function TableSkeleton({
+  rows = 5,
+  cols = 5,
+  serial = true,
+  selectable = false,
+}: {
+  rows?: number
+  cols?: number
+  /** The S.No column. */
+  serial?: boolean
+  /** The tick-box column. */
+  selectable?: boolean
+}) {
+  const line = (header: boolean, key: number) => (
+    <div
+      key={key}
+      className={cn(
+        "border-border flex items-center gap-8 border-b px-4",
+        header ? "bg-muted/40 py-3.5" : "py-4 last:border-0",
+      )}
+    >
+      {selectable && <Skeleton className="bg-muted h-4 w-4 shrink-0 animate-pulse rounded-sm" />}
+      {serial && <Skeleton className="bg-muted h-3 w-5 shrink-0 animate-pulse" />}
+      {Array.from({ length: cols }).map((_, i) => (
+        <Skeleton
+          key={i}
+          className={cn(
+            "bg-muted shrink-0 animate-pulse",
+            header ? "h-3" : "h-4",
+            cellWidth(i, cols),
+            i === cols - 1 && "ml-auto",
+          )}
+        />
       ))}
+    </div>
+  )
+  return (
+    <div className="w-full overflow-hidden">
+      {line(true, -1)}
+      {Array.from({ length: rows }).map((_, i) => line(false, i))}
+    </div>
+  )
+}
+
+/**
+ * Loading stand-in for a whole DataTable: the frame, its toolbar (view menu, search, filters,
+ * Export, columns), the header and rows, and the paging footer.
+ */
+export function DataTableSkeleton({
+  rows = 8,
+  cols = 5,
+  toolbar = true,
+  filters = 0,
+  selectable = false,
+  serial = true,
+  footer = true,
+  className,
+}: {
+  rows?: number
+  cols?: number
+  toolbar?: boolean
+  /** Filter boxes after the search. */
+  filters?: number
+  selectable?: boolean
+  serial?: boolean
+  footer?: boolean
+  className?: string
+}) {
+  return (
+    <div className={cn("border-border bg-card rounded-sm border", className)} aria-busy="true">
+      {toolbar && (
+        <div className="border-border flex flex-wrap items-center gap-2 border-b px-3 py-2.5">
+          <Skeleton className="bg-muted h-9 w-20 animate-pulse" />
+          <Skeleton className="bg-muted h-9 w-full max-w-[300px] min-w-40 flex-1 animate-pulse" />
+          {Array.from({ length: filters }).map((_, i) => (
+            <Skeleton key={i} className="bg-muted h-9 w-40 animate-pulse" />
+          ))}
+          <div className="ml-auto flex items-center gap-2">
+            <Skeleton className="bg-muted h-9 w-24 animate-pulse" />
+            <Skeleton className="bg-muted h-9 w-9 animate-pulse" />
+          </div>
+        </div>
+      )}
+      <TableSkeleton rows={rows} cols={cols} serial={serial} selectable={selectable} />
+      {footer && (
+        <div className="border-border flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2.5">
+          <Skeleton className="bg-muted h-3 w-36 animate-pulse" />
+          <div className="flex items-center gap-3">
+            <Skeleton className="bg-muted h-8 w-32 animate-pulse" />
+            <div className="flex items-center gap-1">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="bg-muted h-8 w-8 animate-pulse" />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -190,26 +265,22 @@ export function TablePageSkeleton({
   rows = 8,
   withStats = false,
   statCount = 4,
+  filters = 0,
+  selectable = false,
 }: {
   cols?: number
   rows?: number
   withStats?: boolean
   statCount?: number
+  /** Filter boxes in the table toolbar after the search. */
+  filters?: number
+  selectable?: boolean
 }) {
   return (
     <div className="space-y-6">
       <PageHeaderSkeleton withActions />
       {withStats && <StatCardsSkeleton count={statCount} />}
-      <div className="border-border bg-card rounded-sm border">
-        <div className="border-border flex items-center justify-between border-b px-4 py-3">
-          <Skeleton className="bg-muted h-4 w-32 animate-pulse" />
-          <div className="flex items-center gap-2">
-            <Skeleton className="bg-muted h-9 w-52 animate-pulse" />
-            <Skeleton className="bg-muted h-9 w-24 animate-pulse" />
-          </div>
-        </div>
-        <TableSkeleton rows={rows} cols={cols} />
-      </div>
+      <DataTableSkeleton rows={rows} cols={cols} filters={filters} selectable={selectable} />
     </div>
   )
 }

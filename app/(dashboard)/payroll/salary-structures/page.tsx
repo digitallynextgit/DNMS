@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { useUrlPage } from "@/hooks/use-url-state"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useTenantPath } from "@/components/tenant-link"
 import { useSession } from "next-auth/react"
@@ -60,26 +59,11 @@ export default function SalaryStructuresPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editData, setEditData] = useState<SalaryStructure | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [page, setPage] = useUrlPage()
 
   const { data, isLoading } = useSalaryStructures()
   const deleteMutation = useDeleteSalaryStructure()
 
   const structures = data?.data ?? []
-
-  // Paginated locally: the list is also a lookup elsewhere, so the API stays unpaginated.
-  const PAGE_SIZE = 10
-  const total = structures.length
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const pagedStructures = useMemo(
-    () => structures.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [structures, page],
-  )
-
-  // Keep the current page in range as the list shrinks (e.g. after a delete).
-  useEffect(() => {
-    if (!isLoading && page > totalPages) setPage(totalPages)
-  }, [page, totalPages, isLoading])
 
   function handleAdd() {
     setEditData(null)
@@ -104,6 +88,8 @@ export default function SalaryStructuresPage() {
   const columns: DataTableColumn<SalaryStructure>[] = [
     {
       header: "Employee",
+      sortValue: (structure) =>
+        `${structure.employee.firstName} ${structure.employee.lastName}`.trim(),
       cell: (structure) => (
         <div>
           <p className="font-medium">
@@ -117,20 +103,30 @@ export default function SalaryStructuresPage() {
       ),
     },
     {
+      header: "Employee No",
+      defaultHidden: true,
+      className: "font-mono text-xs",
+      sortValue: (structure) => structure.employee.employeeNo,
+      cell: (structure) => structure.employee.employeeNo,
+    },
+    {
       header: "Basic",
       align: "right",
+      sortValue: (structure) => structure.basicSalary,
       cell: (structure) => fmt(structure.basicSalary),
     },
     {
       header: "HRA",
       align: "right",
       className: "text-muted-foreground",
+      sortValue: (structure) => structure.hra,
       cell: (structure) => fmt(structure.hra),
     },
     {
       header: "Gross",
       align: "right",
       className: "font-medium",
+      sortValue: grossOf,
       cell: (structure) => fmt(grossOf(structure)),
     },
     {
@@ -138,11 +134,14 @@ export default function SalaryStructuresPage() {
       align: "right",
       className: "font-semibold text-emerald-600",
       // No statutory deductions - net is the full gross, paid in hand.
+      sortValue: grossOf,
       cell: (structure) => fmt(grossOf(structure)),
     },
     {
       header: "Effective From",
       className: "text-muted-foreground",
+      sortValue: (structure) => structure.effectiveFrom,
+      exportValue: (structure) => structure.effectiveFrom.slice(0, 10),
       cell: (structure) => formatDate(structure.effectiveFrom),
     },
     ...(can(PERMISSIONS.PAYROLL_WRITE)
@@ -193,20 +192,15 @@ export default function SalaryStructuresPage() {
 
       {isLoading || structures.length > 0 ? (
         <DataTable
+          tableId="salary-structures"
+          exportName="salary-structures"
+          itemLabel="structure"
           columns={columns}
-          rows={pagedStructures}
+          rows={structures}
           rowKey={(structure) => structure.id}
           showSerial
-          serialOffset={(page - 1) * PAGE_SIZE}
           loading={isLoading}
-          skeletonRows={PAGE_SIZE}
-          pagination={{
-            page,
-            totalPages,
-            total,
-            onPageChange: setPage,
-            itemLabel: "structure",
-          }}
+          skeletonRows={10}
         />
       ) : (
         <EmptyState

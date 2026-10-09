@@ -222,8 +222,8 @@ export const workFromHomeGuide: HelpGuide = {
         },
         {
           text: {
-            en: "To cancel several at once, tick their boxes on the left, click Cancel in the bar that appears, and confirm with Cancel requests.",
-            hi: "एक साथ कई कैंसल करनी हैं तो बाईं ओर उनके बॉक्स पर टिक करें, ऊपर आने वाली पट्टी में Cancel पर क्लिक करें, और Cancel requests से पक्का करें।",
+            en: "To cancel several at once, tick their boxes on the left, click Cancel at the top of the table, next to the number selected, and confirm with Cancel requests.",
+            hi: "एक साथ कई कैंसल करनी हैं तो बाईं ओर उनके बॉक्स पर टिक करें, टेबल के ऊपर, चुनी गई रिक्वेस्ट की गिनती के बगल में Cancel पर क्लिक करें, और Cancel requests से पक्का करें।",
           },
         },
       ],

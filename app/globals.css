@@ -85,7 +85,7 @@
     --secondary: 0 0% 96%;
     --secondary-foreground: 0 0% 9%;
     --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
+    --muted-foreground: 0 0% 38%;
     --accent: 0 0% 96%;
     --accent-foreground: 0 0% 9%;
 
@@ -96,8 +96,8 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 0 0% 89%;
-    --input: 0 0% 89%;
+    --border: 0 0% 85%;
+    --input: 0 0% 80%;
     /* A calm mid-grey: it should read as "focused", not stamp a hard box. */
     --ring: 0 0% 45%;
 
@@ -134,8 +134,8 @@
     --secondary: 0 0% 11%;
     --secondary-foreground: 0 0% 93%;
     --muted: 0 0% 11%;
-    --muted-foreground: 0 0% 53%;
-    --accent: 0 0% 13%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 0 0% 17%;
     --accent-foreground: 0 0% 93%;
 
     --destructive: 7 100% 50%; /* #ff1e00 - vivid red for high visibility */
@@ -145,8 +145,8 @@
     --warning: 38 80% 40%;
     --warning-foreground: 0 0% 93%;
 
-    --border: 0 0% 14%;
-    --input: 0 0% 14%;
+    --border: 0 0% 21%;
+    --input: 0 0% 24%;
     /* Softer than near-white, which made the focus box glare in dark mode. */
     --ring: 0 0% 55%;
 

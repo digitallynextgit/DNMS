@@ -27,24 +27,38 @@ export function ClientActivityTab({ clientRef }: { clientRef: string }) {
   const columns: DataTableColumn<ClientActivityEvent>[] = [
     {
       header: "When",
-      className: "text-muted-foreground text-xs whitespace-nowrap",
+      className: "text-muted-foreground text-xs",
+      exportValue: (e) => formatDateTime(e.createdAt),
       cell: (e) => formatDateTime(e.createdAt),
     },
     {
       header: "Who",
+      exportValue: (e) => e.clientUser.name,
       cell: (e) => (
-        <div className="min-w-0">
+        <div className="max-w-[220px] min-w-0">
           <p className="truncate text-xs font-medium">{e.clientUser.name}</p>
-          <p className="text-muted-foreground truncate text-[11px]">{e.clientUser.email}</p>
+          <p className="text-muted-foreground truncate text-[11px]" title={e.clientUser.email}>
+            {e.clientUser.email}
+          </p>
         </div>
       ),
     },
     {
       header: "What",
-      cell: (e) => <span className="text-xs">{e.summary ?? fallbackLabel(e.action)}</span>,
+      className: "max-w-[280px] truncate",
+      exportValue: (e) => e.summary ?? fallbackLabel(e.action),
+      cell: (e) => {
+        const what = e.summary ?? fallbackLabel(e.action)
+        return (
+          <span className="text-xs" title={what}>
+            {what}
+          </span>
+        )
+      },
     },
     {
       header: "Project",
+      exportValue: (e) => e.project?.name ?? "",
       cell: (e) =>
         e.project ? (
           <Link
@@ -59,6 +73,7 @@ export function ClientActivityTab({ clientRef }: { clientRef: string }) {
     },
     {
       header: "Section",
+      exportValue: (e) => e.module,
       cell: (e) => (
         <Badge variant="outline" className="text-[10px] capitalize">
           {e.module}
@@ -80,10 +95,14 @@ export function ClientActivityTab({ clientRef }: { clientRef: string }) {
 
   return (
     <DataTable
+      tableId="client-activity"
+      exportName="client-activity"
       columns={columns}
       rows={rows}
       rowKey={(e) => e.id}
       loading={isLoading}
+      showSerial
+      serialOffset={pagination ? (pagination.page - 1) * pagination.limit : 0}
       minWidth="min-w-[760px]"
       pagination={
         pagination
@@ -93,6 +112,7 @@ export function ClientActivityTab({ clientRef }: { clientRef: string }) {
               total: pagination.total,
               onPageChange: setPage,
               itemLabel: "event",
+              pageSize: pagination.limit,
             }
           : undefined
       }

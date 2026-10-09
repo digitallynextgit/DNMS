@@ -61,6 +61,7 @@ export function AiConnectionsClient({ connectorUrl }: { connectorUrl: string }) 
   const baseColumns: DataTableColumn<ConnectionRow>[] = [
     {
       header: "App",
+      sortValue: (r) => r.verifiedAs ?? r.app,
       cell: (r) => (
         <div className="flex items-center gap-2">
           <span className="font-medium">{r.verifiedAs ?? r.app}</span>
@@ -72,16 +73,29 @@ export function AiConnectionsClient({ connectorUrl }: { connectorUrl: string }) 
     },
     {
       header: "Access",
+      sortValue: (r) => (r.scope.includes("hrms:write") ? "Read & change" : "Read only"),
       cell: (r) => (r.scope.includes("hrms:write") ? "Read & change" : "Read only"),
     },
-    { header: "Connected", cell: (r) => formatDateTime(r.createdAt) },
+    {
+      header: "Connected",
+      sortValue: (r) => r.createdAt,
+      cell: (r) => formatDateTime(r.createdAt),
+    },
     {
       header: "Last used",
+      sortValue: (r) => r.lastUsedAt,
       cell: (r) => (r.lastUsedAt ? formatRelativeTime(r.lastUsedAt) : "Never"),
     },
-    { header: "Requests (30d)", align: "right", cell: (r) => r.callsLast30Days },
+    {
+      header: "Requests (30d)",
+      align: "right",
+      sortValue: (r) => r.callsLast30Days,
+      cell: (r) => r.callsLast30Days,
+    },
     {
       header: "Status",
+      sortValue: (r) =>
+        r.revokedAt ? (REASONS[r.revokedReason ?? ""] ?? "Disconnected") : "Active",
       cell: (r) =>
         r.revokedAt ? (
           <Badge variant="secondary">{REASONS[r.revokedReason ?? ""] ?? "Disconnected"}</Badge>
@@ -104,6 +118,7 @@ export function AiConnectionsClient({ connectorUrl }: { connectorUrl: string }) 
   const everyoneColumns: DataTableColumn<ConnectionRow>[] = [
     {
       header: "Person",
+      sortValue: (r) => (r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : null),
       cell: (r) =>
         r.employee
           ? `${r.employee.firstName} ${r.employee.lastName} (${r.employee.employeeNo})`
@@ -187,6 +202,8 @@ export function AiConnectionsClient({ connectorUrl }: { connectorUrl: string }) 
             loading={mine.isLoading}
             skeletonRows={2}
             minWidth="min-w-[760px]"
+            itemLabel="connection"
+            columnToggle={false}
           />
         )}
       </section>
@@ -203,6 +220,8 @@ export function AiConnectionsClient({ connectorUrl }: { connectorUrl: string }) 
             />
           ) : (
             <DataTable
+              tableId="ai-connections"
+              itemLabel="connection"
               columns={everyoneColumns}
               rows={all.data ?? []}
               rowKey={(r) => r.id}

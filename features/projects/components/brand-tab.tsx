@@ -37,7 +37,7 @@ import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { DateField } from "@/components/shared/date-field"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
-import { cn } from "@/lib/utils"
+import { cn, formatFileSize } from "@/lib/utils"
 import {
   useProjectBrand,
   useSaveProjectBrand,
@@ -223,7 +223,7 @@ function StrategySection({ projectId, canManage }: Props) {
           placeholder="e.g. Followers"
           aria-label="e.g. Followers"
           value={o.metric}
-          disabled={!canManage}
+          readOnly={!canManage}
           onChange={(e) => updateObj(setObjectives, o.id, { metric: e.target.value })}
         />
       ),
@@ -237,7 +237,7 @@ function StrategySection({ projectId, canManage }: Props) {
           placeholder="0"
           aria-label="0"
           value={o.current}
-          disabled={!canManage}
+          readOnly={!canManage}
           onChange={(e) => updateObj(setObjectives, o.id, { current: e.target.value })}
         />
       ),
@@ -251,7 +251,7 @@ function StrategySection({ projectId, canManage }: Props) {
           placeholder="0"
           aria-label="0"
           value={o.target}
-          disabled={!canManage}
+          readOnly={!canManage}
           onChange={(e) => updateObj(setObjectives, o.id, { target: e.target.value })}
         />
       ),
@@ -280,6 +280,8 @@ function StrategySection({ projectId, canManage }: Props) {
             variant="ghost"
             size="icon"
             className="text-muted-foreground hover:text-destructive"
+            aria-label="Remove objective"
+            title="Remove objective"
             onClick={() => setObjectives((p) => p.filter((x) => x.id !== o.id))}
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -293,6 +295,7 @@ function StrategySection({ projectId, canManage }: Props) {
     <Tabs defaultValue="brief" className="space-y-4">
       <TabsBar
         spacing="none"
+        variant="underline"
         items={[
           { value: "brief", label: "Brand Brief", icon: FileText },
           { value: "objectives", label: "Digital Objectives", icon: Target },
@@ -317,7 +320,7 @@ function StrategySection({ projectId, canManage }: Props) {
           <Textarea
             value={brief}
             onChange={(e) => setBrief(e.target.value)}
-            disabled={!canManage}
+            readOnly={!canManage}
             rows={5}
             placeholder="Paste or write the client's brand brief…"
             aria-label="Paste or write the client's brand brief"
@@ -376,12 +379,16 @@ function StrategySection({ projectId, canManage }: Props) {
           {objectives.length === 0 ? (
             <EmptyState icon={Target} compact title="No objectives yet - add your first target." />
           ) : (
+            // An editor: every row on one screen, no column picker, and inputs stay in a grid on phones.
             <DataTable
               columns={objectiveColumns}
               rows={objectives}
               rowKey={(o) => o.id}
               showSerial
               minWidth="min-w-[680px]"
+              pageSize={false}
+              columnToggle={false}
+              mobileCard={false}
             />
           )}
           {canManage && (
@@ -437,7 +444,7 @@ function StrategySection({ projectId, canManage }: Props) {
                     <Textarea
                       rows={2}
                       className="bg-background mt-1"
-                      disabled={!canManage}
+                      readOnly={!canManage}
                       placeholder="Themes, content pillars, post types…"
                       aria-label="Themes, content pillars, post types"
                       value={manifestation[t.key]?.social ?? ""}
@@ -457,7 +464,7 @@ function StrategySection({ projectId, canManage }: Props) {
                     <Textarea
                       rows={2}
                       className="bg-background mt-1"
-                      disabled={!canManage}
+                      readOnly={!canManage}
                       placeholder="Pages, sections, campaigns…"
                       aria-label="Pages, sections, campaigns"
                       value={manifestation[t.key]?.website ?? ""}
@@ -503,7 +510,7 @@ function StrategySection({ projectId, canManage }: Props) {
           <Textarea
             value={overview}
             onChange={(e) => setOverview(e.target.value)}
-            disabled={!canManage}
+            readOnly={!canManage}
             rows={7}
             placeholder="Positioning, competitor landscape, market research, key takeaways…"
             aria-label="Positioning, competitor landscape, market research, key takeaways"
@@ -554,7 +561,7 @@ function StrategySection({ projectId, canManage }: Props) {
                         placeholder="Name"
                         aria-label="Name"
                         value={c.name}
-                        disabled={!canManage}
+                        readOnly={!canManage}
                         onChange={(e) => updateColor(setGuidelines, i, { name: e.target.value })}
                       />
                       <span className="text-muted-foreground px-1 font-mono text-[10px] uppercase">
@@ -598,7 +605,7 @@ function StrategySection({ projectId, canManage }: Props) {
                 <Label className="text-muted-foreground text-[11px]">Fonts</Label>
                 <Input
                   value={guidelines.fonts}
-                  disabled={!canManage}
+                  readOnly={!canManage}
                   placeholder="e.g. Inter, Poppins"
                   aria-label="e.g. Inter, Poppins"
                   onChange={(e) => setGuidelines((g) => ({ ...g, fonts: e.target.value }))}
@@ -608,7 +615,7 @@ function StrategySection({ projectId, canManage }: Props) {
                 <Label className="text-muted-foreground text-[11px]">UI / UX direction</Label>
                 <Input
                   value={guidelines.uiux}
-                  disabled={!canManage}
+                  readOnly={!canManage}
                   placeholder="Tone, layout, imagery style…"
                   aria-label="Tone, layout, imagery style"
                   onChange={(e) => setGuidelines((g) => ({ ...g, uiux: e.target.value }))}
@@ -621,7 +628,7 @@ function StrategySection({ projectId, canManage }: Props) {
               <Textarea
                 rows={2}
                 value={guidelines.logoNotes}
-                disabled={!canManage}
+                readOnly={!canManage}
                 placeholder="Logo usage, clear space, do's & don'ts…"
                 aria-label="Logo usage, clear space, do's & don'ts"
                 onChange={(e) => setGuidelines((g) => ({ ...g, logoNotes: e.target.value }))}
@@ -660,6 +667,43 @@ function updateColor(
   set((g) => ({ ...g, colors: g.colors.map((c, j) => (j === i ? { ...c, ...patch } : c)) }))
 }
 
+const FILE_KINDS: { test: RegExp; label: string; tint: string }[] = [
+  {
+    test: /\.pdf$|^application\/pdf$/i,
+    label: "PDF",
+    tint: "bg-red-500/15 text-red-600 dark:text-red-400",
+  },
+  {
+    test: /\.(docx?|odt|rtf)$|wordprocessing|msword/i,
+    label: "Document",
+    tint: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  },
+  {
+    test: /\.(xlsx?|csv|ods)$|spreadsheet|ms-excel|^text\/csv$/i,
+    label: "Spreadsheet",
+    tint: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  },
+  {
+    test: /\.(pptx?|odp|key)$|presentation|powerpoint/i,
+    label: "Slides",
+    tint: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+  },
+  {
+    test: /\.(png|jpe?g|gif|webp|svg|avif)$|^image\//i,
+    label: "Image",
+    tint: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
+  },
+]
+
+function fileKind(fileName: string, mimeType: string): { label: string; tint: string } {
+  return (
+    FILE_KINDS.find((k) => k.test.test(fileName) || k.test.test(mimeType)) ?? {
+      label: "File",
+      tint: "bg-muted text-foreground/80",
+    }
+  )
+}
+
 function AssetRow({
   label,
   files,
@@ -691,50 +735,77 @@ function AssetRow({
     }
   }
   return (
-    <div className="mt-4 space-y-1.5 border-t pt-3">
-      <Label className="text-muted-foreground text-[11px]">{label}</Label>
-      <div className="space-y-1.5">
-        {files.map((f) => (
-          <div
-            key={f.id}
-            className="bg-muted/40 flex items-center gap-2 rounded-sm border px-2.5 py-1.5 text-xs"
-          >
-            <Icon className="text-muted-foreground h-4 w-4 shrink-0" />
-            <span className="min-w-0 flex-1 font-medium break-all" title={f.fileName}>
-              {f.fileName}
-            </span>
-            <div className="flex shrink-0 items-center gap-0.5">
-              <a
-                href={f.url}
-                target="_blank"
-                rel="noreferrer"
-                title="View"
-                className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-7 w-7 items-center justify-center rounded-sm"
+    <div className="mt-4 space-y-2 border-t pt-3">
+      <Label className="text-foreground/85 text-xs font-semibold">
+        {label}
+        {files.length > 0 && (
+          <span className="text-muted-foreground font-normal"> · {files.length}</span>
+        )}
+      </Label>
+      <div className="space-y-2">
+        {files.map((f) => {
+          const kind = fileKind(f.fileName, f.mimeType)
+          return (
+            <div
+              key={f.id}
+              className="bg-card hover:border-foreground/25 flex items-center gap-3 rounded-sm border px-3 py-2 transition-colors"
+            >
+              <span
+                className={cn(
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-sm",
+                  kind.tint,
+                )}
               >
-                <Eye className="h-3.5 w-3.5" />
-              </a>
-              {/* The signed URL carries content-disposition, so it downloads even cross-origin. */}
-              <a
-                href={f.downloadUrl ?? f.url}
-                download={f.fileName}
-                title="Download"
-                className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-7 w-7 items-center justify-center rounded-sm"
-              >
-                <Download className="h-3.5 w-3.5" />
-              </a>
-              {canManage && (
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex h-7 w-7 items-center justify-center rounded-sm"
-                  onClick={() => onDelete(f.id)}
-                  title="Delete"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
+                <Icon className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium" title={f.fileName}>
+                  {f.fileName}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  {kind.label}
+                  {f.fileSize > 0 && ` · ${formatFileSize(f.fileSize)}`}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Button asChild variant="outline" className="h-8 gap-1.5 px-2.5 text-xs">
+                  <a
+                    href={f.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`View ${f.fileName}`}
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">View</span>
+                  </a>
+                </Button>
+                {/* The signed URL carries content-disposition, so it downloads even cross-origin. */}
+                <Button asChild variant="outline" className="h-8 gap-1.5 px-2.5 text-xs">
+                  <a
+                    href={f.downloadUrl ?? f.url}
+                    download={f.fileName}
+                    aria-label={`Download ${f.fileName}`}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Download</span>
+                  </a>
+                </Button>
+                {canManage && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8"
+                    onClick={() => onDelete(f.id)}
+                    aria-label={`Delete ${f.fileName}`}
+                    title="Delete"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
         {files.length === 0 && !canManage && (
           <span className="text-muted-foreground text-xs">No files.</span>
         )}

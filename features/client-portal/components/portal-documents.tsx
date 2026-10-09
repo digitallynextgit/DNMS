@@ -99,19 +99,22 @@ export function PortalDocuments({ projectRef }: { projectRef: string }) {
   const columns: DataTableColumn<PortalFile>[] = [
     {
       header: "File",
+      sortValue: (f) => f.fileName,
       cell: (f) => (
         <div className="flex min-w-0 items-start gap-2">
           <FileText className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
-          <div className="min-w-0">
+          <div className="max-w-[22rem] min-w-0">
             <button
               onClick={() => open(f, false)}
-              className="hover:text-primary max-w-[22rem] truncate text-left text-sm font-medium underline-offset-2 hover:underline"
+              className="hover:text-primary block max-w-full truncate text-left text-sm font-medium underline-offset-2 hover:underline"
               title={f.fileName}
             >
               {f.fileName}
             </button>
             {f.description && (
-              <p className="text-muted-foreground max-w-[22rem] text-xs">{f.description}</p>
+              <p className="text-muted-foreground truncate text-xs" title={f.description}>
+                {f.description}
+              </p>
             )}
           </div>
         </div>
@@ -119,22 +122,24 @@ export function PortalDocuments({ projectRef }: { projectRef: string }) {
     },
     {
       header: "Folder",
-      cell: (f) => <span className="text-xs whitespace-nowrap">{folderName(f.folderId)}</span>,
+      sortValue: (f) => folderName(f.folderId),
+      cell: (f) => <span className="text-xs">{folderName(f.folderId)}</span>,
     },
     {
       header: "Size",
       align: "right",
-      cell: (f) => <span className="text-xs whitespace-nowrap">{formatFileSize(f.fileSize)}</span>,
+      sortValue: (f) => f.fileSize,
+      cell: (f) => <span className="text-xs">{formatFileSize(f.fileSize)}</span>,
     },
     {
       header: "Shared by",
-      cell: (f) => <span className="text-xs whitespace-nowrap">{sharedBy(f)}</span>,
+      sortValue: sharedBy,
+      cell: (f) => <span className="text-xs">{sharedBy(f)}</span>,
     },
     {
       header: "Date",
-      cell: (f) => (
-        <span className="text-xs whitespace-nowrap">{formatDate(f.sharedAt ?? f.createdAt)}</span>
-      ),
+      sortValue: (f) => f.sharedAt ?? f.createdAt,
+      cell: (f) => <span className="text-xs">{formatDate(f.sharedAt ?? f.createdAt)}</span>,
     },
     {
       header: "",
@@ -246,6 +251,8 @@ export function PortalDocuments({ projectRef }: { projectRef: string }) {
         />
       ) : (
         <DataTable
+          tableId="portal-documents"
+          itemLabel="file"
           columns={columns}
           rows={files}
           rowKey={(f) => f.id}

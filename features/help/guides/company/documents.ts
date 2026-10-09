@@ -70,8 +70,8 @@ export const documentsGuide: HelpGuide = {
         },
         {
           text: {
-            en: "If there are many files, use Previous and Next at the bottom of the list to see more.",
-            hi: "अगर फाइलें बहुत हैं, तो और देखने के लिए लिस्ट के नीचे Previous और Next इस्तेमाल करें।",
+            en: "If there are many files, use the Next page and Previous page arrows at the bottom of the list to see more.",
+            hi: "अगर फाइलें बहुत हैं, तो और देखने के लिए लिस्ट के नीचे Next page और Previous page वाले तीर इस्तेमाल करें।",
           },
         },
       ],

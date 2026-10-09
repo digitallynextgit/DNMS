@@ -44,9 +44,9 @@ export function CalendarNamePicker({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="ghost"
+          variant="outline"
           // No width cap or truncation: this name must be readable in full; the strip wraps.
-          className="gap-1.5 px-2.5 font-medium"
+          className="gap-1.5 px-3 font-semibold"
           aria-label="Switch calendar"
           title={activeName ?? undefined}
         >
@@ -163,11 +163,10 @@ export function CalendarMonthPicker({
     : NO_MONTH_LABEL
 
   return (
-    <span className="flex items-center gap-0.5">
+    <span className="flex items-center gap-1">
       <Button
-        variant="ghost"
+        variant="outline"
         size="icon"
-        className="h-8 w-8"
         onClick={() => prev && onPickEdition(prev.id)}
         disabled={!prev}
         aria-label="Previous month"
@@ -179,8 +178,8 @@ export function CalendarMonthPicker({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant="ghost"
-            className="h-8 gap-1 px-2 text-sm font-medium"
+            variant="outline"
+            className="gap-1 px-3 font-semibold"
             aria-label="Jump to a month"
           >
             {label}
@@ -239,9 +238,8 @@ export function CalendarMonthPicker({
       </DropdownMenu>
 
       <Button
-        variant="ghost"
+        variant="outline"
         size="icon"
-        className="h-8 w-8"
         onClick={() => next && onPickEdition(next.id)}
         disabled={!next}
         aria-label="Next month"

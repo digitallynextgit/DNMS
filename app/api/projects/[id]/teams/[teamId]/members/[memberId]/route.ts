@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { canStaffTeam, resolveProjectId } from "@/features/projects/server/project-access"
 import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
+import { dropServicesIfOffProject } from "@/features/projects/server/project-service-owners"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { ACCOUNT_MANAGER_TEAM } from "@/features/projects/lib/project-teams"
@@ -71,6 +72,7 @@ export const DELETE = withSession(
         if (member.employeeId === team.managerId) {
           await tx.projectTeam.update({ where: { id: teamId }, data: { managerId: null } })
         }
+        await dropServicesIfOffProject(tx, projectId, member.employeeId)
       })
 
       try {

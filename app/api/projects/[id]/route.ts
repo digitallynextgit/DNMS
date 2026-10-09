@@ -4,6 +4,17 @@ import { withAuth } from "@/server/api-handler"
 import { withProjectManager, withProjectAccess } from "@/features/projects/server/project-access"
 import { syncAccountManagerTeam } from "@/features/projects/server/project-teams"
 import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
+import { shortNameTaken } from "@/features/projects/server/project-create.service"
+import {
+  SERVICE_OWNER_SELECT,
+  pruneServiceOwners,
+} from "@/features/projects/server/project-service-owners"
+import { ensureServiceCalendars } from "@/features/projects/server/service-calendars"
+import {
+  normaliseServices,
+  normaliseShortName,
+  shortNameProblem,
+} from "@/features/projects/lib/project-services"
 import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS, PROJECT_STAGE_LABELS } from "@/lib/constants"
 import type { Session } from "next-auth"
@@ -37,6 +48,7 @@ export const GET = withProjectAccess(
               _count: { select: { tasks: true } },
             },
           },
+          serviceOwners: { select: SERVICE_OWNER_SELECT },
           _count: { select: { tasks: true, teams: true, resources: true } },
         },
       })
@@ -89,6 +101,21 @@ export const PATCH = withProjectManager(
         if (!client) return NextResponse.json({ error: "Client not found" }, { status: 422 })
       }
 
+      // `undefined` leaves them alone; null/"" clears the short name.
+      const shortName =
+        body.shortName === undefined ? undefined : normaliseShortName(body.shortName)
+      if (shortName) {
+        const problem = shortNameProblem(shortName)
+        if (problem) return NextResponse.json({ error: problem }, { status: 422 })
+        if (await shortNameTaken(shortName, ctx.params.id)) {
+          return NextResponse.json(
+            { error: `The short name "${shortName}" is already used by another project.` },
+            { status: 409 },
+          )
+        }
+      }
+      const services = body.services === undefined ? undefined : normaliseServices(body.services)
+
       if (accountManagerId) {
         const emp = await db.employee.findUnique({
           where: { id: accountManagerId },
@@ -106,6 +133,8 @@ export const PATCH = withProjectManager(
         where: { id: ctx.params.id },
         data: {
           ...(name !== undefined && { name }),
+          ...(shortName !== undefined && { shortName }),
+          ...(services !== undefined && { services }),
           ...(description !== undefined && { description }),
           ...(status !== undefined && { status }),
           ...(priority !== undefined && { priority }),
@@ -119,6 +148,14 @@ export const PATCH = withProjectManager(
           ...(clientId !== undefined && { clientId: clientId || null }),
         },
       })
+
+      if (services !== undefined) {
+        await pruneServiceOwners(project.id, services)
+        // Saved either way; a calendar that fails can be made from the services popup.
+        await ensureServiceCalendars(project.id, session.user.id).catch((e) =>
+          console.error("[SERVICE_CALENDARS]", e),
+        )
+      }
 
       if (accountManagerId) {
         await syncAccountManagerTeam(project.id, accountManagerId)
@@ -141,6 +178,8 @@ export const PATCH = withProjectManager(
         entityId: ctx.params.id,
         changes: {
           name,
+          shortName,
+          services,
           description,
           status,
           priority,
@@ -155,6 +194,13 @@ export const PATCH = withProjectManager(
 
       return NextResponse.json({ data: project })
     } catch (error) {
+      // The only unique field a PATCH can change is the short name (a save racing another).
+      if ((error as { code?: string }).code === "P2002") {
+        return NextResponse.json(
+          { error: "That short name is already used by another project." },
+          { status: 409 },
+        )
+      }
       console.error("[PROJECT_PATCH]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
     }

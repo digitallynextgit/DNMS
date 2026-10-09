@@ -22,9 +22,10 @@ import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { TabsBar } from "@/components/shared/tabs-bar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { apiFetch } from "@/lib/api-fetch"
 import { cn, formatDate } from "@/lib/utils"
-import { useProjectProgress } from "../hooks/use-projects"
+import { useProjectProgress, type TeamProgress } from "../hooks/use-projects"
 import { formatHours } from "../lib/format-hours"
 import { projectHref } from "../lib/project-href"
 import { SeoRow } from "./project-progress-detail"
@@ -280,6 +281,74 @@ function Section({
 
 const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : null)
 
+const overBooked = (t: TeamProgress) => t.estimatedHours > 0 && t.loggedHours > t.estimatedHours
+
+const HOURS_COLUMNS: DataTableColumn<TeamProgress>[] = [
+  {
+    header: "Team",
+    sortValue: (t) => t.name,
+    className: "font-medium",
+    cell: (t) => (
+      <>
+        {t.name}
+        {t.members > 0 && (
+          <span className="text-muted-foreground ml-1.5 text-xs font-normal">
+            {t.members} member{t.members === 1 ? "" : "s"}
+          </span>
+        )}
+      </>
+    ),
+  },
+  {
+    header: "Tasks",
+    align: "right",
+    sortValue: (t) => t.total,
+    className: "tabular-nums",
+    cell: (t) => t.total,
+  },
+  {
+    header: "Done",
+    align: "right",
+    sortValue: (t) => t.done,
+    className: "tabular-nums",
+    cell: (t) => t.done,
+  },
+  {
+    header: "Booked",
+    align: "right",
+    sortValue: (t) => t.estimatedHours,
+    className: "tabular-nums",
+    cell: (t) => formatHours(t.estimatedHours),
+  },
+  {
+    header: "Spent",
+    align: "right",
+    sortValue: (t) => t.loggedHours,
+    className: "tabular-nums",
+    cell: (t) => (
+      <span className={cn(overBooked(t) && "text-amber-500")}>{formatHours(t.loggedHours)}</span>
+    ),
+  },
+  {
+    header: "Drift",
+    sortValue: (t) => (t.estimatedHours > 0 ? t.loggedHours / t.estimatedHours : null),
+    className: "w-40",
+    headClassName: "w-40",
+    cell: (t) => {
+      const w = t.estimatedHours > 0 ? Math.min(100, (t.loggedHours / t.estimatedHours) * 100) : 0
+      return (
+        // min-w: a nowrap cell gives a bare bar no width of its own.
+        <div className="bg-muted h-1.5 w-full min-w-28 overflow-hidden rounded-full">
+          <div
+            className={cn("h-full rounded-full", overBooked(t) ? "bg-amber-500" : "bg-primary")}
+            style={{ width: `${w}%` }}
+          />
+        </div>
+      )
+    },
+  },
+]
+
 /** A ChartBucket from a flat task list - the person view fetches once and derives. */
 function bucketOf(tasks: DrillTask[]): ChartBucket {
   const b: ChartBucket = {
@@ -355,9 +424,10 @@ function ClientView({ d, push }: { d: Extract<Drill, { kind: "client" }>; push: 
 
   return (
     <Tabs value={tab} onValueChange={(v) => setTab(v as ClientTab)}>
-      <div className="border-border/60 border-b px-5">
+      <div className="px-5">
         <TabsBar
           spacing="none"
+          variant="underline"
           items={[
             { value: "overview", label: "Overview" },
             // Counts stay in the label: `count` would render "(0)" while the query loads.
@@ -574,70 +644,16 @@ function ClientView({ d, push }: { d: Extract<Drill, { kind: "client" }>; push: 
           <Skeleton className="h-48 rounded-sm" />
         ) : (
           <Section title="Hours by team" sub="Booked against spent, on tasks in this range">
-            <table className="w-full text-xs">
-              <thead className="text-muted-foreground border-border/60 border-b">
-                <tr>
-                  <th className="px-4 py-2 text-left font-medium">Team</th>
-                  <th className="px-4 py-2 text-right font-medium">Tasks</th>
-                  <th className="px-4 py-2 text-right font-medium">Done</th>
-                  <th className="px-4 py-2 text-right font-medium">Booked</th>
-                  <th className="px-4 py-2 text-right font-medium">Spent</th>
-                  <th className="w-40 px-4 py-2 text-left font-medium">Drift</th>
-                </tr>
-              </thead>
-              <tbody className="divide-border/60 divide-y">
-                {p.byTeam.map((t) => {
-                  const over = t.estimatedHours > 0 && t.loggedHours > t.estimatedHours
-                  const w =
-                    t.estimatedHours > 0
-                      ? Math.min(100, (t.loggedHours / t.estimatedHours) * 100)
-                      : 0
-                  return (
-                    <tr key={t.id}>
-                      <td className="px-4 py-2 font-medium">
-                        {t.name}
-                        {t.members > 0 && (
-                          <span className="text-muted-foreground ml-1.5 font-normal">
-                            {t.members} member{t.members === 1 ? "" : "s"}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2 text-right tabular-nums">{t.total}</td>
-                      <td className="px-4 py-2 text-right tabular-nums">{t.done}</td>
-                      <td className="px-4 py-2 text-right tabular-nums">
-                        {formatHours(t.estimatedHours)}
-                      </td>
-                      <td
-                        className={cn(
-                          "px-4 py-2 text-right tabular-nums",
-                          over && "text-amber-500",
-                        )}
-                      >
-                        {formatHours(t.loggedHours)}
-                      </td>
-                      <td className="px-4 py-2">
-                        <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
-                          <div
-                            className={cn(
-                              "h-full rounded-full",
-                              over ? "bg-amber-500" : "bg-primary",
-                            )}
-                            style={{ width: `${w}%` }}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-                {p.byTeam.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="text-muted-foreground px-4 py-6 text-center">
-                      No teams yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            {/* Borderless: the section is the frame. The fixed set of teams, so one page. */}
+            <DataTable
+              className="rounded-none border-0"
+              columns={HOURS_COLUMNS}
+              rows={p.byTeam}
+              rowKey={(t) => t.id}
+              pageSize={false}
+              columnToggle={false}
+              empty="No teams yet."
+            />
           </Section>
         )}
       </TabsContent>

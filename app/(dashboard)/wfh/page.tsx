@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useUrlPage, useUrlState } from "@/hooks/use-url-state"
 import { Link } from "@/components/tenant-link"
 import { PageHeader } from "@/components/shared/page-header"
-import { Pagination } from "@/components/shared/pagination"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,7 +13,6 @@ import { TabsBar } from "@/components/shared/tabs-bar"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
-import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { useRowSelection } from "@/hooks/use-row-selection"
 import {
@@ -30,11 +28,13 @@ import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { Plus, Home, AlertTriangle, Ban, Inbox } from "lucide-react"
 
+const PAGE_SIZE = 10
+
 export default function MyWfhPage() {
   const [page, setPage] = useUrlPage()
   const [tab, setTab] = useUrlState("tab", "my-wfh")
   const { data: eligibility, isLoading: eligLoading } = useWfhEligibility()
-  const { data: requestsData, isLoading: reqLoading } = useMyWfhRequests({ page, limit: 10 })
+  const { data: requestsData, isLoading: reqLoading } = useMyWfhRequests({ page, limit: PAGE_SIZE })
   // Lightweight call: does this person manage anyone? (drives the team tab)
   const { data: inbox } = useWfhInbox("team", { limit: 1 })
   const cancel = useCancelWfh()
@@ -70,7 +70,7 @@ export default function MyWfhPage() {
   const columns: DataTableColumn<WfhRow>[] = [
     {
       header: "Date",
-      className: "font-medium whitespace-nowrap",
+      className: "font-medium",
       cell: (r) => {
         const days = formatWfhDaysCount(r.totalDays)
         return (
@@ -83,8 +83,8 @@ export default function MyWfhPage() {
     },
     {
       header: "Reason",
-      className: "text-muted-foreground max-w-[300px] truncate",
-      cell: (r) => r.reason || "-",
+      className: "text-muted-foreground max-w-[280px] truncate",
+      cell: (r) => <span title={r.reason || undefined}>{r.reason || "-"}</span>,
     },
     {
       header: "Type",
@@ -113,6 +113,7 @@ export default function MyWfhPage() {
     {
       header: "Action",
       align: "right",
+      hideable: false,
       cell: (r) =>
         r.status === "PENDING" ? (
           <Button
@@ -193,26 +194,36 @@ export default function MyWfhPage() {
         <h4 className="text-muted-foreground text-[11px] font-semibold tracking-widest uppercase">
           Request History
         </h4>
-        <BulkActionBar count={selection.count} onClear={selection.clear}>
-          <Button
-            variant="destructive"
-            onClick={() => setBulkOpen(true)}
-            disabled={bulkPending || pendingSelectedCount === 0}
-          >
-            <Ban className="mr-1.5 h-3.5 w-3.5" />
-            Cancel{pendingSelectedCount > 0 ? ` (${pendingSelectedCount})` : ""}
-          </Button>
-        </BulkActionBar>
-
         {reqLoading || requests.length > 0 ? (
           <DataTable
+            tableId="my-wfh-requests"
             columns={columns}
             rows={requests}
             rowKey={(r) => r.id}
             minWidth="min-w-[620px]"
             showSerial
-            serialOffset={((pagination?.page ?? 1) - 1) * 10}
+            serialOffset={(page - 1) * PAGE_SIZE}
             selection={selection}
+            selectionActions={
+              <Button
+                variant="destructive"
+                onClick={() => setBulkOpen(true)}
+                disabled={bulkPending || pendingSelectedCount === 0}
+              >
+                <Ban className="mr-1.5 h-3.5 w-3.5" />
+                Cancel{pendingSelectedCount > 0 ? ` (${pendingSelectedCount})` : ""}
+              </Button>
+            }
+            pagination={
+              pagination && {
+                page: pagination.page,
+                totalPages: pagination.totalPages,
+                total: pagination.total,
+                onPageChange: setPage,
+                itemLabel: "request",
+                pageSize: PAGE_SIZE,
+              }
+            }
             loading={reqLoading}
             skeletonRows={5}
             mobileCard={(r) => (
@@ -262,16 +273,6 @@ export default function MyWfhPage() {
           />
         ) : (
           <EmptyState icon={Inbox} title="No WFH requests yet." variant="card" />
-        )}
-
-        {pagination && (
-          <Pagination
-            page={pagination.page}
-            totalPages={pagination.totalPages}
-            total={pagination.total}
-            onPageChange={setPage}
-            itemLabel="request"
-          />
         )}
       </div>
 

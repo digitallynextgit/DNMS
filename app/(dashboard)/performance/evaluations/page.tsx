@@ -2,15 +2,17 @@
 
 import { useState } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
+import { useDebounce } from "@/hooks/use-debounce"
 import { Link } from "@/components/tenant-link"
-import { Plus, Trash2, Inbox, Sparkles, Search } from "lucide-react"
+import { Plus, Trash2, Inbox, Sparkles } from "lucide-react"
 
 import { DateField } from "@/components/shared/date-field"
 import { PageHeader } from "@/components/shared/page-header"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { TableSearch } from "@/components/shared/table-search"
+import { TableViewMenu } from "@/components/shared/table-view-menu"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
-import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { FormDialog } from "@/components/shared/form-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -200,12 +202,14 @@ export default function EvaluationsPage() {
   const canReview = can(PERMISSIONS.PERFORMANCE_REVIEW)
   const [page, setPage] = useUrlPage()
   const [q, setQ] = useState("")
+  // Debounced: every keystroke would otherwise be a server request.
+  const search = useDebounce(q.trim())
   const [period, setPeriod] = useState("")
   const [status, setStatus] = useState("")
   const { data, isLoading } = useEvaluations({
     page,
     limit: PAGE_SIZE,
-    q,
+    q: search,
     period: period || undefined,
     status: status || undefined,
   })
@@ -232,10 +236,13 @@ export default function EvaluationsPage() {
     selection.clear()
   }
 
+  const filtered = !!q || !!period || !!status
+
   const columns: DataTableColumn<Evaluation>[] = [
     {
       header: "Employee",
       className: "font-medium",
+      exportValue: (ev) => `${ev.employee.firstName} ${ev.employee.lastName}`,
       cell: (ev) => (
         <>
           {ev.employee.firstName} {ev.employee.lastName}
@@ -244,15 +251,18 @@ export default function EvaluationsPage() {
     },
     {
       header: "Period",
+      exportValue: (ev) => ev.periodLabel,
       cell: (ev) => ev.periodLabel,
     },
     {
       header: "Manager",
       className: "text-muted-foreground",
+      exportValue: (ev) => (ev.manager ? `${ev.manager.firstName} ${ev.manager.lastName}` : ""),
       cell: (ev) => (ev.manager ? `${ev.manager.firstName} ${ev.manager.lastName}` : "-"),
     },
     {
       header: "Status",
+      exportValue: (ev) => EVALUATION_STATUS_LABELS[ev.status] ?? ev.status,
       cell: (ev) => (
         <StatusBadge
           status={ev.status}
@@ -265,6 +275,7 @@ export default function EvaluationsPage() {
       header: "Score",
       align: "right",
       className: "font-semibold tabular-nums",
+      exportValue: (ev) => ev.finalScore,
       cell: (ev) => (ev.finalScore != null ? `${ev.finalScore}/100` : "-"),
     },
     {
@@ -311,74 +322,68 @@ export default function EvaluationsPage() {
         }
       />
 
-      {canReview && (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
-            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
-            <Input
-              value={q}
-              onChange={(e) => onFilter(setQ)(e.target.value)}
-              placeholder="Search employee…"
-              aria-label="Search employee"
-              className="pl-8"
-            />
-          </div>
-          <Select
-            value={period || "all"}
-            onValueChange={(v) => onFilter(setPeriod)(v === "all" ? "" : v)}
-          >
-            <SelectTrigger className="w-[170px]">
-              <SelectValue placeholder="All periods" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All periods</SelectItem>
-              {periods.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {p}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={status || "all"}
-            onValueChange={(v) => onFilter(setStatus)(v === "all" ? "" : v)}
-          >
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="All statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {Object.entries(EVALUATION_STATUS_LABELS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {canReview && (
-        <BulkActionBar count={selection.count} onClear={selection.clear}>
-          <Button
-            variant="destructive"
-            onClick={() => setBulkDeleteOpen(true)}
-            disabled={bulkDel.isPending}
-          >
-            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-            Delete
-          </Button>
-        </BulkActionBar>
-      )}
-
-      {isLoading || evaluations.length > 0 ? (
+      {isLoading || evaluations.length > 0 || filtered ? (
         <DataTable
+          tableId="evaluations"
+          exportName={canReview ? "evaluations" : undefined}
           columns={columns}
           rows={evaluations}
           rowKey={(ev) => ev.id}
           showSerial
           serialOffset={(page - 1) * PAGE_SIZE}
           selection={canReview ? selection : undefined}
+          selectionActions={
+            canReview ? (
+              <Button
+                variant="destructive"
+                onClick={() => setBulkDeleteOpen(true)}
+                disabled={bulkDel.isPending}
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                Delete
+              </Button>
+            ) : undefined
+          }
+          toolbar={
+            canReview ? (
+              <>
+                <TableViewMenu
+                  label="Status"
+                  value={status || "ALL"}
+                  options={[
+                    { value: "ALL", label: "All" },
+                    ...Object.entries(EVALUATION_STATUS_LABELS).map(([value, label]) => ({
+                      value,
+                      label,
+                    })),
+                  ]}
+                  onChange={(v) => onFilter(setStatus)(v === "ALL" ? "" : v)}
+                />
+                <TableSearch
+                  value={q}
+                  onChange={onFilter(setQ)}
+                  placeholder="Search employee…"
+                  label="Search employee"
+                />
+                <Select
+                  value={period || "all"}
+                  onValueChange={(v) => onFilter(setPeriod)(v === "all" ? "" : v)}
+                >
+                  <SelectTrigger className="h-9 w-[170px]" aria-label="Period">
+                    <SelectValue placeholder="All periods" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All periods</SelectItem>
+                    {periods.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            ) : undefined
+          }
           minWidth="min-w-[680px]"
           loading={isLoading}
           skeletonRows={PAGE_SIZE}
@@ -390,9 +395,11 @@ export default function EvaluationsPage() {
                   total: pagination.total,
                   onPageChange: changePage,
                   itemLabel: "evaluation",
+                  pageSize: PAGE_SIZE,
                 }
               : undefined
           }
+          empty="No evaluations match these filters."
         />
       ) : (
         <EmptyState icon={Inbox} variant="card" title="No evaluations yet." />

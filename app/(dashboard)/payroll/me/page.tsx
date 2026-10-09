@@ -14,6 +14,8 @@ function fmt(amount: number): string {
   return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 }
 
+const PAYROLL_STATUS_ORDER = ["DRAFT", "PROCESSING", "APPROVED", "PAID"]
+
 export default function MyPayslipsPage() {
   const { data, isLoading } = useMyPayslips()
 
@@ -23,33 +25,40 @@ export default function MyPayslipsPage() {
     {
       header: "Month",
       className: "font-medium",
+      // Year first, so the month sorts in calendar order across years.
+      sortValue: (payslip) => payslip.year * 100 + payslip.month,
       cell: (payslip) => MONTHS[payslip.month - 1],
     },
     {
       header: "Year",
       className: "text-muted-foreground",
+      sortValue: (payslip) => payslip.year,
       cell: (payslip) => payslip.year,
     },
     {
       header: "Gross",
       align: "right",
+      sortValue: (payslip) => payslip.grossSalary,
       cell: (payslip) => fmt(payslip.grossSalary),
     },
     {
       header: "Deductions",
       align: "right",
       className: "text-red-600",
+      sortValue: (payslip) => payslip.totalDeductions,
       cell: (payslip) => fmt(payslip.totalDeductions),
     },
     {
       header: "Net",
       align: "right",
       className: "font-semibold text-emerald-600",
+      sortValue: (payslip) => payslip.netSalary,
       cell: (payslip) => fmt(payslip.netSalary),
     },
     {
       header: "Generated",
-      className: "text-muted-foreground text-xs whitespace-nowrap",
+      className: "text-muted-foreground text-xs",
+      sortValue: (payslip) => payslip.createdAt,
       cell: (payslip) =>
         new Date(payslip.createdAt).toLocaleDateString("en-GB", {
           day: "2-digit",
@@ -59,6 +68,7 @@ export default function MyPayslipsPage() {
     },
     {
       header: "Status",
+      sortValue: (payslip) => PAYROLL_STATUS_ORDER.indexOf(payslip.status),
       cell: (payslip) => (
         <StatusBadge
           status={payslip.status}
@@ -89,6 +99,8 @@ export default function MyPayslipsPage() {
 
       {isLoading || payslips.length > 0 ? (
         <DataTable
+          tableId="my-payslips"
+          itemLabel="payslip"
           columns={columns}
           rows={payslips}
           rowKey={(payslip) => payslip.id}

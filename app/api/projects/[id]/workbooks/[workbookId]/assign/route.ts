@@ -2,9 +2,18 @@ import { NextRequest, NextResponse } from "next/server"
 import type { Session } from "next-auth"
 
 import { withTeamStaffing } from "@/features/projects/server/project-access"
-import { assignWorkbook, workbookBelongsToProject } from "@/features/projects/server/sheets.service"
+import {
+  assignWorkbook,
+  parsePeriodMonth,
+  workbookBelongsToProject,
+} from "@/features/projects/server/sheets.service"
+import {
+  ServiceOwnerError,
+  setServiceOwner,
+} from "@/features/projects/server/project-service-owners"
+import { notifyOwnerAssigned } from "@/features/projects/server/owner-notifications"
+import { currentPlanMonth } from "@/features/projects/lib/calendar-months"
 import { logActivity } from "@/features/projects/server/activity"
-import { createNotification } from "@/lib/notifications"
 import { db } from "@/server/db"
 
 // Separate from PATCH /workbooks/[workbookId] (open to all members): who owns a sheet follows the
@@ -40,6 +49,33 @@ export const POST = withTeamStaffing(
       }
     }
 
+    // A ticked service's calendar, this month or later, is owned by the service's owner: one
+    // person, whether set here or in the services popup. Past months keep who ran them.
+    const [book, project] = await Promise.all([
+      db.projectWorkbook.findUnique({
+        where: { id: workbookId },
+        select: { service: true, periodMonth: true },
+      }),
+      db.project.findUnique({ where: { id: projectId }, select: { services: true } }),
+    ])
+    const from = parsePeriodMonth(currentPlanMonth())!
+    const service =
+      book?.service &&
+      project?.services.includes(book.service) &&
+      (!book.periodMonth || book.periodMonth >= from)
+        ? book.service
+        : null
+    if (service) {
+      try {
+        await setServiceOwner(projectId!, service, employeeId)
+      } catch (e) {
+        if (e instanceof ServiceOwnerError) {
+          return NextResponse.json({ error: e.message }, { status: 422 })
+        }
+        throw e
+      }
+    }
+
     const workbook = await assignWorkbook(workbookId!, employeeId)
     const assigneeName = assignee ? `${assignee.firstName} ${assignee.lastName}`.trim() : null
 
@@ -52,19 +88,15 @@ export const POST = withTeamStaffing(
       meta: { sheetName: workbook.name, assigneeName },
     })
 
-    // Tell only the new owner, unless they assigned themselves. Un-assigning notifies nobody.
-    if (employeeId && employeeId !== session.user.id) {
-      const project = await db.project.findUnique({
-        where: { id: projectId },
-        select: { name: true },
-      })
-      await createNotification({
+    // Un-assigning notifies nobody; picking yourself neither.
+    if (employeeId) {
+      await notifyOwnerAssigned({
+        projectId: projectId!,
         employeeId,
-        title: "Sheet assigned to you",
-        message: `You now own the sheet "${workbook.name}" in ${project?.name ?? "a project"}.`,
-        type: "info",
-        link: `/projects/${projectId}?tab=calendar`,
-      })
+        actorId: session.user.id,
+        service,
+        calendar: { id: workbookId!, name: workbook.name },
+      }).catch((e) => console.error("[SHEET_OWNER_NOTIFY]", e))
     }
 
     return NextResponse.json({ data: workbook })

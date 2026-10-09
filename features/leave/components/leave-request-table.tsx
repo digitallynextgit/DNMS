@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
-import { EmptyState } from "@/components/shared/empty-state"
 import {
   DataTable,
   type DataTableColumn,
+  type DataTablePagination,
   type DataTableSelection,
 } from "@/components/shared/data-table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -28,6 +28,13 @@ interface LeaveRequestTableProps {
   serialOffset?: number
   /** Optional multi-select wiring - pass `useRowSelection(pageIds)` to enable checkboxes. */
   selection?: DataTableSelection
+  /** Server paging: `requests` is one page. */
+  pagination?: DataTablePagination
+  tableId?: string
+  /** Search and filters, inside the table frame. */
+  toolbar?: ReactNode
+  loading?: boolean
+  empty?: ReactNode
 }
 
 export function LeaveRequestTable({
@@ -38,6 +45,11 @@ export function LeaveRequestTable({
   showSerial = true,
   serialOffset = 0,
   selection,
+  pagination,
+  tableId,
+  toolbar,
+  loading,
+  empty = "No leave requests found.",
 }: LeaveRequestTableProps) {
   const [decision, setDecision] = useState<{
     action: "APPROVE" | "REJECT"
@@ -45,10 +57,6 @@ export function LeaveRequestTable({
   } | null>(null)
 
   const cancelLeave = useCancelLeave()
-
-  if (requests.length === 0) {
-    return <EmptyState compact title="No leave requests found." />
-  }
 
   const columns: DataTableColumn<LeaveRequest>[] = [
     ...(showEmployee
@@ -88,7 +96,7 @@ export function LeaveRequestTable({
     },
     {
       header: "Dates",
-      className: "text-muted-foreground whitespace-nowrap",
+      className: "text-muted-foreground",
       cell: (request) => (
         <>
           {formatDate(request.startDate)}
@@ -103,7 +111,7 @@ export function LeaveRequestTable({
     },
     {
       header: "Reason",
-      className: "max-w-[180px]",
+      className: "max-w-[280px] truncate",
       cell: (request) => (
         <>
           {request.reason ? (
@@ -119,7 +127,7 @@ export function LeaveRequestTable({
             <span className="text-muted-foreground/50">-</span>
           )}
           {request.rejectionReason && (
-            <p className="text-destructive mt-0.5 truncate text-xs">
+            <p className="text-destructive mt-0.5 truncate text-xs" title={request.rejectionReason}>
               Reason: {request.rejectionReason}
             </p>
           )}
@@ -236,6 +244,12 @@ export function LeaveRequestTable({
         showSerial={showSerial}
         serialOffset={serialOffset}
         selection={selection}
+        pagination={pagination}
+        tableId={tableId}
+        toolbar={toolbar}
+        loading={loading}
+        skeletonRows={5}
+        empty={empty}
         // Phone card: identity + status, dates, then full labelled decision buttons.
         mobileCard={(request) => {
           const isOwn = currentUserId === request.employeeId

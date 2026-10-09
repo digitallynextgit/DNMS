@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Progress } from "@/components/ui/progress"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -243,108 +244,102 @@ export function AccountTable({
   onTest,
   onMakeDefault,
 }: { accounts: StorageAccount[]; testingId: string | null } & RowActions) {
-  return (
-    <div className="overflow-x-auto rounded-sm border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2.5 text-left text-xs font-medium">Name</th>
-            <th className="px-3 py-2.5 text-left text-xs font-medium">Bucket</th>
-            <th className="px-3 py-2.5 text-left text-xs font-medium">Region</th>
-            <th className="px-3 py-2.5 text-right text-xs font-medium">Files</th>
-            <th className="px-3 py-2.5 text-left text-xs font-medium">Used</th>
-            <th className="px-3 py-2.5 text-left text-xs font-medium">Status</th>
-            <th className="px-3 py-2.5 text-right text-xs font-medium">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {accounts.map((a) => (
-            <tr
-              key={a.id}
-              onClick={() => onOpen(a)}
-              className={cn(
-                "hover:bg-muted/40 cursor-pointer border-t transition-colors",
-                !a.isActive && "opacity-60",
-              )}
+  const columns: DataTableColumn<StorageAccount>[] = [
+    {
+      header: "Name",
+      className: "text-xs font-medium",
+      sortValue: (a) => a.label,
+      cell: (a) => a.label,
+    },
+    {
+      header: "Bucket",
+      className: "font-mono text-[11px]",
+      sortValue: (a) => a.bucket,
+      cell: (a) => a.bucket,
+    },
+    {
+      header: "Region",
+      className: "text-muted-foreground font-mono text-[11px]",
+      sortValue: (a) => a.region,
+      cell: (a) => a.region,
+    },
+    { header: "Files", align: "right", cell: (a) => <FilesCell accountId={a.id} /> },
+    { header: "Used", cell: (a) => <UsageCell accountId={a.id} /> },
+    {
+      header: "Status",
+      cell: (a) => (
+        <div className="flex items-center gap-1">
+          <AccountBadges account={a} />
+        </div>
+      ),
+    },
+    {
+      header: "Actions",
+      align: "right",
+      cell: (a) => (
+        // The row opens the bucket; these buttons must not.
+        <div
+          className="flex items-center justify-end gap-0.5"
+          onClick={(e) => e.stopPropagation()}
+          role="presentation"
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`Test ${a.label}`}
+            title="Test connection"
+            disabled={testingId === a.id}
+            onClick={() => onTest(a)}
+          >
+            {testingId === a.id ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Plug className="h-3.5 w-3.5" />
+            )}
+          </Button>
+          {!a.isDefault && a.isActive && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Make ${a.label} the default`}
+              title="Make default"
+              onClick={() => onMakeDefault(a)}
             >
-              <td className="px-3 py-2.5 text-xs font-medium">{a.label}</td>
-              <td className="px-3 py-2.5 font-mono text-[11px]">{a.bucket}</td>
-              <td className="text-muted-foreground px-3 py-2.5 font-mono text-[11px]">
-                {a.region}
-              </td>
-              <td className="px-3 py-2.5 text-right">
-                <FilesCell accountId={a.id} />
-              </td>
-              <td className="px-3 py-2.5">
-                <UsageCell accountId={a.id} />
-              </td>
-              <td className="px-3 py-2.5">
-                <div className="flex flex-wrap items-center gap-1">
-                  <AccountBadges account={a} />
-                </div>
-              </td>
-              <td className="px-3 py-2.5">
-                <div className="flex items-center justify-end gap-0.5">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Test ${a.label}`}
-                    title="Test connection"
-                    disabled={testingId === a.id}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onTest(a)
-                    }}
-                  >
-                    {testingId === a.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Plug className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                  {!a.isDefault && a.isActive && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Make ${a.label} the default`}
-                      title="Make default"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onMakeDefault(a)
-                      }}
-                    >
-                      <Star className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Edit ${a.label}`}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onEdit(a)
-                    }}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Remove ${a.label}`}
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onRemove(a)
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+              <Star className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`Edit ${a.label}`}
+            onClick={() => onEdit(a)}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`Remove ${a.label}`}
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => onRemove(a)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
+  return (
+    <DataTable
+      tableId="storage-accounts"
+      itemLabel="bucket"
+      columns={columns}
+      rows={accounts}
+      rowKey={(a) => a.id}
+      onRowClick={onOpen}
+      rowClassName={(a) => (a.isActive ? undefined : "opacity-60")}
+      columnToggle={false}
+    />
   )
 }

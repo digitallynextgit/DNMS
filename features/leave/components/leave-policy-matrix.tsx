@@ -102,6 +102,8 @@ export function LeavePolicyMatrix({ editor }: { editor: LeavePolicyEditor }) {
       rowKey={(t) => t.id}
       minWidth="min-w-[640px]"
       showSerial
+      pageSize={false}
+      columnToggle={false}
     />
   )
 }

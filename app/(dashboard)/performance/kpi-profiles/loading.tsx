@@ -1,17 +1,10 @@
-import { Skeleton } from "@/components/ui/skeleton"
-import { PageHeaderSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
+import { DataTableSkeleton, PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 
-export default function Loading() {
+export default function KpiProfilesLoading() {
   return (
     <div className="space-y-6">
       <PageHeaderSkeleton />
-
-      <div className="space-y-4">
-        <Skeleton className="bg-muted h-9 w-full max-w-xs animate-pulse rounded-sm" />
-        <div className="border-border bg-card rounded-sm border">
-          <TableSkeleton rows={10} cols={7} />
-        </div>
-      </div>
+      <DataTableSkeleton cols={7} rows={10} />
     </div>
   )
 }

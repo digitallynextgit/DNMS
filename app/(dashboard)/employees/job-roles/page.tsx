@@ -28,7 +28,6 @@ import {
 } from "@/features/employees"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
-import { cn } from "@/lib/utils"
 
 export default function JobRolesPage() {
   const { can } = usePermissions()
@@ -82,20 +81,24 @@ export default function JobRolesPage() {
   const columns: DataTableColumn<JobRole>[] = [
     {
       header: "Role",
-      cell: (r) => <span className={cn("font-medium", !r.isActive && "opacity-60")}>{r.name}</span>,
+      sortValue: (r) => r.name,
+      cell: (r) => <span className="font-medium">{r.name}</span>,
     },
     {
       header: "Department",
       className: "text-muted-foreground",
+      sortValue: (r) => r.department.name,
       cell: (r) => r.department.name,
     },
     {
       header: "Employees",
       className: "text-muted-foreground tabular-nums",
+      sortValue: (r) => r._count.employees,
       cell: (r) => r._count.employees,
     },
     {
       header: "Status",
+      sortValue: (r) => (r.isActive ? "Active" : "Inactive"),
       cell: (r) => (
         <Badge variant="outline" className="text-xs">
           {r.isActive ? "Active" : "Inactive"}
@@ -155,29 +158,33 @@ export default function JobRolesPage() {
         }
       />
 
-      <div className="flex items-center gap-2">
-        <Select value={deptFilter} onValueChange={setDeptFilter}>
-          <SelectTrigger className="w-56">
-            <SelectValue placeholder="All departments" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All departments</SelectItem>
-            {departments.map((d) => (
-              <SelectItem key={d.id} value={d.id}>
-                {d.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {isLoading || list.length > 0 ? (
+      {isLoading || (roles ?? []).length > 0 ? (
         <DataTable
+          tableId="job-roles"
+          itemLabel="job role"
           columns={columns}
           rows={list}
           rowKey={(r) => r.id}
           showSerial
+          pageKey={deptFilter}
+          rowClassName={(r) => (r.isActive ? undefined : "opacity-60")}
           loading={isLoading}
+          toolbar={
+            <Select value={deptFilter} onValueChange={setDeptFilter}>
+              <SelectTrigger className="h-9 w-56" aria-label="Filter by department">
+                <SelectValue placeholder="All departments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All departments</SelectItem>
+                {departments.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+          empty="No job roles in this department."
         />
       ) : (
         <EmptyState

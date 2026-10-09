@@ -1,7 +1,6 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Search } from "lucide-react"
 
 import {
   Dialog,
@@ -10,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -18,8 +16,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { TableSearch } from "@/components/shared/table-search"
+import { TableViewMenu } from "@/components/shared/table-view-menu"
 import { cn, formatDate } from "@/lib/utils"
-import { DELIVERABLE_STATUS_LABELS, type DeliverableStatus } from "../lib/deliverable-lifecycle"
+import {
+  DELIVERABLE_STATUS_LABELS,
+  STATUS_ORDER,
+  type DeliverableStatus,
+} from "../lib/deliverable-lifecycle"
 import type { DeliverablesProgress, ProgressItem } from "../lib/deliverables-progress"
 
 // Derived from the page's payload - no extra fetch, so the rows match what the tile counted.
@@ -145,6 +150,54 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
   const flatItems = visible.flatMap((g) => g.items)
   const showTabs = groups.length > 1
 
+  const columns: DataTableColumn<ProgressItem>[] = [
+    {
+      header: "Deliverable",
+      sortValue: (it) => it.title,
+      className: "max-w-[280px] truncate",
+      cell: (it) => (
+        <span title={`${it.type} · ${it.title}`}>
+          <span className="text-muted-foreground">{it.type} · </span>
+          {it.title}
+          {it.quantity > 1 ? <span className="text-muted-foreground"> ×{it.quantity}</span> : null}
+        </span>
+      ),
+    },
+    { header: "Project", sortValue: (it) => it.project, cell: (it) => it.project },
+    { header: "Owned by", sortValue: (it) => it.employee, cell: (it) => it.employee ?? "-" },
+    {
+      header: "Period",
+      sortValue: (it) => it.dueOn,
+      cell: (it) => (
+        <span className={cn(!finished && it.overdue && "text-red-500")}>{it.period}</span>
+      ),
+    },
+    {
+      header: "Status",
+      sortValue: (it) => STATUS_ORDER.indexOf(it.status),
+      cell: (it) => (
+        <span className={STATUS_TONE[it.status]}>{DELIVERABLE_STATUS_LABELS[it.status]}</span>
+      ),
+    },
+    finished
+      ? {
+          header: "Completed on",
+          sortValue: (it) => it.completedOn,
+          cell: (it) => (
+            <>
+              {it.completedOn ? formatDate(it.completedOn, "d MMM yyyy") : "-"}
+              {it.late ? <span className="ml-1.5 text-[11px] text-amber-500">late</span> : null}
+            </>
+          ),
+        }
+      : {
+          header: "Why",
+          // The reason is the point of this list, so it wraps rather than truncates.
+          className: "text-muted-foreground min-w-[240px] whitespace-normal",
+          cell: (it) => it.why || "-",
+        },
+  ]
+
   return (
     <>
       <DialogHeader>
@@ -167,118 +220,57 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
           Nothing here for this window.
         </p>
       ) : (
-        <>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[200px] flex-1">
-              <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2" />
-              <Input
+        // Every row in a scroll box, as before: a dialog list is read top to bottom, not paged.
+        <DataTable
+          columns={columns}
+          rows={flatItems}
+          rowKey={(it) => it.id}
+          maxHeight="max-h-[60vh]"
+          pageSize={false}
+          columnToggle={false}
+          itemLabel="deliverable"
+          toolbar={
+            <>
+              <TableSearch
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={setQuery}
                 placeholder="Search deliverable, project, person or reason"
-                className="h-8 pl-8 text-sm"
-                aria-label="Search this list"
+                label="Search this list"
               />
-            </div>
-            {showTabs ? (
-              <Select value={active} onValueChange={setTab}>
-                <SelectTrigger className="h-8 w-auto min-w-[160px] gap-1.5 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>All ({shownCount})</SelectItem>
-                  {groups.map((g) => (
-                    <SelectItem key={g.key} value={g.key}>
-                      {g.label} ({g.items.length})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
-            {people > 1 ? (
-              <Select value={groupBy} onValueChange={(v: string) => changeGroupBy(v as GroupBy)}>
-                <SelectTrigger className="h-8 w-auto min-w-[120px] gap-1.5 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {GROUP_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
-          </div>
-
-          <div className="-mx-1 max-h-[60vh] overflow-y-auto px-1">
-            {flatItems.length === 0 ? (
-              <p className="text-muted-foreground py-6 text-center text-sm">
-                Nothing matches &ldquo;{query.trim()}&rdquo;.
-              </p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-background sticky top-0 z-10">
-                  <tr className="text-muted-foreground text-[11px] tracking-wide uppercase">
-                    <th className="py-1.5 pr-3 text-left font-medium">Deliverable</th>
-                    <th className="py-1.5 pr-3 text-left font-medium">Project</th>
-                    <th className="py-1.5 pr-3 text-left font-medium whitespace-nowrap">
-                      Owned by
-                    </th>
-                    <th className="py-1.5 pr-3 text-left font-medium">Period</th>
-                    <th className="py-1.5 pr-3 text-left font-medium">Status</th>
-                    <th className="py-1.5 text-left font-medium">
-                      {finished ? "Completed on" : "Why"}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {flatItems.map((it) => (
-                    <tr key={it.id} className="border-border/60 border-b align-top">
-                      <td className="py-2 pr-3">
-                        <span className="text-muted-foreground">{it.type} · </span>
-                        {it.title}
-                        {it.quantity > 1 ? (
-                          <span className="text-muted-foreground"> ×{it.quantity}</span>
-                        ) : null}
-                      </td>
-                      <td className="py-2 pr-3 whitespace-nowrap">{it.project}</td>
-                      <td className="py-2 pr-3 whitespace-nowrap">{it.employee ?? "-"}</td>
-                      <td
-                        className={cn(
-                          "py-2 pr-3 whitespace-nowrap",
-                          !finished && it.overdue && "text-red-500",
-                        )}
-                      >
-                        {it.period}
-                      </td>
-                      <td className={cn("py-2 pr-3 whitespace-nowrap", STATUS_TONE[it.status])}>
-                        {DELIVERABLE_STATUS_LABELS[it.status]}
-                      </td>
-                      <td className="py-2">
-                        {finished ? (
-                          <span className="whitespace-nowrap">
-                            {it.completedOn ? formatDate(it.completedOn, "d MMM yyyy") : "-"}
-                            {it.late ? (
-                              <span className="ml-1.5 text-[11px] text-amber-500">late</span>
-                            ) : null}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">{it.why || "-"}</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {query.trim() && shownCount !== items.length ? (
-            <p className="text-muted-foreground text-xs">
-              {shownCount} of {items.length} match.
-            </p>
-          ) : null}
-        </>
+              {showTabs ? (
+                <TableViewMenu
+                  label={groupBy === "project" ? "Project" : "Person"}
+                  value={active}
+                  options={[
+                    { value: ALL, label: "All", count: shownCount },
+                    ...groups.map((g) => ({ value: g.key, label: g.label, count: g.items.length })),
+                  ]}
+                  onChange={setTab}
+                />
+              ) : null}
+              {people > 1 ? (
+                <Select value={groupBy} onValueChange={(v: string) => changeGroupBy(v as GroupBy)}>
+                  <SelectTrigger className="h-9 w-auto min-w-[130px] gap-1.5" aria-label="Group">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GROUP_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
+            </>
+          }
+          empty={<>Nothing matches &ldquo;{query.trim()}&rdquo;.</>}
+          footerNote={
+            query.trim() && shownCount !== items.length
+              ? `${shownCount} of ${items.length} match.`
+              : undefined
+          }
+        />
       )}
     </>
   )

@@ -393,6 +393,78 @@ export function renderRequirementEmail(input: {
   return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
 }
 
+/** "You're now the owner of …": a project service (and its calendar), or one calendar. */
+export function renderOwnerAssignedEmail(input: {
+  recipientFirstName: string
+  assignedByName: string
+  projectName: string
+  /** Set for a service: "Social Media". */
+  serviceName?: string | null
+  /** The calendar they now run, e.g. "Social Media Calendar". */
+  calendarName?: string | null
+  url?: string
+}): { subject: string; html: string; text: string } {
+  const { recipientFirstName, assignedByName, projectName, serviceName, calendarName, url } = input
+  const what = serviceName ?? calendarName ?? "a calendar"
+  const subject = `You're the owner of ${what} - ${projectName}`
+  const para = "margin:0 0 16px; font-size:15px; line-height:1.7; color:#374151;"
+  const duty = serviceName
+    ? "You answer for this service on the project and run its calendar each month: planning it, keeping it filled in and seeing the work through."
+    : "You answer for this calendar: planning it, keeping it filled in and seeing the work through."
+
+  const body = `
+    <h1 style="margin:0 0 14px; font-size:20px; font-weight:600; color:#111827;">You have a new responsibility</h1>
+
+    <p style="margin:0 0 18px; font-size:15px; color:#111827;">Hi ${escapeHtml(recipientFirstName)},</p>
+
+    <p style="${para}">
+      <strong style="color:#111827;">${escapeHtml(assignedByName)}</strong> has made you the owner of
+      <strong style="color:#111827;">${escapeHtml(what)}</strong> on
+      <strong style="color:#111827;">${escapeHtml(projectName)}</strong>.
+    </p>
+
+    <p style="${para}">${duty}</p>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+      ${detailRow("Project", escapeHtml(projectName))}
+      ${serviceName ? detailRow("Service", escapeHtml(serviceName)) : ""}
+      ${calendarName ? detailRow("Calendar", escapeHtml(calendarName)) : ""}
+      ${detailRow("Assigned by", escapeHtml(assignedByName))}
+    </table>
+
+    ${
+      url
+        ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 0;">
+             <tr><td style="border-radius:4px; background:#171717;">
+               <a href="${url}" style="display:inline-block; padding:12px 24px; font-size:14px; font-weight:600; color:#ffffff; text-decoration:none;">
+                 Open in ${BRAND_NAME}
+               </a>
+             </td></tr>
+           </table>`
+        : ""
+    }`
+
+  const text = [
+    "You have a new responsibility",
+    "",
+    `Hi ${recipientFirstName},`,
+    "",
+    `${assignedByName} has made you the owner of ${what} on ${projectName}.`,
+    duty,
+    "",
+    `Project: ${projectName}`,
+    serviceName ? `Service: ${serviceName}` : "",
+    calendarName ? `Calendar: ${calendarName}` : "",
+    url ? `\n${url}` : "",
+    "",
+    `- ${BRAND_NAME}`,
+  ]
+    .filter(Boolean)
+    .join("\n")
+
+  return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
+}
+
 /** Mirrors the staff Gmail signature. Company bits come from app settings; blank socials are omitted. */
 export function renderSignature(input: {
   name: string

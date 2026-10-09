@@ -147,8 +147,8 @@ export const projectMailerGuide: HelpGuide = {
         },
         {
           text: {
-            en: "The tag buttons at the top show each group and how many people are in it - click one to see only them. Turn off someone's Subscribed switch to stop sending to them without deleting them.",
-            hi: "ऊपर के टैग बटन हर ग्रुप और उसमें कितने लोग हैं, ये दिखाते हैं - सिर्फ उन्हें देखने के लिए किसी पर क्लिक करें। किसी को डिलीट किए बिना मेल भेजना बंद करना हो, तो उसका Subscribed स्विच बंद कर दें।",
+            en: "The All menu at the top left of the list shows each tag and how many people have it - pick one to see only them. Turn off someone's Subscribed switch to stop sending to them without deleting them.",
+            hi: "लिस्ट के ऊपर बाईं ओर All मेन्यू हर टैग और उसमें कितने लोग हैं, ये दिखाता है - सिर्फ उन्हें देखने के लिए कोई टैग चुनें। किसी को डिलीट किए बिना मेल भेजना बंद करना हो, तो उसका Subscribed स्विच बंद कर दें।",
           },
         },
       ],

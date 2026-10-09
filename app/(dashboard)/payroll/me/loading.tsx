@@ -1,12 +1,10 @@
-import { PageHeaderSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
+import { DataTableSkeleton, PageHeaderSkeleton } from "@/components/shared/loading-skeleton"
 
-export default function Loading() {
+export default function MyPayslipsLoading() {
   return (
     <div className="space-y-6">
       <PageHeaderSkeleton />
-      <div className="border-border bg-card rounded-sm border">
-        <TableSkeleton rows={8} cols={8} />
-      </div>
+      <DataTableSkeleton cols={8} rows={8} />
     </div>
   )
 }

@@ -248,6 +248,7 @@ export default function NotificationsPage() {
           total={meta.total}
           onPageChange={setPage}
           itemLabel="notification"
+          pageSize={meta.limit}
         />
       )}
 

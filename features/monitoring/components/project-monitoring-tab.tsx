@@ -29,6 +29,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import {
   Dialog,
   DialogContent,
@@ -439,6 +440,93 @@ function RenewalsSection({
     onError: (e: Error) => toast.error(e.message),
   })
 
+  const ownerName = (a: Asset) => (a.owner ? `${a.owner.firstName} ${a.owner.lastName}` : null)
+  const columns: DataTableColumn<Asset>[] = [
+    {
+      header: "Asset",
+      sortValue: (a) => a.name,
+      cell: (a) => (
+        <>
+          <p className="font-medium">{a.name}</p>
+          <p className="text-muted-foreground text-[11px]">
+            {ASSET_KIND_LABELS[a.kind]}
+            {a.provider ? ` · ${a.provider}` : ""}
+          </p>
+        </>
+      ),
+    },
+    // Hidden: the Asset cell already shows them, but a spreadsheet wants their own columns.
+    {
+      header: "Type",
+      defaultHidden: true,
+      sortValue: (a) => ASSET_KIND_LABELS[a.kind],
+      cell: (a) => ASSET_KIND_LABELS[a.kind],
+    },
+    {
+      header: "Provider",
+      defaultHidden: true,
+      sortValue: (a) => a.provider,
+      cell: (a) => a.provider ?? "-",
+    },
+    {
+      header: "Expires",
+      sortValue: (a) => a.expiresAt,
+      exportValue: (a) => a.expiresAt.slice(0, 10),
+      cell: (a) => {
+        const days = daysUntil(a.expiresAt)
+        return (
+          <>
+            <span className={cn("text-xs", expiryTone(days))}>{expiryLabel(days)}</span>
+            <p className="text-muted-foreground text-[11px]">
+              {new Date(a.expiresAt).toDateString()}
+            </p>
+          </>
+        )
+      },
+    },
+    {
+      header: "Auto",
+      sortValue: (a) => (a.autoRenew ? "On" : "Off"),
+      cell: (a) => (
+        <Badge variant={a.autoRenew ? "secondary" : "outline"} className="text-[10px]">
+          {a.autoRenew ? "On" : "Off"}
+        </Badge>
+      ),
+    },
+    {
+      header: "Owner",
+      className: "text-xs",
+      sortValue: ownerName,
+      exportValue: (a) => ownerName(a) ?? "Unassigned",
+      cell: (a) => ownerName(a) ?? <span className="text-destructive">Unassigned</span>,
+    },
+    {
+      header: "Actions",
+      align: "right",
+      cell: (a) => (
+        <div className="flex items-center justify-end gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`Edit ${a.name}`}
+            onClick={() => setEditing(a)}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-destructive"
+            aria-label={`Remove ${a.name}`}
+            onClick={() => setRemoving(a)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -467,77 +555,14 @@ function RenewalsSection({
       )}
 
       {assets.length > 0 && (
-        <div className="overflow-x-auto rounded-sm border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2.5 text-left text-xs font-medium">Asset</th>
-                <th className="px-3 py-2.5 text-left text-xs font-medium">Expires</th>
-                <th className="px-3 py-2.5 text-left text-xs font-medium">Auto</th>
-                <th className="px-3 py-2.5 text-left text-xs font-medium">Owner</th>
-                <th className="px-3 py-2.5 text-right text-xs font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assets.map((a) => {
-                const days = daysUntil(a.expiresAt)
-                return (
-                  <tr key={a.id} className="border-t">
-                    <td className="px-3 py-2.5">
-                      <p className="font-medium">{a.name}</p>
-                      <p className="text-muted-foreground text-[11px]">
-                        {ASSET_KIND_LABELS[a.kind]}
-                        {a.provider ? ` · ${a.provider}` : ""}
-                      </p>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className={cn("text-xs", expiryTone(days))}>{expiryLabel(days)}</span>
-                      <p className="text-muted-foreground text-[11px]">
-                        {new Date(a.expiresAt).toDateString()}
-                      </p>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <Badge
-                        variant={a.autoRenew ? "secondary" : "outline"}
-                        className="text-[10px]"
-                      >
-                        {a.autoRenew ? "On" : "Off"}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-2.5 text-xs">
-                      {a.owner ? (
-                        `${a.owner.firstName} ${a.owner.lastName}`
-                      ) : (
-                        <span className="text-destructive">Unassigned</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <div className="flex items-center justify-end gap-0.5">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Edit ${a.name}`}
-                          onClick={() => setEditing(a)}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-destructive"
-                          aria-label={`Remove ${a.name}`}
-                          onClick={() => setRemoving(a)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          tableId="project-renewals"
+          exportName="renewals"
+          itemLabel="renewal"
+          columns={columns}
+          rows={assets}
+          rowKey={(a) => a.id}
+        />
       )}
 
       <AssetDialog

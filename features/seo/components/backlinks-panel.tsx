@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/select"
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatCardsSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
-import type { BacklinkSummaryView } from "../types"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import type { BacklinkSummaryView, ReferringDomainView } from "../types"
 import { useBacklinks, useImportBacklinks } from "../hooks/use-seo"
 import { exportBacklinks } from "../lib/seo-export"
 
@@ -163,62 +164,72 @@ export function BacklinksPanel({
             />
           </div>
 
-          <Card>
-            <CardContent className="p-0">
-              <div className="border-border border-b px-4 py-3">
+          <DataTable
+            tableId="seo-referring-domains"
+            itemLabel="domain"
+            columns={DOMAIN_COLUMNS}
+            rows={data!.domains}
+            rowKey={(d) => d.domain}
+            columnToggle={false}
+            toolbar={
+              <div className="min-w-0">
                 <p className="text-sm font-medium">Referring domains</p>
                 <p className="text-muted-foreground text-xs">
                   Highest authority first. These are your outreach relationships worth protecting.
                 </p>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-muted-foreground border-border border-b text-xs">
-                    <tr>
-                      <th className="px-4 py-2 text-left font-medium">Domain</th>
-                      <th className="px-4 py-2 text-right font-medium">Links</th>
-                      <th className="px-4 py-2 text-right font-medium">DR</th>
-                      <th className="px-4 py-2 text-right font-medium">First seen</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data!.domains.map((d) => (
-                      <tr key={d.domain} className="border-border/60 border-b last:border-0">
-                        <td className="px-4 py-2">
-                          <a
-                            href={`https://${d.domain}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-medium hover:underline"
-                          >
-                            {d.domain}
-                          </a>
-                        </td>
-                        <td className="px-4 py-2 text-right tabular-nums">{num(d.links)}</td>
-                        <td className="px-4 py-2 text-right tabular-nums">
-                          {d.domainRating !== null ? (
-                            <Badge variant="outline" className="text-[10px]">
-                              {d.domainRating}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </td>
-                        <td className="text-muted-foreground px-4 py-2 text-right text-xs">
-                          {new Date(d.firstSeen).toLocaleDateString("en-IN")}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+            }
+          />
         </>
       )}
     </div>
   )
 }
+
+const DOMAIN_COLUMNS: DataTableColumn<ReferringDomainView>[] = [
+  {
+    header: "Domain",
+    sortValue: (d) => d.domain,
+    cell: (d) => (
+      <a
+        href={`https://${d.domain}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium hover:underline"
+      >
+        {d.domain}
+      </a>
+    ),
+  },
+  {
+    header: "Links",
+    align: "right",
+    className: "tabular-nums",
+    sortValue: (d) => d.links,
+    cell: (d) => num(d.links),
+  },
+  {
+    header: "DR",
+    align: "right",
+    className: "tabular-nums",
+    sortValue: (d) => d.domainRating,
+    cell: (d) =>
+      d.domainRating !== null ? (
+        <Badge variant="outline" className="text-[10px]">
+          {d.domainRating}
+        </Badge>
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      ),
+  },
+  {
+    header: "First seen",
+    align: "right",
+    className: "text-muted-foreground text-xs",
+    sortValue: (d) => d.firstSeen,
+    cell: (d) => new Date(d.firstSeen).toLocaleDateString("en-IN"),
+  },
+]
 
 function Stat({
   label,

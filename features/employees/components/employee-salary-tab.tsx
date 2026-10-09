@@ -73,7 +73,8 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
   const columns: DataTableColumn<PayrollRecord>[] = [
     {
       header: "Period",
-      className: "font-medium whitespace-nowrap",
+      className: "font-medium",
+      sortValue: (p) => p.year * 12 + p.month,
       cell: (p) => (
         <>
           {MONTH_LABELS[p.month - 1]} {p.year}
@@ -95,18 +96,21 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
       header: "Gross",
       align: "right",
       className: "font-medium",
+      sortValue: (p) => p.grossSalary,
       cell: (p) => fmt(p.grossSalary),
     },
     {
       header: "Deductions",
       align: "right",
       className: "text-red-600",
+      sortValue: (p) => p.totalDeductions,
       cell: (p) => `-${fmt(p.totalDeductions)}`,
     },
     {
       header: "Net",
       align: "right",
       className: "font-semibold",
+      sortValue: (p) => p.netSalary,
       cell: (p) => fmt(p.netSalary),
     },
     {
@@ -231,7 +235,14 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
         ) : payslips.length === 0 ? (
           <EmptyState compact title="No payslips generated yet." />
         ) : (
-          <DataTable columns={columns} rows={payslips} rowKey={(p) => p.id} showSerial />
+          <DataTable
+            columns={columns}
+            rows={payslips}
+            rowKey={(p) => p.id}
+            showSerial
+            itemLabel="payslip"
+            columnToggle={false}
+          />
         )}
       </div>
     </div>

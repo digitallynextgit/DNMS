@@ -7,14 +7,14 @@
 
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
-import { CheckCircle2, XCircle, Search, Download, Info } from "lucide-react"
+import { CheckCircle2, XCircle, Download, Info } from "lucide-react"
 
 import { apiFetch } from "@/lib/api-fetch"
 import { cn } from "@/lib/utils"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { TableSearch } from "@/components/shared/table-search"
+import { TableViewMenu } from "@/components/shared/table-view-menu"
 import {
   Dialog,
   DialogContent,
@@ -40,6 +40,66 @@ const STATUS_LABEL: Record<Send["status"], string> = {
   PENDING: "Waiting",
   SENDING: "Sending",
 }
+
+const COLUMNS: DataTableColumn<Send>[] = [
+  {
+    header: "Email",
+    sortValue: (s) => s.email,
+    className: "max-w-[280px] truncate",
+    cell: (s) => <span title={s.email}>{s.email}</span>,
+  },
+  {
+    header: "Name",
+    sortValue: (s) => s.name,
+    className: "text-muted-foreground",
+    cell: (s) => s.name ?? "-",
+  },
+  {
+    header: "Outcome",
+    sortValue: (s) => STATUS_LABEL[s.status],
+    cell: (s) => (
+      <>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1",
+            s.status === "SENT" && "text-emerald-600 dark:text-emerald-400",
+            s.status === "FAILED" && "text-destructive",
+          )}
+        >
+          {s.status === "SENT" ? (
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          ) : s.status === "FAILED" ? (
+            <XCircle className="h-3.5 w-3.5" />
+          ) : null}
+          {STATUS_LABEL[s.status]}
+        </span>
+        {s.error && (
+          <p className="text-destructive mt-0.5 max-w-[280px] truncate text-[10px]" title={s.error}>
+            {s.error}
+          </p>
+        )}
+      </>
+    ),
+  },
+  {
+    header: "When",
+    sortValue: (s) => s.sentAt,
+    className: "text-muted-foreground",
+    cell: (s) =>
+      s.sentAt ? (
+        <span suppressHydrationWarning>
+          {new Date(s.sentAt).toLocaleString(undefined, {
+            day: "numeric",
+            month: "short",
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+        </span>
+      ) : (
+        "-"
+      ),
+  },
+]
 
 export function CampaignHistoryDialog({
   base,
@@ -95,6 +155,15 @@ export function CampaignHistoryDialog({
     })
   }, [sends, search, filter])
 
+  const outcomes: { value: Filter; label: string; count: number }[] = [
+    { value: "all", label: "All", count: counts.total },
+    { value: "sent", label: "Accepted", count: counts.sent },
+    { value: "failed", label: "Rejected", count: counts.failed },
+    ...(counts.pending > 0
+      ? [{ value: "pending" as const, label: "Waiting", count: counts.pending }]
+      : []),
+  ]
+
   /** Exports what's currently filtered - usually "the ones that failed". */
   function exportCsv() {
     const header = "email,name,status,error,sent_at\n"
@@ -138,129 +207,47 @@ export function CampaignHistoryDialog({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {(
-            [
-              { key: "all", label: "All", n: counts.total },
-              { key: "sent", label: "Accepted", n: counts.sent },
-              { key: "failed", label: "Rejected", n: counts.failed },
-              ...(counts.pending > 0
-                ? [{ key: "pending" as const, label: "Waiting", n: counts.pending }]
-                : []),
-            ] as { key: Filter; label: string; n: number }[]
-          ).map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => setFilter(f.key)}
-              aria-pressed={filter === f.key}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-[11px] transition-colors",
-                filter === f.key
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "hover:bg-muted text-muted-foreground",
-              )}
+        <DataTable
+          tableId="campaign-sends"
+          itemLabel="recipient"
+          columns={COLUMNS}
+          rows={rows}
+          rowKey={(s) => s.id}
+          loading={isPending}
+          skeletonRows={5}
+          columnToggle={false}
+          maxHeight="max-h-[50vh]"
+          pageKey={`${campaign?.id}|${filter}|${search.trim()}`}
+          toolbar={
+            <>
+              <TableViewMenu
+                label="Outcome"
+                value={filter}
+                options={outcomes}
+                onChange={setFilter}
+              />
+              <TableSearch value={search} onChange={setSearch} placeholder="Search name or email" />
+            </>
+          }
+          // Its own CSV: separate status and error columns, named after the campaign and view.
+          toolbarEnd={
+            <Button
+              className="gap-1.5"
+              variant="outline"
+              disabled={rows.length === 0}
+              onClick={exportCsv}
             >
-              <span className="font-medium">{f.label}</span>
-              <span className="tabular-nums opacity-70">{f.n}</span>
-            </button>
-          ))}
-
-          <div className="relative ml-auto">
-            <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search"
-              aria-label="Search"
-              className="h-8 w-40 pl-7 text-xs"
-            />
-          </div>
-          <Button
-            className="gap-1.5"
-            variant="outline"
-            disabled={rows.length === 0}
-            onClick={exportCsv}
-          >
-            <Download className="h-3.5 w-3.5" />
-            CSV
-          </Button>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-sm border">
-          {isPending ? (
-            <div className="space-y-1 p-2">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-9 rounded-sm" />
-              ))}
-            </div>
-          ) : rows.length === 0 ? (
-            <p className="text-muted-foreground p-4 text-center text-xs">
-              Nothing matches that filter.
-            </p>
-          ) : (
-            <table className="w-full text-xs">
-              <thead className="bg-muted/50 text-muted-foreground sticky top-0">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium">Email</th>
-                  <th className="px-3 py-2 text-left font-medium">Name</th>
-                  <th className="px-3 py-2 text-left font-medium">Outcome</th>
-                  <th className="px-3 py-2 text-left font-medium">When</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((s) => (
-                  <tr key={s.id} className="border-t">
-                    <td className="px-3 py-2">{s.email}</td>
-                    <td className="text-muted-foreground px-3 py-2">{s.name ?? "-"}</td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1",
-                          s.status === "SENT" && "text-emerald-600 dark:text-emerald-400",
-                          s.status === "FAILED" && "text-destructive",
-                        )}
-                      >
-                        {s.status === "SENT" ? (
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                        ) : s.status === "FAILED" ? (
-                          <XCircle className="h-3.5 w-3.5" />
-                        ) : null}
-                        {STATUS_LABEL[s.status]}
-                      </span>
-                      {s.error && (
-                        <p className="text-destructive mt-0.5 text-[10px] break-words">{s.error}</p>
-                      )}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2 whitespace-nowrap">
-                      {s.sentAt ? (
-                        <span suppressHydrationWarning>
-                          {new Date(s.sentAt).toLocaleString(undefined, {
-                            day: "numeric",
-                            month: "short",
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {sends.length >= 1000 && (
-          <p className="text-muted-foreground text-[11px]">
-            Showing the first 1,000 recipients of this campaign.
-          </p>
-        )}
-        <Badge variant="outline" className="w-fit text-[10px]">
-          {rows.length} shown
-        </Badge>
+              <Download className="h-3.5 w-3.5" />
+              CSV
+            </Button>
+          }
+          empty="Nothing matches that filter."
+          footerNote={
+            sends.length >= 1000
+              ? "Showing the first 1,000 recipients of this campaign."
+              : undefined
+          }
+        />
       </DialogContent>
     </Dialog>
   )

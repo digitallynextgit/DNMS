@@ -9,6 +9,7 @@ import { DEMO_EMAIL_DOMAIN } from "@/lib/demo"
 import { slugify } from "@/lib/utils"
 import { DEMO_PROJECTS, demoPerson } from "@/features/help/demo/dataset"
 import { PROJECT_TEAMS, type ProjectTeamName } from "@/features/projects/lib/project-teams"
+import { ensureServiceCalendars } from "@/features/projects/server/service-calendars"
 import {
   addDays,
   at,
@@ -105,6 +106,7 @@ const teamId = (ctx: DemoContext, project: string, team: string) => {
 async function seedProjectsAndTeams(ctx: DemoContext): Promise<void> {
   const activity: Record<string, unknown>[] = []
   let members = 0
+  let owners = 0
   for (const [i, p] of DEMO_PROJECTS.entries()) {
     const d = DETAILS[p.key]!
     const start = addDays(ctx.today, -d.startDaysAgo)
@@ -112,6 +114,8 @@ async function seedProjectsAndTeams(ctx: DemoContext): Promise<void> {
     const projectId = await make(ctx, "project", {
       name: p.name,
       code: `DN${String(i + 1).padStart(5, "0")}`,
+      shortName: p.shortName,
+      services: [...p.services],
       slug: slugify(p.name),
       description: d.description,
       status: p.status,
@@ -160,6 +164,17 @@ async function seedProjectsAndTeams(ctx: DemoContext): Promise<void> {
       }
     }
   }
+  for (const p of DEMO_PROJECTS) {
+    owners += await makeMany(
+      ctx,
+      "projectServiceOwner",
+      Object.entries(p.serviceOwners).map(([service, who]) => ({
+        projectId: ctx.project[p.key],
+        service,
+        employeeId: idOf(ctx, who),
+      })),
+    )
+  }
   await makeMany(ctx, "projectActivity", activity)
   ctx.summary.add(M, "projects", DEMO_PROJECTS.length)
   ctx.summary.add(
@@ -168,6 +183,7 @@ async function seedProjectsAndTeams(ctx: DemoContext): Promise<void> {
     DEMO_PROJECTS.length * PROJECT_TEAMS.length,
   )
   ctx.summary.add(M, "team memberships", members)
+  ctx.summary.add(M, "service owners", owners)
 }
 
 async function seedBrandFilesVault(ctx: DemoContext): Promise<void> {
@@ -2062,6 +2078,16 @@ async function seedMailer(ctx: DemoContext): Promise<void> {
   ctx.summary.add(M, "  recipients", recipients.length)
 }
 
+/** Each ticked service's calendar, made the way the app makes them. Sunmeadow's hand-made
+ * "Content calendar" stays unlinked, like the calendars teams made before services had their own. */
+async function seedServiceCalendars(ctx: DemoContext): Promise<void> {
+  let made = 0
+  for (const p of DEMO_PROJECTS) {
+    made += await ensureServiceCalendars(ctx.project[p.key]!, idOf(ctx, p.accountManager))
+  }
+  ctx.summary.add(M, "service calendars", made)
+}
+
 export async function seedProjects(ctx: DemoContext): Promise<void> {
   await seedProjectsAndTeams(ctx)
   await seedBrandFilesVault(ctx)
@@ -2069,6 +2095,7 @@ export async function seedProjects(ctx: DemoContext): Promise<void> {
   await seedGoals(ctx)
   await seedDeliverables(ctx)
   await seedCalendars(ctx)
+  await seedServiceCalendars(ctx)
   await seedMonitoring(ctx)
   await seedInsights(ctx)
   await seedSeo(ctx)

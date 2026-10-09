@@ -5,26 +5,18 @@ import { useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { apiFetch } from "@/lib/api-fetch"
 import { useUrlPage, useUrlState } from "@/hooks/use-url-state"
+import { useDebounce } from "@/hooks/use-debounce"
 // lucide has no brand glyphs (no Linkedin), so LinkedIn/portfolio use generic icons.
-import {
-  Mail,
-  Phone,
-  Briefcase,
-  Globe,
-  FileText,
-  ExternalLink,
-  Search,
-  Users,
-  Trash2,
-} from "lucide-react"
+import { Mail, Phone, Briefcase, Globe, FileText, ExternalLink, Users, Trash2 } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { TableSearch } from "@/components/shared/table-search"
+import { TableViewMenu } from "@/components/shared/table-view-menu"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -73,6 +65,8 @@ export default function CareerApplicationsPage() {
   const [status, setStatus] = useUrlState("status", "all")
   const [mode, setMode] = useUrlState("mode", "all")
   const [q, setQ] = useState("")
+  // Debounced: every keystroke would otherwise be a server request.
+  const search = useDebounce(q.trim())
   const [selected, setSelected] = useState<CareerApplication | null>(null)
   const [toDelete, setToDelete] = useState<CareerApplication | null>(null)
 
@@ -84,10 +78,11 @@ export default function CareerApplicationsPage() {
     roles.includes(SYSTEM_ROLES.ADMIN_) ||
     roles.includes(SYSTEM_ROLES.HR_MANAGER)
 
-  const { data, isLoading } = useCareerApplications({ page, status, mode, q })
+  const { data, isLoading } = useCareerApplications({ page, status, mode, q: search })
   const del = useDeleteApplication()
   const rows = data?.data ?? []
   const meta = data?.meta
+  const filtered = !!q || status !== "all" || mode !== "all"
 
   // Deep link from the "new application" notification (?id=...) opens that application.
   const deepLinkId = useSearchParams().get("id")
@@ -109,6 +104,7 @@ export default function CareerApplicationsPage() {
   const columns: DataTableColumn<CareerApplication>[] = [
     {
       header: "Applicant",
+      exportValue: (a) => a.fullName,
       cell: (a) => {
         const [first = "", ...rest] = a.fullName.split(" ")
         return (
@@ -119,25 +115,45 @@ export default function CareerApplicationsPage() {
               size="sm"
               className="shrink-0"
             />
-            <div className="min-w-0">
+            <div className="max-w-[240px] min-w-0">
               <p className="truncate text-sm font-medium">{a.fullName}</p>
-              <p className="text-muted-foreground truncate text-xs">{a.email}</p>
+              <p className="text-muted-foreground truncate text-xs" title={a.email}>
+                {a.email}
+              </p>
             </div>
           </div>
         )
       },
     },
     {
+      header: "Email",
+      defaultHidden: true,
+      exportValue: (a) => a.email,
+      cell: (a) => a.email,
+    },
+    {
+      header: "Phone",
+      defaultHidden: true,
+      exportValue: (a) => a.phone,
+      cell: (a) => a.phone,
+    },
+    {
       header: "Role",
-      cell: (a) => (
-        <div className="min-w-0">
-          <p className="truncate text-sm">{a.roleTitle}</p>
-          <p className="text-muted-foreground truncate text-xs">
-            {a.groupCode} · {a.mode === "INTERNSHIP" ? "Internship" : "Full-time"}
-            {a.opening ? ` · ${a.opening}` : ""}
-          </p>
-        </div>
-      ),
+      exportValue: (a) =>
+        `${a.roleTitle} (${a.mode === "INTERNSHIP" ? "Internship" : "Full-time"})`,
+      cell: (a) => {
+        const detail = `${a.groupCode} · ${a.mode === "INTERNSHIP" ? "Internship" : "Full-time"}${
+          a.opening ? ` · ${a.opening}` : ""
+        }`
+        return (
+          <div className="max-w-[280px] min-w-0">
+            <p className="truncate text-sm">{a.roleTitle}</p>
+            <p className="text-muted-foreground truncate text-xs" title={detail}>
+              {detail}
+            </p>
+          </div>
+        )
+      },
     },
     {
       header: "Flags",
@@ -162,12 +178,14 @@ export default function CareerApplicationsPage() {
     },
     {
       header: "Applied",
+      exportValue: (a) => a.submittedAt.slice(0, 10),
       cell: (a) => (
         <span className="text-muted-foreground text-xs">{formatRelativeTime(a.submittedAt)}</span>
       ),
     },
     {
       header: "Status",
+      exportValue: (a) => STATUS_LABELS[a.status] ?? a.status,
       cell: (a) => (
         <StatusBadge
           status={a.status}
@@ -214,59 +232,10 @@ export default function CareerApplicationsPage() {
         }
       />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-56 flex-1">
-          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
-          <Input
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value)
-              setPage(1)
-            }}
-            placeholder="Search name, email or role…"
-            aria-label="Search name, email or role"
-            className="pl-8"
-          />
-        </div>
-        <Select
-          value={status}
-          onValueChange={(v) => {
-            setStatus(v)
-            setPage(1)
-          }}
-        >
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {STATUS_LABELS[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={mode}
-          onValueChange={(v) => {
-            setMode(v)
-            setPage(1)
-          }}
-        >
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Mode" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All types</SelectItem>
-            <SelectItem value="FULL_TIME">Full-time</SelectItem>
-            <SelectItem value="INTERNSHIP">Internship</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {isLoading || rows.length > 0 ? (
+      {isLoading || rows.length > 0 || filtered ? (
         <DataTable
+          tableId="career-applications"
+          exportName="applications"
           columns={columns}
           rows={rows}
           rowKey={(a) => a.id}
@@ -274,6 +243,47 @@ export default function CareerApplicationsPage() {
           serialOffset={((meta?.page ?? 1) - 1) * (meta?.limit ?? 20)}
           minWidth="min-w-[860px]"
           loading={isLoading}
+          toolbar={
+            <>
+              <TableViewMenu
+                label="Status"
+                value={status}
+                options={[
+                  { value: "all", label: "All" },
+                  ...STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] ?? s })),
+                ]}
+                onChange={(v) => {
+                  setStatus(v)
+                  setPage(1)
+                }}
+              />
+              <TableSearch
+                value={q}
+                onChange={(v) => {
+                  setQ(v)
+                  setPage(1)
+                }}
+                placeholder="Search name, email or role…"
+                label="Search name, email or role"
+              />
+              <Select
+                value={mode}
+                onValueChange={(v) => {
+                  setMode(v)
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger className="h-9 w-36" aria-label="Type">
+                  <SelectValue placeholder="Mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All types</SelectItem>
+                  <SelectItem value="FULL_TIME">Full-time</SelectItem>
+                  <SelectItem value="INTERNSHIP">Internship</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          }
           pagination={
             meta
               ? {
@@ -282,9 +292,11 @@ export default function CareerApplicationsPage() {
                   total: meta.total,
                   onPageChange: setPage,
                   itemLabel: "application",
+                  pageSize: meta.limit,
                 }
               : undefined
           }
+          empty="No applications match these filters."
         />
       ) : (
         <EmptyState

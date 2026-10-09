@@ -17,6 +17,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -27,6 +28,7 @@ import {
   type MemberProgress,
   type ProgressBucket,
   type SeoSiteProgress,
+  type TeamProgress,
 } from "../hooks/use-projects"
 
 const num = (v: number) => v.toLocaleString("en-IN")
@@ -174,6 +176,65 @@ export function ProjectProgressDetail({
 
   const peakWeek = Math.max(1, ...trend.map((t) => Math.max(t.completed, t.due)))
 
+  const teamColumns: DataTableColumn<TeamProgress>[] = [
+    {
+      header: "Team",
+      sortValue: (t) => t.name,
+      cell: (t) => (
+        <>
+          <span className="font-medium">{t.name}</span>
+          {t.members > 0 && (
+            <span className="text-muted-foreground ml-1.5 text-xs">
+              {t.members} member{t.members === 1 ? "" : "s"}
+            </span>
+          )}
+        </>
+      ),
+    },
+    {
+      header: "Tasks",
+      align: "right",
+      sortValue: (t) => t.total,
+      className: "tabular-nums",
+      cell: (t) => t.total,
+    },
+    {
+      header: "Done",
+      align: "right",
+      sortValue: (t) => t.done,
+      className: "tabular-nums",
+      cell: (t) => t.done,
+    },
+    {
+      header: "Overdue",
+      align: "right",
+      sortValue: (t) => t.overdue,
+      className: "tabular-nums",
+      cell: (t) => (
+        <span className={cn(t.overdue > 0 && "font-medium text-red-600")}>{t.overdue}</span>
+      ),
+    },
+    {
+      header: "Completion",
+      align: "right",
+      sortValue: (t) => t.completionRate,
+      cell: (t) => <Rate value={t.completionRate} />,
+    },
+    {
+      header: "On time",
+      align: "right",
+      sortValue: (t) => t.onTimeRate,
+      cell: (t) => <Rate value={t.onTimeRate} />,
+    },
+    {
+      header: "Hours",
+      align: "right",
+      sortValue: (t) => t.loggedHours,
+      className: "text-muted-foreground text-xs tabular-nums",
+      cell: (t) => `${t.loggedHours} / ${t.estimatedHours}`,
+    },
+  ]
+
   // Grouped by each task's team, so someone on two teams shows under both with that team's share
   // only. Work with no team goes in a trailing bucket.
   type MemberRow = { member: MemberProgress; stats: MemberProgress["byTeam"][number] }
@@ -296,58 +357,16 @@ export function ProjectProgressDetail({
               Completion and punctuality per team on this project.
             </p>
           </div>
-          {byTeam.length === 0 ? (
-            <p className="text-muted-foreground p-6 text-center text-sm">No teams yet.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-muted-foreground border-border border-b text-xs">
-                  <tr>
-                    <th className="px-4 py-2 text-left font-medium">Team</th>
-                    <th className="px-4 py-2 text-right font-medium">Tasks</th>
-                    <th className="px-4 py-2 text-right font-medium">Done</th>
-                    <th className="px-4 py-2 text-right font-medium">Overdue</th>
-                    <th className="px-4 py-2 text-right font-medium">Completion</th>
-                    <th className="px-4 py-2 text-right font-medium">On time</th>
-                    <th className="px-4 py-2 text-right font-medium">Hours</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {byTeam.map((t) => (
-                    <tr key={t.id} className="border-border/60 border-b last:border-0">
-                      <td className="px-4 py-2">
-                        <span className="font-medium">{t.name}</span>
-                        {t.members > 0 && (
-                          <span className="text-muted-foreground ml-1.5 text-xs">
-                            {t.members} member{t.members === 1 ? "" : "s"}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2 text-right tabular-nums">{t.total}</td>
-                      <td className="px-4 py-2 text-right tabular-nums">{t.done}</td>
-                      <td
-                        className={cn(
-                          "px-4 py-2 text-right tabular-nums",
-                          t.overdue > 0 && "font-medium text-red-600",
-                        )}
-                      >
-                        {t.overdue}
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <Rate value={t.completionRate} />
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <Rate value={t.onTimeRate} />
-                      </td>
-                      <td className="text-muted-foreground px-4 py-2 text-right text-xs tabular-nums">
-                        {t.loggedHours} / {t.estimatedHours}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {/* Borderless: the card is the frame. The fixed set of teams, so one page. */}
+          <DataTable
+            className="rounded-none border-0"
+            columns={teamColumns}
+            rows={byTeam}
+            rowKey={(t) => t.id}
+            pageSize={false}
+            columnToggle={false}
+            empty="No teams yet."
+          />
         </CardContent>
       </Card>
 

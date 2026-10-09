@@ -103,8 +103,8 @@ export const designationsJobRolesGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Click the power button to deactivate one you no longer use, and again to activate it. To deactivate several, tick their boxes and click Deactivate in the bar that appears.",
-            hi: "जो designation अब इस्तेमाल नहीं होता, उसे deactivate करने के लिए पावर बटन पर क्लिक करें, और वापस activate करने के लिए दोबारा। कई एक साथ deactivate करने हों तो उनके बॉक्स टिक करें और नीचे आई बार में Deactivate पर क्लिक करें।",
+            en: "Click the power button to deactivate one you no longer use, and again to activate it. To deactivate several, tick their boxes and click Deactivate in the table's header row.",
+            hi: "जो designation अब इस्तेमाल नहीं होता, उसे deactivate करने के लिए पावर बटन पर क्लिक करें, और वापस activate करने के लिए दोबारा। कई एक साथ deactivate करने हों तो उनके बॉक्स टिक करें और टेबल की हेडर लाइन में Deactivate पर क्लिक करें।",
           },
         },
       ],

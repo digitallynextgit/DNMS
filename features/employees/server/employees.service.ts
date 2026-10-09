@@ -647,6 +647,7 @@ export async function deactivateEmployee(id: string): Promise<ActionResult<{ mes
     const [seats, teamsRun] = await db.$transaction([
       db.projectTeamMember.deleteMany({ where: { employeeId: id } }),
       db.projectTeam.updateMany({ where: { managerId: id }, data: { managerId: null } }),
+      db.projectServiceOwner.deleteMany({ where: { employeeId: id } }),
     ])
     const meta = await getAuditMeta()
     await createAuditLog(session, {

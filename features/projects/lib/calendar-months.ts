@@ -21,6 +21,17 @@ export const MONTH_LABELS = [
 
 export const NO_MONTH_LABEL = "No month"
 
+/** "2026-10": the month as it is in India, where the team plans. */
+export function currentPlanMonth(now = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+  })
+    .format(now)
+    .slice(0, 7)
+}
+
 export interface YearMonth {
   year: number
   /** 0-11, so it drops straight into MONTH_LABELS and <MonthNav>. */

@@ -25,6 +25,8 @@ import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { ClientCombobox } from "@/features/clients/components/client-combobox"
 import { ClientFormDialog } from "@/features/clients/components/client-form-dialog"
 import { ProjectLogoPicker } from "./project-logo-picker"
+import { ServicePicker } from "./service-chips"
+import { SHORT_NAME_MAX } from "../lib/project-services"
 import {
   PERMISSIONS,
   PROJECT_STAGE_LABELS,
@@ -35,6 +37,10 @@ import { IndianRupee, Plus } from "lucide-react"
 
 interface ProjectFormValues {
   name: string
+  /** Unique per company, e.g. "DN" or "H2S". */
+  shortName: string
+  /** Service codes (PROJECT_SERVICES). */
+  services: string[]
   code?: string // legacy, ignored on create (auto-generated)
   description: string
   status: string
@@ -55,6 +61,8 @@ const NO_STAGE = "__none__"
 
 const EMPTY_FORM: ProjectFormValues = {
   name: "",
+  shortName: "",
+  services: [],
   description: "",
   status: "PLANNING",
   priority: "MEDIUM",
@@ -166,13 +174,15 @@ export function ProjectFormDialog({
   })
 
   const isPending = create.isPending || update.isPending
-  const canSubmit = form.name.trim() && form.accountManagerId
+  const canSubmit = form.name.trim() && form.shortName.trim() && form.accountManagerId
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!canSubmit || isPending) return
     const payload: Record<string, unknown> = {
       name: form.name.trim(),
+      shortName: form.shortName.trim(),
+      services: form.services,
       description: form.description.trim() || null,
       status: form.status,
       priority: form.priority,
@@ -217,13 +227,31 @@ export function ProjectFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="project-name">Project Name *</Label>
-            <Input
-              id="project-name"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="e.g. Acme Website Redesign"
-            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_9rem]">
+              <div className="space-y-2">
+                <Label htmlFor="project-name">Project Name *</Label>
+                <Input
+                  id="project-name"
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Acme Website Redesign"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="project-short-name">Short name *</Label>
+                <Input
+                  id="project-short-name"
+                  value={form.shortName}
+                  maxLength={SHORT_NAME_MAX}
+                  onChange={(e) => setForm((f) => ({ ...f, shortName: e.target.value }))}
+                  placeholder="e.g. DN"
+                />
+              </div>
+            </div>
+            <p className="text-muted-foreground text-[11px]">
+              The short name is how the team refers to the project, like DN or H2S - no two projects
+              can share one.
+            </p>
             {mode === "create" && (
               <p className="text-muted-foreground text-[11px]">
                 A code <span className="font-mono font-medium">DN#####</span> will be auto-generated
@@ -277,6 +305,15 @@ export function ProjectFormDialog({
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               rows={2}
               placeholder="What is this project about?"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Services</Label>
+            <p className="text-muted-foreground text-xs">What we do for this project.</p>
+            <ServicePicker
+              value={form.services}
+              onChange={(services) => setForm((f) => ({ ...f, services }))}
             />
           </div>
 

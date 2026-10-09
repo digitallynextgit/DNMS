@@ -25,7 +25,6 @@ import { exportToCsv } from "@/lib/export-csv"
 import { exportToXlsx } from "@/lib/export-xlsx"
 import { exportToDocx } from "@/lib/export-docx"
 import { useRowSelection } from "@/hooks/use-row-selection"
-import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import {
   ALLOWED_FILE_TYPES,
   ALLOWED_FILE_EXTENSIONS,
@@ -150,6 +149,9 @@ const EXPORT_COLUMNS = [
 ] as const
 
 const todayYmd = () => new Date().toISOString().slice(0, 10)
+
+/** Lifecycle order, so a sorted Status column reads To do → Discarded. */
+const STATUS_ORDER = Object.keys(DELIVERABLE_STATUS_LABELS)
 
 /** Asked of the shared transition table, so the dialog and the server always agree. */
 const transitionNeedsReason = (from: DeliverableStatus, to: DeliverableStatus): boolean => {
@@ -628,7 +630,7 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
         )}
         {item.statusReason && (
           <p
-            className="text-muted-foreground max-w-[12rem] text-[11px] leading-snug"
+            className="text-muted-foreground max-w-[12rem] text-[11px] leading-snug whitespace-normal"
             title={item.statusReason}
           >
             {item.statusReason}
@@ -708,6 +710,7 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
   const columns: DataTableColumn<PlanItem>[] = [
     {
       header: "Item",
+      sortValue: (r) => r.title,
       cell: (r) => (
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -718,46 +721,51 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
               </span>
             )}
           </div>
+          {/* The client's own words, shown in full: wrap inside the column, don't run on. */}
           {r.yourBrief && (
-            <p className="text-muted-foreground max-w-[20rem] border-l-2 pl-2 text-xs">
+            <p className="text-muted-foreground max-w-[20rem] border-l-2 pl-2 text-xs whitespace-normal">
               {r.yourBrief}
             </p>
           )}
           {r.status === "ACCEPTED" && r.acceptanceNote && (
-            <p className="max-w-[20rem] rounded-sm bg-emerald-500/10 px-2 py-1 text-xs">
+            <p className="max-w-[20rem] rounded-sm bg-emerald-500/10 px-2 py-1 text-xs whitespace-normal">
               {r.acceptanceNote}
             </p>
           )}
         </div>
       ),
     },
-    { header: "Kind", cell: (r) => <span className="text-xs">{r.type}</span> },
+    {
+      header: "Kind",
+      sortValue: (r) => r.type,
+      cell: (r) => <span className="text-xs">{r.type}</span>,
+    },
     {
       header: "Planned for",
-      cell: (r) => (
-        <span className="text-xs whitespace-nowrap">{periodLabel(r.periodStart, r.periodEnd)}</span>
-      ),
+      sortValue: (r) => r.periodStart,
+      cell: (r) => <span className="text-xs">{periodLabel(r.periodStart, r.periodEnd)}</span>,
     },
     {
       header: "Due",
+      sortValue: (r) => r.dueOn,
       cell: (r) => (
         // Same date format as "Planned for" beside it.
-        <span className="text-xs whitespace-nowrap">
-          {r.dueOn ? formatDate(r.dueOn, "d MMM yyyy") : "—"}
-        </span>
+        <span className="text-xs">{r.dueOn ? formatDate(r.dueOn, "d MMM yyyy") : "—"}</span>
       ),
     },
     {
       header: "Made",
       align: "right",
+      sortValue: (r) => r.deliveredQuantity,
       cell: (r) => (
-        <span className="text-xs whitespace-nowrap">
+        <span className="text-xs">
           {r.deliveredQuantity} of {r.quantity}
         </span>
       ),
     },
     {
       header: "Status",
+      sortValue: (r) => STATUS_ORDER.indexOf(r.status),
       cell: (r) => <StatusCell item={r} />,
     },
     { header: "Assets", cell: (r) => <Assets item={r} /> },
@@ -827,70 +835,6 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
         />
       )}
 
-      {items.length > 0 && (
-        <BulkActionBar count={selection.count} onClear={selection.clear}>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                className="gap-1.5"
-                disabled={exporting || items.length === 0}
-              >
-                <Download className="h-3.5 w-3.5" />
-                Export
-                <ChevronDown className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuItem
-                onClick={() => void runExport("xlsx")}
-                className="flex-col items-start gap-0.5"
-              >
-                <span>Excel (.xlsx)</span>
-                <span className="text-muted-foreground text-[11px]">
-                  Header frozen, links wrapped
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => void runExport("csv")}
-                className="flex-col items-start gap-0.5"
-              >
-                <span>CSV</span>
-                <span className="text-muted-foreground text-[11px]">Opens anywhere</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => void runExport("docx")}
-                className="flex-col items-start gap-0.5"
-              >
-                <span>Word (.docx)</span>
-                <span className="text-muted-foreground text-[11px]">
-                  A table to read and annotate
-                </span>
-              </DropdownMenuItem>
-              <p className="text-muted-foreground border-t px-2 py-1.5 text-[11px]">
-                {selection.count > 0
-                  ? `${selection.count} selected row${selection.count === 1 ? "" : "s"}`
-                  : `All ${items.length} row${items.length === 1 ? "" : "s"}`}
-              </p>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button
-            variant="destructive"
-            className="gap-1.5"
-            disabled={removable.length === 0 || removeMany.isPending}
-            title={
-              removable.length === 0
-                ? "None of these can be withdrawn - they are the team's, or already underway"
-                : `Withdraw ${removable.length} of ${selection.count}`
-            }
-            onClick={() => setDeletingMany(true)}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Withdraw{removable.length !== selection.count && ` (${removable.length})`}
-          </Button>
-        </BulkActionBar>
-      )}
-
       {items.length === 0 ? (
         <EmptyState
           icon={CalendarRange}
@@ -900,11 +844,73 @@ export function PortalPlan({ projectRef }: { projectRef: string }) {
         />
       ) : (
         <DataTable
+          tableId="portal-plan"
+          itemLabel="item"
           columns={columns}
           rows={items}
           rowKey={(r) => r.id}
           showSerial
           selection={selection}
+          selectionActions={
+            <Button
+              variant="destructive"
+              className="gap-1.5"
+              disabled={removable.length === 0 || removeMany.isPending}
+              title={
+                removable.length === 0
+                  ? "None of these can be withdrawn - they are the team's, or already underway"
+                  : `Withdraw ${removable.length} of ${selection.count}`
+              }
+              onClick={() => setDeletingMany(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Withdraw{removable.length !== selection.count && ` (${removable.length})`}
+            </Button>
+          }
+          // Its own export, not the table's: it adds Word and the attached files' links.
+          toolbarEnd={
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-1.5" disabled={exporting}>
+                  <Download className="h-3.5 w-3.5" />
+                  Export
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuItem
+                  onClick={() => void runExport("xlsx")}
+                  className="flex-col items-start gap-0.5"
+                >
+                  <span>Excel (.xlsx)</span>
+                  <span className="text-muted-foreground text-[11px]">
+                    Header frozen, links wrapped
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => void runExport("csv")}
+                  className="flex-col items-start gap-0.5"
+                >
+                  <span>CSV</span>
+                  <span className="text-muted-foreground text-[11px]">Opens anywhere</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => void runExport("docx")}
+                  className="flex-col items-start gap-0.5"
+                >
+                  <span>Word (.docx)</span>
+                  <span className="text-muted-foreground text-[11px]">
+                    A table to read and annotate
+                  </span>
+                </DropdownMenuItem>
+                <p className="text-muted-foreground border-t px-2 py-1.5 text-[11px]">
+                  {selection.count > 0
+                    ? `${selection.count} selected row${selection.count === 1 ? "" : "s"}`
+                    : `All ${items.length} row${items.length === 1 ? "" : "s"}`}
+                </p>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          }
           minWidth="min-w-[1000px]"
           mobileCard={(r, i) => (
             <div className="space-y-2 p-3">

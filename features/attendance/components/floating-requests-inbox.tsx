@@ -9,10 +9,8 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
-import { Pagination } from "@/components/shared/pagination"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { RejectReasonDialog } from "@/components/shared/reject-reason-dialog"
-import { useUrlPage } from "@/hooks/use-url-state"
 import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 import { formatDate } from "@/lib/utils"
 
@@ -32,8 +30,6 @@ export interface FloatingRequest {
   }
   holiday: { id: string; name: string; date: string }
 }
-
-const PAGE_SIZE = 10
 
 async function fetchFloatingRequests(status: string): Promise<{ data: FloatingRequest[] }> {
   const res = await fetch(`/api/attendance/floating-holidays/requests?status=${status}&limit=100`)
@@ -61,7 +57,6 @@ async function reviewFloatingRequest(
 export function FloatingRequestsInbox() {
   const qc = useQueryClient()
   const [rejectId, setRejectId] = useState<string | null>(null)
-  const [page, setPage] = useUrlPage("reqPage")
 
   const { data, isLoading } = useQuery({
     queryKey: ["floating-holiday-requests", "PENDING"],
@@ -84,6 +79,7 @@ export function FloatingRequestsInbox() {
   const columns: DataTableColumn<FloatingRequest>[] = [
     {
       header: "Employee",
+      sortValue: (r) => `${r.employee.firstName} ${r.employee.lastName}`.trim(),
       cell: (r) => (
         <div className="flex items-center gap-2">
           <AvatarDisplay
@@ -101,16 +97,17 @@ export function FloatingRequestsInbox() {
         </div>
       ),
     },
-    { header: "Holiday", cell: (r) => r.holiday.name },
+    { header: "Holiday", sortValue: (r) => r.holiday.name, cell: (r) => r.holiday.name },
     {
       header: "Date",
-      className: "text-muted-foreground whitespace-nowrap",
+      className: "text-muted-foreground",
+      sortValue: (r) => r.holiday.date,
       cell: (r) => formatDate(r.holiday.date, "EEE, dd MMM yyyy"),
     },
     {
       header: "Reason",
-      className: "text-muted-foreground max-w-[200px] truncate",
-      cell: (r) => r.reason ?? "-",
+      className: "text-muted-foreground max-w-[280px] truncate",
+      cell: (r) => <span title={r.reason ?? undefined}>{r.reason ?? "-"}</span>,
     },
     {
       header: "Manager",
@@ -130,7 +127,9 @@ export function FloatingRequestsInbox() {
               labelMap={LEAVE_STATUS_LABELS}
             />
             {r.rejectionReason && (
-              <p className="text-muted-foreground text-xs">{r.rejectionReason}</p>
+              <p className="text-muted-foreground truncate text-xs" title={r.rejectionReason}>
+                {r.rejectionReason}
+              </p>
             )}
           </div>
         ) : (
@@ -139,6 +138,7 @@ export function FloatingRequestsInbox() {
     },
     {
       header: "Status",
+      sortValue: (r) => r.status,
       cell: (r) => (
         <StatusBadge
           status={r.status}
@@ -150,6 +150,7 @@ export function FloatingRequestsInbox() {
     {
       header: "Action",
       align: "right",
+      hideable: false,
       cell: (r) => (
         <div className="flex items-center justify-end gap-1">
           <Button
@@ -183,22 +184,14 @@ export function FloatingRequestsInbox() {
   return (
     <div className="space-y-4">
       <DataTable
+        tableId="floating-requests"
+        itemLabel="request"
         columns={columns}
-        rows={requests.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)}
+        rows={requests}
         rowKey={(r) => r.id}
         minWidth="min-w-[840px]"
         showSerial
-        serialOffset={(page - 1) * PAGE_SIZE}
       />
-      {requests.length > PAGE_SIZE && (
-        <Pagination
-          page={page}
-          totalPages={Math.ceil(requests.length / PAGE_SIZE)}
-          total={requests.length}
-          onPageChange={setPage}
-          itemLabel="request"
-        />
-      )}
       <RejectReasonDialog
         open={!!rejectId}
         onOpenChange={(o) => !o && setRejectId(null)}

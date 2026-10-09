@@ -31,8 +31,6 @@ interface EmailTemplate {
   updatedAt: string
 }
 
-const PAGE_SIZE = 10
-
 export default function EmailTemplatesPage() {
   const { can } = usePermissions()
   const canWrite = can(PERMISSIONS.EMAIL_TEMPLATE_WRITE)
@@ -40,7 +38,6 @@ export default function EmailTemplatesPage() {
 
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const [editingTemplate, setEditingTemplate] = React.useState<EmailTemplate | null>(null)
-  const [page, setPage] = React.useState(1)
 
   const { data, isLoading } = useQuery<EmailTemplate[]>({
     queryKey: ["email-templates"],
@@ -87,28 +84,28 @@ export default function EmailTemplatesPage() {
 
   const templates = data ?? []
 
-  // Client-side pagination over the full reused /api/notifications/templates list.
-  const totalPages = Math.max(1, Math.ceil(templates.length / PAGE_SIZE))
-  const pagedTemplates = templates.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-
-  // Keep the current page in range when the list size changes (e.g. after a delete).
-  if (!isLoading && page > totalPages) setPage(totalPages)
-
   const columns: DataTableColumn<EmailTemplate>[] = [
-    { header: "Name", className: "font-medium", cell: (template) => template.name },
+    {
+      header: "Name",
+      className: "font-medium",
+      sortValue: (template) => template.name,
+      cell: (template) => template.name,
+    },
     {
       header: "Slug",
+      sortValue: (template) => template.slug,
       cell: (template) => (
         <code className="bg-muted rounded-sm px-1.5 py-0.5 font-mono text-xs">{template.slug}</code>
       ),
     },
     {
       header: "Subject",
-      className: "text-muted-foreground max-w-[200px] text-sm",
-      cell: (template) => truncate(template.subject, 50),
+      className: "text-muted-foreground max-w-[280px] truncate text-sm",
+      cell: (template) => <span title={template.subject}>{template.subject}</span>,
     },
     {
       header: "Trigger",
+      sortValue: (template) => template.trigger,
       cell: (template) =>
         template.trigger ? (
           <Badge variant="outline" className="font-mono text-xs">
@@ -120,6 +117,7 @@ export default function EmailTemplatesPage() {
     },
     {
       header: "Active",
+      sortValue: (template) => (template.isActive ? 0 : 1),
       cell: (template) => (
         <Switch
           checked={template.isActive}
@@ -134,6 +132,7 @@ export default function EmailTemplatesPage() {
     {
       header: "Last Updated",
       className: "text-muted-foreground text-sm",
+      sortValue: (template) => template.updatedAt,
       cell: (template) => formatDate(template.updatedAt),
     },
     ...(canWrite
@@ -174,13 +173,13 @@ export default function EmailTemplatesPage() {
 
       {isLoading || templates.length > 0 ? (
         <DataTable
+          tableId="email-templates"
+          itemLabel="template"
           columns={columns}
-          rows={pagedTemplates}
+          rows={templates}
           rowKey={(template) => template.id}
           showSerial
-          serialOffset={(page - 1) * PAGE_SIZE}
           loading={isLoading}
-          skeletonRows={PAGE_SIZE}
           mobileCard={(template) => (
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-3">
@@ -224,13 +223,6 @@ export default function EmailTemplatesPage() {
               </div>
             </div>
           )}
-          pagination={{
-            page,
-            totalPages,
-            total: templates.length,
-            onPageChange: setPage,
-            itemLabel: "template",
-          }}
         />
       ) : (
         <EmptyState

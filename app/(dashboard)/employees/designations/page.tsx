@@ -1,8 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { useUpdateEffect } from "@/hooks/use-update-effect"
-import { useUrlPage } from "@/hooks/use-url-state"
+import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Plus, Pencil, Power, Trash2 } from "lucide-react"
@@ -12,16 +10,12 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { FormDialog } from "@/components/shared/form-dialog"
 import { PageHeader } from "@/components/shared/page-header"
-import { Pagination } from "@/components/shared/pagination"
-import { SearchInput } from "@/components/shared/search-input"
-import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
-import { BulkActionBar } from "@/components/shared/bulk-action-bar"
+import { TableSearch } from "@/components/shared/table-search"
 import { useRowSelection } from "@/hooks/use-row-selection"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
-import { cn } from "@/lib/utils"
 import { apiFetch } from "@/lib/api-fetch"
 
 interface Designation {
@@ -80,7 +74,6 @@ export default function DesignationsPage() {
   const [title, setTitle] = useState("")
   const [level, setLevel] = useState<string>("1")
   const [search, setSearch] = useState("")
-  const [page, setPage] = useUrlPage()
   const [deleteTarget, setDeleteTarget] = useState<Designation | null>(null)
 
   const { data, isLoading } = useQuery({
@@ -153,37 +146,23 @@ export default function DesignationsPage() {
 
   const designations = data?.data ?? []
 
-  // The list is reused as a lookup, so it's fetched in full and paginated here.
-  const PAGE_SIZE = 10
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return designations
-    return designations.filter((d) => d.title.toLowerCase().includes(q))
-  }, [designations, search])
+  // The list is reused as a lookup, so it's fetched in full and the table pages it.
+  const query = search.trim().toLowerCase()
+  const filtered = query
+    ? designations.filter((d) => d.title.toLowerCase().includes(query))
+    : designations
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-
-  // Skips mount so a deep-linked ?page=N survives first render.
-  useUpdateEffect(() => {
-    setPage(1)
-  }, [search])
-
-  // Clamp the current page if it exceeds the available pages (e.g. after a delete).
-  useEffect(() => {
-    if (!isLoading && page > totalPages) setPage(totalPages)
-  }, [page, totalPages, isLoading])
-
-  const rows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-
-  const selection = useRowSelection(rows.map((d) => d.id))
+  const selection = useRowSelection(filtered.map((d) => d.id))
+  // Only ticked rows the search still shows, matching the table's "N selected".
+  const picked = filtered.filter((d) => selection.isSelected(d.id))
   const [bulkOpen, setBulkOpen] = useState(false)
   const [bulkPending, setBulkPending] = useState(false)
 
   async function handleBulkDeactivate() {
     setBulkPending(true)
     try {
-      for (const id of selection.selectedIds) {
-        await patchActive(id, false)
+      for (const d of picked) {
+        await patchActive(d.id, false)
       }
       invalidate()
       selection.clear()
@@ -199,32 +178,26 @@ export default function DesignationsPage() {
   const columns: DataTableColumn<Designation>[] = [
     {
       header: "Title",
-      cell: (d) => (
-        <span className={cn("font-medium", !d.isActive && "opacity-60")}>{d.title}</span>
-      ),
+      sortValue: (d) => d.title,
+      cell: (d) => <span className="font-medium">{d.title}</span>,
     },
     {
       header: "Level",
-      cell: (d) => (
-        <span className={cn("text-muted-foreground", !d.isActive && "opacity-60")}>L{d.level}</span>
-      ),
+      sortValue: (d) => d.level,
+      cell: (d) => <span className="text-muted-foreground">L{d.level}</span>,
     },
     {
       header: "Employees",
-      cell: (d) => (
-        <span className={cn("text-muted-foreground tabular-nums", !d.isActive && "opacity-60")}>
-          {d._count.employees}
-        </span>
-      ),
+      sortValue: (d) => d._count.employees,
+      cell: (d) => <span className="text-muted-foreground tabular-nums">{d._count.employees}</span>,
     },
     {
       header: "Status",
+      sortValue: (d) => (d.isActive ? "Active" : "Inactive"),
       cell: (d) => (
-        <span className={cn(!d.isActive && "opacity-60")}>
-          <Badge variant="outline" className="text-xs">
-            {d.isActive ? "Active" : "Inactive"}
-          </Badge>
-        </span>
+        <Badge variant="outline" className="text-xs">
+          {d.isActive ? "Active" : "Inactive"}
+        </Badge>
       ),
     },
     ...(canWrite
@@ -233,9 +206,7 @@ export default function DesignationsPage() {
             header: "Actions",
             align: "right" as const,
             cell: (d: Designation) => (
-              <div
-                className={cn("flex items-center justify-end gap-1", !d.isActive && "opacity-60")}
-              >
+              <div className="flex items-center justify-end gap-1">
                 <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(d)}>
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
@@ -282,48 +253,34 @@ export default function DesignationsPage() {
         }
       />
 
-      <SearchInput
-        value={search}
-        onChange={setSearch}
-        placeholder="Search designations..."
-        className="max-w-sm"
-      />
-
-      {canWrite && (
-        <BulkActionBar count={selection.count} onClear={selection.clear}>
+      <DataTable
+        tableId="designations"
+        itemLabel="designation"
+        columns={columns}
+        rows={filtered}
+        rowKey={(d) => d.id}
+        showSerial
+        pageKey={query}
+        selection={canWrite ? selection : undefined}
+        selectionActions={
           <Button variant="destructive" onClick={() => setBulkOpen(true)} disabled={bulkPending}>
             <Power className="mr-1.5 h-3.5 w-3.5" />
             Deactivate
           </Button>
-        </BulkActionBar>
-      )}
-
-      {isLoading || rows.length > 0 ? (
-        <DataTable
-          columns={columns}
-          rows={rows}
-          rowKey={(d) => d.id}
-          showSerial
-          serialOffset={(page - 1) * PAGE_SIZE}
-          selection={canWrite ? selection : undefined}
-          loading={isLoading}
-        />
-      ) : designations.length === 0 ? (
-        <div className="bg-card rounded-sm border">
-          <EmptyState title="No designations yet." compact />
-        </div>
-      ) : (
-        <div className="bg-card rounded-sm border">
-          <EmptyState title="No designations match your search." compact />
-        </div>
-      )}
-
-      <Pagination
-        page={page}
-        totalPages={totalPages}
-        total={filtered.length}
-        onPageChange={setPage}
-        itemLabel="designation"
+        }
+        rowClassName={(d) => (d.isActive ? undefined : "opacity-60")}
+        loading={isLoading}
+        toolbar={
+          <TableSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search designations..."
+            label="Search designations"
+          />
+        }
+        empty={
+          designations.length === 0 ? "No designations yet." : "No designations match your search."
+        }
       />
 
       <FormDialog
@@ -363,7 +320,7 @@ export default function DesignationsPage() {
       <ConfirmDialog
         open={bulkOpen}
         onOpenChange={setBulkOpen}
-        title={`Deactivate ${selection.count} designation${selection.count === 1 ? "" : "s"}?`}
+        title={`Deactivate ${picked.length} designation${picked.length === 1 ? "" : "s"}?`}
         description="The selected designations will be deactivated. You can reactivate them later."
         confirmLabel="Deactivate"
         variant="destructive"

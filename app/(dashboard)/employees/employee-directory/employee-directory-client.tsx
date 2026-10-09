@@ -5,7 +5,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Link } from "@/components/tenant-link"
-import { Plus, Eye, Trash2, Download, UserCheck, UserX } from "lucide-react"
+import { Plus, Eye, Trash2, UserCheck, UserX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
@@ -15,7 +15,6 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
-import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { ViewToggle, type ViewMode } from "@/components/shared/view-toggle"
 import { useRowSelection } from "@/hooks/use-row-selection"
 import { useUpdateEffect } from "@/hooks/use-update-effect"
@@ -44,7 +43,6 @@ import {
   PERMISSIONS,
   PROBATION_BADGE,
 } from "@/lib/constants"
-import { exportToCsv } from "@/lib/export-csv"
 
 export function EmployeeDirectoryClient() {
   const router = useRouter()
@@ -137,29 +135,11 @@ export function EmployeeDirectoryClient() {
 
   const pageIds = useMemo(() => employees.map((e) => e.id), [employees])
   const selection = useRowSelection<string>(pageIds)
-  const { selectedIds, count, isSelected, clear } = selection
+  const { selectedIds, count, clear } = selection
 
   useEffect(() => {
     clear()
   }, [debouncedSearch, departmentId, status, page, clear])
-
-  function exportSelectedCsv() {
-    const selected = employees.filter((e) => isSelected(e.id))
-    if (selected.length === 0) return
-    const cols = ["Employee No", "Name", "Email", "Department", "Designation", "Status", "Joined"]
-    const rows = selected.map((e) => [
-      e.employeeNo,
-      `${e.firstName} ${e.lastName}`,
-      e.email,
-      e.department?.name ?? "",
-      e.designation?.title ?? "",
-      ACTIVE_STATUS_LABELS[e.isActive ? "ACTIVE" : "INACTIVE"],
-      e.dateOfJoining ? formatDate(e.dateOfJoining) : "",
-    ])
-    const filename = `employees-${new Date().toISOString().slice(0, 10)}.csv`
-    exportToCsv(cols, rows, filename)
-    toast.success(`Exported ${selected.length} employee${selected.length !== 1 ? "s" : ""}`)
-  }
 
   async function confirmBulkDelete() {
     if (count === 0) return
@@ -188,6 +168,7 @@ export function EmployeeDirectoryClient() {
     {
       header: "Employee",
       skeleton: <EmployeeCellSkeleton />,
+      exportValue: (emp) => `${emp.firstName} ${emp.lastName}`,
       cell: (emp) => (
         <Link
           href={`/employees/${employeeSlug(emp.employeeNo, emp.firstName, emp.lastName)}`}
@@ -210,18 +191,35 @@ export function EmployeeDirectoryClient() {
       ),
     },
     {
+      header: "Employee No",
+      defaultHidden: true,
+      className: "text-muted-foreground font-mono text-xs",
+      exportValue: (emp) => emp.employeeNo,
+      cell: (emp) => emp.employeeNo,
+    },
+    {
+      header: "Email",
+      defaultHidden: true,
+      className: "text-muted-foreground max-w-[280px] truncate",
+      exportValue: (emp) => emp.email,
+      cell: (emp) => <span title={emp.email}>{emp.email}</span>,
+    },
+    {
       header: "Department",
       className: "text-muted-foreground",
+      exportValue: (emp) => emp.department?.name ?? "",
       cell: (emp) => emp.department?.name ?? "-",
     },
     {
       header: "Designation",
       className: "text-muted-foreground",
+      exportValue: (emp) => emp.designation?.title ?? "",
       cell: (emp) => emp.designation?.title ?? "-",
     },
     {
       header: "Status",
       skeleton: <EmployeeStatusSkeleton />,
+      exportValue: (emp) => ACTIVE_STATUS_LABELS[emp.isActive ? "ACTIVE" : "INACTIVE"],
       cell: (emp) => (
         <div className="flex flex-wrap items-center gap-1.5">
           <StatusBadge
@@ -242,6 +240,7 @@ export function EmployeeDirectoryClient() {
     {
       header: "Joined",
       className: "text-muted-foreground",
+      exportValue: (emp) => (emp.dateOfJoining ? formatDate(emp.dateOfJoining) : ""),
       cell: (emp) => formatDate(emp.dateOfJoining),
     },
     {
@@ -317,6 +316,21 @@ export function EmployeeDirectoryClient() {
     },
   ]
 
+  // One filter set for both views: inside the table's frame, or above the cards.
+  const filters = (
+    <div className="min-w-0 flex-1">
+      <EmployeeFilters
+        search={search}
+        onSearchChange={setSearch}
+        departmentId={departmentId}
+        onDepartmentChange={handleDepartmentChange}
+        status={status}
+        onStatusChange={handleStatusChange}
+        onClear={handleClearFilters}
+      />
+    </div>
+  )
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -327,37 +341,26 @@ export function EmployeeDirectoryClient() {
             : "Employee directory"
         }
         actions={
-          can(PERMISSIONS.EMPLOYEE_WRITE) ? (
-            <Button asChild>
-              <Link href="/employees/new" className="flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Add Employee
-              </Link>
-            </Button>
-          ) : undefined
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={viewMode} onChange={setViewMode} />
+            {can(PERMISSIONS.EMPLOYEE_WRITE) && (
+              <Button asChild>
+                <Link href="/employees/new" className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add Employee
+                </Link>
+              </Button>
+            )}
+          </div>
         }
       />
 
-      <div className="flex flex-wrap items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <EmployeeFilters
-            search={search}
-            onSearchChange={setSearch}
-            departmentId={departmentId}
-            onDepartmentChange={handleDepartmentChange}
-            status={status}
-            onStatusChange={handleStatusChange}
-            onClear={handleClearFilters}
-          />
-        </div>
-
-        <ViewToggle value={viewMode} onChange={setViewMode} />
-      </div>
+      {viewMode === "card" && filters}
 
       {isLoading && viewMode === "card" && <CardGridSkeleton count={8} />}
 
       {/* "Add First Employee" only when there's genuinely no one - not for an empty search result. */}
-      {!isLoading && employees.length === 0 && (
+      {!isLoading && employees.length === 0 && viewMode === "card" && (
         <EmptyState
           title={search ? "No employees match your search." : "No employees found."}
           action={
@@ -383,32 +386,30 @@ export function EmployeeDirectoryClient() {
       )}
 
       {viewMode === "table" && (
-        <BulkActionBar count={count} onClear={clear}>
-          <Button className="gap-1.5" variant="outline" onClick={exportSelectedCsv}>
-            <Download className="h-3.5 w-3.5" />
-            Export CSV
-          </Button>
-          {can(PERMISSIONS.EMPLOYEE_DELETE) && (
-            <Button
-              className="gap-1.5"
-              variant="destructive"
-              onClick={() => setBulkDeleteOpen(true)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Terminate
-            </Button>
-          )}
-        </BulkActionBar>
-      )}
-
-      {viewMode === "table" && (isLoading || employees.length > 0) && (
         <DataTable
+          tableId="employees"
+          exportName="employees"
+          itemLabel="employee"
           columns={columns}
           rows={employees}
           rowKey={(emp) => emp.id}
           showSerial
           serialOffset={((pagination?.page ?? 1) - 1) * (pagination?.limit ?? 10)}
           selection={selection}
+          selectionActions={
+            can(PERMISSIONS.EMPLOYEE_DELETE) ? (
+              <Button
+                className="gap-1.5"
+                variant="destructive"
+                onClick={() => setBulkDeleteOpen(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Terminate
+              </Button>
+            ) : undefined
+          }
+          toolbar={filters}
+          empty={search ? "No employees match your search." : "No employees found."}
           loading={isLoading}
           skeletonRows={10}
           mobileCard={(emp) => (
@@ -451,6 +452,7 @@ export function EmployeeDirectoryClient() {
                   total: pagination.total,
                   onPageChange: setPage,
                   itemLabel: "employee",
+                  pageSize: pagination.limit,
                 }
               : undefined
           }
@@ -458,13 +460,14 @@ export function EmployeeDirectoryClient() {
       )}
 
       {/* The table view renders its own pagination. */}
-      {pagination && (viewMode === "card" || employees.length === 0) && (
+      {pagination && viewMode === "card" && (
         <Pagination
           page={pagination.page}
           totalPages={pagination.totalPages}
           total={pagination.total}
           onPageChange={setPage}
           itemLabel="employee"
+          pageSize={pagination.limit}
         />
       )}
 

@@ -79,8 +79,8 @@ export function TeamPlanStrip({
         <span className="text-muted-foreground">Nobody is on the hook for this month yet.</span>
         {canPlan && (
           <Button
-            variant="ghost"
-            className="ml-auto h-7 gap-1 px-2 text-xs"
+            variant="outline"
+            className="ml-auto h-8 gap-1.5 px-3 text-xs"
             onClick={() => onOpen()}
           >
             <Plus className="h-3.5 w-3.5" /> Add a team
@@ -101,7 +101,11 @@ export function TeamPlanStrip({
             {overdue} overdue
           </span>
         )}
-        <Button variant="ghost" className="ml-auto h-7 gap-1 px-2 text-xs" onClick={() => onOpen()}>
+        <Button
+          variant="outline"
+          className="ml-auto h-8 gap-1.5 px-3 text-xs"
+          onClick={() => onOpen()}
+        >
           {canPlan ? (
             <>
               <Plus className="h-3.5 w-3.5" /> Manage plan

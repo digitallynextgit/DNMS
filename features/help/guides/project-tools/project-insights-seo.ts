@@ -69,8 +69,8 @@ export const projectInsightsSeoGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Below the chart, search campaigns, filter them by status (Active, Paused or Completed), and sort by Spend, ROAS, Purchases, Impressions or Clicks. Sync now (3) pulls the latest numbers from Meta.",
-            hi: "चार्ट के नीचे कैंपेन खोजें, स्टेटस (Active, Paused या Completed) से फिल्टर करें, और Spend, ROAS, Purchases, Impressions या Clicks से सॉर्ट करें। Sync now (3) Meta से ताज़ा नंबर लाता है।",
+            en: "Below the chart, the campaigns table has a status menu (All, Active, Paused or Completed) and a search box. Click a column heading, like Spend or ROAS, to sort by it, and use Export for a CSV or Excel file. Sync now (3) pulls the latest numbers from Meta.",
+            hi: "चार्ट के नीचे कैंपेन टेबल में स्टेटस मेन्यू (All, Active, Paused या Completed) और सर्च बॉक्स है। किसी कॉलम के नाम, जैसे Spend या ROAS, पर क्लिक करके उससे सॉर्ट करें, और CSV या Excel फाइल के लिए Export इस्तेमाल करें। Sync now (3) Meta से ताज़ा नंबर लाता है।",
           },
         },
       ],

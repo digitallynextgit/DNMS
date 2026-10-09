@@ -2,11 +2,10 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { RefreshCw, History, Search, Users } from "lucide-react"
+import { RefreshCw, History, Users } from "lucide-react"
 import { Spinner } from "@/components/shared/spinner"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -16,9 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
-import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { TableSearch } from "@/components/shared/table-search"
 import {
   useEmployeeSyncSummary,
   useSyncDevice,
@@ -38,7 +36,6 @@ export function EmployeeSyncPanel({ devices }: { devices: DeviceOption[] }) {
 
   const [deviceId, setDeviceId] = useState(activeDevices[0]?.id ?? "")
   const [search, setSearch] = useState("")
-  const [page, setPage] = useState(1)
   // A Set so several rows can sync at once, each keeping its own spinner.
   const [busy, setBusy] = useState<Set<string>>(new Set())
 
@@ -51,11 +48,6 @@ export function EmployeeSyncPanel({ devices }: { devices: DeviceOption[] }) {
           .includes(q),
       )
     : rows
-
-  const PAGE_SIZE = 10
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const currentPage = Math.min(page, totalPages)
-  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const targetDevice = deviceId || activeDevices[0]?.id || ""
 
@@ -79,6 +71,7 @@ export function EmployeeSyncPanel({ devices }: { devices: DeviceOption[] }) {
   const columns: DataTableColumn<EmployeeSyncSummary>[] = [
     {
       header: "Employee",
+      sortValue: (r) => `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim(),
       cell: (r) => (
         <div className="flex items-center gap-2.5">
           <AvatarDisplay
@@ -102,15 +95,35 @@ export function EmployeeSyncPanel({ devices }: { devices: DeviceOption[] }) {
     {
       header: "Device ID",
       className: "tabular-nums",
+      sortValue: (r) => r.deviceId,
       cell: (r) =>
         r.deviceId ?? <span className="text-amber-600 dark:text-amber-500">No code</span>,
     },
-    { header: "Logged", align: "right", className: "tabular-nums", cell: (r) => r.totalDays },
-    { header: "Present", align: "right", className: "tabular-nums", cell: (r) => r.presentDays },
-    { header: "Half", align: "right", className: "tabular-nums", cell: (r) => r.halfDays },
+    {
+      header: "Logged",
+      align: "right",
+      className: "tabular-nums",
+      sortValue: (r) => r.totalDays,
+      cell: (r) => r.totalDays,
+    },
+    {
+      header: "Present",
+      align: "right",
+      className: "tabular-nums",
+      sortValue: (r) => r.presentDays,
+      cell: (r) => r.presentDays,
+    },
+    {
+      header: "Half",
+      align: "right",
+      className: "tabular-nums",
+      sortValue: (r) => r.halfDays,
+      cell: (r) => r.halfDays,
+    },
     {
       header: "Last punch",
       className: "text-muted-foreground tabular-nums",
+      sortValue: (r) => r.lastPunchDate,
       cell: (r) => r.lastPunchDate ?? "Never",
     },
     {
@@ -183,41 +196,27 @@ export function EmployeeSyncPanel({ devices }: { devices: DeviceOption[] }) {
         .
       </p>
 
-      <div className="relative max-w-xs">
-        <Search className="text-muted-foreground absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
-        <Input
-          placeholder="Search employee…"
-          aria-label="Search employee"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value)
-            setPage(1)
-          }}
-          className="h-9 pl-8"
-        />
-      </div>
-
-      {isLoading ? (
-        <ListSkeleton rows={5} height="h-12" />
-      ) : filtered.length === 0 ? (
-        <EmptyState variant="card" title="No employees found." />
-      ) : (
-        <DataTable
-          columns={columns}
-          rows={paged}
-          rowKey={(r) => r.id}
-          showSerial
-          serialOffset={(currentPage - 1) * PAGE_SIZE}
-          minWidth="min-w-[720px]"
-          pagination={{
-            page: currentPage,
-            totalPages,
-            total: filtered.length,
-            onPageChange: setPage,
-            itemLabel: "employee",
-          }}
-        />
-      )}
+      <DataTable
+        tableId="employee-sync"
+        itemLabel="employee"
+        columns={columns}
+        rows={filtered}
+        rowKey={(r) => r.id}
+        showSerial
+        minWidth="min-w-[720px]"
+        loading={isLoading}
+        skeletonRows={5}
+        pageKey={q}
+        toolbar={
+          <TableSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search employee…"
+            label="Search employee"
+          />
+        }
+        empty={q ? "No employee matches that search." : "No employees found."}
+      />
     </div>
   )
 }

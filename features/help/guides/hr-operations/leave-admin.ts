@@ -56,14 +56,14 @@ export const leaveAdminGuide: HelpGuide = {
               { role: "tab", name: "Balances" },
               { placeholder: "Search employee..." },
               { css: "button[role=combobox]:has-text('All types')" },
-              { css: "button[role=combobox]:has-text('All statuses')" },
+              { role: "button", name: "Status: All" },
             ],
           },
         },
         {
           text: {
-            en: "Use the filters to narrow the list: type a name or employee number in Search employee... (4), pick a leave type (5) or a status (6), or pick From and To dates. The dates match the day the leave starts. Click Clear to remove all filters.",
-            hi: "लिस्ट छोटी करने के लिए फ़िल्टर लगाएँ: Search employee... (4) में नाम या employee number टाइप करें, leave type (5) या status (6) चुनें, या From और To तारीख चुनें। तारीखें छुट्टी शुरू होने वाले दिन से मिलाई जाती हैं। सारे फ़िल्टर हटाने के लिए Clear पर क्लिक करें।",
+            en: "The filters sit at the top of the table. Type a name or employee number in Search employee... (4), pick a leave type (5) or a status in the All menu (6), or pick From and To dates. The dates match the day the leave starts. Click Clear to remove all filters.",
+            hi: "फ़िल्टर टेबल के ऊपर होते हैं। Search employee... (4) में नाम या employee number टाइप करें, leave type (5) चुनें या All मेन्यू (6) में status चुनें, या From और To तारीख चुनें। तारीखें छुट्टी शुरू होने वाले दिन से मिलाई जाती हैं। सारे फ़िल्टर हटाने के लिए Clear पर क्लिक करें।",
           },
         },
       ],
@@ -87,17 +87,17 @@ export const leaveAdminGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "On the Requests tab, pick Pending in the status filter to see only the requests that are waiting. In the Actions column, the tick (1) approves and the cross (2) rejects.",
-            hi: "Requests टैब पर status फ़िल्टर में Pending चुनें, ताकि सिर्फ़ इंतज़ार कर रही रिक्वेस्ट दिखें। Actions कॉलम में टिक (1) से approve होता है और क्रॉस (2) से reject।",
+            en: "On the Requests tab, open the All menu at the top of the table and pick Pending to see only the requests that are waiting. In the Actions column, the tick (1) approves and the cross (2) rejects.",
+            hi: "Requests टैब पर टेबल के ऊपर वाला All मेन्यू खोलें और Pending चुनें, ताकि सिर्फ़ इंतज़ार कर रही रिक्वेस्ट दिखें। Actions कॉलम में टिक (1) से approve होता है और क्रॉस (2) से reject।",
           },
           shot: {
             id: "leave-admin-actions",
             as: "hr",
             path: "/leave/leave-directory",
-            // Status filter -> Pending, as the step says.
+            // Status menu -> Pending, as the step says. The rows' badges also say "Pending", hence css.
             actions: [
-              { click: { css: "button[role=combobox]:has-text('All statuses')" } },
-              { click: { role: "option", name: "Pending", exact: true } },
+              { click: { role: "button", name: "Status: All" } },
+              { click: { css: "[role=menuitemradio]:has-text('Pending')" } },
             ],
             highlight: [
               { role: "button", name: "Approve" },
@@ -301,8 +301,8 @@ export const leaveAdminGuide: HelpGuide = {
           hi: "कंपनी के कई नियम code से जुड़े हैं। CL, SL, EL, LWP, SHORT और ML जैसे codes को मत बदलें - नीचे Leave rules देखें।",
         },
         {
-          en: "To deactivate several types together, tick them and click Deactivate in the bar that appears.",
-          hi: "कई types एक साथ Deactivate करने हों, तो उन्हें टिक करें और ऊपर आने वाली पट्टी में Deactivate पर क्लिक करें।",
+          en: "To deactivate several types together, tick them and click Deactivate at the top of the table, next to the number selected.",
+          hi: "कई types एक साथ Deactivate करने हों, तो उन्हें टिक करें और टेबल के ऊपर, चुने गए types की गिनती के बगल में Deactivate पर क्लिक करें।",
         },
       ],
     },

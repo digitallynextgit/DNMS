@@ -77,8 +77,8 @@ export const myPerformanceGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Status goes from Pending, to Self done or Manager done when one side has submitted, to Completed when both have. To show just one period or one status, use All periods (3) or All statuses next to it. The button at the end of a row (4) opens that evaluation.",
-            hi: "Status पहले Pending होता है, फिर किसी एक के सबमिट करने पर Self done या Manager done, और दोनों के सबमिट करने पर Completed। सिर्फ एक पीरियड या एक स्टेटस देखने के लिए All periods (3) या उसके बगल वाला All statuses इस्तेमाल करें। लाइन के आखिर वाला बटन (4) वो evaluation खोलता है।",
+            en: "Status goes from Pending, to Self done or Manager done when one side has submitted, to Completed when both have. To show just one period or one status, use All periods (3) or the Status menu next to it. The button at the end of a row (4) opens that evaluation.",
+            hi: "Status पहले Pending होता है, फिर किसी एक के सबमिट करने पर Self done या Manager done, और दोनों के सबमिट करने पर Completed। सिर्फ एक पीरियड या एक स्टेटस देखने के लिए All periods (3) या उसके बगल वाला Status मेन्यू इस्तेमाल करें। लाइन के आखिर वाला बटन (4) वो evaluation खोलता है।",
           },
         },
       ],

@@ -148,6 +148,10 @@ export const payrollGuide: HelpGuide = {
           en: "A salary structure that is already used on a payslip can't be deleted.",
           hi: "जो salary structure किसी पेस्लिप में इस्तेमाल हो चुका है, उसे डिलीट नहीं किया जा सकता।",
         },
+        {
+          en: "Click a column heading to sort by it. To download the list as a spreadsheet, click Export above the table and pick CSV file or Excel file - tick rows first to download only those.",
+          hi: "किसी कॉलम के नाम पर क्लिक करके उसी से sort करें। लिस्ट को spreadsheet में डाउनलोड करने के लिए टेबल के ऊपर Export पर क्लिक करें और CSV file या Excel file चुनें - सिर्फ़ कुछ लाइनें चाहिए तो पहले उन्हें टिक करें।",
+        },
       ],
     },
     {
@@ -214,17 +218,17 @@ export const payrollGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Payroll Directory shows one month at a time - the current month at first. Filter with Search employee... (1), the month box, Year (2) and the status box (3).",
-            hi: "Payroll Directory में एक बार में एक महीना दिखता है - शुरू में चालू महीना। Search employee... (1), month बॉक्स, Year (2) और status बॉक्स (3) से फ़िल्टर करें।",
+            en: "Payroll Directory shows one month at a time - the current month at first. Pick another with the month box and Year (1) at the top. In the table, the Status menu (2) and Search employee... (3) narrow the list.",
+            hi: "Payroll Directory में एक बार में एक महीना दिखता है - शुरू में चालू महीना। दूसरा महीना ऊपर month बॉक्स और Year (1) से चुनें। टेबल में Status मेन्यू (2) और Search employee... (3) से लिस्ट छोटी करें।",
           },
           shot: {
             id: "payroll-directory",
             as: "hr",
             path: "/payroll/payroll-directory",
             highlight: [
-              { placeholder: "Search employee..." },
               { label: "Year" },
-              { css: "button[role=combobox]:has-text('All Statuses')" },
+              { role: "button", name: "Status: All" },
+              { placeholder: "Search employee..." },
               { text: "Net Payable (in hand)" },
             ],
           },
@@ -281,6 +285,10 @@ export const payrollGuide: HelpGuide = {
           en: "Adjustments are shown only to people who can process payroll, and only while the payslip is a Draft.",
           hi: "Adjustments सिर्फ़ उन लोगों को दिखते हैं जो पेरोल प्रोसेस कर सकते हैं, और तभी जब पेस्लिप Draft में हो।",
         },
+        {
+          en: "To download payslips as a spreadsheet, click Export above the table and pick CSV file or Excel file. It downloads the rows on the current page, or only the rows you have ticked.",
+          hi: "पेस्लिप्स को spreadsheet में डाउनलोड करने के लिए टेबल के ऊपर Export पर क्लिक करें और CSV file या Excel file चुनें। इसमें चालू पेज की लाइनें आती हैं, या सिर्फ़ वो लाइनें जो आपने टिक की हैं।",
+        },
       ],
     },
     {
@@ -300,8 +308,8 @@ export const payrollGuide: HelpGuide = {
         },
         {
           text: {
-            en: "To move many at once, tick the rows (1) in Payroll Directory, click Update Status (2) and pick Mark as Processing, Mark as Approved or Mark as Paid (3).",
-            hi: "कई पेस्लिप एक साथ आगे बढ़ानी हों, तो Payroll Directory में लाइनें टिक करें (1), Update Status (2) पर क्लिक करें और Mark as Processing, Mark as Approved या Mark as Paid (3) चुनें।",
+            en: "To move many at once, tick the rows (1) in Payroll Directory. Update Status (2) appears in the table's header row - click it and pick Mark as Processing, Mark as Approved or Mark as Paid (3).",
+            hi: "कई पेस्लिप एक साथ आगे बढ़ानी हों, तो Payroll Directory में लाइनें टिक करें (1)। टेबल की हेडर लाइन में Update Status (2) आ जाता है - उस पर क्लिक करें और Mark as Processing, Mark as Approved या Mark as Paid (3) चुनें।",
           },
           shot: {
             id: "payroll-bulk-status",
