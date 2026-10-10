@@ -6,6 +6,7 @@ import { exclusionReason } from "@/features/mcp/server/api-policy"
 import { API_ROUTES } from "@/features/mcp/server/api-routes.generated"
 import { publicOrigin } from "@/features/mcp/server/config"
 import { fail } from "@/lib/api-response"
+import { malformedJsonBody } from "@/lib/mobile-dispatch-body"
 import { dispatchPathname, forwardableHost, forwardedProto } from "@/lib/mobile-dispatch-url"
 import { withErrorHandler } from "@/server/api-handler"
 import { resolveMobilePrincipal, runAsMobilePrincipal } from "@/server/mobile-auth"
@@ -292,10 +293,15 @@ async function dispatch(
   )
   if (busy) return busy
 
-  // Refused, never repaired - see lib/mobile-dispatch-url.ts. "." and ".." cannot climb
-  // out of /api/, and a segment containing "\", "?", "#" or a tab/newline is thrown away
-  // rather than cleaned up, because the URL parser treats all of those as STRUCTURE: the
-  // path matched against the catalogue below would not be the path finally dispatched.
+  // Refused, never repaired - see lib/mobile-dispatch-url.ts. A segment containing "\", "?",
+  // "#" or a tab/newline is thrown away rather than cleaned up, because the URL parser treats
+  // all of those as STRUCTURE: the path matched against the catalogue below would not be the
+  // path finally dispatched.
+  //
+  // Dot segments are NOT what that buys, whatever an earlier comment here claimed. Next decodes
+  // and normalises "." and ".." before this route is entered - measured over HTTP - so they
+  // never reach dispatchPathname at all. What stops traversal is the catalogue being an
+  // allowlist, two refusals below.
   const { path } = await ctx.params
   const pathname = dispatchPathname(path ?? [])
   if (!pathname) return fail("NOT_FOUND", "No DNMS endpoint was named", 404)
@@ -347,6 +353,30 @@ async function dispatch(
       if (buffered.byteLength > 0) body = buffered
     } catch {
       return fail("BAD_REQUEST", "The request body could not be read", 400)
+    }
+
+    // AND NOW: do these bytes parse? A malformed body used to reach the handler, throw out of its
+    // `await req.json()` and be logged as a 500 INTERNAL_ERROR - see lib/mobile-dispatch-body.ts,
+    // which owns this decision, the multipart exemption and the proof that it never refuses a body
+    // a handler would have taken. The check sits HERE, before entry.load(), because a body nobody
+    // can read is the caller's to fix and no handler needs to be woken, imported and entered -
+    // inside a tenant and delegate context - to say so.
+    //
+    // 400, NOT 422. 422 in this repo is the zod funnel (server/api-handler.ts:64) and the app
+    // reads a 422's `details.fieldErrors` straight onto react-hook-form - ApiError.fieldErrors
+    // returns null for every other status (dnmsApp/src/lib/api-client.ts). A body that did not
+    // parse has no field to blame, so a 422 would aim a form at nothing.
+    //
+    // VALIDATION_ERROR, not the BAD_REQUEST that STATUS_CODE maps 400 to, because the pair above
+    // already spends BAD_REQUEST on a different failure: that one is "the bytes could not be
+    // read" - a transport fault, worth retrying. This one is "the bytes were read and they are
+    // not what content-type said they were", which retrying cannot fix. The app shows the message
+    // either way; the code is for whoever reads the log.
+    //
+    // It survives the funnel verbatim: normalize() passes through any JSON body that already
+    // carries `success` (server/api-handler.ts:113), and fail() always writes one.
+    if (malformedJsonBody(req.headers.get("content-type"), body)) {
+      return fail("VALIDATION_ERROR", "The request body is not valid JSON", 400)
     }
   }
 

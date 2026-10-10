@@ -104,6 +104,17 @@ export function tokenKey(scope: string, token: string): string {
  * Tolerant on purpose: logout legitimately posts no body at all, and for the rest
  * {} lets zod write "Email is required" instead of the route answering 500 on a
  * JSON parse. The result is unknown, so it reaches zod before anything reads it.
+ *
+ * THE TOLERANCE IS ONLY SAFE BECAUSE A SCHEMA IS ALWAYS NEXT. Every caller is
+ * `Schema.parse(await readJsonBody(req))`, so {} becomes a 422 naming the missing
+ * field - the clean 4xx this helper exists to produce. A caller with no schema
+ * must NOT use it: it cannot tell {} from a caller who really sent {}, so it
+ * would hand that caller's work a body nobody sent.
+ *
+ * That is exactly the dispatcher's position, which is why the mobile surface has
+ * a second, STRICT reading of the same problem in lib/mobile-dispatch-body.ts:
+ * same goal, opposite tolerance. Here a parse failure means "let zod explain";
+ * there it means "refuse before anyone acts". Read them as a pair.
  */
 export async function readJsonBody(req: Request): Promise<unknown> {
   return req.json().catch(() => ({}) as unknown)

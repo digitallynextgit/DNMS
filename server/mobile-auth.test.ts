@@ -20,6 +20,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 //      an incident. Only the first write changes behaviour, which is exactly why
 //      the second one goes missing and why it is asserted here.
 //
+//   3. A ROTATION IS NOT A REVOCATION. rotate() spends the refresh token and
+//      LEAVES the superseded access token alive for the rest of its 15 minutes.
+//      That is a decision, argued at length on rotate() itself, and the third
+//      block below pins it - so anyone who "tightens" it has to delete a passing
+//      test and therefore has to read the argument first. An undocumented
+//      security property is one nobody can rely on; a documented one that no
+//      test holds is one that changes by accident.
+//
 // server-only and every module that reaches Prisma or next-auth are mocked, the
 // way features/projects/server/workbook-team-access.test.ts does it, so this
 // runs in the pure-module suite with no database. What is NOT mocked is the
@@ -191,8 +199,14 @@ vi.mock("@/server/auth", () => ({
   }),
 }))
 
-const { issueSession, resolveMobilePrincipal, revoke, revokeAllForUser, revokeSessionById } =
-  await import("./mobile-auth")
+const {
+  issueSession,
+  resolveMobilePrincipal,
+  revoke,
+  revokeAllForUser,
+  revokeSessionById,
+  rotate,
+} = await import("./mobile-auth")
 
 // -----------------------------------------------------------------------------
 
@@ -365,5 +379,89 @@ describe("revoking a mobile session also marks its tokens dead", () => {
     // companion write is what makes the ledger record when a token died, not when
     // it was last swept.
     expect(tokensOf(issued.session.id).map((t) => stamp(t.revokedAt))).toEqual(stamped)
+  })
+})
+
+// -----------------------------------------------------------------------------
+// 3. A rotation is not a revocation
+// -----------------------------------------------------------------------------
+
+describe("rotate() supersedes the access token without revoking it", () => {
+  const accessTokensOf = (sessionId: string) =>
+    tokensOf(sessionId).filter((t) => t.kind === "access")
+
+  it("spends the refresh token it was given - the rotation itself works", async () => {
+    const first = await issueSession(IDENTITY, DEVICE)
+
+    const second = await rotate(first.refreshToken)
+
+    // A new pair, and the old refresh token is marked spent. This is the control: the
+    // assertions below are about what rotate() DELIBERATELY leaves alone, so they are
+    // worthless unless it is doing its own job.
+    expect(second.accessToken).not.toBe(first.accessToken)
+    expect(second.refreshToken).not.toBe(first.refreshToken)
+    const spent = tokensOf(first.session.id).filter((t) => t.usedAt)
+    expect(spent).toHaveLength(1)
+    expect(spent[0]?.kind).toBe("refresh")
+  })
+
+  it("leaves the PREVIOUS access token answering requests - measured over real HTTP", async () => {
+    const first = await issueSession(IDENTITY, DEVICE)
+    const second = await rotate(first.refreshToken)
+
+    // Both tokens resolve the same person. This is exactly what the live smoke found: after a
+    // successful refresh the previous access token still returned 200 on /me. It is pinned here
+    // as the documented behaviour, NOT as an aspiration - read the block on rotate() before
+    // changing it, because the app's 401 path spends a refresh token rather than re-reading the
+    // keychain, and making this fail turns one stale token into a cascade of rotations.
+    const old = await resolveMobilePrincipal(withBearer(first.accessToken))
+    const fresh = await resolveMobilePrincipal(withBearer(second.accessToken))
+
+    expect(old, "the superseded access token stopped working - see rotate()'s note").not.toBeNull()
+    expect(fresh).not.toBeNull()
+    expect(old?.sessionId).toBe(fresh?.sessionId)
+  })
+
+  it("writes no revoked_at on any access token of the session", async () => {
+    const first = await issueSession(IDENTITY, DEVICE)
+    await rotate(first.refreshToken)
+
+    // The direct form of the same statement, and the one a tightening would flip: two live access
+    // rows, neither stamped. Asserted on the TABLE rather than on a request, because a sweep
+    // written as `{sessionId, kind:"access"}` would also catch the pair just minted - the new
+    // access token would be dead on arrival and every screen would 401 at once.
+    const access = accessTokensOf(first.session.id)
+    expect(access).toHaveLength(2)
+    expect(access.filter((t) => t.revokedAt)).toEqual([])
+  })
+
+  it("and a REAL revoke kills the just-rotated pair on the next call", async () => {
+    // Why the test above is acceptable rather than a hole: nothing about rotation weakens the
+    // revocation the opaque-token design was actually chosen for. One call, and both generations
+    // of access token are dead - which is the property the 15-minute tail borrows its safety from.
+    const first = await issueSession(IDENTITY, DEVICE)
+    const second = await rotate(first.refreshToken)
+
+    await revokeSessionById(first.session.id, "signed_out")
+
+    expect(await resolveMobilePrincipal(withBearer(first.accessToken))).toBeNull()
+    expect(await resolveMobilePrincipal(withBearer(second.accessToken))).toBeNull()
+    expect(tokensOf(first.session.id).every((t) => t.revokedAt)).toBe(true)
+  })
+
+  it("and a reuse past the race window revokes the session instead of issuing", async () => {
+    // The other half of the three-tier reuse response, which is where rotate() DOES revoke. It is
+    // here so the pair of behaviours is readable in one place: a spent token is evidence, a
+    // superseded one is not.
+    const first = await issueSession(IDENTITY, DEVICE)
+    await rotate(first.refreshToken)
+
+    // Back-date the spent row past REFRESH_RACE_MS (60s), which is what a genuine replay looks
+    // like as opposed to ten screens racing on a cold start.
+    const used = tokensOf(first.session.id).find((t) => t.usedAt)
+    if (used) used.usedAt = new Date(Date.now() - 61_000)
+
+    await expect(rotate(first.refreshToken)).rejects.toThrow(/signed out/i)
+    expect(sessionRow(first.session.id).revokedReason).toBe("refresh_token_reused")
   })
 })

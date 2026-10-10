@@ -35,14 +35,50 @@
  * its own segment. `/` is on it because a segment is never allowed to contain one.
  *
  * Next has already percent-DECODED these segments by the time a route handler sees them, which is
- * why the decoded characters are what this tests: "%2e%2e" arrives as "..", "%5c" as "\".
+ * why the decoded characters are what this tests rather than their %XX forms. All six were fired
+ * individually over real HTTP and the dispatcher answered 404 to each.
+ *
+ * "%2e%2e" is the one that does NOT arrive. Next decodes it and then NORMALISES the result away,
+ * so a dot segment reaches neither this regex nor the two compares below - see dispatchPathname.
  */
 const UNSAFE_IN_SEGMENT = /[\\/?#\t\n\r]/
 
 /**
- * ["dashboard","me"] -> "/api/dashboard/me". Returns null for anything that is not a plain forward
- * path: "." and ".." are refused outright rather than normalised, so no %2e%2e segment can climb
- * out of /api/ and land on a pattern nobody meant to expose.
+ * ["dashboard","me"] -> "/api/dashboard/me", or null for anything that is not a plain forward path.
+ *
+ * WHAT STOPS PATH TRAVERSAL IS NOT THIS FUNCTION. It is that
+ * features/mcp/server/api-routes.generated.ts is an ALLOWLIST: the string built here is matched
+ * against 308 literal patterns, and a path matching none of them is a flat 404 that loads no
+ * module. Nothing downstream turns the path into a file path, a module specifier or a fetch, so
+ * there is no "out of /api/" for a segment to climb to. That is the property the dispatcher's own
+ * banner opens with ("THE CATALOGUE IS THE ALLOWLIST"), and it is the one to protect.
+ *
+ * THE "." AND ".." COMPARES BELOW ARE DEFENCE IN DEPTH FOR A DIRECT IN-PROCESS CALLER, AND NOTHING
+ * MORE. An earlier version of this comment said they were what kept a "%2e%2e" segment from
+ * climbing out of /api/. THAT WAS FALSE, and a false security comment is worse than no comment,
+ * because the next reader stops checking the thing it claims is handled. Measured over real HTTP:
+ * Next percent-decodes AND normalises dot segments before a route handler is entered, so
+ * `segments` never contains "." or ".." however it was encoded.
+ *
+ *   /dnms/dashboard/%2E%2E/dashboard/me  arrives as ["dashboard","me"]  -> 200, real payload
+ *   /dnms/x/%2E%2E/dashboard/me          arrives as ["dashboard","me"]  -> 200
+ *   /dnms/employees/%2E%2E/photo         arrives as ["photo"]           -> 404 on "/api/photo"
+ *   /dnms/employees/%2E/photo            arrives as ["employees","photo"] -> the REAL
+ *                                        /api/employees/[id] handler with id="photo"
+ *
+ * The literal "../" form behaves identically, and `curl --path-as-is` rules the client out as the
+ * normaliser. The collapse happens ABOVE this function; it is not performed by it.
+ *
+ * The compares stay anyway: this module is reachable without the framework in front of it - a unit
+ * test, or any future caller that composes segments itself - and two string compares are not worth
+ * removing to make a point. They are simply not load-bearing over HTTP, and nobody should plan as
+ * though they were.
+ *
+ * THE INVARIANT THAT IS LOAD-BEARING: the path matched against the catalogue IS the path
+ * dispatched. One string is built here, matched once, and handed to `new URL()` once. It survives
+ * normalisation for free - the collapsed path is what reaches both the match and the dispatch - and
+ * it is why the rest of the list refuses instead of repairing (see UNSAFE_IN_SEGMENT, where a
+ * "repair" is exactly what would make those two strings diverge).
  */
 export function dispatchPathname(segments: readonly string[]): string | null {
   if (segments.length === 0) return null

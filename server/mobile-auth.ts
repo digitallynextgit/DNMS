@@ -402,6 +402,105 @@ export async function issueSession(
  *
  * The claim is `updateMany({where: {id, usedAt: null}})`: only one concurrent
  * request can flip it, so two refreshes cannot both mint a pair.
+ *
+ * ---------------------------------------------------------------------------
+ * THE SUPERSEDED ACCESS TOKEN KEEPS WORKING, AND THAT IS A DECISION.
+ *
+ * Measured over real HTTP: after this function returns a new pair, the PREVIOUS
+ * access token still answers 200 on /api/mobile/v1/me, alongside the new one,
+ * until its own 15 minutes run out. Nothing below revokes it. The obvious
+ * tightening is one statement beside the claim -
+ *
+ *   await db.mobileToken.updateMany({
+ *     where: { sessionId: session.id, kind: "access", revokedAt: null },
+ *     data: { revokedAt: new Date() },
+ *   })
+ *
+ * - it is cheap, it makes the window zero, and it was rejected. Four reasons,
+ * in the order that decided it:
+ *
+ *  1. IT WOULD MAKE THE APP FIGHT ITSELF, and the fight is self-feeding. The
+ *     app refreshes 60 SECONDS BEFORE expiry (SKEW_MS, dnmsApp
+ *     src/lib/token-store.ts:78), so a request that read the token at 61s of
+ *     life left is still in the air when another at 59s triggers the refresh.
+ *     In-flight requests holding the superseded token are therefore ORDINARY,
+ *     and most numerous on a cold start where ten screens mount at once.
+ *     Now read what the app does with a 401: `request()` spends the refresh
+ *     token - `beginRefresh(pair.refreshToken)` then ONE replay (dnmsApp
+ *     src/lib/api-client.ts:382-389). It does NOT first re-read the keychain to
+ *     see whether a newer access token is already sitting there; the re-read
+ *     that `claimRaceWinner` performs for the REFRESH token has no equivalent
+ *     for the ACCESS token. So revoking here converts "your access token is
+ *     stale" into "spend another refresh token" - and each spend supersedes
+ *     another access token, which 401s the next batch of in-flight requests,
+ *     which spend another. Nothing damps it: the refresh route's budget is 15
+ *     per 5 min keyed by tokenKey() on the PRESENTED token, so every round
+ *     starts on a token just minted and gets a fresh bucket. The replay is also
+ *     ONE-SHOT - the
+ *     `isRetry` flag makes a second 401 terminal - so a request whose
+ *     replacement token is superseded mid-replay surfaces a hard 401 to the UI.
+ *     Today none of that exists: the old token is live, the in-flight requests
+ *     finish, and the rotation stays single-flighted.
+ *
+ *  2. IT BUYS LITTLE AGAINST THE THREAT IT LOOKS LIKE IT COVERS. All it bounds
+ *     is a CAPTURED access token's life - from 15 minutes to "whenever the
+ *     legitimate app next refreshes", which is the app's clock and not the
+ *     attacker's, so the shortening is a coin flip. The capture it would
+ *     mitigate is not in the model: the token crosses TLS and rests in
+ *     SecureStore. Nothing in this design was chosen for it.
+ *
+ *  3. IT WOULD BLIND THE LEDGER. mobile_tokens has revoked_at and NO
+ *     revoked_reason (prisma/schema.prisma) - mobile_sessions is the row that
+ *     carries the reason. That column exists so an incident can be read out of
+ *     the table; revokeSessionById()'s companion write says so at length. A
+ *     phone refreshing every ~14 minutes would stamp around a hundred revoked
+ *     access rows a day, and the one revoke that mattered - the lost phone, the
+ *     reuse read as theft - would have to be found among them with no reason to
+ *     sort by. Routine rotation and a real revocation would wear the same mark.
+ *
+ *  4. refreshTokens() DOES NOT DO IT EITHER (oauth.service.ts:368-421), and
+ *     this function is a verbatim port of it. Divergence is allowed - the
+ *     dispatcher's banner lists six deliberate ones - but each costs a reader,
+ *     and this one would buy nothing to pay for itself.
+ *
+ * WHAT REVOCATION ACTUALLY RESTS ON, so none of the above reads as a hole in
+ * it: every event the opaque-token design was chosen for already kills access
+ * tokens AT ONCE. revokeSessionById() - sign out, lost phone, reuse-as-theft,
+ * membership inactive, password changed - and revokeAllForUser() both stamp
+ * every live token of the session in their companion write, and
+ * resolveMobilePrincipal() re-reads the row on EVERY request and caches
+ * nothing. The 15 minutes left on a superseded token are not a claim window
+ * anyone has to wait out, the way a JWT's would be; they are the ordinary
+ * remaining life of a token that nobody revoked. A rotation is not a
+ * revocation, and this file should not make the two the same thing by accident.
+ *
+ * IF SOMEONE STILL WANTS THE TIGHTER BEHAVIOUR, THE ORDER OF WORK IS:
+ *   (a) THE APP FIRST. Give the 401 path the access-token twin of
+ *       `claimRaceWinner`: re-read the keychain and replay with the stored
+ *       access token when it differs from the one presented, BEFORE spending a
+ *       refresh token. Without that, reason 1 is what ships.
+ *   (b) Then `authHeaders()`, which has no replay path at all - the avatar photo
+ *       probe reads a 401 as "nothing to show" (dnmsApp
+ *       src/components/ui/avatar.tsx:98,110), so a revoked token there is a
+ *       silently missing face. Give it one, or accept that.
+ *   (c) Then revoke here, and add revoked_reason to mobile_tokens so rotation
+ *       stays distinguishable from a real revoke (reason 3).
+ *   (d) And prefer a GRACE to an immediate stamp, because the overlap in
+ *       reason 1 does not disappear with (a) - it only stops cascading.
+ *       REFRESH_RACE_MS exists for the very same overlap one layer up, and its
+ *       60s is the same number the app refreshes early by - not a coincidence,
+ *       both are sized for one in-flight request. Copy that figure rather than
+ *       inventing a second one. Note that a grace
+ *       cannot be expressed as a future-dated revoked_at - resolveMobilePrincipal()
+ *       refuses any non-null revoked_at without comparing it to now, and that
+ *       check is what makes a lost-phone revoke instant, so it must not learn
+ *       to read a timestamp. Clamping the row's expires_at down to now + grace
+ *       is the form that uses a predicate already exact there.
+ *
+ * This paragraph is the deliverable. The behaviour was always defensible; it
+ * was just undocumented, and an undocumented security property is one nobody
+ * can rely on or argue with.
+ * ---------------------------------------------------------------------------
  */
 export async function rotate(refreshToken: string): Promise<IssuedMobileSession> {
   if (!refreshToken) {

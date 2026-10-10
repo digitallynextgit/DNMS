@@ -32,6 +32,11 @@ describe("dispatchPathname", () => {
   // The refusals, one case each. Every one of these is a segment the WHATWG parser would read as
   // something other than one segment of text - see the comment on UNSAFE_IN_SEGMENT - so letting
   // it through means dispatching to a path that was never matched against the catalogue.
+  //
+  // The two dot cases are the exception, and reading them as a traversal defence is the mistake
+  // the comment on dispatchPathname now warns about: Next normalises "." and ".." away before a
+  // route handler runs, so over HTTP these two are unreachable. They are pinned here for the
+  // in-process caller - a test, or a future composer of segments - not for the wire.
   it.each([
     ["an empty segment", ""],
     ["a bare dot", "."],
