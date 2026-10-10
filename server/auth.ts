@@ -125,7 +125,7 @@ async function hydrateFromMembership(membership: ActiveMembership) {
   }
 }
 
-async function authorizeWithIdentity(
+export async function authorizeWithIdentity(
   rawEmail: unknown,
   rawPassword: unknown,
   prefer: "STAFF" | "CLIENT",

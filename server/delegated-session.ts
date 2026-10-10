@@ -3,9 +3,10 @@ import "server-only"
 import { AsyncLocalStorage } from "node:async_hooks"
 import type { Session } from "next-auth"
 
-// "Act as this verified person" for the AI connector, which has a bearer token, not a cookie.
-// getSession() checks this store first. ONLY features/mcp/server/principal.ts may call
-// runAsDelegate, after verifying the token - any other caller would be an auth bypass.
+// "Act as this verified person" for callers that hold a bearer token, not a cookie.
+// getSession() checks this store first. ONLY these two may call runAsDelegate, and only AFTER
+// verifying the token themselves: features/mcp/server/principal.ts (the AI connector) and
+// server/mobile-auth.ts (the mobile app). Any other caller would be an auth bypass.
 
 const globalForDelegate = globalThis as unknown as {
   dnmsDelegatedSession?: AsyncLocalStorage<Session>

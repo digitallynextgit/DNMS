@@ -1,9 +1,28 @@
 import { db } from "@/server/db"
 import { getSession } from "@/server/api-handler"
 import { isAdmin_Session } from "@/lib/audit"
-import { sendPushToEmployee } from "@/lib/web-push"
+import { sendPushToEmployee, type PushPayload } from "@/lib/web-push"
+import { sendMobilePushToEmployee } from "@/lib/push-mobile"
 
 type NotificationType = "info" | "success" | "warning" | "error"
+
+/**
+ * One notification, every transport. Browsers get Web Push (VAPID, filtered by
+ * registering origin); the DNMS app gets FCM/APNs off its device tokens, which
+ * have no origin to filter on - see the banner in lib/push-mobile.ts.
+ *
+ * Fire-and-forget, and ONE place to add the next transport: both senders already
+ * swallow their own failures, and these .catch()es are the second net, because a
+ * rejected push must never cost the caller the notification row it just wrote.
+ */
+function fanOutPush(employeeId: string, payload: PushPayload): void {
+  void sendPushToEmployee(employeeId, payload).catch((err) =>
+    console.error("[notifications] web push failed:", err),
+  )
+  void sendMobilePushToEmployee(employeeId, payload).catch((err) =>
+    console.error("[notifications] mobile push failed:", err),
+  )
+}
 
 // admin_ is a silent account, so its actions don't notify. A null session (cron) is not admin_.
 async function suppressedForAdmin_(): Promise<boolean> {
@@ -45,13 +64,14 @@ export async function createNotification(
       select: { id: true },
     })
 
-    // Also web-push (fire-and-forget), so it lands with every tab closed.
-    void sendPushToEmployee(opts.employeeId, {
+    // Also push (fire-and-forget), so it lands with every tab closed and with
+    // the app in the background.
+    fanOutPush(opts.employeeId, {
       id: created.id,
       title: opts.title,
       message: opts.message,
       link: opts.link ?? null,
-    }).catch((err) => console.error("[createNotification] push failed:", err))
+    })
   } catch (err) {
     console.error("[createNotification] failed:", err)
   }
@@ -118,11 +138,13 @@ export async function createNotifications(
     })
 
     for (const n of notifications) {
-      void sendPushToEmployee(n.employeeId, {
+      // No id: createMany does not return the rows it wrote, so these pushes
+      // carry no Notification id for the client to mark read. Unchanged.
+      fanOutPush(n.employeeId, {
         title: n.title,
         message: n.message,
         link: n.link ?? null,
-      }).catch((err) => console.error("[createNotifications] push failed:", err))
+      })
     }
   } catch (err) {
     console.error("[createNotifications] failed:", err)
