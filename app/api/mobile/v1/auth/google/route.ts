@@ -41,9 +41,16 @@ import {
 // no concept of a tenant), and the employee lookup goes through the platform
 // identity (users + memberships) rather than straight at employees.email.
 //
-// NOTHING here logs the id_token. The two console.warn lines carry a reason and a
-// work email address - the same thing server/identity.ts:319 already logs - and
-// they are the only reason a "why can't I sign in?" ticket is answerable.
+// LOGGING, and the rule is wider than it first looks: no line in this file may
+// log the id_token, any SEGMENT of it, or ANY STRING THE VERIFIER BUILT OUT OF
+// IT. That last clause is the one that bites, and this route got it wrong until
+// the fix below - google-auth-library writes the raw token into its own error
+// message (oauth2client.js:692), so echoing `err.message` was echoing the
+// credential. The catch block now logs the error CLASS and nothing else.
+//
+// The surviving console.warn carries a reason and a work email address - the
+// same thing server/identity.ts:319 already logs - and it is the only reason a
+// "why can't I sign in?" ticket is answerable.
 // -----------------------------------------------------------------------------
 
 export const runtime = "nodejs"
@@ -77,6 +84,20 @@ function googleAudiences(): string[] {
   ].filter((id): id is string => Boolean(id))
 }
 
+/**
+ * The error's CLASS, with no message and no payload attached - the only thing
+ * from a verifier failure this file is allowed to log. See the catch block.
+ *
+ * `constructor.name` rather than `.name`: `.name` is a writable own property, so
+ * a library could in principle put token text there, and `constructor.name` is
+ * not reachable that way. Sliced because this value goes straight into a log
+ * line and a class name is a short identifier by definition.
+ */
+function errorClass(err: unknown): string {
+  if (err instanceof Error) return err.constructor?.name?.slice(0, 60) || "Error"
+  return typeof err
+}
+
 export const POST = withErrorHandler(async (req) => {
   // Loose on purpose - one office is one IP, and a rollout day is 50 people
   // signing in on the same Wi-Fi. There is nothing to brute-force here anyway:
@@ -103,10 +124,24 @@ export const POST = withErrorHandler(async (req) => {
     const ticket = await googleClient.verifyIdToken({ idToken: body.idToken, audience })
     payload = ticket.getPayload()
   } catch (err) {
-    console.warn(
-      "[mobile/auth/google] id_token rejected:",
-      err instanceof Error ? err.message : err,
-    )
+    // THE CLASS ONLY - never err.message, and never `err` itself (which prints
+    // the message). google-auth-library builds these messages out of the token
+    // it was handed: oauth2client.js:692 throws
+    // `"Wrong number of segments in token: " + jwt`, so a handset that posts a
+    // truncated or garbage token used to put that string verbatim into the
+    // production log, where a VALID id_token posted to a misconfigured build is
+    // replayable for its whole lifetime by anyone with log access. :703, :708
+    // and :724 interpolate segments[0] or the decoded envelope for the same
+    // reason. There is no safe subset to keep, because the unsafe ones are
+    // exactly the ones a broken client produces.
+    //
+    // WHAT THIS COSTS, stated plainly: the log no longer distinguishes a wrong
+    // audience from an expired token from a bad signature. Accepted - the app's
+    // branch is one 401 either way, the audience list is the thing that gets
+    // misconfigured and that failure is already visible as every sign-in failing
+    // at once, and the ticket support actually receives ("X cannot sign in") is
+    // answered by the NO_ACCOUNT warning below, which names the address.
+    console.warn("[mobile/auth/google] id_token rejected by verifyIdToken:", errorClass(err))
     return fail("INVALID_GOOGLE_TOKEN", "Could not verify that Google sign-in", 401)
   }
 

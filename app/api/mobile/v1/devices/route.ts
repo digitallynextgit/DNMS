@@ -127,8 +127,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // -------------------------------------------------------------------------
   await runUnscoped(
     "push token is device-global: re-pointing it to the signing-in user must cross tenants",
-    () =>
-      db.deviceToken.upsert({
+    async () => {
+      // Read first, SOLELY so the repoint below can be recorded. This does not
+      // reopen the double-insert window the single upsert closes: the upsert is
+      // still the only write and still atomic, so losing this race can cost or
+      // duplicate a LOG LINE and can never produce a wrong row.
+      const previous = await db.deviceToken.findUnique({
+        where: { token: body.token },
+        select: { employeeId: true, tenantId: true },
+      })
+
+      await db.deviceToken.upsert({
         where: { token: body.token },
         create: {
           tenantId: caller.tenantId,
@@ -146,7 +155,35 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
           lastSeenAt: now,
           disabledAt: null,
         },
-      }),
+      })
+
+      // THE ONE THING THIS WRITE CAN DO THAT NOTHING ELSE RECORDS. `where: {token}`
+      // matches on a globally unique column, so whoever presents a KNOWN raw device
+      // token takes the row over - a different employee, in a different company.
+      //
+      // That stays, and it is not a loophole: a handset genuinely changes hands, and
+      // FCM/APNs hand the same registration token back to a reinstalled app, so
+      // refusing the move would keep delivering one employee's notifications to
+      // somebody else's phone. The remedy is not a refusal, it is a record. Push
+      // goes to a PERSON, so "why did X receive Y's notification?" is the only form
+      // this ever reaches support in, and without this line the answer is
+      // unobtainable - the row has already been overwritten and nothing anywhere
+      // remembers who held it.
+      //
+      // EMPLOYEE AND TENANT IDS ONLY. The token itself is a push credential -
+      // holding it is enough to address this handset - and a log is the one place it
+      // must never be written, which is the same reason the response below is a bare
+      // acknowledgement. A tenant change is included because the cross-company move
+      // is the surprising half; employeeId is the trigger because a repoint within
+      // one company is just as wrong a delivery.
+      if (previous && previous.employeeId !== caller.employeeId) {
+        console.warn(
+          `[mobile/devices] push token re-pointed: employee ${previous.employeeId} ` +
+            `(tenant ${previous.tenantId}) -> employee ${caller.employeeId} ` +
+            `(tenant ${caller.tenantId})`,
+        )
+      }
+    },
   )
 
   // The app reads nothing off this body (dnmsApp src/features/push/push.api.ts

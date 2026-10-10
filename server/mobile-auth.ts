@@ -207,6 +207,10 @@ function bearerFrom(req: Request): string | null {
 async function issueTokens(session: Pick<MobileSession, "id" | "tenantId">) {
   const accessToken = generateToken(MOBILE_TOKEN_PREFIX.ACCESS)
   const refreshToken = generateToken(MOBILE_TOKEN_PREFIX.REFRESH)
+  // expiresAt is derived from THIS clock, and resolveMobilePrincipal() compares it
+  // against `new Date()` in this process too - app clock on both sides, the same
+  // rule issueSession() states at length. (mobile_tokens.created_at IS a database
+  // default and is nothing but a record: never compare it with an app timestamp.)
   const now = Date.now()
   // Two creates, not createMany - see safeCreateMany in prisma/seed.ts.
   await db.$transaction([
@@ -332,6 +336,26 @@ export async function issueSession(
       })
     }
 
+    // ONE CLOCK, AND IT IS THIS PROCESS'S. createdAt is passed EXPLICITLY rather
+    // than left to the schema's @default(now()), which Prisma emits as
+    // `DEFAULT CURRENT_TIMESTAMP` - the DATABASE clock
+    // (prisma/migrations/20260818000000_mobile_sessions/migration.sql:46). It has
+    // to come from the same clock as users.passwordChangedAt, because that column
+    // is written `new Date()` in this process (server/identity.ts:203) and the
+    // two values are COMPARED: rotate() and principalForSession() below both kill
+    // a session whose createdAt is older than passwordChangedAt.
+    //
+    // MIXING THE CLOCKS BREAKS THE ONE ROUTE WHOSE FAILURE IS A LOCKOUT.
+    // /api/mobile/v1/password changes the password (app clock T), revokes every
+    // session, then mints the replacement here. Let the database clock run even a
+    // second behind and the replacement row's created_at lands BEFORE T, the very
+    // next request judges it "issued before the password change" and revokes it -
+    // and by then there is no live refresh token left to recover with, so the user
+    // is out until someone resets them. With both timestamps from Date.now() in
+    // one process this is a program ordering, not a clock comparison, and no
+    // amount of NTP drift between the app host and Postgres can invert it.
+    const now = new Date()
+
     const session = await db.mobileSession.create({
       data: {
         tenantId: membership.tenantId,
@@ -343,7 +367,8 @@ export async function issueSession(
         platform,
         deviceName: clamp(device.deviceName),
         appVersion: clamp(device.appVersion, 40),
-        lastSeenAt: new Date(),
+        createdAt: now,
+        lastSeenAt: now,
       },
     })
 
@@ -419,6 +444,10 @@ export async function rotate(refreshToken: string): Promise<IssuedMobileSession>
       await revokeSessionById(session.id, "membership_inactive")
       throw new MobileAuthError("SESSION_REVOKED", "This DNMS account is no longer active")
     }
+    // Both sides of this comparison are written by THIS process's clock -
+    // passwordChangedAt at server/identity.ts:203, createdAt explicitly in
+    // issueSession() above. Do not let either become a database default; see the
+    // one-clock note there for what that costs.
     if (membership.passwordChangedAt && membership.passwordChangedAt > session.createdAt) {
       await revokeSessionById(session.id, "password_changed")
       throw new MobileAuthError("SESSION_REVOKED", "The DNMS password changed - sign in again")
@@ -458,6 +487,10 @@ export async function rotate(refreshToken: string): Promise<IssuedMobileSession>
  * Sign this device out. Either token works (an access token identifies the same
  * session), and like RFC 7009 it always succeeds: a logout that 400s because the
  * token was already dead is a worse answer than one that does nothing.
+ *
+ * The actual write is revokeSessionById()'s, deliberately - that is the one place
+ * that knows a session revoke is TWO writes (the gate and the record), and a
+ * second copy of that knowledge here is a second chance to forget half of it.
  */
 export async function revoke(refreshToken: string): Promise<void> {
   if (!refreshToken) return
@@ -475,14 +508,41 @@ export async function revoke(refreshToken: string): Promise<void> {
  * Kill one session by id - the "my devices" list, and the lost phone. Exported so
  * no caller ever writes a bare db.mobileSession.updateMany and forgets that this
  * table must be reached unscoped.
+ *
+ * TWO WRITES, and only the first one changes behaviour - see below.
  */
 export async function revokeSessionById(sessionId: string, reason: string): Promise<void> {
-  await runUnscoped("mobile app: revoking a session found by token or id", () =>
-    db.mobileSession.updateMany({
+  await runUnscoped("mobile app: revoking a session found by token or id", async () => {
+    const now = new Date()
+
+    // The session row is THE GATE: resolveMobilePrincipal() and rotate() both
+    // read it before they look at a token's own revokedAt, so this write alone is
+    // what signs the device out. It therefore goes FIRST and is never made
+    // conditional on the one after it.
+    //
+    // Deliberately NOT one $transaction: inside a transaction a failure on the
+    // companion write would ROLL THIS BACK, and a lost-phone revoke that fails
+    // open is far worse than a mobile_tokens row that is briefly stale. Sequential
+    // means the failure direction is closed - the session is already dead and the
+    // request errors loudly with only the record left to repair.
+    await db.mobileSession.updateMany({
       where: { id: sessionId, revokedAt: null },
-      data: { revokedAt: new Date(), revokedReason: reason },
-    }),
-  )
+      data: { revokedAt: now, revokedReason: reason },
+    })
+
+    // AND NOW THE RECORD. Nothing reads this to decide anything - these tokens
+    // are already dead by the line above - which is exactly why it was missing
+    // and exactly why it has to be here. Without it every mobile_tokens row for
+    // every revoked session keeps revoked_at = NULL, so the first person to query
+    // this table during an incident ("which tokens were live when that phone went
+    // missing?", "was this one burnt before or after the reuse?") reads a table
+    // that says nothing was ever revoked. A ledger that lies is worse than no
+    // ledger, because it gets believed.
+    await db.mobileToken.updateMany({
+      where: { sessionId, revokedAt: null },
+      data: { revokedAt: now },
+    })
+  })
 }
 
 /**
@@ -495,16 +555,47 @@ export async function revokeSessionById(sessionId: string, reason: string): Prom
  * The password route's recipe, in order: setOwnPassword() ->
  * revokeAllForUser(userId, "password_changed") -> issueSession(...). The new
  * session survives because its createdAt is after passwordChangedAt, which is
- * exactly the test rotate() and resolveMobilePrincipal() apply.
+ * exactly the test rotate() and resolveMobilePrincipal() apply - and it is only
+ * reliably after it because issueSession() takes that timestamp from the
+ * application clock rather than the database's. See the note there.
  */
 export async function revokeAllForUser(userId: string, reason: string): Promise<number> {
   return runUnscoped(
     "mobile app: a password change or lost phone revokes every device",
     async () => {
+      const now = new Date()
+
+      // The ids are read BEFORE the update, because the update is precisely what
+      // makes `revokedAt: null` stop matching them: afterwards there is no way
+      // left to ask which sessions this call killed. updateMany returns a count
+      // and not the rows.
+      const live = await db.mobileSession.findMany({
+        where: { userId, revokedAt: null },
+        select: { id: true },
+      })
+
       const { count } = await db.mobileSession.updateMany({
         where: { userId, revokedAt: null },
-        data: { revokedAt: new Date(), revokedReason: reason },
+        data: { revokedAt: now, revokedReason: reason },
       })
+
+      // The same companion write as revokeSessionById(), for the same reason: the
+      // sessions above are the gate, these rows are the record that an incident
+      // gets read out of. Keyed on the ids just read rather than on a nested
+      // `session: { userId }` filter, so this does not depend on how updateMany
+      // chooses to translate a relation filter.
+      //
+      // A session created between the two statements above would be revoked with
+      // its tokens left NULL. It cannot happen on the password route (issueSession
+      // runs after this returns) and it is the harmless direction anyway: the
+      // session row - the thing every check reads - is still correct.
+      if (live.length > 0) {
+        await db.mobileToken.updateMany({
+          where: { sessionId: { in: live.map((s) => s.id) }, revokedAt: null },
+          data: { revokedAt: now },
+        })
+      }
+
       return count
     },
   )
@@ -553,6 +644,8 @@ async function principalForSession(
     return null
   }
   // The kill switch a password change pulls (server/identity.ts:202-203 writes it).
+  // Same one-clock rule as rotate(): both timestamps come from this process, which
+  // is why issueSession() sets createdAt itself instead of letting Postgres do it.
   if (membership.passwordChangedAt && membership.passwordChangedAt > session.createdAt) {
     await revokeSessionById(session.id, "password_changed")
     return null

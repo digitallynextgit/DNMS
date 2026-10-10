@@ -90,8 +90,9 @@ model Membership {
   employee   Employee?   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   clientUser ClientUser? @relation(fields: [clientUserId], references: [id], onDelete: Cascade)
 
-  oauthGrants    OAuthGrant[]
-  mobileSessions MobileSession[]
+  oauthGrants     OAuthGrant[]
+  mobileSessions  MobileSession[]
+  mobilePairCodes MobilePairCode[]
 
   /// A person can hold both a STAFF and a CLIENT membership in one tenant (e.g. a contractor who is also a client contact).
   @@unique([userId, tenantId, kind])
@@ -566,8 +567,9 @@ model Employee {
   oauthGrants OAuthGrant[]
 
   // Signed-in phones, and their FCM/APNs push tokens
-  mobileSessions MobileSession[]
-  deviceTokens   DeviceToken[]
+  mobileSessions  MobileSession[]
+  deviceTokens    DeviceToken[]
+  mobilePairCodes MobilePairCode[]
 
   attendanceLogs          AttendanceLog[]
   regularizations         AttendanceRegularization[] @relation("RegularizationEmployee")
@@ -4750,4 +4752,41 @@ model DeviceToken {
   @@index([employeeId])
   @@index([tenantId, employeeId])
   @@map("device_tokens")
+}
+
+/// A six-digit phone-pairing code: minted by a browser that already holds a live DNMS web session,
+/// typed into the app once, and DELETED on redemption. Looked up BY HASH with no tenant filter -
+/// the code decides the company, exactly like mobile_tokens - so every read of this model must
+/// declare runUnscoped() and the insert must name tenantId itself (see server/mobile-pairing.ts).
+/// Rows live five minutes at most: every mint sweeps the expired ones.
+model MobilePairCode {
+  tenantId String @map("tenant_id")
+  id       String @id @default(uuid()) @map("id")
+
+  /// SHA-256 of the six digits; the code itself is never stored or logged. NOT secrecy - a million
+  /// hashes is milliseconds of work - it keeps the plaintext out of rows, query logs and backups.
+  /// Unique because the hash IS the lookup key, and because two live codes with the same digits
+  /// would leave one of them unredeemable. Global, not per-tenant, for that same reason.
+  codeHash String @unique @map("code_hash")
+
+  /// Who the code pairs AS. All three are re-validated through loadMembershipIfStillValid() before
+  /// a session is issued, so these columns decide the person and the handset never does.
+  userId       String @map("user_id")
+  membershipId String @map("membership_id")
+  employeeId   String @map("employee_id")
+
+  /// Both written from the APP's clock, never a database default: expiresAt is compared against
+  /// new Date() on redemption, so expiresAt - createdAt is the TTL and not the TTL plus the drift
+  /// between two machines. Same one-clock rule issueSession() states in server/mobile-auth.ts.
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  /// The sweep every mint runs - the only thing that deletes an expired code.
+  @@index([expiresAt])
+  /// "One live code per person": a mint replaces the caller's previous code through this.
+  @@index([membershipId])
+  @@map("mobile_pair_codes")
 }

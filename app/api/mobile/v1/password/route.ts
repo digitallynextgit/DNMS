@@ -1,3 +1,5 @@
+import bcrypt from "bcryptjs"
+
 import { withErrorHandler, respond } from "@/server/api-handler"
 import { ok, fail } from "@/lib/api-response"
 import { db } from "@/server/db"
@@ -22,6 +24,17 @@ import {
 // POST /api/mobile/v1/password - change your own password AND get a fresh pair
 // back in the SAME response.
 //
+// TWO CALLERS, told apart by one OPTIONAL field. Without `currentPassword` this
+// is the forced-change path (the account is in mustChangePassword and the person
+// may never have known the old password). WITH it, it is a voluntary change from
+// Settings, and STEP 0 below proves ownership with bcrypt before anything is
+// written. Settings used to go to `PATCH /api/profile` instead, which is the only
+// OTHER endpoint that checks the old password - but it answers with a profile
+// projection and no tokens, so it killed its own session and locked the app out
+// until the next sign-in (dnmsApp src/features/profile/profile.api.ts recorded
+// that gap for months). The bcrypt check and the fresh pair had to come from the
+// same call, which is why the optional field landed HERE.
+//
 // THE SECOND HALF OF THAT SENTENCE IS NOT A CONVENIENCE. setOwnPassword() calls
 // setPassword(), which writes users.passwordChangedAt, and that column's own
 // comment is "passwordChangedAt revokes every session issued before this write"
@@ -42,6 +55,7 @@ import {
 // why this is a hand-written route rather than one more dispatched path.
 //
 // THE ORDER BELOW IS THE ONLY SAFE ONE, and it is not obvious:
+//   0. bcrypt.compare(...)         refuse BEFORE any write, when proof was offered
 //   1. setOwnPassword()            writes passwordChangedAt
 //   2. revokeAllForUser(...)       every OTHER device loses its session too
 //   3. issueSession(...)           survives, because createdAt > passwordChangedAt
@@ -79,11 +93,66 @@ export const POST = withErrorHandler(async (req) => {
   }
 
   // Holding a valid token is not a licence to grind bcrypt: setPassword() hashes
-  // at 12 rounds (server/identity.ts:12), which is deliberately expensive.
+  // at 12 rounds (server/identity.ts:12), which is deliberately expensive. With
+  // `currentPassword` in the body this bucket is ALSO the old-password guessing
+  // limit - 5 per session per 15 minutes - which is why a wrong guess below is
+  // allowed to spend one of them.
   const grinding = throttled(`mobile:password:session:${principal.sessionId}`, 5, 15 * 60_000)
   if (grinding) return grinding
 
   const body = mobilePasswordSchema.parse(await readJsonBody(req))
+
+  // ---------------------------------------------------------------------------
+  // STEP 0. Proof of ownership, for the callers that offered it.
+  //
+  // Absent `currentPassword` this does nothing, which keeps the forced-change
+  // screen working exactly as before (see the note on mobilePasswordSchema for
+  // why it cannot be required). Present, it must pass BEFORE step 1, because
+  // step 1 is irreversible and step 2 signs every device out.
+  //
+  // Against `users.passwordHash` and not the legacy `employees.passwordHash` that
+  // PATCH /api/profile reads: `users` is the row the mobile sign-in path itself
+  // compares (findLoginUser -> server/auth.ts:155) and the row setOwnPassword is
+  // about to write, so verifying anywhere else would be verifying a copy.
+  // setPassword() writes both in one transaction, so they agree today - this just
+  // does not depend on that staying true.
+  //
+  // `users` has no tenantId, so it is not in tenant-guard's scoped set
+  // (server/tenant-guard.ts:23-27) and this read needs no tenant context - the
+  // same reason revokeAllForUser() can run unscoped below. The explicit select is
+  // what opts back into the hash, which server/db.ts omits globally.
+  //
+  // 400 and never 401: the app replays any 401 on a non-refresh call after a
+  // refresh (dnmsApp src/lib/api-client.ts:310-320), so answering 401 for a
+  // mistyped password would re-POST the whole change.
+  // ---------------------------------------------------------------------------
+  if (body.currentPassword) {
+    const user = await db.user.findUnique({
+      where: { id: principal.userId },
+      select: { passwordHash: true },
+    })
+    // Null = "invited but never activated, or a Google-only account"
+    // (prisma/schema.prisma:46-47). Proof was offered and there is nothing to
+    // check it against, so this cannot pass - and it must not SKIP either, which
+    // is what a bare `if (hash && !compare)` would quietly do.
+    //
+    // It also means a Google-only user cannot ADD a first password from Settings,
+    // because the app's card always sends the field. Same refusal as the endpoint
+    // this replaced ("Cannot change password for this account", app/api/profile/
+    // route.ts:70-74), just a sentence that says which case it is. Lifting it
+    // needs a product decision about what proves ownership for an account that
+    // has never had a password, so it is deliberately not invented here.
+    if (!user?.passwordHash) {
+      return fail(
+        "NO_PASSWORD_SET",
+        "This account has no password yet, so there is no current password to verify",
+        400,
+      )
+    }
+    if (!(await bcrypt.compare(body.currentPassword, user.passwordHash))) {
+      return fail("INVALID_CURRENT_PASSWORD", "Your current password is incorrect", 400)
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // STEP 1. Inside the caller's own tenant and identity, because setOwnPassword()

@@ -71,10 +71,25 @@ const SURFACE: Readonly<Record<string, RouteGuard>> = {
     requires: ["issueSession"],
   },
 
-  /** A six-digit code minted by a browser that already holds a live web session. */
+  /** A six-digit code minted by a browser that already holds a live web session.
+   *  redeemPairCode() is the guard, not issueSession(): it is what reads, judges and
+   *  BURNS the code. Both are named, so dropping either is a failure here. */
   "v1/auth/pair/route.ts": {
     open: "a single-use pairing code",
-    requires: ["issueSession"],
+    requires: ["redeemPairCode", "issueSession"],
+  },
+
+  /** THE ODD ONE OUT, and the reason this table is worth the trouble. Every other
+   *  file here answers for a mobile token or a token-shaped credential; this one
+   *  mints a pairing code for a browser, so the credential it checks is the
+   *  ORDINARY WEB SESSION. The Edge cannot check it for us - /api/mobile is a
+   *  PUBLIC_PREFIX - so the route calls the house staff guard itself, and
+   *  withSession() is getSession() + "no session is a 401" + assertStaff()
+   *  (server/api-handler.ts). Without that line this is an anonymous POST that
+   *  hands out 30-day mobile sessions. */
+  "v1/auth/pair/start/route.ts": {
+    open: "a live DNMS web session (cookie), not a mobile token",
+    requires: ["withSession", "mintPairCode"],
   },
 
   /** rotate() is the whole guard: it reads, judges and burns the refresh token. */
@@ -278,5 +293,97 @@ describe("the /api/mobile surface", () => {
     expect(at("issueSession"), "issue the new pair LAST, or it is revoked too").toBeGreaterThan(
       at("revokeAllForUser"),
     )
+  })
+})
+
+// =============================================================================
+// What these routes are allowed to put in a log.
+//
+// A different mistake from the one above: not a missing guard, but a credential
+// written to disk by a line that reads as harmless diagnostics. Both of the
+// cases below were live bugs on this branch - one of them in a route whose own
+// banner claimed the opposite - and neither is visible in a diff unless you
+// already know what the dependency puts in its error messages.
+// =============================================================================
+
+/**
+ * Every console call's ARGUMENT TEXT, found by counting parentheses rather than
+ * with a regex. These log lines are template literals containing `(` and `)` of
+ * their own, so a non-greedy `\\(([\\s\\S]*?)\\)` stops at the first inner
+ * bracket and silently checks half an argument list - which would make the
+ * assertions below pass for the wrong reason.
+ */
+function logCalls(source: string): string[] {
+  const out: string[] = []
+  const re = /console\.\w+\(/g
+  let hit: RegExpExecArray | null
+  while ((hit = re.exec(source))) {
+    const start = hit.index + hit[0].length
+    let depth = 1
+    let i = start
+    while (i < source.length && depth > 0) {
+      if (source[i] === "(") depth += 1
+      else if (source[i] === ")") depth -= 1
+      i += 1
+    }
+    out.push(source.slice(start, i - 1))
+  }
+  return out
+}
+
+describe("the mobile routes log no credential", () => {
+  it("the google route never echoes the verifier's own error message", () => {
+    const source = sourceOf("v1/auth/google/route.ts") ?? ""
+    const logged = logCalls(source)
+
+    // THE BUG THIS EXISTS FOR: google-auth-library builds its failure messages
+    // out of the material it was handed. build/src/auth/oauth2client.js:692
+    // throws `"Wrong number of segments in token: " + jwt` - the RAW id_token
+    // inside an Error - and the envelope branches (:703, :708, :724) interpolate
+    // its segments. `console.warn(..., err.message)` therefore writes a live
+    // Google credential into the production log, where it is replayable until it
+    // expires by anyone who can read logs. The route logs the error CLASS only.
+    expect(logged.length, "the google route stopped logging - re-point this check").toBeGreaterThan(
+      0,
+    )
+    for (const args of logged) {
+      expect(args, "a verifier error message in a log line IS a logged id_token").not.toMatch(
+        /\berr(or)?\s*\??\.\s*message\b/,
+      )
+      // `console.warn("...:", err)` prints the message too, through the inspector.
+      expect(args, "logging the error object prints its message").not.toMatch(/\berr\b\s*,?\s*$/)
+      // And the obvious one, which no version of this route has done.
+      expect(args, "the id_token itself must never reach a log").not.toMatch(/idToken|\bjwt\b/)
+    }
+  })
+
+  it("the devices route records a cross-employee repoint, by id and never by token", () => {
+    const source = sourceOf("v1/devices/route.ts") ?? ""
+
+    // The upsert keys on the GLOBALLY unique raw token and rewrites both
+    // tenantId and employeeId to the caller's, so whoever presents a known token
+    // takes the row over - across companies. That move is required and stays: a
+    // handset changes hands, and FCM/APNs hand the same registration token back
+    // to a reinstalled app, so refusing it would keep delivering one employee's
+    // notifications to another's phone. The guard is that it is OBSERVABLE,
+    // because "why did X receive Y's notification?" is otherwise unanswerable -
+    // the row has already been overwritten and nothing else remembers who held it.
+    expect(source, "the previous holder has to be read for the change to be noticed").toMatch(
+      /deviceToken\.findUnique/,
+    )
+    expect(source, "employeeId is the field whose change matters").toMatch(/employeeId\s*!==/)
+
+    const logged = logCalls(source)
+    expect(logged.length, "a repoint must leave a record").toBeGreaterThan(0)
+    for (const args of logged) {
+      // The device token is a push credential - holding it is enough to address
+      // the handset - so it must never be written down, which is the same reason
+      // this route answers with a bare acknowledgement. The VALUE, not the word:
+      // the log line is allowed to say "push token re-pointed".
+      expect(args, "a device token in a log line is a push credential on disk").not.toMatch(
+        /body\.token|\$\{[^}]*\btoken\b[^}]*\}/,
+      )
+      expect(args, "a repoint is only answerable if it names both employees").toMatch(/employee/i)
+    }
   })
 })

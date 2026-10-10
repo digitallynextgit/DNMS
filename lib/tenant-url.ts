@@ -25,6 +25,9 @@ export const TENANT_SCOPED_SEGMENTS: ReadonlySet<string> = new Set([
   "more",
   "notifications",
   "onboarding",
+  // Mints a mobile-app pairing code. MUST be listed, like every dashboard route: without it
+  // looksLikeSlug("pair-phone") is true and the proxy reads the page as a company.
+  "pair-phone",
   "clearances",
   "exit-clearance",
   "payroll",
