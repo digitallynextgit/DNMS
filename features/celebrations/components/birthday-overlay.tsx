@@ -302,10 +302,7 @@ function Show({ name, photos, onClose }: BirthdayShowProps & { onClose: () => vo
           <div className="relative">
             <motion.h2
               className="leading-[1.05] font-extrabold tracking-tight"
-              style={{
-                fontSize: "min(10vh, 15vw, 6.5rem)",
-                textShadow: "0 8px 40px rgba(0,0,0,0.45)",
-              }}
+              style={{ fontSize: "min(10vh, 15vw, 6.5rem)" }}
               initial={{ opacity: 0, scale: 0.55, filter: "blur(16px)" }}
               animate={show(1) ? { opacity: 1, scale: 1, filter: "blur(0px)" } : {}}
               transition={{
@@ -314,18 +311,18 @@ function Show({ name, photos, onClose }: BirthdayShowProps & { onClose: () => vo
                 filter: { duration: 0.7 },
               }}
             >
-              <motion.span
-                className="inline-block bg-clip-text text-transparent"
+              {/* Solid gold like the title. No text-shadow: on clipped text it paints over the gradient. */}
+              <span
+                className="inline-block bg-clip-text px-[0.1em] text-transparent"
                 style={{
                   backgroundImage:
-                    "linear-gradient(100deg, #f9a8d4 0%, #fde68a 25%, #fffbeb 50%, #fde68a 75%, #f9a8d4 100%)",
-                  backgroundSize: "200% 100%",
+                    "linear-gradient(180deg, #fff8dc 0%, #ffe9a6 38%, #f4c24d 68%, #d89a2e 100%)",
+                  filter:
+                    "drop-shadow(0 0 22px rgba(245, 196, 81, 0.4)) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55))",
                 }}
-                animate={reduce ? undefined : { backgroundPosition: ["0% 50%", "200% 50%"] }}
-                transition={{ duration: 3.5, repeat: Infinity, ease: "linear" }}
               >
                 {name}
-              </motion.span>
+              </span>
             </motion.h2>
             {!reduce &&
               show(1) &&
