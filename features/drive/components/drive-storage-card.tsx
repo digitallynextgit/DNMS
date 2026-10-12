@@ -153,13 +153,13 @@ export function DriveStorageCard({ onOpen }: { onOpen: () => void }) {
 
   return (
     <div className="group bg-card hover:border-foreground/20 hover:bg-muted/30 relative flex flex-col gap-3 rounded-sm border p-4 transition-colors">
-      {/* Stretched link: a sibling overlay makes the whole card clickable; buttons sit above it (z-10). */}
+      {/* Stretched link: the overlay takes clicks anywhere; display-only parts let them through. */}
       {connected && (
         <button
           type="button"
           onClick={onOpen}
           aria-label="Open Google Drive"
-          className="focus-visible:ring-ring absolute inset-0 rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+          className="focus-visible:ring-ring absolute inset-0 cursor-pointer rounded-sm focus-visible:ring-2 focus-visible:outline-none"
         />
       )}
 
@@ -209,7 +209,7 @@ export function DriveStorageCard({ onOpen }: { onOpen: () => void }) {
         )}
       </div>
 
-      <div className="relative z-10 flex flex-wrap items-center gap-1">
+      <div className="pointer-events-none flex flex-wrap items-center gap-1">
         {connected && data.storage === "drive" && <Badge className="text-[10px]">Repository</Badge>}
         {plan && (
           <Badge variant="outline" className="text-[10px]">
@@ -224,7 +224,7 @@ export function DriveStorageCard({ onOpen }: { onOpen: () => void }) {
       </div>
 
       {connected ? (
-        <div className="relative z-10 space-y-2">
+        <div className="pointer-events-none space-y-2">
           {data.quota && <DriveUsage quota={data.quota} />}
           {data.error && <p className="text-destructive line-clamp-2 text-[11px]">{data.error}</p>}
           <p className="text-muted-foreground text-[11px]">
