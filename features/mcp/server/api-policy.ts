@@ -20,6 +20,8 @@ export const EXCLUDED_API_PATHS: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/api\/settings(\/|$)/, "platform integrations and secrets (superadmin)"],
   [/^\/api\/admin\/storage(\/|$)/, "platform storage (superadmin)"],
   [/^\/api\/admin\/storage-accounts(\/|$)/, "platform storage accounts (superadmin)"],
+  [/^\/api\/admin\/google-drive(\/|$)/, "the platform's Google Drive account (superadmin)"],
+  [/^\/api\/integrations(\/|$)/, "connecting platform integrations (superadmin)"],
   [/^\/api\/clients\/\[id\]\/contacts\/\[contactId\]\/password$/, "client portal passwords"],
 ]
 

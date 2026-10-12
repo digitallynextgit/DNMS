@@ -2195,7 +2195,10 @@ model ProjectFolder {
   projectId     String   @map("project_id")
   parentId      String?  @map("parent_id")
   name          String   @map("name")
+  /// Mirror in the old service-account Shared Drive.
   driveFolderId String?  @unique @map("drive_folder_id")
+  /// Mirror in the connected Google account's Drive. Kept apart so switching storage back loses nothing.
+  driveMirrorId String?  @unique @map("drive_mirror_id")
   createdById   String   @map("created_by_id")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -2392,6 +2395,52 @@ model DigestRun {
 
   @@unique([tenantId, kind, periodStart])
   @@map("digest_runs")
+}
+
+/// The latest Backblaze copy of one Repository file in Google Drive. Kept 30 days after the Drive
+/// file is deleted, so a mistaken delete can still be recovered.
+model DriveBackup {
+  tenantId         String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id               String    @id @default(uuid()) @map("id")
+  driveFileId      String    @unique @map("drive_file_id")
+  projectId        String?   @map("project_id")
+  /// Set for uploads (a ProjectResource row); null for Docs and Sheets made in Drive.
+  resourceId       String?   @map("resource_id")
+  name             String    @map("name")
+  mimeType         String    @map("mime_type")
+  size             BigInt    @map("size")
+  /// For a file moved from Backblaze this is its original object, so nothing is uploaded twice.
+  b2Key            String    @unique @map("b2_key")
+  /// Drive's modifiedTime when copied; a newer one means the file changed.
+  sourceModifiedAt DateTime  @map("source_modified_at")
+  backedUpAt       DateTime  @map("backed_up_at")
+  deletedAt        DateTime? @map("deleted_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([projectId])
+  @@map("drive_backups")
+}
+
+/// One nightly backup per company per IST day; the unique key stops two servers running it twice.
+model DriveBackupRun {
+  tenantId    String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String    @id @default(uuid()) @map("id")
+  runDate     DateTime  @map("run_date") @db.Date
+  /// RUNNING | DONE | FAILED
+  status      String    @default("RUNNING") @map("status")
+  /// Files whose Drive copy was compared.
+  checked     Int       @default(0) @map("checked")
+  copied      Int       @default(0) @map("copied")
+  bytesCopied BigInt    @default(0) @map("bytes_copied")
+  failed      Int       @default(0) @map("failed")
+  error       String?   @map("error")
+  startedAt   DateTime  @default(now()) @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+
+  @@unique([tenantId, runDate])
+  @@map("drive_backup_runs")
 }
 
 enum TaskApprovalStatus {

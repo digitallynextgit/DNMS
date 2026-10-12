@@ -3,6 +3,7 @@ import "server-only"
 import { NextResponse } from "next/server"
 import { Readable } from "node:stream"
 import { streamDriveFile } from "@/lib/google-drive"
+import { contentDisposition } from "@/lib/storage"
 
 /**
  * Stream a Drive file the browser can play AND seek (Range forwarded, Accept-Ranges /
@@ -15,14 +16,16 @@ export async function driveFileResponse(
   range: string | null,
   logTag: string,
   cacheControl = "private, no-store",
+  /** "attachment" saves the file instead of opening it in the tab. */
+  disposition: "inline" | "attachment" = "inline",
 ): Promise<NextResponse> {
   try {
     const s = await streamDriveFile(driveFileId, range)
 
     const headers = new Headers({
       "Content-Type": file.mimeType || s.contentType,
-      // Quotes/backslashes stripped: the name is user input inside a quoted header value.
-      "Content-Disposition": `inline; filename="${file.fileName.replace(/["\\]/g, "")}"`,
+      // The name is user input inside a quoted header value; contentDisposition() escapes it.
+      "Content-Disposition": contentDisposition(file.fileName, disposition),
       "Accept-Ranges": "bytes",
       "Cache-Control": cacheControl,
       "X-Content-Type-Options": "nosniff",

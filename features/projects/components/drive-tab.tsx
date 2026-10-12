@@ -77,6 +77,7 @@ import {
   subtitleOf,
   TYPE_LABEL,
   type FileType,
+  storageOf,
   type Source,
   type UnifiedFile,
 } from "../lib/file-row"
@@ -261,6 +262,8 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const [pageState, setPageState] = useState<{ key: string; page: number }>({ key: "", page: 1 })
 
   const driveConfigured = data?.drive.configured ?? false
+  // Once the Repository is on Drive, every upload goes there; no storage choice to make.
+  const onDrive = data?.drive.onDrive ?? false
   const currentFolderName = data?.folder?.name ?? null
 
   const allRows = useMemo<UnifiedFile[]>(() => {
@@ -278,7 +281,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       addedBy: person(f.createdBy),
       ownerId: f.createdById,
       itemCount: f.itemCount,
-      driveFolderId: f.driveFolderId,
+      driveFolderId: f.driveMirrorId ?? f.driveFolderId,
     }))
     const b2: UnifiedFile[] = data.files.map((r: ProjectResource) => ({
       id: r.id,
@@ -295,6 +298,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       addedBy: r.uploadedBy ? person(r.uploadedBy) : null,
       ownerId: r.uploadedById,
       description: r.description,
+      storedIn: r.driveFileId ? "drive" : "b2",
     }))
     const drive: UnifiedFile[] = data.driveFiles.map((f: DriveFile) => ({
       id: f.id,
@@ -340,7 +344,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         if (sourceFilter !== "all" || typeFilter !== "all" || tagFilter !== "all") return false
         return !q || f.name.toLowerCase().includes(q)
       }
-      if (sourceFilter !== "all" && f.source !== sourceFilter) return false
+      if (sourceFilter !== "all" && storageOf(f) !== sourceFilter) return false
       if (typeFilter !== "all" && f.type !== typeFilter) return false
       if (tagFilter !== "all" && f.tag !== tagFilter) return false
       if (
@@ -531,7 +535,11 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     else if (f.source === "drive") text = f.webViewLink ?? ""
     else {
       text = await getResourceDownloadUrl(projectId, f.id).catch(() => "")
-      note = " - valid for 15 minutes"
+      if (f.storedIn === "drive") {
+        // A DNMS link, so it needs the absolute address to work outside this tab.
+        text = text && new URL(text, window.location.origin).toString()
+        note = " - opens for anyone on this project"
+      } else note = " - valid for 15 minutes"
     }
     if (!text) return void toast.error("Nothing to copy for that item.")
     try {
@@ -614,7 +622,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     if (targets.length === 0) {
       toast.error(
         skipped > 0
-          ? "Only stored (Backblaze) files can be downloaded here."
+          ? "Only uploaded files download here; open Google Docs and Sheets in Drive."
           : "Nothing to download.",
       )
       return
@@ -932,15 +940,21 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       case "drive":
         return {
           title: "Move to trash?",
-          description: `"${f.name}" will be moved to the Shared Drive trash (recoverable from Drive).`,
+          description: `"${f.name}" will be moved to Google Drive's trash (recoverable from Drive for 30 days).`,
           label: "Move to trash",
         }
       default:
-        return {
-          title: "Delete file?",
-          description: `"${f.name}" will be permanently deleted from Backblaze storage.`,
-          label: "Delete",
-        }
+        return f.storedIn === "drive"
+          ? {
+              title: "Delete file?",
+              description: `"${f.name}" will be removed from the project and moved to Google Drive's trash (recoverable from Drive for 30 days).`,
+              label: "Delete",
+            }
+          : {
+              title: "Delete file?",
+              description: `"${f.name}" will be permanently deleted from Backblaze storage.`,
+              label: "Delete",
+            }
     }
   }
   const del = deleteCopy(deleteTarget)
@@ -955,7 +969,9 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         onClick={() => void runBulkDownload()}
         loading={dlProgress !== null}
         disabled={dlProgress !== null || bulkProgress !== null || downloadable === 0}
-        title={downloadable === 0 ? "Only stored (Backblaze) files download here" : undefined}
+        title={
+          downloadable === 0 ? "Only uploaded files download here, not Docs or Sheets" : undefined
+        }
       >
         <Download className="mr-1.5 h-3.5 w-3.5" />
         {dlProgress
@@ -1018,37 +1034,44 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
             <Upload className="text-primary mx-auto mb-2 h-8 w-8" />
             <p className="font-medium">Drop to upload to {folderLabel}</p>
             <p className="text-muted-foreground text-xs">
-              Files go to Backblaze · drop a URL to save it as a link
+              Files go to {onDrive ? "Google Drive" : "Backblaze"} · drop a URL to save it as a link
             </p>
           </div>
         </div>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button loading={uploading} disabled={uploading}>
-              <Upload className="mr-1.5 h-3.5 w-3.5" />
-              {progress ? `Uploading ${progress.done}/${progress.total}` : "Upload"}
-              <ChevronDown className="ml-1 h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
-              Into {folderLabel}
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => pickFor("b2")}>
-              <Cloud className="mr-2 h-4 w-4 text-blue-500" />
-              Backblaze (B2)
-              <span className="text-muted-foreground ml-2 text-xs">default</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => pickFor("drive")} disabled={!driveConfigured}>
-              <HardDrive className="mr-2 h-4 w-4 text-emerald-500" />
-              Google Drive
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {onDrive ? (
+          <Button loading={uploading} disabled={uploading} onClick={() => pickFor("b2")}>
+            <Upload className="mr-1.5 h-3.5 w-3.5" />
+            {progress ? `Uploading ${progress.done}/${progress.total}` : "Upload"}
+          </Button>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button loading={uploading} disabled={uploading}>
+                <Upload className="mr-1.5 h-3.5 w-3.5" />
+                {progress ? `Uploading ${progress.done}/${progress.total}` : "Upload"}
+                <ChevronDown className="ml-1 h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+                Into {folderLabel}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => pickFor("b2")}>
+                <Cloud className="mr-2 h-4 w-4 text-blue-500" />
+                Backblaze (B2)
+                <span className="text-muted-foreground ml-2 text-xs">default</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => pickFor("drive")} disabled={!driveConfigured}>
+                <HardDrive className="mr-2 h-4 w-4 text-emerald-500" />
+                Google Drive
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -1488,7 +1511,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         onOpenChange={(o) => !o && setBulkOpen(false)}
         title={`Delete ${selectedRows.length} ${selectedRows.length === 1 ? "item" : "items"}?`}
         description={(() => {
-          const n = (s: Source) => selectedRows.filter((f) => f.source === s).length
+          const n = (s: Source) => selectedRows.filter((f) => storageOf(f) === s).length
           const parts: string[] = []
           const b2 = n("b2")
           const dr = n("drive")
@@ -1498,7 +1521,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
             parts.push(`${b2} stored ${b2 === 1 ? "file" : "files"} will be permanently deleted`)
           if (dr)
             parts.push(
-              `${dr} Drive ${dr === 1 ? "file" : "files"} will be moved to the Shared Drive trash`,
+              `${dr} Drive ${dr === 1 ? "file" : "files"} will be moved to Google Drive's trash`,
             )
           if (li) parts.push(`${li} ${li === 1 ? "link" : "links"} will be removed`)
           if (fo)

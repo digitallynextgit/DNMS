@@ -165,14 +165,30 @@ export const SETTING_FIELDS: SettingField[] = [
   { key: "SMTP_HR_USER", label: "Username", type: "text", group: "HR mailer" },
   { key: "SMTP_HR_PASS", label: "Password", type: "password", group: "HR mailer", secret: true },
 
+  {
+    key: "GOOGLE_DRIVE_CLIENT_ID",
+    label: "OAuth client ID",
+    type: "text",
+    group: "Google Drive",
+    placeholder: "1234567890-abc.apps.googleusercontent.com",
+    help: "Google Cloud -> Google Auth Platform -> Clients -> the DNMS Drive web client. Its redirect URI must be this site's address + /api/integrations/google-drive/callback.",
+  },
+  {
+    key: "GOOGLE_DRIVE_CLIENT_SECRET",
+    label: "OAuth client secret",
+    type: "password",
+    group: "Google Drive",
+    secret: true,
+    help: "From the same client. Stored encrypted.",
+  },
   // Stored here because the local key FILE is gitignored and never deployed.
   {
     key: "GOOGLE_DRIVE_SHARED_DRIVE_ID",
-    label: "Shared Drive ID",
+    label: "Old Shared Drive ID",
     type: "text",
     group: "Google Drive",
     placeholder: "0ALcE76yNtuFUUk9PVA",
-    help: "The company Shared Drive that holds project files (the id in its Drive URL).",
+    help: "The older service-account setup. Files still there keep opening until they are moved.",
   },
   {
     key: "GOOGLE_DRIVE_CREDENTIALS",
@@ -180,7 +196,7 @@ export const SETTING_FIELDS: SettingField[] = [
     type: "password",
     group: "Google Drive",
     secret: true,
-    help: "Paste the whole service-account key JSON on ONE line (minified). Stored encrypted.",
+    help: "Paste the whole service-account key JSON on ONE line (minified). Stored encrypted. Also the SEO tab's default for Search Console and GA4.",
   },
 
   {

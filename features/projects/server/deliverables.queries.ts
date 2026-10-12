@@ -6,9 +6,9 @@ import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { todayUtc } from "@/lib/dates"
-import { getCachedSignedUrl } from "@/lib/storage"
 import { suggestTypesForTeams, typeKey } from "../lib/deliverable-types"
 import { sortProjectTeams } from "../lib/project-teams"
+import { repositoryFileUrl } from "./repository-files"
 import {
   MADE_STATUSES,
   OPEN_STATUSES,
@@ -254,7 +254,7 @@ const ROW_SELECT = {
       fileSize: true,
       mimeType: true,
       objectKey: true,
-      driveWebViewLink: true,
+      driveFileId: true,
     },
     orderBy: { createdAt: "asc" },
   },
@@ -321,11 +321,12 @@ async function toRow(
       fileName: f.fileName,
       fileSize: f.fileSize,
       mimeType: f.mimeType,
-      // Signed URLs come from the cache (re-signing on every load wastes B2 calls). Drive videos use
-      // their durable viewer link.
-      url: f.objectKey
-        ? await getCachedSignedUrl(f.objectKey, 3600).catch(() => "")
-        : (f.driveWebViewLink ?? ""),
+      // Signed URLs come from the cache (re-signing on every load wastes B2 calls); Drive files
+      // stream through DNMS.
+      url: await repositoryFileUrl(
+        { ...f, projectId: r.projectId },
+        { ttlSeconds: 3600, cached: true },
+      ).catch(() => ""),
     })),
   )
   const hours = rowHours(r, qtyByTask)

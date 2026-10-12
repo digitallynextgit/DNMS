@@ -35,6 +35,13 @@ export interface UnifiedFile {
   driveFolderId?: string | null
   /** Drive only: short-lived preview image, used by the card grid. */
   thumbnailLink?: string | null
+  /** Uploads (source "b2") only: where the bytes live. Uploads go to Drive once the Repository moves there. */
+  storedIn?: "b2" | "drive"
+}
+
+/** Where an item's bytes live, for the Storage badge and filter. */
+export function storageOf(f: UnifiedFile): Source {
+  return f.source === "b2" ? (f.storedIn ?? "b2") : f.source
 }
 
 export const TYPE_LABEL: Record<FileType, string> = {

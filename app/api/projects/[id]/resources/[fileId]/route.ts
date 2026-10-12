@@ -9,9 +9,15 @@ import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS } from "@/lib/constants"
-import { getSignedUrl, deleteFile } from "@/lib/storage"
-import { deleteVideoAsset } from "@/lib/drive-media"
 import { syncMadeCount, attachmentCount } from "@/lib/deliverable-counts"
+import {
+  removeRepositoryObject,
+  repositoryFileUrl,
+} from "@/features/projects/server/repository-files"
+import {
+  moveProjectDriveFile,
+  renameProjectDriveFile,
+} from "@/features/projects/server/project-drive.service"
 import { isDocTag, type DocTag } from "@/features/projects/lib/doc-tag"
 import { resourcePatchSchema } from "@/features/projects/schemas/files.schema"
 import { workbookTeamForProject } from "@/features/projects/server/sheets.service"
@@ -35,17 +41,8 @@ export const GET = withProjectAccess(
         return NextResponse.json({ error: "Resource not found" }, { status: 404 })
       }
 
-      // Drive-hosted video uses Drive's streaming viewer; no signed URL needed.
-      const signedUrl = resource.driveFileId
-        ? asDownload
-          ? `https://drive.google.com/uc?export=download&id=${resource.driveFileId}`
-          : resource.driveWebViewLink
-        : await getSignedUrl(
-            // Non-null when driveFileId is null (a CHECK constraint gives every row exactly one store).
-            resource.objectKey!,
-            900, // 15 min
-            asDownload ? { downloadFileName: resource.fileName } : undefined,
-          )
+      // Drive files stream through DNMS; Backblaze ones get a 15-minute signed URL.
+      const signedUrl = await repositoryFileUrl(resource, { download: asDownload })
       return NextResponse.json({ data: { ...resource, signedUrl } })
     } catch (error) {
       console.error("[RESOURCE_GET]", error)
@@ -83,9 +80,8 @@ export const DELETE = withSession(
       }
 
       try {
-        // Un-publish Drive videos, not just drop the row, or Drive keeps serving the public link.
-        if (resource.driveFileId) await deleteVideoAsset(resource.driveFileId)
-        else await deleteFile(resource.objectKey!)
+        // Un-publish Drive files, not just drop the row, or Drive keeps serving a public link.
+        await removeRepositoryObject(resource)
       } catch {
         /* file may already be gone */
       }
@@ -200,6 +196,18 @@ export const PATCH = withSession(
             { error: "Only somebody on that team can attach files to its row" },
             { status: 403 },
           )
+        }
+      }
+
+      // A Drive file follows its row, so the project's Drive folder reads the same as the Repository.
+      if (resource.driveFileId) {
+        try {
+          if (body.fileName !== undefined && body.fileName !== resource.fileName)
+            await renameProjectDriveFile(projectId, resource.driveFileId, body.fileName)
+          if (body.folderId !== undefined && body.folderId !== resource.folderId)
+            await moveProjectDriveFile(projectId, resource.driveFileId, body.folderId)
+        } catch (e) {
+          console.error("[RESOURCE_PATCH] Drive rename/move failed", fileId, e)
         }
       }
 

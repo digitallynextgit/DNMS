@@ -81,6 +81,10 @@ const CATEGORY_META: Record<StorageCategory, { icon: React.ElementType; tint: st
     icon: FileUser,
     tint: "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400",
   },
+  "drive-backups": {
+    icon: HardDrive,
+    tint: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  },
   other: { icon: Folder, tint: "bg-muted text-muted-foreground" },
 }
 

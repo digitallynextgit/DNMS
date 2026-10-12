@@ -64,7 +64,7 @@ export class VideoUploadError extends Error {
 export async function uploadVideoAsset(projectId: string, file: File): Promise<VideoUploadResult> {
   if (!(await isDriveConfigured())) {
     throw new VideoUploadError(
-      "Video needs Google Drive, which is not configured. Add the Drive service account and Shared Drive id under Admin -> Integrations.",
+      "Video needs Google Drive, which is not configured. Connect a Google account under Admin -> Integrations.",
       503,
     )
   }
@@ -84,6 +84,7 @@ export async function uploadVideoAsset(projectId: string, file: File): Promise<V
     fileName,
     mimeType,
     Buffer.from(await file.arrayBuffer()),
+    { dnmsProject: projectId },
   )
 
   return {

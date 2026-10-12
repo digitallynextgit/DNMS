@@ -52,7 +52,7 @@ const STAMPED_WRITES = new Set(["create", "createMany", "createManyAndReturn"])
  * Safe to trust: proxy.ts strips `x-tenant-id` from every inbound request and sets it only after
  * checking the session. Null outside a request (cron, scripts), where headers() throws.
  */
-async function tenantFromRequestHeaders(): Promise<TenantContext | null> {
+export async function tenantFromRequestHeaders(): Promise<TenantContext | null> {
   try {
     const { headers } = await import("next/headers")
     const h = await headers()

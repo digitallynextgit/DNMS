@@ -151,11 +151,14 @@ function rfc5987(str: string): string {
 }
 
 /** ASCII `filename` fallback plus the exact name in `filename*` (latin-1 headers mangle the rest). */
-function contentDisposition(name: string): string {
+export function contentDisposition(
+  name: string,
+  type: "attachment" | "inline" = "attachment",
+): string {
   const clean = name.replace(/["\r\n]/g, "").trim() || "download"
   // Parens, spaces and commas are fine inside the quoted fallback.
   const ascii = clean.replace(/[^\x20-\x7E]/g, "_").replace(/[\\"]/g, "_")
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${rfc5987(clean)}`
+  return `${type}; filename="${ascii}"; filename*=UTF-8''${rfc5987(clean)}`
 }
 
 export async function getSignedUrl(

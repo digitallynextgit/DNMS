@@ -3,6 +3,10 @@ import "server-only"
 import { db } from "@/server/db"
 import { createNotifications } from "@/lib/notifications"
 import { setMembershipActive } from "@/server/identity"
+import {
+  driveProjectIdsFor,
+  syncProjectsFolderAccessAsync,
+} from "@/features/projects/server/project-drive.service"
 
 // Backstop for unfinished exits: deactivates anyone still active after their last working day
 // and tells HR. Never completes the checklist - the clearances still need real signatures.
@@ -41,6 +45,8 @@ export async function sweepOverdueExits(now: Date = new Date()): Promise<ExitSwe
   for (const row of overdue) {
     const e = row.employee
     try {
+      // Read before the seats go, so their projects' Drive folders stop sharing with them.
+      const driveProjects = await driveProjectIdsFor([e.id])
       await db.$transaction([
         db.employee.update({
           where: { id: e.id },
@@ -51,6 +57,7 @@ export async function sweepOverdueExits(now: Date = new Date()): Promise<ExitSwe
         db.projectTeam.updateMany({ where: { managerId: e.id }, data: { managerId: null } }),
         db.projectServiceOwner.deleteMany({ where: { employeeId: e.id } }),
       ])
+      syncProjectsFolderAccessAsync(driveProjects)
       try {
         await setMembershipActive({ employeeId: e.id }, false)
       } catch (err) {

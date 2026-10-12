@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
 import { PageHeader } from "@/components/shared/page-header"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
+import { DriveStorageCard } from "@/features/drive"
 import { AccountCard, AccountTable } from "./storage-account-views"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import {
@@ -51,11 +52,13 @@ export function StorageAccountGrid({
   accounts,
   isPending,
   onOpen,
+  onOpenDrive,
   onChanged,
 }: {
   accounts: StorageAccount[]
   isPending: boolean
   onOpen: (a: StorageAccount) => void
+  onOpenDrive: () => void
   onChanged: () => void
 }) {
   const [editing, setEditing] = React.useState<StorageAccount | "new" | null>(null)
@@ -100,7 +103,7 @@ export function StorageAccountGrid({
     <div className="space-y-6">
       <PageHeader
         title="Storage"
-        description="Buckets connected to DNMS. Open one to browse its files."
+        description="Backblaze buckets and the Google Drive account connected to DNMS. Open one to browse its files."
         actions={
           <div className="flex items-center gap-2">
             <ViewToggle value={view} onChange={setView} />
@@ -120,10 +123,17 @@ export function StorageAccountGrid({
         </div>
       )}
 
+      {/* The table lists buckets only, so Drive keeps its card above it. */}
+      {!isPending && (view === "table" || accounts.length === 0) && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <DriveStorageCard onOpen={onOpenDrive} />
+        </div>
+      )}
+
       {!isPending && accounts.length === 0 && (
         <EmptyState
           icon={HardDrive}
-          title="No storage connected"
+          title="No bucket connected"
           description="Add a Backblaze B2 (or any S3-compatible) bucket to start storing files."
           variant="card"
         />
@@ -131,6 +141,7 @@ export function StorageAccountGrid({
 
       {!isPending && accounts.length > 0 && view === "card" && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <DriveStorageCard onOpen={onOpenDrive} />
           {accounts.map((a) => (
             <AccountCard
               key={a.id}

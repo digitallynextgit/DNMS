@@ -10,11 +10,10 @@ import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS } from "@/lib/constants"
-import { uploadFile, getObjectKey, ensureBucket } from "@/lib/storage"
-import { uploadVideoAsset, VideoUploadError } from "@/lib/drive-media"
+import { VideoUploadError } from "@/lib/drive-media"
 import { syncMadeCount, attachmentCount } from "@/lib/deliverable-counts"
-import { isVideoUpload } from "@/lib/upload-rules"
 import { classifyDoc, isDocTag } from "@/features/projects/lib/doc-tag"
+import { storeRepositoryFile, type StoredObject } from "@/features/projects/server/repository-files"
 import { canEditDeliverable } from "@/features/projects/server/deliverables.service"
 import { workbookTeamForProject } from "@/features/projects/server/sheets.service"
 import { canContributeToWorkbookTeam } from "@/features/projects/server/project-access"
@@ -220,67 +219,25 @@ export const POST = withSession(
 
       const resourceId = randomUUID()
 
-      // Video goes to Drive (shareable without a login, as in the portal); everything else to Backblaze.
-      let storage: {
-        objectKey: string | null
-        driveFileId: string | null
-        driveWebViewLink: string | null
-        isPublicLink: boolean
-        shareToken: string | null
-        sharedPubliclyAt: Date | null
-      }
-
-      if (isVideoUpload({ name: fileName, type: file.type })) {
-        try {
-          const uploaded = await uploadVideoAsset(projectId, file)
-          storage = {
-            objectKey: null,
-            driveFileId: uploaded.driveFileId,
-            driveWebViewLink: uploaded.webViewLink,
-            isPublicLink: true,
-            shareToken: uploaded.shareToken,
-            sharedPubliclyAt: new Date(),
-          }
-        } catch (e) {
-          if (e instanceof VideoUploadError) {
-            return NextResponse.json({ error: e.message }, { status: e.status })
-          }
-          console.error("[RESOURCES_POST] drive upload error:", e)
-          const msg = e instanceof Error ? e.message : "Drive upload failed"
-          return NextResponse.json({ error: msg }, { status: 500 })
+      let storage: StoredObject
+      try {
+        storage = await storeRepositoryFile({
+          id: resourceId,
+          projectId,
+          folderId,
+          file,
+          b2Prefix: teamId
+            ? `projects/${projectId}/teams/${teamId}/${category}`
+            : `projects/${projectId}/${category}`,
+        })
+      } catch (e) {
+        if (e instanceof VideoUploadError) {
+          return NextResponse.json({ error: e.message }, { status: e.status })
         }
-      } else {
-        await ensureBucket()
-
-        const prefix = teamId
-          ? `projects/${projectId}/teams/${teamId}/${category}`
-          : `projects/${projectId}/${category}`
-        const objectKey = getObjectKey(prefix, fileName, resourceId)
-
-        let buffer: Buffer
-        try {
-          const arrayBuf = await file.arrayBuffer()
-          buffer = Buffer.from(arrayBuf)
-        } catch (e) {
-          console.error("[RESOURCES_POST] file read error:", e)
-          return NextResponse.json({ error: "Could not read file contents" }, { status: 400 })
-        }
-
-        try {
-          await uploadFile(objectKey, buffer, file.type || "application/octet-stream", file.size)
-        } catch (e) {
-          console.error("[RESOURCES_POST] storage upload error:", e)
-          const msg = e instanceof Error ? e.message : "Storage upload failed"
-          return NextResponse.json({ error: msg }, { status: 500 })
-        }
-        storage = {
-          objectKey,
-          driveFileId: null,
-          driveWebViewLink: null,
-          isPublicLink: false,
-          shareToken: null,
-          sharedPubliclyAt: null,
-        }
+        console.error("[RESOURCES_POST] storage upload error:", e)
+        // Surface the real reason (quota, permissions, network) - it's an internal tool.
+        const msg = e instanceof Error ? e.message : "Upload failed"
+        return NextResponse.json({ error: msg }, { status: 500 })
       }
 
       const resource = await db.projectResource.create({

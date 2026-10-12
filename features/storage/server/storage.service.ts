@@ -5,6 +5,7 @@ import { isB2Configured, listAllObjects, deleteFile, type StorageObject } from "
 import { getConfig } from "@/server/app-config"
 import type { StorageCategory, StorageFile, StorageOverview } from "../types"
 import { CATEGORY_LABELS } from "../types"
+import { BACKUP_PREFIX } from "@/features/drive/lib/drive-plan"
 
 const FREE_TIER_BYTES = 10 * 1024 * 1024 * 1024 // Backblaze B2 free tier = 10 GB
 
@@ -26,6 +27,7 @@ function categorize(key: string): StorageCategory {
   if (key.startsWith("mailer-images/")) return "mailer-images"
   if (key.startsWith("chat/")) return "chat"
   if (key.startsWith("resumes/")) return "resumes"
+  if (key.startsWith(BACKUP_PREFIX)) return "drive-backups"
   return "other"
 }
 
@@ -122,7 +124,7 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
     }),
   ])
 
-  const [messageAttachments, applicants, objects] = await Promise.all([
+  const [messageAttachments, applicants, driveBackups, objects] = await Promise.all([
     db.projectMessageAttachment.findMany({
       select: {
         objectKey: true,
@@ -134,6 +136,8 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
       where: { OR: [{ resumeKey: { not: null } }, { resumeUrl: { not: null } }] },
       select: { resumeKey: true, resumeUrl: true, firstName: true, lastName: true },
     }),
+    // A moved Repository file's original object is its backup, so it is never an orphan.
+    db.driveBackup.findMany({ select: { b2Key: true, name: true, deletedAt: true } }),
     objectsPromise,
   ])
 
@@ -214,6 +218,13 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
       name: a.fileName,
     })
 
+  for (const b of driveBackups)
+    refs.set(b.b2Key, {
+      owner: b.deletedAt ? "Drive backup (deleted in Drive)" : "Drive backup",
+      refType: "drive-backup",
+      name: b.name,
+    })
+
   // Rows uploaded before resumeKey existed only have resumeUrl, so fall back to a substring match.
   const resumeKeys = objects
     .map((o: StorageObject) => o.key)
@@ -271,7 +282,7 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
 
 /** Deletes the object AND clears the DB row pointing at it. Returns a name for the toast. */
 export async function deleteStorageObject(key: string): Promise<{ name: string }> {
-  const [emp, doc, empDoc, brand, resource, project, chatFile, msgFile, applicant] =
+  const [emp, doc, empDoc, brand, resource, project, chatFile, msgFile, applicant, backup] =
     await Promise.all([
       db.employee.findFirst({ where: { profilePhotoKey: key }, select: { id: true } }),
       db.document.findFirst({ where: { objectKey: key }, select: { id: true, title: true } }),
@@ -298,6 +309,7 @@ export async function deleteStorageObject(key: string): Promise<{ name: string }
         where: { OR: [{ resumeKey: key }, { resumeUrl: { contains: key } }] },
         select: { id: true, firstName: true, lastName: true },
       }),
+      db.driveBackup.findUnique({ where: { b2Key: key }, select: { id: true, name: true } }),
     ])
 
   if (emp)
@@ -319,6 +331,9 @@ export async function deleteStorageObject(key: string): Promise<{ name: string }
       data: { resumeUrl: null, resumeKey: null },
     })
 
+  // The Drive file itself is untouched; the next nightly run makes a fresh copy.
+  if (backup) await db.driveBackup.delete({ where: { id: backup.id } })
+
   await deleteFile(key).catch((e) => console.error("[storage] B2 delete failed:", key, e))
 
   const name =
@@ -328,6 +343,7 @@ export async function deleteStorageObject(key: string): Promise<{ name: string }
     resource?.fileName ??
     chatFile?.fileName ??
     msgFile?.fileName ??
+    backup?.name ??
     (project ? `${project.name} logo` : null) ??
     (applicant ? `${applicant.firstName} ${applicant.lastName}`.trim() + " resume" : null) ??
     displayName(key)

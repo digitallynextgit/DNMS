@@ -5,9 +5,10 @@ import { requireClientModule } from "@/server/client-guard"
 import { recordActivity } from "@/lib/activity"
 import { createNotifications } from "@/lib/notifications"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
-import { getObjectKey, uploadFile, getSignedUrl, deleteFile, isB2Configured } from "@/lib/storage"
+import { getSignedUrl, deleteFile, isB2Configured } from "@/lib/storage"
 import { deleteVideoAsset } from "@/lib/drive-media"
 import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES } from "@/lib/constants"
+import { storeRepositoryFile } from "@/features/projects/server/repository-files"
 
 // Client-side shared library. Every query filters on isClientVisible (defaults to false).
 // Always pass the session to recordActivity: a null session is logged as staff.
@@ -74,10 +75,10 @@ export async function getClientDocumentUrl(
     })
     if (!file) return fail("File not found", undefined, 404)
 
-    // Drive-hosted plan videos stream through us - the client has no Drive access.
+    // Drive-hosted files stream through us - the client has no Drive access.
     let url: string
     if (file.driveFileId) {
-      url = `/api/portal/projects/${projectRef}/documents/${file.id}/stream`
+      url = `/api/portal/projects/${projectRef}/documents/${file.id}/stream${opts.download ? "?download=1" : ""}`
     } else {
       if (!isB2Configured()) return fail("File storage is not configured", undefined, 503)
       url = await getSignedUrl(file.objectKey!, 3600, {
@@ -129,8 +130,13 @@ export async function uploadClientDocument(
         .slice(0, 300) || null
 
     const id = crypto.randomUUID()
-    const objectKey = getObjectKey(`project-resources/${grant.projectId}`, file.name, id)
-    await uploadFile(objectKey, Buffer.from(await file.arrayBuffer()), file.type)
+    const stored = await storeRepositoryFile({
+      id,
+      projectId: grant.projectId,
+      folderId: null,
+      file,
+      b2Prefix: `project-resources/${grant.projectId}`,
+    })
 
     const created = await db.projectResource.create({
       data: {
@@ -140,7 +146,7 @@ export async function uploadClientDocument(
         fileName: file.name.slice(0, 200),
         fileSize: file.size,
         mimeType: file.type || "application/octet-stream",
-        objectKey,
+        ...stored,
         description,
         // The client is the uploader; the CHECK constraint allows only one of the two.
         uploadedById: null,
