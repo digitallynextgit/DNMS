@@ -14,12 +14,13 @@ export const projectInsightsSeoGuide: HelpGuide = {
   group: "projects",
   icon: BarChart3,
   href: "/projects/my-projects",
-  title: { en: "Insights and SEO", hi: "इनसाइट्स और SEO (Insights, SEO)" },
+  title: { en: "Analytics and SEO", hi: "एनालिटिक्स और SEO (Analytics, SEO)" },
   summary: {
-    en: "See how the client's Meta ads are doing on the Insights tab, and how their websites do in Google search on the SEO tab.",
-    hi: "Insights टैब पर देखें कि क्लाइंट के Meta ads कैसा कर रहे हैं, और SEO टैब पर देखें कि उनकी वेबसाइटें Google सर्च में कैसा कर रही हैं।",
+    en: "See how the client's Meta ads are doing on the Analytics tab, and how their websites do in Google search on the SEO tab.",
+    hi: "Analytics टैब पर देखें कि क्लाइंट के Meta ads कैसा कर रहे हैं, और SEO टैब पर देखें कि उनकी वेबसाइटें Google सर्च में कैसा कर रही हैं।",
   },
   keywords: [
+    "analytics",
     "insights",
     "meta",
     "facebook",
@@ -43,12 +44,12 @@ export const projectInsightsSeoGuide: HelpGuide = {
   sections: [
     {
       id: "insights",
-      title: { en: "See ad results (Insights tab)", hi: "एड के नतीजे देखें (Insights टैब)" },
+      title: { en: "See ad results (Analytics tab)", hi: "एड के नतीजे देखें (Analytics टैब)" },
       steps: [
         {
           text: {
-            en: "Open the project from Projects and click the Insights tab. Meta Ads shows the client's Facebook and Instagram ad results: Spend, Impressions, Clicks, Reach, Purchases, Purchase value, ROAS and Avg CPC.",
-            hi: "Projects से प्रोजेक्ट खोलें और Insights टैब पर क्लिक करें। Meta Ads में क्लाइंट के Facebook और Instagram एड के नतीजे दिखते हैं: Spend, Impressions, Clicks, Reach, Purchases, Purchase value, ROAS और Avg CPC।",
+            en: "Open the project from Projects and click the Analytics tab. Meta Ads shows the client's Facebook and Instagram ad results: Spend, Impressions, Clicks, Reach, Purchases, Purchase value, ROAS and Avg CPC.",
+            hi: "Projects से प्रोजेक्ट खोलें और Analytics टैब पर क्लिक करें। Meta Ads में क्लाइंट के Facebook और Instagram एड के नतीजे दिखते हैं: Spend, Impressions, Clicks, Reach, Purchases, Purchase value, ROAS और Avg CPC।",
           },
         },
         {
@@ -76,8 +77,8 @@ export const projectInsightsSeoGuide: HelpGuide = {
       ],
       tips: [
         {
-          en: "Everyone on the project can see Insights. Sync now and the connection settings are for the Account Manager or a project admin.",
-          hi: "प्रोजेक्ट का हर व्यक्ति Insights देख सकता है। Sync now और कनेक्शन की सेटिंग्स Account Manager या प्रोजेक्ट एडमिन के लिए हैं।",
+          en: "Everyone on the project can see Analytics. Sync now and the connection settings are for the Account Manager or a project admin.",
+          hi: "प्रोजेक्ट का हर व्यक्ति Analytics देख सकता है। Sync now और कनेक्शन की सेटिंग्स Account Manager या प्रोजेक्ट एडमिन के लिए हैं।",
         },
         {
           en: "ROAS is purchase value divided by spend. Above 1x means the ads earned more than they cost.",
@@ -94,8 +95,8 @@ export const projectInsightsSeoGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "On the Insights tab, click Connections. On the Meta Ads card, click Connect (1). If Meta Ads is already connected, as here, the same button says Edit.",
-            hi: "Insights टैब में Connections पर क्लिक करें। Meta Ads कार्ड पर Connect (1) पर क्लिक करें। अगर Meta Ads पहले से जुड़ा है, जैसा यहाँ है, तो इसी बटन पर Edit लिखा होता है।",
+            en: "On the Analytics tab, click Connections. On the Meta Ads card, click Connect (1). If Meta Ads is already connected, as here, the same button says Edit.",
+            hi: "Analytics टैब में Connections पर क्लिक करें। Meta Ads कार्ड पर Connect (1) पर क्लिक करें। अगर Meta Ads पहले से जुड़ा है, जैसा यहाँ है, तो इसी बटन पर Edit लिखा होता है।",
           },
           shot: {
             id: "project-insights-seo-connections",

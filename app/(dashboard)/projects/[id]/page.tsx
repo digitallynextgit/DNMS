@@ -192,7 +192,7 @@ export default function ProjectDetailPage() {
 
   // The tab lives in the URL so a reload or shared link lands on the same tab.
   const rawTab = searchParams.get("tab")
-  // Renamed tabs: "drive" is now Repository; "integration" is the Connections dialog in Insights.
+  // Renamed tabs: "drive" is now Repository; "integration" is the Connections dialog in Analytics.
   const tabParam =
     rawTab === "drive" ? "repository" : rawTab === "integration" ? "insights" : rawTab
   const activeTab = PROJECT_TABS.includes(tabParam as (typeof PROJECT_TABS)[number])
@@ -379,7 +379,7 @@ export default function ProjectDetailPage() {
               { value: "calendar", label: "Calendars", icon: CalendarDays },
               { value: "deliverables", label: "Deliverables", icon: PackageCheck },
               { value: "repository", label: "Repository", icon: HardDrive },
-              { value: "insights", label: "Insights", icon: BarChart3 },
+              { value: "insights", label: "Analytics", icon: BarChart3 },
               { value: "seo", label: "SEO", icon: Search },
               { value: "teams", label: "Teams", icon: Users },
               { value: "tasks", label: "Tasks", icon: FolderKanban },

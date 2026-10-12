@@ -4501,25 +4501,25 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "project-insights-seo-meta": {
-    src: "/help-shots/project-insights-seo-meta.81652d4c.webp",
+    src: "/help-shots/project-insights-seo-meta.cd3efde3.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
         x: 0.2358,
-        y: 0.4517,
+        y: 0.465,
         w: 0.0409,
         h: 0.04,
       },
       {
         x: 0.3094,
-        y: 0.4472,
+        y: 0.4606,
         w: 0.0804,
         h: 0.0489,
       },
       {
         x: 0.8906,
-        y: 0.4472,
+        y: 0.4606,
         w: 0.0956,
         h: 0.0489,
       },
