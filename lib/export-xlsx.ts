@@ -1,5 +1,6 @@
 // XLSX export, same call shape as export-csv / export-docx. Dynamically imported (~1 MB).
 // ExcelJS, not SheetJS: the SheetJS community build can't write styles (wrapText) or freeze panes.
+import type { Worksheet } from "exceljs"
 
 type Cell = string | number | boolean | null | undefined
 
@@ -46,12 +47,31 @@ export async function exportToXlsx(
   filename: string,
   sheetName = "Sheet1",
 ): Promise<void> {
+  await exportBookToXlsx([{ name: sheetName, header, rows }], filename)
+}
+
+/** One file, one worksheet per tab, in order. Duplicate tab names get " (2)", as Excel requires. */
+export async function exportBookToXlsx(
+  tabs: { name: string; header: string[]; rows: Cell[][] }[],
+  filename: string,
+): Promise<void> {
   const ExcelJS = (await import("exceljs")).default
   const book = new ExcelJS.Workbook()
-  const sheet = book.addWorksheet(
-    sheetName.replace(SHEET_NAME_BANNED, " ").slice(0, SHEET_NAME_MAX) || "Sheet1",
-  )
+  const used = new Set<string>()
+  for (const tab of tabs) {
+    const base = tab.name.replace(SHEET_NAME_BANNED, " ").trim().slice(0, SHEET_NAME_MAX) || "Sheet"
+    let name = base
+    for (let n = 2; used.has(name.toLowerCase()); n++) {
+      const suffix = ` (${n})`
+      name = base.slice(0, SHEET_NAME_MAX - suffix.length) + suffix
+    }
+    used.add(name.toLowerCase())
+    addSheet(book.addWorksheet(name), tab.header, tab.rows)
+  }
+  download((await book.xlsx.writeBuffer()) as ArrayBuffer, filename)
+}
 
+function addSheet(sheet: Worksheet, header: string[], rows: Cell[][]): void {
   sheet.addRow(header)
   for (const row of rows) sheet.addRow(row.map((c) => c ?? ""))
 
@@ -69,6 +89,4 @@ export async function exportToXlsx(
     const lines = Math.max(...rows[r]!.map((c) => String(c ?? "").split("\n").length), 1)
     if (lines > 1) row.height = Math.min(MAX_ROW_POINTS, lines * 15)
   }
-
-  download((await book.xlsx.writeBuffer()) as ArrayBuffer, filename)
 }

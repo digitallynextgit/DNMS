@@ -188,6 +188,12 @@ export const projectContentCalendarGuide: HelpGuide = {
             hi: "टैब के बाद वाला + इस महीने में एक और ग्रिड जोड़ता है। Find in this tab… खुले हुए टैब में खोजता है। दाईं ओर ⋯ मेन्यू में History खुले हुए टैब का हर बदलाव दिखाती है - किसने क्या बदला, और कब।",
           },
         },
+        {
+          text: {
+            en: "Download saves the calendar as a file. Under This tab, choose Excel (.xlsx) or CSV (.csv) for the open tab. Excel, every tab (.xlsx) saves the whole month in one Excel file, one sheet per tab. People show by name.",
+            hi: "Download से कैलेंडर फाइल की तरह सेव होता है। This tab में खुले हुए टैब के लिए Excel (.xlsx) या CSV (.csv) चुनें। Excel, every tab (.xlsx) पूरे महीने को एक Excel फाइल में सेव करता है, हर टैब की अलग शीट। लोगों के नाम दिखते हैं।",
+          },
+        },
       ],
       tips: [
         {

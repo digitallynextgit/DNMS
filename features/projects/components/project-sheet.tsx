@@ -19,8 +19,14 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  Download,
+  Loader2,
 } from "lucide-react"
+import { toast } from "sonner"
 import { SheetImportDialog } from "./sheet-import-dialog"
+import { downloadCsv, toCsv } from "@/lib/export-csv"
+import { exportBookToXlsx, exportToXlsx } from "@/lib/export-xlsx"
+import { exportFileName, sheetTable } from "../lib/sheet-export"
 
 import { useMeasuredRowHeights } from "@/hooks/use-measured-row-heights"
 import { cn } from "@/lib/utils"
@@ -65,6 +71,7 @@ import {
 import {
   currentMonth,
   editionIndexForMonth,
+  formatMonthShort,
   monthISO,
   groupIntoSeries,
   parseMonth,
@@ -111,6 +118,9 @@ const TOTAL_ROWS = 1000
 const OVERSCAN = 8
 
 /** Types whose control IS the editor - Enter or a printable key must not try to "open" them. */
+// Leads a CSV so Excel reads it as UTF-8 (curly quotes, Hindi).
+const UTF8_BOM = String.fromCharCode(0xfeff)
+
 const LIVE_TYPES = new Set<SheetColumnType>(["SELECT", "PERSON", "CHECKBOX"])
 
 function fmtWhen(iso: string): string {
@@ -816,6 +826,43 @@ export function ProjectSheetSection({
     return map
   }, [teams])
 
+  const [exporting, setExporting] = React.useState(false)
+  /** What the grid shows, as a file: one tab (CSV or Excel), or every tab in one Excel file. */
+  async function download(what: "tab-csv" | "tab-xlsx" | "all-xlsx") {
+    if (!workbook || !active) return
+    const personName = (id: string) => people.get(id)
+    const parts = [
+      workbook.name,
+      workbook.periodMonth ? formatMonthShort(workbook.periodMonth) : null,
+    ]
+    setExporting(true)
+    try {
+      if (what === "all-xlsx") {
+        const tabs = workbook.sheets.map((s) => sheetTable(s, personName))
+        await exportBookToXlsx(tabs, exportFileName(parts, "xlsx"))
+      } else {
+        const t = sheetTable(active, personName)
+        if (what === "tab-csv") {
+          downloadCsv(
+            `${UTF8_BOM}${toCsv(t.rows, t.header)}`,
+            exportFileName([...parts, active.name], "csv"),
+          )
+        } else {
+          await exportToXlsx(
+            t.header,
+            t.rows,
+            exportFileName([...parts, active.name], "xlsx"),
+            active.name,
+          )
+        }
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not create the file")
+    } finally {
+      setExporting(false)
+    }
+  }
+
   // Windowing: only the visible band is in the DOM, sized from each row's MEASURED height (rows grow to fit text).
   const scrollerRef = React.useRef<HTMLDivElement>(null)
   const [scroll, setScroll] = React.useState({ top: 0, left: 0, height: 640 })
@@ -1277,6 +1324,40 @@ export function ProjectSheetSection({
           >
             <Upload className="h-3.5 w-3.5" /> Upload to this tab
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="h-8 gap-1.5 px-3 text-xs"
+                disabled={!active || exporting}
+              >
+                {exporting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
+                Download
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="text-muted-foreground truncate text-xs font-normal">
+                This tab{active ? ` · ${active.name}` : ""}
+              </DropdownMenuLabel>
+              <DropdownMenuItem className="gap-2" onSelect={() => void download("tab-xlsx")}>
+                <Table2 className="h-3.5 w-3.5" /> Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2" onSelect={() => void download("tab-csv")}>
+                <Table2 className="h-3.5 w-3.5" /> CSV (.csv)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+                Whole calendar · {sheets?.length ?? 0} {sheets?.length === 1 ? "tab" : "tabs"}
+              </DropdownMenuLabel>
+              <DropdownMenuItem className="gap-2" onSelect={() => void download("all-xlsx")}>
+                <Table2 className="h-3.5 w-3.5" /> Excel, every tab (.xlsx)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
