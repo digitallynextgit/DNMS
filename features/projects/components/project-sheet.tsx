@@ -734,6 +734,17 @@ export function ProjectSheetSection({
     copyFrom: { workbookId: string; teamPlan: boolean } | null
   } | null>(null)
   const [newTabOpen, setNewTabOpen] = React.useState(false)
+  // Renamed in place: the tab turns into a text box (double-click, or ⋯ -> Rename tab).
+  const [renaming, setRenaming] = React.useState<{ id: string; draft: string } | null>(null)
+  // Escape must not save: removing the box can still fire its blur with the old draft.
+  const renameCancelled = React.useRef(false)
+  const startRename = (s: { id: string; name: string }) => {
+    renameCancelled.current = false
+    setRenaming({ id: s.id, draft: s.name })
+  }
+  // From the ⋯ menu: the open menu holds focus while the box appears, so it is focused on close.
+  const renameFromMenu = React.useRef(false)
+  const renameInput = React.useRef<HTMLInputElement>(null)
   const [newTabName, setNewTabName] = React.useState("")
   // `matchIdx` is unbounded and wrapped at use, so a new query needs no reset effect.
   const [search, setSearch] = React.useState("")
@@ -1224,21 +1235,54 @@ export function ProjectSheetSection({
       {/* 3. The month's tabs, and the tools for the open tab. */}
       <div className="border-border flex flex-wrap items-end gap-x-3 gap-y-1 border-b">
         <div className="no-scrollbar flex min-w-0 flex-1 items-end gap-1 overflow-x-auto">
-          {(sheets ?? []).map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setActiveId(s.id)}
-              className={cn(
-                "-mb-px h-9 shrink-0 border-b-2 px-3 text-sm whitespace-nowrap transition-colors",
-                s.id === active?.id
-                  ? "border-primary text-foreground font-semibold"
-                  : "text-muted-foreground hover:text-foreground border-transparent",
-              )}
-            >
-              {s.name}
-            </button>
-          ))}
+          {(sheets ?? []).map((s) =>
+            renaming?.id === s.id ? (
+              <Input
+                key={s.id}
+                ref={renameInput}
+                autoFocus
+                maxLength={60}
+                aria-label="Tab name"
+                value={renaming.draft}
+                onChange={(e) => setRenaming({ id: s.id, draft: e.target.value })}
+                onFocus={(e) => e.currentTarget.select()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur()
+                  if (e.key === "Escape") {
+                    renameCancelled.current = true
+                    setRenaming(null)
+                  }
+                }}
+                // Blur saves; Enter blurs.
+                onBlur={() => {
+                  const name = renaming.draft.trim()
+                  setRenaming(null)
+                  if (renameCancelled.current) {
+                    renameCancelled.current = false
+                    return
+                  }
+                  if (name && name !== s.name) m.renameSheet.mutate({ sheetId: s.id, name })
+                }}
+                className="mb-1 h-8 w-44 shrink-0 text-sm"
+              />
+            ) : (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setActiveId(s.id)}
+                onDoubleClick={() => startRename(s)}
+                title="Double-click to rename"
+                className={cn(
+                  "-mb-px h-9 shrink-0 border-b-2 px-3 text-sm whitespace-nowrap transition-colors",
+                  s.id === active?.id
+                    ? "border-primary text-foreground font-semibold"
+                    : "text-muted-foreground hover:text-foreground border-transparent",
+                )}
+              >
+                {s.name}
+              </button>
+            ),
+          )}
           {workbook && (
             <Button
               variant="ghost"
@@ -1370,7 +1414,27 @@ export function ProjectSheetSection({
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent
+              align="end"
+              onCloseAutoFocus={(e) => {
+                if (renameFromMenu.current) {
+                  renameFromMenu.current = false
+                  e.preventDefault()
+                  renameInput.current?.focus()
+                }
+              }}
+            >
+              {active && (
+                <DropdownMenuItem
+                  className="gap-2"
+                  onSelect={() => {
+                    renameFromMenu.current = true
+                    startRename(active)
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Rename tab
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem className="gap-2" onSelect={() => setHistoryOpen(true)}>
                 <History className="h-3.5 w-3.5" /> History
               </DropdownMenuItem>

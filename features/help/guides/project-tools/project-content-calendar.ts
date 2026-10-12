@@ -184,8 +184,8 @@ export const projectContentCalendarGuide: HelpGuide = {
         },
         {
           text: {
-            en: "The + after the tabs adds another grid to this month. Find in this tab… searches the open tab. History, in the ⋯ menu on the right, shows every change to the open tab - who changed what, and when.",
-            hi: "टैब के बाद वाला + इस महीने में एक और ग्रिड जोड़ता है। Find in this tab… खुले हुए टैब में खोजता है। दाईं ओर ⋯ मेन्यू में History खुले हुए टैब का हर बदलाव दिखाती है - किसने क्या बदला, और कब।",
+            en: "The + after the tabs adds another grid to this month. To rename a tab, double-click it (or use Rename tab in the ⋯ menu), type the new name and press Enter - Esc cancels. Find in this tab… searches the open tab. History, in the ⋯ menu on the right, shows every change to the open tab - who changed what, and when.",
+            hi: "टैब के बाद वाला + इस महीने में एक और ग्रिड जोड़ता है। किसी टैब का नाम बदलने के लिए उस पर डबल-क्लिक करें (या ⋯ मेन्यू में Rename tab), नया नाम लिखें और Enter दबाएँ - Esc से रद्द होता है। Find in this tab… खुले हुए टैब में खोजता है। दाईं ओर ⋯ मेन्यू में History खुले हुए टैब का हर बदलाव दिखाती है - किसने क्या बदला, और कब।",
           },
         },
         {
