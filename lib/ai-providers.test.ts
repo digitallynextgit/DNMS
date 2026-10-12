@@ -1,171 +1,115 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  PROVIDERS,
-  buildCandidates,
-  configuredProviders,
-  modelsFor,
-  providerOrder,
-  readKeys,
-} from "./ai-providers"
+import { buildCandidates, orderProviders, splitModels, type ProviderRow } from "./ai-providers"
 
-const mistral = PROVIDERS.find((p) => p.id === "mistral")!
-const groq = PROVIDERS.find((p) => p.id === "groq")!
+function provider(over: Partial<ProviderRow> & Pick<ProviderRow, "id" | "kind">): ProviderRow {
+  return {
+    label: over.kind,
+    baseUrl: null,
+    fastModels: "fast-1",
+    smartModels: "smart-1, smart-2",
+    isDefault: false,
+    isActive: true,
+    position: 0,
+    keys: [{ id: `${over.id}-k1`, secret: "s1", isActive: true, position: 0 }],
+    ...over,
+  }
+}
 
-describe("readKeys", () => {
-  it("reads a single key", () => {
-    expect(readKeys(mistral, { MISTRAL_API_KEY: "abc" })).toEqual(["abc"])
-  })
-
-  it("reads a comma-separated list", () => {
-    expect(readKeys(groq, { GROQ_API_KEYS: "a,b,c" })).toEqual(["a", "b", "c"])
-  })
-
-  it("survives however the clipboard shaped it", () => {
-    // What a pasted list of keys really looks like.
-    expect(readKeys(groq, { GROQ_API_KEYS: " a , b,\n c,,  " })).toEqual(["a", "b", "c"])
-  })
-
-  it("merges the singular and plural spellings", () => {
-    expect(readKeys(groq, { GROQ_API_KEY: "one", GROQ_API_KEYS: "two,three" })).toEqual([
-      "one",
-      "two",
-      "three",
-    ])
-  })
-
-  it("does not try the same key twice", () => {
-    expect(readKeys(groq, { GROQ_API_KEY: "dup", GROQ_API_KEYS: "dup,other" })).toEqual([
-      "dup",
-      "other",
-    ])
-  })
-
-  it("is empty when nothing is configured", () => {
-    expect(readKeys(groq, {})).toEqual([])
-    expect(readKeys(groq, { GROQ_API_KEYS: "   " })).toEqual([])
+describe("splitModels", () => {
+  it("trims, drops blanks and duplicates, keeps order", () => {
+    expect(splitModels(" a, b ,,a, c ")).toEqual(["a", "b", "c"])
+    expect(splitModels("")).toEqual([])
   })
 })
 
-describe("modelsFor", () => {
-  it("falls back to the built-in list, best first", () => {
-    const list = modelsFor(mistral, "smart", {})
-    expect(list[0]).toBe("mistral-medium-latest")
-    expect(list.length).toBeGreaterThan(1)
-  })
-
-  it("lets env replace the list, so a retired model is not a deploy", () => {
-    expect(modelsFor(groq, "smart", { AI_MODELS_GROQ_SMART: "x-1, x-2" })).toEqual(["x-1", "x-2"])
-  })
-
-  it("ignores an override that is only whitespace", () => {
-    expect(modelsFor(groq, "fast", { AI_MODELS_GROQ_FAST: "  " })).toEqual([...groq.models.fast])
-  })
-
-  it("keeps the tiers apart", () => {
-    const env = { AI_MODELS_MISTRAL_SMART: "only-smart" }
-    expect(modelsFor(mistral, "smart", env)).toEqual(["only-smart"])
-    expect(modelsFor(mistral, "fast", env)).toEqual([...mistral.models.fast])
-  })
-})
-
-describe("providerOrder", () => {
-  it("defaults to declaration order", () => {
-    expect(providerOrder({}).map((p) => p.id)).toEqual(PROVIDERS.map((p) => p.id))
-  })
-
-  it("puts the named providers first, in the order given", () => {
-    const ids = providerOrder({ AI_PROVIDER_ORDER: "groq,openrouter" }).map((p) => p.id)
-    expect(ids.slice(0, 2)).toEqual(["groq", "openrouter"])
-  })
-
-  it("keeps every provider, even the ones left out", () => {
-    const ids = providerOrder({ AI_PROVIDER_ORDER: "groq" }).map((p) => p.id)
-    expect([...ids].sort()).toEqual([...PROVIDERS.map((p) => p.id)].sort())
-  })
-
-  it("ignores a typo rather than taking AI down with it", () => {
-    const ids = providerOrder({ AI_PROVIDER_ORDER: "gorq, groq" }).map((p) => p.id)
-    expect(ids[0]).toBe("groq")
-    expect(ids).toHaveLength(PROVIDERS.length)
+describe("orderProviders", () => {
+  it("puts the default first, then by position", () => {
+    const rows = [
+      { id: "a", isDefault: false, position: 0 },
+      { id: "b", isDefault: true, position: 2 },
+      { id: "c", isDefault: false, position: 1 },
+    ]
+    expect(orderProviders(rows).map((r) => r.id)).toEqual(["b", "a", "c"])
   })
 })
 
 describe("buildCandidates", () => {
-  it("skips providers with no key", () => {
-    const out = buildCandidates("smart", { GROQ_API_KEY: "g" })
-    expect(new Set(out.map((c) => c.provider))).toEqual(new Set(["groq"]))
+  it("tries the default provider's keys first, then the next provider", () => {
+    const rows = [
+      provider({ id: "m", kind: "mistral", position: 0 }),
+      provider({
+        id: "g",
+        kind: "gemini",
+        isDefault: true,
+        position: 1,
+        keys: [
+          { id: "g-k2", secret: "s2", isActive: true, position: 1 },
+          { id: "g-k1", secret: "s1", isActive: true, position: 0 },
+        ],
+      }),
+    ]
+    const ids = buildCandidates(rows, "fast").map((c) => `${c.providerId}/${c.keyId}`)
+    expect(ids).toEqual(["g/g-k1", "g/g-k2", "m/m-k1"])
   })
 
-  it("exhausts a provider before moving to the next", () => {
-    const out = buildCandidates("smart", {
-      AI_PROVIDER_ORDER: "openrouter,groq",
-      OPENROUTER_API_KEY: "o",
-      GROQ_API_KEY: "g",
-    })
-    const first = out.findIndex((c) => c.provider === "groq")
-    const lastRouter = out.map((c) => c.provider).lastIndexOf("openrouter")
-    expect(lastRouter).toBeLessThan(first)
-  })
-
-  it("gives every key a turn at a model before giving up on that model", () => {
-    // A 429 is per key, so the same model is worth asking again with the other key.
-    const out = buildCandidates("smart", {
-      AI_PROVIDER_ORDER: "groq",
-      GROQ_API_KEYS: "k1,k2",
-      AI_MODELS_GROQ_SMART: "big,small",
-    })
-    expect(out.slice(0, 4).map((c) => `${c.model}/${c.key}`)).toEqual([
-      "big/k1",
-      "big/k2",
-      "small/k1",
-      "small/k2",
+  it("gives every key a turn at each backup model", () => {
+    const rows = [
+      provider({
+        id: "g",
+        kind: "gemini",
+        keys: [
+          { id: "k1", secret: "s1", isActive: true, position: 0 },
+          { id: "k2", secret: "s2", isActive: true, position: 1 },
+        ],
+      }),
+    ]
+    expect(buildCandidates(rows, "smart").map((c) => `${c.model}/${c.keyId}`)).toEqual([
+      "smart-1/k1",
+      "smart-1/k2",
+      "smart-2/k1",
+      "smart-2/k2",
     ])
   })
 
-  it("orders models best first", () => {
-    const out = buildCandidates("smart", { MISTRAL_API_KEY: "m" })
-    expect(out[0]!.model).toBe("mistral-medium-latest")
+  it("skips switched-off providers and keys, unknown kinds and URL-less custom providers", () => {
+    const rows = [
+      provider({ id: "off", kind: "mistral", isActive: false }),
+      provider({
+        id: "g",
+        kind: "gemini",
+        keys: [{ id: "dead", secret: "s", isActive: false, position: 0 }],
+      }),
+      provider({ id: "x", kind: "nonsense" }),
+      provider({ id: "c", kind: "custom", baseUrl: null }),
+      provider({
+        id: "c2",
+        kind: "custom",
+        baseUrl: "https://llm.example.com/v1/chat/completions",
+      }),
+    ]
+    const out = buildCandidates(rows, "fast")
+    expect(out.map((c) => c.providerId)).toEqual(["c2"])
+    expect(out[0]!.url).toBe("https://llm.example.com/v1/chat/completions")
   })
 
-  it("labels a candidate by key POSITION, never by key", () => {
-    const out = buildCandidates("smart", {
-      AI_PROVIDER_ORDER: "groq",
-      GROQ_API_KEYS: "sk-secret-one,sk-secret-two",
-      AI_MODELS_GROQ_SMART: "m",
-    })
-    expect(out.map((c) => c.id)).toEqual(["groq#1:m", "groq#2:m"])
-    // The id is what gets logged and benched, so it must never carry the key.
-    for (const c of out) expect(c.id).not.toContain("secret")
-  })
-
-  it("is empty when nothing is configured at all", () => {
-    expect(buildCandidates("fast", {})).toEqual([])
-  })
-
-  it("carries the provider's extra headers through", () => {
-    const out = buildCandidates("smart", { OPENROUTER_API_KEY: "o" })
-    expect(out[0]!.headers).toMatchObject({ "X-Title": "DNMS" })
-  })
-})
-
-describe("configuredProviders", () => {
-  it("counts keys without revealing them", () => {
-    const out = configuredProviders({
-      GROQ_API_KEYS: "sk-secret-one,sk-secret-two",
-      MISTRAL_API_KEY: "sk-secret-three",
-    })
-    expect(out).toEqual(
-      expect.arrayContaining([
-        { id: "groq", keys: 2 },
-        { id: "mistral", keys: 1 },
-      ]),
+  it("uses Cloudflare's per-account URL from the row, and skips it without one", () => {
+    const url =
+      "https://api.cloudflare.com/client/v4/accounts/0123456789abcdef0123456789abcdef/ai/v1/chat/completions"
+    const out = buildCandidates(
+      [
+        provider({ id: "cf", kind: "cloudflare", baseUrl: url }),
+        provider({ id: "cf-missing", kind: "cloudflare", baseUrl: null }),
+      ],
+      "fast",
     )
-    // A count, never the material - this shape is safe to log.
-    expect(JSON.stringify(out)).not.toContain("secret")
+    expect(out.map((c) => [c.providerId, c.url])).toEqual([["cf", url]])
   })
 
-  it("leaves out providers with nothing set", () => {
-    expect(configuredProviders({}).length).toBe(0)
+  it("sends Claude through its SDK and names keys by position, never by value", () => {
+    const [c] = buildCandidates([provider({ id: "a", kind: "anthropic" })], "fast")
+    expect(c!.transport).toBe("anthropic")
+    expect(c!.url).toBeNull()
+    expect(c!.id).toBe("anthropic#1:fast-1")
   })
 })

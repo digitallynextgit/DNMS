@@ -102,7 +102,7 @@ async function polishImpact(report: WorkReport): Promise<boolean> {
 
 /** Rewrites highlights and impact bullets in place. Returns whether anything was polished. */
 export async function polishWorkReport(report: WorkReport): Promise<boolean> {
-  if (!isAiConfigured()) return false
+  if (!(await isAiConfigured())) return false
   const jobs: (() => Promise<boolean>)[] = [
     () => polishImpact(report),
     ...report.people.map((_, i) => () => polishPerson(report, i)),

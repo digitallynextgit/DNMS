@@ -3,7 +3,7 @@ import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
-import { aiComplete, isAiConfigured, AiError } from "@/lib/ai"
+import { aiComplete, isAiConfigured, AiError, AI_NOT_CONFIGURED_MESSAGE } from "@/lib/ai"
 import {
   DEFAULT_SECTIONS,
   reportSection,
@@ -51,8 +51,8 @@ ${rules}`
 // Advisory only - nothing is stored.
 export const POST = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
-    if (!isAiConfigured()) {
-      return NextResponse.json({ error: "AI is not configured on the server" }, { status: 503 })
+    if (!(await isAiConfigured())) {
+      return NextResponse.json({ error: AI_NOT_CONFIGURED_MESSAGE }, { status: 503 })
     }
     try {
       const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)

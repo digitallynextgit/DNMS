@@ -32,6 +32,7 @@ import {
   Bot,
   LifeBuoy,
   Wrench,
+  Sparkles,
 } from "lucide-react"
 
 import { PERMISSIONS } from "@/lib/constants"
@@ -253,6 +254,12 @@ export const ADMIN_ITEMS: NavItem[] = [
     label: "Storage",
     href: "/admin/storage",
     icon: HardDrive,
+    permission: PERMISSIONS.SETTINGS_WRITE,
+  },
+  {
+    label: "AI Models",
+    href: "/admin/ai-models",
+    icon: Sparkles,
     permission: PERMISSIONS.SETTINGS_WRITE,
   },
 ]

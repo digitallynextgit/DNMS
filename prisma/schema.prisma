@@ -4339,6 +4339,51 @@ model StorageAccount {
   @@map("storage_accounts")
 }
 
+/// An AI service DNMS may call (Admin -> AI Models). Platform-wide, like StorageAccount. Every AI task
+/// tries the default provider first, then the rest by position; within one, its keys in order.
+model AiProvider {
+  id         String   @id @default(uuid()) @map("id")
+  /// gemini | anthropic | openai | mistral | groq | openrouter | cerebras | custom (lib/ai-providers.ts)
+  kind       String   @map("kind")
+  label      String   @map("label")
+  /// Custom (OpenAI-compatible) providers only: the full chat-completions URL.
+  baseUrl    String?  @map("base_url")
+  /// Comma-separated, tried in order: quick jobs (polishing a sentence) and bigger ones (reports).
+  fastModels  String  @map("fast_models")
+  smartModels String  @map("smart_models")
+  isDefault  Boolean  @default(false) @map("is_default")
+  isActive   Boolean  @default(true) @map("is_active")
+  position   Int      @default(0) @map("position")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  keys AiProviderKey[]
+
+  @@map("ai_providers")
+}
+
+/// One API key of an AiProvider. Encrypted at rest and never sent to the browser.
+model AiProviderKey {
+  id          String    @id @default(uuid()) @map("id")
+  providerId  String    @map("provider_id")
+  label       String?   @map("label")
+  secret      String    @map("secret")
+  /// Shown in place of the key, so admins can tell keys apart.
+  last4       String    @map("last4")
+  isActive    Boolean   @default(true) @map("is_active")
+  position    Int       @default(0) @map("position")
+  /// The last outcome, so a dead or spent key shows up before anyone relies on it.
+  lastUsedAt  DateTime? @map("last_used_at")
+  lastError   String?   @map("last_error")
+  lastErrorAt DateTime? @map("last_error_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  provider AiProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@map("ai_provider_keys")
+}
+
 /// Whether an attachment renders as a picture, a voice note, or a file card.
 enum ChatAttachmentKind {
   IMAGE

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withSession } from "@/server/api-handler"
-import { aiComplete, isAiConfigured, AiError, AI_MODEL_SMART } from "@/lib/ai"
+import {
+  aiComplete,
+  isAiConfigured,
+  AiError,
+  AI_MODEL_SMART,
+  AI_NOT_CONFIGURED_MESSAGE,
+} from "@/lib/ai"
 import { buildAiContext, listAccessibleDocuments, type AccessibleDoc } from "@/lib/ai-context"
 import { extractFileText, isExtractable } from "@/lib/file-text"
 import type { Session } from "next-auth"
@@ -142,8 +148,8 @@ const MAX_HISTORY = 8
 // Stateless: answers from a permission-scoped snapshot of the caller's data, nothing is stored.
 export const POST = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
-    if (!isAiConfigured()) {
-      return NextResponse.json({ error: "AI is not configured on the server" }, { status: 503 })
+    if (!(await isAiConfigured())) {
+      return NextResponse.json({ error: AI_NOT_CONFIGURED_MESSAGE }, { status: 503 })
     }
 
     let body: { messages?: ChatMessage[] }

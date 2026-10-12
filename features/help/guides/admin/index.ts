@@ -4,6 +4,7 @@ import { auditLogGuide } from "./audit-log"
 import { emailTemplatesGuide } from "./email-templates"
 import { integrationsGuide } from "./integrations"
 import { storageGuide } from "./storage"
+import { aiModelsGuide } from "./ai-models"
 
 export const adminGuides: HelpGuide[] = [
   rolesPermissionsGuide,
@@ -11,4 +12,5 @@ export const adminGuides: HelpGuide[] = [
   emailTemplatesGuide,
   integrationsGuide,
   storageGuide,
+  aiModelsGuide,
 ]
