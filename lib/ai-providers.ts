@@ -102,7 +102,11 @@ export const AI_KINDS: Record<AiKind, AiKindInfo> = {
     label: "Cloudflare Workers AI",
     transport: "openai",
     url: null,
-    models: { fast: "@cf/meta/llama-3.1-8b-instruct", smart: "@cf/openai/gpt-oss-120b" },
+    // Cloudflare retires models on a schedule; each tier keeps a backup.
+    models: {
+      fast: "@cf/meta/llama-3.1-8b-instruct-fp8, @cf/openai/gpt-oss-20b",
+      smart: "@cf/openai/gpt-oss-120b, @cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    },
     keysUrl: "https://dash.cloudflare.com/?to=/:account/ai/workers-ai",
     noJsonMode: true,
     thinkingRoom: 2_000,

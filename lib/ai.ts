@@ -36,8 +36,11 @@ function outputTokens(c: Candidate, opts: CompleteOptions): number {
 const MAX_ATTEMPTS = 2
 const RETRYABLE = new Set([408, 429, 500, 502, 503, 504, 529])
 
-/** Worth trying another candidate for. 400/422 fail the same everywhere; 401/403 are per key. */
-const FALL_THROUGH = new Set([401, 403, 404, 408, 429, 500, 502, 503, 504, 529])
+/**
+ * Worth trying another candidate for. 400/422 fail the same everywhere; 401/403 are per key;
+ * 404/410 mean this model is gone (renamed or retired), so the backup model gets a turn.
+ */
+const FALL_THROUGH = new Set([401, 403, 404, 408, 410, 429, 500, 502, 503, 504, 529])
 
 /** Candidates refusing us (by candidate id) and until when. Per-process and short-lived on purpose. */
 const benched = new Map<string, number>()
@@ -243,7 +246,7 @@ async function callCandidate(c: Candidate, opts: CompleteOptions): Promise<strin
       // A 429 without Retry-After means this key's quota on this model is spent - bench it.
       if (out.retryAfterSec) {
         benched.set(c.id, Date.now() + Math.min(out.retryAfterSec * 1000, BENCH_MS))
-      } else if ([401, 403, 404, 429].includes(out.status)) {
+      } else if ([401, 403, 404, 410, 429].includes(out.status)) {
         benched.set(c.id, Date.now() + BENCH_MS)
       }
       const detail = `HTTP ${out.status}: ${out.detail.slice(0, 200) || "no details"}`
@@ -265,11 +268,15 @@ function parseJsonReply<T>(text: string): T {
 export async function aiComplete<T = string>(opts: CompleteOptions): Promise<T> {
   const requested = opts.model ?? AI_MODEL_FAST
   const tier: Tier = requested === "smart" ? "smart" : "fast"
-  let candidates = buildCandidates(await loadAiProviders(), tier)
+  const rows = await loadAiProviders()
+  let candidates = buildCandidates(rows, tier)
 
-  // A real model name gets exactly that model, on any provider that lists it.
+  // A real model name gets exactly that model, on any provider that lists it for either tier.
   if (requested !== "fast" && requested !== "smart") {
-    const exact = candidates.filter((c) => c.model === requested)
+    const seen = new Set<string>()
+    const exact = [...candidates, ...buildCandidates(rows, "smart")].filter(
+      (c) => c.model === requested && !seen.has(c.id) && seen.add(c.id),
+    )
     if (exact.length > 0) candidates = exact
   }
 
