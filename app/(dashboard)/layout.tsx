@@ -9,6 +9,7 @@ import { SessionBridge } from "@/components/providers/session-bridge"
 import { FollowUpConflictDialog } from "@/components/providers/follow-up-conflict-dialog"
 import { AiAssistant } from "@/components/shared/ai-assistant"
 import { AccountDeactivated } from "@/features/auth"
+import { BirthdayCelebration } from "@/features/celebrations"
 import { TenantProvider } from "@/components/tenant-link"
 import { currentTenantSlugOrFounding, tenantScopedSession } from "@/server/tenant-request"
 
@@ -56,6 +57,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <MobileTabbar />
           </div>
           <AiAssistant />
+          <BirthdayCelebration user={session.user} />
         </div>
       </TenantProvider>
     </SessionBridge>
