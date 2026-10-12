@@ -233,14 +233,8 @@ export const integrationsGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Old Shared Drive ID and Service account JSON are the older Shared Drive setup. Files still there keep opening until they are moved (Storage → Google Drive → Move to Drive). Paste the service account's whole key file on one line; it is stored encrypted.",
-            hi: "Old Shared Drive ID और Service account JSON पुराने Shared Drive वाले सेटअप के हैं। वहाँ रखी फ़ाइलें तब तक खुलती रहती हैं जब तक उन्हें मूव न किया जाए (Storage → Google Drive → Move to Drive)। service account की पूरी key फ़ाइल एक ही लाइन में पेस्ट करें; ये encrypted (सुरक्षित तरीके से) सेव होती है।",
-          },
-        },
-        {
-          text: {
-            en: "Google Search Console powers the SEO reports. Search Console service account JSON and GA4 service account JSON are optional - leave them blank to reuse the Google Drive account. PageSpeed Insights API key is needed for the Core Web Vitals (page speed) checks. IndexNow key is optional and asks search engines like Bing to re-check pages quickly.",
-            hi: "Google Search Console से SEO रिपोर्ट्स चलती हैं। Search Console service account JSON और GA4 service account JSON भरना ज़रूरी नहीं - खाली छोड़ेंगे तो Google Drive वाला अकाउंट ही इस्तेमाल होगा। Core Web Vitals (पेज स्पीड) की जाँच के लिए PageSpeed Insights API key चाहिए। IndexNow key ज़रूरी नहीं है - ये Bing जैसे सर्च इंजन से पेज जल्दी दोबारा चेक करवाने के लिए है।",
+            en: "Google Search Console powers the SEO reports. Service account JSON is the SEO tools' service account key - paste the whole file on one line; it is stored encrypted. Search Console service account JSON and GA4 service account JSON are optional - leave them blank to reuse that one. PageSpeed Insights API key is needed for the Core Web Vitals (page speed) checks. IndexNow key is optional and asks search engines like Bing to re-check pages quickly.",
+            hi: "Google Search Console से SEO रिपोर्ट्स चलती हैं। Service account JSON, SEO टूल्स के service account की key है - पूरी फ़ाइल एक ही लाइन में पेस्ट करें; ये encrypted (सुरक्षित तरीके से) सेव होती है। Search Console service account JSON और GA4 service account JSON भरना ज़रूरी नहीं - खाली छोड़ेंगे तो वही अकाउंट इस्तेमाल होगा। Core Web Vitals (पेज स्पीड) की जाँच के लिए PageSpeed Insights API key चाहिए। IndexNow key ज़रूरी नहीं है - ये Bing जैसे सर्च इंजन से पेज जल्दी दोबारा चेक करवाने के लिए है।",
           },
         },
       ],

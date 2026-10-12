@@ -264,6 +264,14 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const driveConfigured = data?.drive.configured ?? false
   // Once the Repository is on Drive, every upload goes there; no storage choice to make.
   const onDrive = data?.drive.onDrive ?? false
+  // Word, Excel and the like can't show in a browser tab; Drive's viewer can, for those it's shared with.
+  const opensInDrive = (f: UnifiedFile) =>
+    f.source === "b2" &&
+    f.storedIn === "drive" &&
+    !!f.webViewLink &&
+    !!data?.drive.hasAccess &&
+    f.type !== "pdf" &&
+    f.type !== "image"
   const currentFolderName = data?.folder?.name ?? null
 
   const allRows = useMemo<UnifiedFile[]>(() => {
@@ -299,6 +307,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       ownerId: r.uploadedById,
       description: r.description,
       storedIn: r.driveFileId ? "drive" : "b2",
+      webViewLink: r.driveWebViewLink ?? null,
     }))
     const drive: UnifiedFile[] = data.driveFiles.map((f: DriveFile) => ({
       id: f.id,
@@ -396,8 +405,10 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const canEdit = (f: UnifiedFile) =>
     canManage || f.source === "drive" || (f.ownerId !== null && f.ownerId === me)
   const canDelete = (f: UnifiedFile) => (f.source === "drive" ? canManage : canEdit(f))
+  // Uploads always download; of the Drive-only files, Google's own Docs/Sheets have no file to save.
   const canDownload = (f: UnifiedFile) =>
-    (f.source === "b2" || f.source === "drive") && f.type !== "doc" && f.type !== "sheet"
+    f.source === "b2" ||
+    (f.source === "drive" && !f.mimeType.startsWith("application/vnd.google-apps."))
 
   function pickFor(source: "b2" | "drive") {
     targetRef.current = source
@@ -490,6 +501,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       if (f.webViewLink) window.open(f.webViewLink, "_blank")
       return
     }
+    if (opensInDrive(f)) return void window.open(f.webViewLink!, "_blank", "noopener")
     if (f.type === "pdf" || f.type === "image") {
       try {
         const [url, downloadUrl] = await Promise.all([
@@ -885,7 +897,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
           title={
             f.source === "folder"
               ? "Open folder"
-              : f.source === "drive"
+              : f.source === "drive" || opensInDrive(f)
                 ? "View in Drive"
                 : f.source === "link"
                   ? "Open link"

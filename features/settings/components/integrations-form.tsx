@@ -28,7 +28,7 @@ const GROUP_IMPACT: Record<string, string> = {
   "HR mailer":
     "This is the SMTP server used for HR emails. An incorrect value will stop HR emails from being delivered.",
   "Google Drive":
-    "The OAuth client lets DNMS connect the company's Google account for Repository files. The service account is the older Shared Drive setup, and the SEO tab still uses it for Search Console and GA4.",
+    "The OAuth client lets DNMS reach the company's Google account, where Repository files are stored. A wrong value stops Repository files opening until it is put right.",
 }
 
 export function IntegrationsForm({ settings }: { settings: SettingValue[] }) {

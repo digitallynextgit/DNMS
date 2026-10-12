@@ -181,31 +181,23 @@ export const SETTING_FIELDS: SettingField[] = [
     secret: true,
     help: "From the same client. Stored encrypted.",
   },
+  // The key name is historical (the retired Shared Drive used it); today only the SEO tab does.
   // Stored here because the local key FILE is gitignored and never deployed.
-  {
-    key: "GOOGLE_DRIVE_SHARED_DRIVE_ID",
-    label: "Old Shared Drive ID",
-    type: "text",
-    group: "Google Drive",
-    placeholder: "0ALcE76yNtuFUUk9PVA",
-    help: "The older service-account setup. Files still there keep opening until they are moved.",
-  },
   {
     key: "GOOGLE_DRIVE_CREDENTIALS",
     label: "Service account JSON",
     type: "password",
-    group: "Google Drive",
+    group: "Google Search Console",
     secret: true,
-    help: "Paste the whole service-account key JSON on ONE line (minified). Stored encrypted. Also the SEO tab's default for Search Console and GA4.",
+    help: "The SEO tab's Google service account, for Search Console and GA4 unless the two fields below are set. Paste the whole key JSON on ONE line (minified). Stored encrypted.",
   },
-
   {
     key: "GSC_CREDENTIALS",
     label: "Search Console service account JSON",
     type: "password",
     group: "Google Search Console",
     secret: true,
-    help: "Optional. Leave blank to reuse the Google Drive service account. Set it only if Search Console is in a different Cloud project. Paste the key JSON on ONE line (minified). Whichever account is used must (a) have the Search Console API enabled on ITS Cloud project and (b) be added as a user on each property.",
+    help: "Optional. Leave blank to reuse the service account above. Set it only if Search Console is in a different Cloud project. Paste the key JSON on ONE line (minified). Whichever account is used must (a) have the Search Console API enabled on ITS Cloud project and (b) be added as a user on each property.",
   },
   {
     key: "GA4_CREDENTIALS",
@@ -213,7 +205,7 @@ export const SETTING_FIELDS: SettingField[] = [
     type: "password",
     group: "Google Search Console",
     secret: true,
-    help: "Optional. Leave blank to reuse the Google Drive service account. Needs the 'Google Analytics Data API' enabled on its Cloud project, and the account added under GA4 -> Admin -> Property access management (Viewer).",
+    help: "Optional. Leave blank to reuse the service account above. Needs the 'Google Analytics Data API' enabled on its Cloud project, and the account added under GA4 -> Admin -> Property access management (Viewer).",
   },
   {
     key: "GOOGLE_PSI_API_KEY",

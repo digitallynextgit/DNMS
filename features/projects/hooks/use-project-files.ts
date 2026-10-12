@@ -61,6 +61,8 @@ export interface FolderListing {
     onDrive: boolean
     folderLink: string | null
     memberCount: number
+    /** The viewer is on the project's Drive share list, so Drive's viewer opens for them. */
+    hasAccess: boolean
   }
 }
 
