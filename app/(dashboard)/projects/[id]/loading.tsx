@@ -7,10 +7,10 @@ export default function Loading() {
         <Skeleton className="bg-muted h-3 w-28 animate-pulse" />
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Skeleton className="bg-muted h-10 w-10 shrink-0 animate-pulse rounded-sm" />
-            <div className="space-y-2">
-              <Skeleton className="bg-muted h-5 w-48 animate-pulse" />
-              <Skeleton className="bg-muted h-3 w-24 animate-pulse" />
+            <Skeleton className="bg-muted h-13 w-13 shrink-0 animate-pulse rounded-sm" />
+            <div className="space-y-0.5">
+              <Skeleton className="bg-muted h-7 w-48 animate-pulse" />
+              <Skeleton className="bg-muted h-5.5 w-28 animate-pulse" />
             </div>
           </div>
           <div className="flex items-center gap-2">

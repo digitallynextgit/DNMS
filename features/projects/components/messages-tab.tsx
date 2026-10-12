@@ -2,6 +2,8 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-fetch"
+import { useSearchParams } from "next/navigation"
+import { replaceUrlParams } from "@/hooks/use-url-state"
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   useProjectMessages,
@@ -126,10 +128,19 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
   )
   const threads = useMemo(() => data?.data ?? [], [data])
 
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // In the URL so a notification opens its chat (?thread=<id>, plus ?reply=<id> to jump to a reply).
+  const searchParams = useSearchParams()
+  const selectedId = searchParams.get("thread")
+  const replyParam = searchParams.get("reply") ?? ""
+  const setSelectedId = (id: string | null) => replaceUrlParams({ thread: id, reply: null })
   const [search, setSearch] = useState("")
   /** Bubble to jump to from a search hit ("root" or a reply id); cleared on a normal chat pick. */
-  const [jumpTo, setJumpTo] = useState<string | null>(null)
+  const [jumpTo, setJumpTo] = useState<string | null>(replyParam || null)
+  const [linkedReply, setLinkedReply] = useState(replyParam)
+  if (replyParam !== linkedReply) {
+    setLinkedReply(replyParam)
+    if (replyParam) setJumpTo(replyParam)
+  }
 
   const query = search.trim()
   const searching = query.length >= MIN_SEARCH_QUERY
@@ -144,11 +155,7 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
-  // Drop the selection if that chat was deleted out from under us.
-  if (selectedId && threads.length && !threads.some((t) => t.id === selectedId)) {
-    setSelectedId(null)
-  }
-
+  // A chat deleted out from under us (or a stale link) simply shows nothing selected.
   const selected = threads.find((t) => t.id === selectedId) ?? null
 
   if (isLoading) {
@@ -250,7 +257,7 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
         initial={newChatInitial}
         onCreated={(id) => setSelectedId(id)}
         onReopenWithDraft={(draft, deletedId) => {
-          if (deletedId) setSelectedId((cur) => (cur === deletedId ? null : cur))
+          if (deletedId && deletedId === selectedId) setSelectedId(null)
           setNewChatInitial(draft)
           setNewChatOpen(true)
         }}

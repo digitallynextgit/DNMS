@@ -4,7 +4,11 @@ import type { Session } from "next-auth"
 import { withSession } from "@/server/api-handler"
 import { ForbiddenError, ValidationError } from "@/lib/errors"
 import { workReportQuerySchema } from "@/features/work-reports/schemas/work-report.schema"
-import { parseReportMonth } from "@/features/work-reports/lib/report-format"
+import {
+  MAX_RANGE_DAYS,
+  parseReportMonth,
+  parseReportRange,
+} from "@/features/work-reports/lib/report-format"
 import {
   narrowPeople,
   resolveWorkReportScope,
@@ -20,10 +24,18 @@ export const dynamic = "force-dynamic"
 export const GET = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     const q = workReportQuerySchema.parse(Object.fromEntries(req.nextUrl.searchParams))
-    const period = parseReportMonth(q.month)
-    if (!period) throw new ValidationError("month must be YYYY-MM")
+    // A from-to range (Progress: this week, custom) or a whole month.
+    const period =
+      q.from && q.to ? parseReportRange(q.from, q.to) : q.month ? parseReportMonth(q.month) : null
+    if (!period) {
+      throw new ValidationError(
+        q.from || q.to
+          ? `Pick a from and to date, at most ${MAX_RANGE_DAYS} days apart`
+          : "month must be YYYY-MM",
+      )
+    }
     if (period.from > new Date().toISOString().slice(0, 10)) {
-      throw new ValidationError("That month has not started yet")
+      throw new ValidationError("That period has not started yet")
     }
 
     const scope = await resolveWorkReportScope(session)
@@ -40,6 +52,7 @@ export const GET = withSession(
       requesterId: session.user.id,
       employeeIds,
       period,
+      projectIds: q.projectIds,
       format: q.format as WorkReportFormat,
       ai: q.ai,
     })

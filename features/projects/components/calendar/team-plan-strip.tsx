@@ -74,7 +74,7 @@ export function TeamPlanStrip({
 
   if (teams.length === 0) {
     return (
-      <div className="border-border flex flex-wrap items-center gap-2 border-b pb-2 text-xs">
+      <div className="bg-muted/30 flex flex-wrap items-center gap-2 rounded-sm border px-3 py-2 text-xs">
         <span className="font-medium">Team plan</span>
         <span className="text-muted-foreground">Nobody is on the hook for this month yet.</span>
         {canPlan && (
@@ -91,7 +91,7 @@ export function TeamPlanStrip({
   }
 
   return (
-    <div className="border-border space-y-1.5 border-b pb-2">
+    <div className="bg-muted/30 space-y-1.5 rounded-sm border px-3 py-2">
       <div className="flex items-center gap-2 text-xs">
         <span className="font-medium">Team plan</span>
         {/* Hidden at zero: a counter that always reads zero stops being seen. */}

@@ -30,7 +30,7 @@ export function ProjectSitesCard({
   const totalOverdue = sites.reduce((a, s) => a + s.overdueTasks, 0)
 
   return (
-    <Card>
+    <Card data-mod="seo">
       <CardContent className="p-0">
         <div className="border-border flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
           <div>

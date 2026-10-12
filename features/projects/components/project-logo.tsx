@@ -19,10 +19,13 @@ export function ProjectLogo({
   src,
   name,
   className,
+  natural = false,
 }: {
   src?: string | null
   name: string
   className?: string
+  /** The logo keeps its own proportions at the box's height (a header), not squeezed into a square. */
+  natural?: boolean
 }) {
   const [failed, setFailed] = React.useState(false)
 
@@ -42,6 +45,8 @@ export function ProjectLogo({
         // Only the initials fallback gets a tile; a real logo has its own shape.
         !hasLogo && "bg-muted rounded-sm border",
         className,
+        // After className, so it beats a square width; capped so a long wordmark can't take the row.
+        hasLogo && natural && "w-auto max-w-40",
       )}
     >
       {hasLogo ? (
@@ -52,7 +57,7 @@ export function ProjectLogo({
           alt=""
           loading="lazy"
           onError={() => setFailed(true)}
-          className="h-full w-full object-contain"
+          className={cn("h-full object-contain", natural ? "w-auto max-w-full" : "w-full")}
         />
       ) : (
         <span className="text-muted-foreground text-[11px] font-semibold tracking-wide">

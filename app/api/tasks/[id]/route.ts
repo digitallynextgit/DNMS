@@ -14,7 +14,7 @@ import {
 import { settleRunningTasks } from "@/features/projects/server/task-clock.service"
 import { diffTaskFields } from "@/features/projects/server/task-audit"
 import { dedupeLinks, isSafeHttpUrl } from "@/features/projects/lib/task-links"
-import { projectHref } from "@/features/projects/lib/project-href"
+import { myWorkHref, projectHref } from "@/features/projects/lib/project-href"
 import { formatHours } from "@/features/projects/lib/format-hours"
 import { hasPastTaskAccess } from "@/features/employees/server/task-access.service"
 import { createNotification } from "@/lib/notifications"
@@ -370,9 +370,15 @@ export const PATCH = withSession(
             await createNotification({
               employeeId: mgrId,
               ...notif,
-              link: projectId
-                ? projectHref({ id: projectId, slug: projectSlug }, "tasks")
-                : "/projects/my-tasks",
+              // Team work: the team manager opens it on the project. Otherwise the line manager
+              // (who may not be on the project) opens the person's own sheet.
+              link:
+                projectId && auth.task.teamId
+                  ? projectHref({ id: projectId, slug: projectSlug }, "tasks", {
+                      team: auth.task.teamId,
+                      task: task.id,
+                    })
+                  : myWorkHref(task, task.assigneeId),
             })
           }
         }
@@ -388,7 +394,7 @@ export const PATCH = withSession(
               ? `"${task.title}" is on hold. ${formatHours(carried)} left to do, booked for ${resumeOn}.`
               : `"${task.title}" is on hold. Picked up again on ${resumeOn} - no hours left on the estimate, so re-estimate it then.`,
             type: "info",
-            link: "/projects/my-tasks",
+            link: myWorkHref(resumeTask),
           })
         }
 
@@ -399,7 +405,7 @@ export const PATCH = withSession(
             title: "Follow-up task removed",
             message: `"${task.title}" came off hold, so the follow-up${wasFor ? ` booked for ${wasFor}` : ""} was removed.`,
             type: "info",
-            link: "/projects/my-tasks",
+            link: "/projects/my-work",
           })
         }
       } else if (typeof isMilestone === "boolean" && projectId) {

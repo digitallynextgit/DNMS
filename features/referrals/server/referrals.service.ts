@@ -75,12 +75,17 @@ export async function submitReferral(referrerId: string, input: unknown) {
     },
   })
 
-  await notifyHrOfReferral(referrerId, data.fullName, role.title)
+  await notifyHrOfReferral(id, referrerId, data.fullName, role.title)
   return { id }
 }
 
 /** Everyone who should hear that a referral landed. */
-async function notifyHrOfReferral(referrerId: string, candidate: string, role: string) {
+async function notifyHrOfReferral(
+  applicationId: string,
+  referrerId: string,
+  candidate: string,
+  role: string,
+) {
   const [referrer, hr] = await Promise.all([
     db.employee.findUnique({
       where: { id: referrerId },
@@ -111,7 +116,8 @@ async function notifyHrOfReferral(referrerId: string, candidate: string, role: s
         title: "New employee referral",
         message: `${who} referred ${candidate} for ${role}.`,
         type: "info",
-        link: "/admin/referrals",
+        // The application itself; /admin/* is closed to HR executives, who get this too.
+        link: `/recruitment/applications?id=${applicationId}`,
       }),
     ),
   )

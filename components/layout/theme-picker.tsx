@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useThemeStore } from "@/stores/theme-store"
-import { themes, type Theme } from "@/lib/themes"
+import { DEFAULT_THEME_ID, themes, type Theme } from "@/lib/themes"
 
 function ThemeCard({
   theme,
@@ -52,32 +52,49 @@ function ThemeCard({
             }}
           />
         )}
-        <div className="relative flex gap-1.5">
-          <span
-            className="h-6 w-6 rounded-sm shadow-sm"
-            style={
-              theme.gradient
-                ? {
-                    backgroundImage: `linear-gradient(135deg, ${theme.gradient.from}, ${theme.gradient.to})`,
-                  }
-                : { backgroundColor: theme.swatchPrimary }
-            }
-          />
-          <span
-            className="h-6 w-6 rounded-sm shadow-sm"
-            style={{ backgroundColor: theme.swatchAccent }}
-          />
-          <span
-            className="h-6 w-6 rounded-sm border border-white/20 shadow-sm"
-            style={{ backgroundColor: theme.swatchBg }}
-          />
-        </div>
+        {theme.swatches ? (
+          <div className="relative flex gap-1">
+            {theme.swatches.map((c) => (
+              <span
+                key={c}
+                className="h-6 w-4 rounded-sm shadow-sm"
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="relative flex gap-1.5">
+            <span
+              className="h-6 w-6 rounded-sm shadow-sm"
+              style={
+                theme.gradient
+                  ? {
+                      backgroundImage: `linear-gradient(135deg, ${theme.gradient.from}, ${theme.gradient.to})`,
+                    }
+                  : { backgroundColor: theme.swatchPrimary }
+              }
+            />
+            <span
+              className="h-6 w-6 rounded-sm shadow-sm"
+              style={{ backgroundColor: theme.swatchAccent }}
+            />
+            <span
+              className="h-6 w-6 rounded-sm border border-white/20 shadow-sm"
+              style={{ backgroundColor: theme.swatchBg }}
+            />
+          </div>
+        )}
       </div>
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-xs font-medium">{theme.name}</span>
         <span className="flex shrink-0 items-center gap-1">
           {theme.gradient && (
             <span className="text-muted-foreground text-[10px] tracking-wide uppercase">multi</span>
+          )}
+          {theme.id === DEFAULT_THEME_ID && (
+            <span className="text-muted-foreground text-[10px] tracking-wide uppercase">
+              default
+            </span>
           )}
           {selected && <Check className="text-primary h-3.5 w-3.5" />}
         </span>
@@ -92,9 +109,10 @@ export function ThemePicker() {
   const { paletteId, setPalette, clearPalette } = useThemeStore()
 
   const modes = [
-    { key: "light", label: "Default Light", icon: Sun },
-    { key: "dark", label: "Default Dark", icon: Moon },
-    { key: "system", label: "System", icon: Monitor },
+    // The plain grey palettes from before Module Colours became the default.
+    { key: "light", label: "Classic Light", icon: Sun },
+    { key: "dark", label: "Classic Dark", icon: Moon },
+    { key: "system", label: "Classic, follow system", icon: Monitor },
   ] as const
 
   return (
@@ -124,7 +142,7 @@ export function ThemePicker() {
               <Palette className="h-4 w-4" /> Choose a theme
             </DialogTitle>
             <DialogDescription className="text-xs">
-              One palette per colour. Selecting one overrides the default dark/light colors.
+              Module Colours is the default. Pick another palette, or a Classic grey one below.
             </DialogDescription>
           </DialogHeader>
 
@@ -158,8 +176,8 @@ export function ThemePicker() {
             <Button
               className="gap-1.5"
               variant="outline"
-              onClick={() => clearPalette()}
-              disabled={!paletteId}
+              onClick={() => setPalette(DEFAULT_THEME_ID)}
+              disabled={paletteId === DEFAULT_THEME_ID}
             >
               <RotateCcw className="h-3 w-3" /> Reset to default
             </Button>

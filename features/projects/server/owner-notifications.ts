@@ -10,17 +10,20 @@ import { serviceInfo } from "../lib/project-services"
 
 /**
  * Tell someone they now own a service (and its calendar) or a calendar: in-app and by email. Not
- * when they picked themselves. Call from a request (the email link needs the company's URL).
+ * when they picked themselves, and never for the silent admin_ account. Call from a request (the
+ * email link needs the company's URL).
  */
 export async function notifyOwnerAssigned(args: {
   projectId: string
   employeeId: string
   actorId: string
+  /** The silent admin_ account assigned it: nobody is told. */
+  silentActor?: boolean
   service?: string | null
   /** The calendar edition to open; for a service, its current month is found when omitted. */
   calendar?: { id: string; name: string } | null
 }): Promise<void> {
-  if (args.employeeId === args.actorId) return
+  if (args.silentActor || args.employeeId === args.actorId) return
   const [project, owner, actor] = await Promise.all([
     db.project.findUnique({ where: { id: args.projectId }, select: { name: true, slug: true } }),
     db.employee.findUnique({

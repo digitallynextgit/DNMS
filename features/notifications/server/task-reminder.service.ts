@@ -3,7 +3,7 @@ import "server-only"
 import { db } from "@/server/db"
 import { createNotification } from "@/lib/notifications"
 // Direct import, not the projects barrel: the barrel pulls in every project component.
-import { projectHref } from "@/features/projects/lib/project-href"
+import { myWorkHref, projectHref } from "@/features/projects/lib/project-href"
 import { taskReminderPreferenceSchema } from "../schemas/task-reminder.schema"
 import { getTaskReminderPreferences, preferenceFor } from "./task-reminder.queries"
 import {
@@ -73,7 +73,9 @@ export async function runTaskReminders(now: Date = new Date()): Promise<Reminder
       estimatedHours: true,
       loggedHours: true,
       inProgressSince: true,
+      dueDate: true,
       projectId: true,
+      teamId: true,
       project: { select: { id: true, slug: true } },
       team: { select: { projectId: true } },
     },
@@ -131,10 +133,14 @@ export async function runTaskReminders(now: Date = new Date()): Promise<Reminder
       title: minutesLeft > 0 ? "Task time almost up" : "Task over its estimate",
       message: reminderMessage(task.title, minutesLeft),
       type: minutesLeft > 0 ? "warning" : "error",
-      // Adhoc work belongs to no project, and My Tasks is where it lives.
-      link: projectId
-        ? projectHref({ id: projectId, slug: task.project?.slug })
-        : "/projects/my-tasks",
+      // Team work opens the task itself on the project; other work lives on My Work.
+      link:
+        projectId && task.teamId
+          ? projectHref({ id: projectId, slug: task.project?.slug }, "tasks", {
+              team: task.teamId,
+              task: task.id,
+            })
+          : myWorkHref(task),
     })
     sent++
   }

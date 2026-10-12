@@ -104,6 +104,7 @@ export function ProfileSelfActions({
   const photoBusy = photoMut.isPending || removePhotoMut.isPending
   const alreadyResigned = status === "RESIGNED" || status === "TERMINATED"
   const isPending = resignation?.status === "PENDING"
+  const servingNotice = resignation?.status === "APPROVED"
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -160,6 +161,10 @@ export function ProfileSelfActions({
       {alreadyResigned ? (
         <Badge variant="outline" className="border-destructive/40 text-destructive">
           Resigned
+        </Badge>
+      ) : servingNotice ? (
+        <Badge variant="outline" className="border-amber-400/50 text-amber-600 dark:text-amber-400">
+          Serving notice
         </Badge>
       ) : isPending ? (
         <>
@@ -219,9 +224,9 @@ export function ProfileSelfActions({
           <DateField value={lastWorkingDate} onChange={setLastWorkingDate} />
         </div>
         <p className="text-muted-foreground text-xs">
-          This sends a resignation request to your manager for approval. Once approved, your account
-          is deactivated and you&apos;ll be signed out. You can withdraw it from your profile while
-          it&apos;s still pending.
+          This sends a resignation request to your manager for approval. Once approved, you serve
+          your notice period with full access until your last working day. You can withdraw it from
+          your profile while it&apos;s still pending.
         </p>
       </FormDialog>
     </div>

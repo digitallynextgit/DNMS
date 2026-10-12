@@ -90,7 +90,7 @@ export interface ImpactCard {
 }
 
 export interface WorkReport {
-  period: { month: string; from: string; to: string; label: string }
+  period: { month: string; from: string; to: string; label: string; wholeMonth: boolean }
   /** "Web Development Team", "Diwakar Jha", "Team report". */
   title: string
   preparedBy: { name: string; designation: string | null }

@@ -46,8 +46,8 @@ export const projectDeliverablesGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Open the project from My Projects and click the Deliverables tab. Each row is one deliverable. Planned is how many items were promised, and Delivered shows how many are made so far.",
-            hi: "My Projects से प्रोजेक्ट खोलें और Deliverables टैब पर क्लिक करें। हर लाइन एक deliverable है। Planned बताता है कितने आइटम का वादा हुआ, और Delivered बताता है अब तक कितने बन चुके हैं।",
+            en: "Open the project from Projects and click the Deliverables tab. Each row is one deliverable. Planned is how many items were promised, and Delivered shows how many are made so far.",
+            hi: "Projects से प्रोजेक्ट खोलें और Deliverables टैब पर क्लिक करें। हर लाइन एक deliverable है। Planned बताता है कितने आइटम का वादा हुआ, और Delivered बताता है अब तक कितने बन चुके हैं।",
           },
         },
         {

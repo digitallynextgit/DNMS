@@ -58,14 +58,14 @@ export const dashboardGuide: HelpGuide = {
         },
         {
           text: {
-            en: "The row of buttons below is a shortcut to My Tasks, Apply Leave (5), Apply WFH, My Attendance and My Payslips.",
-            hi: "नीचे वाली बटनों की लाइन से सीधे My Tasks, Apply Leave (5), Apply WFH, My Attendance और My Payslips पर जा सकते हैं।",
+            en: "The row of buttons below is a shortcut to My Work, Apply Leave (5), Apply WFH, My Attendance and My Payslips.",
+            hi: "नीचे वाली बटनों की लाइन से सीधे My Work, Apply Leave (5), Apply WFH, My Attendance और My Payslips पर जा सकते हैं।",
           },
         },
         {
           text: {
-            en: "Today's Work (1) lists the tasks due today. A task marked overdue is late, and running means you have started it. Click a task, or View all, to open My Tasks.",
-            hi: "Today's Work (1) में आज के ड्यू टास्क दिखते हैं। जिस टास्क पर overdue लिखा है वो लेट है, और running का मतलब है आपने उसे शुरू कर रखा है। टास्क पर या View all पर क्लिक करें, My Tasks खुल जाएगा।",
+            en: "Today's Work (1) lists the tasks due today. A task marked overdue is late, and running means you have started it. Click a task, or View all, to open My Work.",
+            hi: "Today's Work (1) में आज के ड्यू टास्क दिखते हैं। जिस टास्क पर overdue लिखा है वो लेट है, और running का मतलब है आपने उसे शुरू कर रखा है। टास्क पर या View all पर क्लिक करें, My Work खुल जाएगा।",
           },
           shot: {
             id: "dashboard-employee-work",

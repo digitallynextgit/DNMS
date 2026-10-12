@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
-import { withProjectManager } from "@/features/projects/server/project-access"
+import { resolveProjectId, withProjectManager } from "@/features/projects/server/project-access"
 import {
   getKeywordBacklog,
   generateKeywordBacklog,
@@ -10,7 +10,10 @@ import {
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
-async function owned(projectId: string, propertyId: string) {
+// Reads use plain withAuth, so the URL segment may still be the slug; writes get it resolved.
+async function owned(projectRef: string, propertyId: string) {
+  const projectId = await resolveProjectId(projectRef)
+  if (!projectId) return null
   return db.seoProperty.findFirst({ where: { id: propertyId, projectId }, select: { id: true } })
 }
 

@@ -47,8 +47,8 @@ export const projectInsightsSeoGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Open the project from My Projects and click the Insights tab. Meta Ads shows the client's Facebook and Instagram ad results: Spend, Impressions, Clicks, Reach, Purchases, Purchase value, ROAS and Avg CPC.",
-            hi: "My Projects से प्रोजेक्ट खोलें और Insights टैब पर क्लिक करें। Meta Ads में क्लाइंट के Facebook और Instagram एड के नतीजे दिखते हैं: Spend, Impressions, Clicks, Reach, Purchases, Purchase value, ROAS और Avg CPC।",
+            en: "Open the project from Projects and click the Insights tab. Meta Ads shows the client's Facebook and Instagram ad results: Spend, Impressions, Clicks, Reach, Purchases, Purchase value, ROAS and Avg CPC.",
+            hi: "Projects से प्रोजेक्ट खोलें और Insights टैब पर क्लिक करें। Meta Ads में क्लाइंट के Facebook और Instagram एड के नतीजे दिखते हैं: Spend, Impressions, Clicks, Reach, Purchases, Purchase value, ROAS और Avg CPC।",
           },
         },
         {

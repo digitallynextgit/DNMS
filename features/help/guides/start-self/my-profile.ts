@@ -351,9 +351,15 @@ export const myProfileGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Once your manager or HR accepts it, you serve your notice period and keep using DNMS as normal until your last working day. HR starts your exit clearance, and you get a notification.",
-            hi: "मैनेजर या HR के मंज़ूर करते ही आपका notice period शुरू हो जाता है, और आखिरी वर्किंग डे तक आप DNMS पहले की तरह चलाते रहते हैं। HR आपका exit clearance शुरू करता है, और आपको नोटिफिकेशन मिलता है।",
+            en: "Once your manager or HR accepts it, you serve your notice period and keep using DNMS as normal until your last working day. HR starts your exit clearance, and you get a notification. Your profile shows Serving notice, with a note giving your last working day and any message from the person who accepted it.",
+            hi: "मैनेजर या HR के मंज़ूर करते ही आपका notice period शुरू हो जाता है, और आखिरी वर्किंग डे तक आप DNMS पहले की तरह चलाते रहते हैं। HR आपका exit clearance शुरू करता है, और आपको नोटिफिकेशन मिलता है। आपकी प्रोफाइल पर Serving notice दिखता है, साथ में एक नोट जिसमें आपका आखिरी वर्किंग डे और मंज़ूर करने वाले का संदेश (अगर हो) होता है।",
           },
+        },
+      ],
+      tips: [
+        {
+          en: "If it is declined, your profile shows who declined it and their note for a month. Apply Resignation stays available if you want to apply again.",
+          hi: "अगर इस्तीफ़ा मंज़ूर नहीं होता, तो एक महीने तक आपकी प्रोफाइल पर दिखता है कि किसने मना किया और उनका नोट। दोबारा apply करना हो तो Apply Resignation बटन मौजूद रहता है।",
         },
       ],
       faq: [

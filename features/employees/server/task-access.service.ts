@@ -81,7 +81,7 @@ export async function setTaskAccess(
       ? "HR has lifted the 15-minute edit window on tasks you raised, so you can go back and correct earlier days."
       : "The 15-minute edit window now applies again to tasks you raise. Ask your manager to change anything older.",
     type: "info",
-    link: "/projects/my-tasks",
+    link: "/projects/my-work",
   })
 
   return getTaskAccess(employeeId)

@@ -9,6 +9,7 @@ import {
 import { createNotification } from "@/lib/notifications"
 import { openFirstStatusPeriod } from "@/features/projects/server/task-status-periods"
 import { expectsOutput } from "@/features/projects/lib/deliverable-types"
+import { myWorkHref } from "@/features/projects/lib/project-href"
 import type { Session } from "next-auth"
 
 /** Most tasks returned for one project board. Reported via meta.truncated. */
@@ -162,8 +163,8 @@ export const POST = withTeamStaffing(
           title: "New Task Assigned",
           message: `You have been assigned "${task.title}" in project ${project?.name ?? "a project"}.`,
           type: "info",
-          // My Tasks is the only view that shows the task they were just handed.
-          link: "/projects/my-tasks",
+          // My Work, on the week it is due: the only view that shows the task they were just handed.
+          link: myWorkHref(task),
         })
       }
 

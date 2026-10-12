@@ -118,7 +118,7 @@ export const PATCH = withSession(
           title: "Floating holiday approved",
           message: `Your floating holiday - ${holidayLabel} - has been approved.`,
           type: "success",
-          link: "/calendar?view=holidays",
+          link: "/calendar?view=holidays&tab=floating",
         })
       } else if (updated.status === "REJECTED") {
         await createNotification({
@@ -126,7 +126,7 @@ export const PATCH = withSession(
           title: "Floating holiday rejected",
           message: `Your floating holiday request - ${holidayLabel} - was rejected.${reason ? ` Reason: ${reason}` : ""}`,
           type: "error",
-          link: "/calendar?view=holidays",
+          link: "/calendar?view=holidays&tab=floating",
         })
       } else {
         const approved = updated.managerDecision === "APPROVED"
@@ -139,7 +139,7 @@ export const PATCH = withSession(
             ? `Your floating holiday - ${holidayLabel} - was approved by your manager and is awaiting HR's final call.`
             : `Your manager declined your floating holiday - ${holidayLabel} - it's awaiting HR's final call.`,
           type: "info",
-          link: "/calendar?view=holidays",
+          link: "/calendar?view=holidays&tab=floating",
         })
       }
 

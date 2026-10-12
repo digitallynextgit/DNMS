@@ -9,6 +9,7 @@ export type ThemeCategory =
   | "amber"
   | "teal"
   | "multi"
+  | "module"
 
 export type Palette = {
   background: string
@@ -47,7 +48,18 @@ export type Theme = {
   palette: Palette
   /** Primary controls become a gradient and the app gets a two-hue ambient background (--mc-1/--mc-2). */
   gradient?: { from: string; to: string }
+  /** Every part of the app gets its own hue ([data-modules] in globals.css). */
+  modules?: boolean
+  /** Colours shown on the picker card instead of the primary/accent/background trio. */
+  swatches?: string[]
 }
+
+/** What a new user (or anyone who never picked a theme) gets. */
+export const DEFAULT_THEME_ID = "module-dark"
+
+/** Picker swatches for the module themes: a few of the module hues. */
+const MODULE_SWATCHES_DARK = ["#60a5fa", "#f472b6", "#34d399", "#fbbf24", "#a78bfa"]
+const MODULE_SWATCHES_LIGHT = ["#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed"]
 
 function hslToHex(h: number, s: number, l: number): string {
   const sPct = s / 100
@@ -134,6 +146,79 @@ function makeDark(s: DarkSpec): Theme {
 }
 
 export const themes: Theme[] = [
+  // Module Colours: slate surfaces, and a hue per part of the app (tabs, sidebar groups, stats).
+  {
+    id: "module-dark",
+    name: "Module Colours",
+    category: "module",
+    mode: "dark",
+    modules: true,
+    swatchBg: "#0d1117",
+    swatchPrimary: "#3b82f6",
+    swatchAccent: "#263041",
+    swatches: MODULE_SWATCHES_DARK,
+    palette: {
+      background: "216 28% 7%",
+      foreground: "210 30% 92%",
+      card: "215 25% 11%",
+      "card-foreground": "210 30% 92%",
+      popover: "215 25% 11%",
+      "popover-foreground": "210 30% 92%",
+      primary: "217 91% 60%",
+      "primary-foreground": "0 0% 100%",
+      secondary: "215 22% 15%",
+      "secondary-foreground": "210 30% 92%",
+      muted: "215 22% 15%",
+      "muted-foreground": "215 15% 62%",
+      accent: "215 22% 18%",
+      "accent-foreground": "210 30% 92%",
+      destructive: "0 75% 60%",
+      "destructive-foreground": "0 0% 100%",
+      success: "142 60% 45%",
+      "success-foreground": "0 0% 100%",
+      warning: "38 90% 55%",
+      "warning-foreground": "0 0% 10%",
+      border: "215 20% 21%",
+      input: "215 20% 24%",
+      ring: "217 91% 60%",
+    },
+  },
+  {
+    id: "module-light",
+    name: "Module Colours Light",
+    category: "module",
+    mode: "light",
+    modules: true,
+    swatchBg: "#f8fafc",
+    swatchPrimary: "#2563eb",
+    swatchAccent: "#cbd5e1",
+    swatches: MODULE_SWATCHES_LIGHT,
+    palette: {
+      background: "210 40% 98%",
+      foreground: "222 47% 11%",
+      card: "0 0% 100%",
+      "card-foreground": "222 47% 11%",
+      popover: "0 0% 100%",
+      "popover-foreground": "222 47% 11%",
+      primary: "221 83% 53%",
+      "primary-foreground": "0 0% 100%",
+      secondary: "214 32% 94%",
+      "secondary-foreground": "222 47% 11%",
+      muted: "214 32% 94%",
+      "muted-foreground": "215 16% 40%",
+      accent: "214 32% 91%",
+      "accent-foreground": "222 47% 11%",
+      destructive: "0 72% 51%",
+      "destructive-foreground": "0 0% 100%",
+      success: "142 71% 35%",
+      "success-foreground": "0 0% 100%",
+      warning: "32 95% 44%",
+      "warning-foreground": "0 0% 100%",
+      border: "214 25% 86%",
+      input: "214 25% 80%",
+      ring: "221 83% 53%",
+    },
+  },
   makeDark({
     id: "purple-royal",
     name: "Royal Purple",

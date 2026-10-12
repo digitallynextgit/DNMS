@@ -122,7 +122,7 @@ export function MyTasksFullSkeleton() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="My Tasks"
+        title="My Work"
         description="Tasks assigned to you across all projects."
         actions={
           <>
@@ -132,6 +132,12 @@ export function MyTasksFullSkeleton() {
           </>
         }
       />
+
+      {/* The Tasks | Services & calendars tabs. */}
+      <div className="flex gap-1">
+        <Skeleton className="h-9 w-24 rounded-sm" />
+        <Skeleton className="h-9 w-44 rounded-sm" />
+      </div>
 
       <StatStrip
         loading={true}

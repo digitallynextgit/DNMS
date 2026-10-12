@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import {
   Plus,
   History,
+  MoreHorizontal,
   Trash2,
   Upload,
   Search,
@@ -1075,7 +1076,11 @@ export function ProjectSheetSection({
 
   return (
     <div className="mt-4 space-y-3">
-      <div className="border-border flex flex-wrap items-center gap-1 border-b pb-2">
+      {/* 1. Which calendar and month, and this calendar's own settings. */}
+      <div
+        data-mod="calendar"
+        className="bg-card flex flex-wrap items-center gap-2 rounded-sm border px-3 py-2.5"
+      >
         <CalendarNamePicker
           series={series}
           activeName={activeSeries?.name ?? null}
@@ -1084,6 +1089,7 @@ export function ProjectSheetSection({
             pickSeries(name)
             setActiveId(null)
           }}
+          onNew={() => setNewSheetOpen(true)}
         />
         <CalendarMonthPicker
           series={activeSeries}
@@ -1093,81 +1099,68 @@ export function ProjectSheetSection({
           onSetMonth={() => setSetMonthOpen(true)}
           canCreate={canStaff}
         />
-        <Button variant="outline" className="gap-1.5 px-3" onClick={() => setNewSheetOpen(true)}>
-          <Plus className="h-3.5 w-3.5" /> New calendar
-        </Button>
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {workbook && (
-            <>
-              <WorkbookAssignee
-                projectId={projectId}
-                workbook={workbook}
-                canStaff={canStaff}
-                pending={m.assignWorkbook.isPending}
-                onAssign={(employeeId) =>
-                  m.assignWorkbook.mutate({ workbookId: workbook.id, employeeId })
-                }
-              />
-              {/* Managers only: this decides whether an outside party can read and write the sheet. */}
-              {canManage && (
-                <Button
-                  variant={workbook.isClientVisible ? "secondary" : "outline"}
-                  className="gap-1.5 px-3"
-                  disabled={m.shareWorkbook.isPending}
-                  title={
-                    workbook.isClientVisible
-                      ? "Shared with the client - they can fill cells and add rows. Click to withdraw."
-                      : "Share this calendar with the client so they can fill it in"
-                  }
-                  onClick={() =>
-                    m.shareWorkbook.mutate({
-                      workbookId: workbook.id,
-                      isClientVisible: !workbook.isClientVisible,
-                    })
-                  }
-                >
-                  {workbook.isClientVisible ? (
-                    <Eye className="h-3.5 w-3.5" />
-                  ) : (
-                    <EyeOff className="h-3.5 w-3.5" />
-                  )}
-                  {workbook.isClientVisible ? "Shared" : "Share"}
-                </Button>
-              )}
-              <span className="bg-border mx-1 h-4 w-px" aria-hidden />
-            </>
-          )}
-          <Button
-            variant="outline"
-            className="gap-1.5 px-3"
-            onClick={() => setColumnDialog({ column: null })}
-            disabled={!active}
-          >
-            <Plus className="h-3.5 w-3.5" /> Column
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-1.5 px-3"
-            onClick={() => setHistoryOpen(true)}
-            disabled={!active}
-          >
-            <History className="h-3.5 w-3.5" /> History
-          </Button>
-          {canManage && workbook && (
-            <Button
-              variant="ghost"
-              className="text-muted-foreground hover:text-destructive gap-1 px-2"
-              onClick={() =>
-                setConfirm({ kind: "workbook", id: workbook.id, label: workbook.name })
+        {workbook && (
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <WorkbookAssignee
+              projectId={projectId}
+              workbook={workbook}
+              canStaff={canStaff}
+              pending={m.assignWorkbook.isPending}
+              onAssign={(employeeId) =>
+                m.assignWorkbook.mutate({ workbookId: workbook.id, employeeId })
               }
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Delete sheet
-            </Button>
-          )}
-        </div>
+            />
+            {/* Managers only: this decides whether an outside party can read and write the sheet. */}
+            {canManage && (
+              <Button
+                variant={workbook.isClientVisible ? "secondary" : "outline"}
+                className="gap-1.5 px-3"
+                disabled={m.shareWorkbook.isPending}
+                title={
+                  workbook.isClientVisible
+                    ? "Shared with the client - they can fill cells and add rows. Click to withdraw."
+                    : "Share this calendar with the client so they can fill it in"
+                }
+                onClick={() =>
+                  m.shareWorkbook.mutate({
+                    workbookId: workbook.id,
+                    isClientVisible: !workbook.isClientVisible,
+                  })
+                }
+              >
+                {workbook.isClientVisible ? (
+                  <Eye className="h-3.5 w-3.5" />
+                ) : (
+                  <EyeOff className="h-3.5 w-3.5" />
+                )}
+                {workbook.isClientVisible ? "Shared" : "Share"}
+              </Button>
+            )}
+            {canManage && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="More calendar actions">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive gap-2"
+                    onSelect={() =>
+                      setConfirm({ kind: "workbook", id: workbook.id, label: workbook.name })
+                    }
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete this month&apos;s calendar
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        )}
       </div>
 
+      {/* 2. Who owes what this month. */}
       {workbook && (
         <TeamPlanStrip
           teams={workbook.teams}
@@ -1181,7 +1174,8 @@ export function ProjectSheetSection({
         />
       )}
 
-      <div className="border-border flex items-end gap-2 border-b">
+      {/* 3. The month's tabs, and the tools for the open tab. */}
+      <div className="border-border flex flex-wrap items-end gap-x-3 gap-y-1 border-b">
         <div className="no-scrollbar flex min-w-0 flex-1 items-end gap-1 overflow-x-auto">
           {(sheets ?? []).map((s) => (
             <button
@@ -1198,38 +1192,21 @@ export function ProjectSheetSection({
               {s.name}
             </button>
           ))}
+          {workbook && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="mb-1 h-7 w-7 shrink-0"
+              onClick={() => setNewTabOpen(true)}
+              aria-label="New tab"
+              title="New tab"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          )}
         </div>
-        <Button
-          variant="outline"
-          className="mb-1.5 h-8 shrink-0 gap-1.5 px-3 text-xs"
-          onClick={() => setNewTabOpen(true)}
-          disabled={!workbook}
-        >
-          <Plus className="h-3.5 w-3.5" /> New tab
-        </Button>
-        <Button
-          variant="outline"
-          className="mb-1.5 h-8 shrink-0 gap-1.5 px-3 text-xs"
-          onClick={() => {
-            setImportIntent("this-tab")
-            setImportOpen(true)
-          }}
-          disabled={!active}
-          title={active ? `Add rows to "${active.name}" from a file or a Google Sheet` : undefined}
-        >
-          <Upload className="h-3.5 w-3.5" /> Upload to this tab
-        </Button>
-        {canManage && active && (sheets?.length ?? 0) > 1 && (
-          <Button
-            variant="ghost"
-            className="text-muted-foreground hover:text-destructive mb-1.5 h-8 shrink-0 gap-1 px-2 text-xs"
-            onClick={() => setConfirm({ kind: "sheet", id: active.id, label: active.name })}
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Delete tab
-          </Button>
-        )}
 
-        <div className="mb-1.5 flex shrink-0 items-center gap-1">
+        <div className="mb-1.5 flex shrink-0 flex-wrap items-center gap-1.5">
           <div className="relative">
             <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
             <Input
@@ -1278,6 +1255,59 @@ export function ProjectSheetSection({
               </Button>
             </>
           )}
+          <Button
+            variant="outline"
+            className="h-8 gap-1.5 px-3 text-xs"
+            onClick={() => setColumnDialog({ column: null })}
+            disabled={!active}
+          >
+            <Plus className="h-3.5 w-3.5" /> Column
+          </Button>
+          <Button
+            variant="outline"
+            className="h-8 gap-1.5 px-3 text-xs"
+            onClick={() => {
+              setImportIntent("this-tab")
+              setImportOpen(true)
+            }}
+            disabled={!active}
+            title={
+              active ? `Add rows to "${active.name}" from a file or a Google Sheet` : undefined
+            }
+          >
+            <Upload className="h-3.5 w-3.5" /> Upload to this tab
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label="More tab actions"
+                disabled={!active}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem className="gap-2" onSelect={() => setHistoryOpen(true)}>
+                <History className="h-3.5 w-3.5" /> History
+              </DropdownMenuItem>
+              {canManage && active && (sheets?.length ?? 0) > 1 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive gap-2"
+                    onSelect={() =>
+                      setConfirm({ kind: "sheet", id: active.id, label: active.name })
+                    }
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete tab
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

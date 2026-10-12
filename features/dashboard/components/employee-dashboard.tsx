@@ -25,6 +25,7 @@ import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { LeaveBalanceCard } from "@/features/leave"
 // Direct import, not the projects barrel, which would pull every project component into this bundle.
 import { formatHours } from "@/features/projects/lib/format-hours"
+import { MyWorkCard } from "@/features/projects/components/my-work-card"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 import { PAYROLL_STATUS_LABELS } from "@/lib/constants"
 import type { LeaveBalance } from "@/features/leave"
@@ -181,9 +182,9 @@ export function EmployeeDashboard() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Button asChild variant="outline" className="min-w-0 justify-start gap-2">
-          <Link href="/projects/my-tasks">
+          <Link href="/projects/my-work">
             <ListTodo className="text-muted-foreground h-4 w-4" />
-            <span className="truncate">My Tasks</span>
+            <span className="truncate">My Work</span>
           </Link>
         </Button>
         <Button asChild variant="outline" className="min-w-0 justify-start gap-2">
@@ -220,7 +221,7 @@ export function EmployeeDashboard() {
               Today&apos;s Work
             </CardTitle>
             <Button className="gap-1" asChild variant="ghost">
-              <Link href="/projects/my-tasks">
+              <Link href="/projects/my-work">
                 View all <ArrowRight className="h-3 w-3" />
               </Link>
             </Button>
@@ -300,6 +301,8 @@ export function EmployeeDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <MyWorkCard />
 
       {work && work.projects.length > 0 && (
         <Card>
@@ -502,7 +505,7 @@ function TaskLine({ task }: { task: DashTask }) {
 
   return (
     <Link
-      href="/projects/my-tasks"
+      href="/projects/my-work"
       className="hover:bg-muted/40 flex items-center gap-3 px-4 py-2.5 transition-colors"
     >
       <span

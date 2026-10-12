@@ -15,6 +15,8 @@ export interface BuildWorkReportInput {
   /** Already narrowed to the requester's scope. */
   employeeIds: string[]
   period: ReportPeriod
+  /** Only these projects' tasks and deliverables; empty or omitted = every project. */
+  projectIds?: string[]
   format: WorkReportFormat
   ai: boolean
   now?: Date
@@ -25,13 +27,14 @@ export async function buildWorkReport(input: BuildWorkReportInput): Promise<Buil
   const report = await loadWorkReport({
     employeeIds: input.employeeIds,
     period: input.period,
+    projectIds: input.projectIds,
     requesterId: input.requesterId,
     now: input.now,
   })
   if (input.ai) await polishWorkReport(report)
 
   const meta = {
-    title: `${report.title} - ${report.period.label} work report`,
+    title: `${report.title} - ${report.period.label} progress report`,
     author: report.preparedBy.name || "DNMS",
   }
   let bytes: Uint8Array<ArrayBuffer>

@@ -35,10 +35,13 @@ export function CalendarNamePicker({
   series,
   activeName,
   onPick,
+  onNew,
 }: {
   series: Series[]
   activeName: string | null
   onPick: (name: string) => void
+  /** "New calendar" at the foot of the list: switching and adding live in one place. */
+  onNew?: () => void
 }) {
   return (
     <DropdownMenu>
@@ -50,6 +53,7 @@ export function CalendarNamePicker({
           aria-label="Switch calendar"
           title={activeName ?? undefined}
         >
+          <CalendarDays className="text-muted-foreground h-4 w-4 shrink-0" data-mod-icon="" />
           <span className="whitespace-nowrap">{activeName ?? "No calendar yet"}</span>
           <ChevronDown className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
         </Button>
@@ -100,6 +104,14 @@ export function CalendarNamePicker({
             </DropdownMenuItem>
           )
         })}
+        {onNew && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onNew} className="gap-2">
+              <Plus className="h-3.5 w-3.5" /> New calendar
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -163,10 +175,12 @@ export function CalendarMonthPicker({
     : NO_MONTH_LABEL
 
   return (
-    <span className="flex items-center gap-1">
+    // One joined control (previous | month | next), so it reads as a single month stepper.
+    <span className="border-input inline-flex items-center overflow-hidden rounded-sm border">
       <Button
-        variant="outline"
+        variant="ghost"
         size="icon"
+        className="h-[34px] rounded-none"
         onClick={() => prev && onPickEdition(prev.id)}
         disabled={!prev}
         aria-label="Previous month"
@@ -178,8 +192,8 @@ export function CalendarMonthPicker({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant="outline"
-            className="gap-1 px-3 font-semibold"
+            variant="ghost"
+            className="border-input h-[34px] gap-1 rounded-none border-x px-3 font-semibold"
             aria-label="Jump to a month"
           >
             {label}
@@ -238,8 +252,9 @@ export function CalendarMonthPicker({
       </DropdownMenu>
 
       <Button
-        variant="outline"
+        variant="ghost"
         size="icon"
+        className="h-[34px] rounded-none"
         onClick={() => next && onPickEdition(next.id)}
         disabled={!next}
         aria-label="Next month"

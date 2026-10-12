@@ -127,8 +127,8 @@ export const wfhApprovalsGuide: HelpGuide = {
             hi: "Approve पर क्लिक करने पर एरर आता है। क्यों?",
           },
           a: {
-            en: "Only HR Managers, Admins and the employee's own manager can decide WFH requests. If you can, someone may have decided it a moment ago - refresh the page.",
-            hi: "WFH रिक्वेस्ट का फैसला सिर्फ़ HR Manager, Admin और कर्मचारी का अपना मैनेजर कर सकते हैं। अगर आप कर सकते हैं, तो हो सकता है किसी ने अभी-अभी फैसला कर दिया हो - पेज रिफ्रेश करें।",
+            en: "Only HR Managers, HR Employees, Admins and the employee's own manager can decide WFH requests. If you can, someone may have decided it a moment ago - refresh the page.",
+            hi: "WFH रिक्वेस्ट का फैसला सिर्फ़ HR Manager, HR Employee, Admin और कर्मचारी का अपना मैनेजर कर सकते हैं। अगर आप कर सकते हैं, तो हो सकता है किसी ने अभी-अभी फैसला कर दिया हो - पेज रिफ्रेश करें।",
           },
         },
       ],

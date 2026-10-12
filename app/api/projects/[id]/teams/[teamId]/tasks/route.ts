@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { expectsOutput } from "@/features/projects/lib/deliverable-types"
-import { projectHref } from "@/features/projects/lib/project-href"
+import { myWorkHref, projectHref } from "@/features/projects/lib/project-href"
 import {
   canManageProject,
   resolveProjectId,
@@ -167,13 +167,13 @@ export const POST = withSession(
       })
 
       try {
-        if (isManager && finalAssigneeId !== session.user.id && task.assignee) {
+        if (isManagerCreated && finalAssigneeId !== session.user.id && task.assignee) {
           await createNotification({
             employeeId: finalAssigneeId,
             title: "New task assigned",
             message: `${task.creator.firstName} assigned you: "${task.title}"`,
             type: "info",
-            link: "/projects/my-tasks",
+            link: myWorkHref(task),
           })
           addEmailJob({
             to: task.assignee.email,
@@ -188,7 +188,10 @@ export const POST = withSession(
             title: "New task in your team",
             message: `${task.creator.firstName} added a task in ${team.name}: "${task.title}"`,
             type: "info",
-            link: projectHref({ id: projectId, slug: team.project.slug }, "tasks"),
+            link: projectHref({ id: projectId, slug: team.project.slug }, "tasks", {
+              team: teamId,
+              task: task.id,
+            }),
           })
         }
       } catch (_e) {

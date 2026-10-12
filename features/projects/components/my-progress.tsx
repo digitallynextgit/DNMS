@@ -83,6 +83,8 @@ export interface ProgressFilterState {
   team: string
   teamIds: string[]
   personId: string
+  /** The people the current selection covers: one person, or everyone in the picked team. */
+  peopleIds: string[]
   projectLabel?: string
   teamLabel?: string
   personLabel?: string
@@ -195,12 +197,18 @@ export function MyProgress({ range, onFilterChange }: MyProgressProps) {
       team,
       teamIds,
       personId,
+      peopleIds:
+        sc?.role === "member" && me
+          ? [me]
+          : personId === ALL
+            ? people.map((p) => p.id)
+            : [personId],
       projectLabel: projectId === ALL ? "All projects" : projectObj?.name,
       teamLabel: team === ALL ? "All teams" : team,
       personLabel: personId === ALL ? "Whole team" : personObj?.name,
       totalCount: data?.totals.total,
     })
-  }, [projectId, team, teamIds, personId, sc, data?.totals.total, onFilterChange])
+  }, [projectId, team, teamIds, personId, people, me, sc, data?.totals.total, onFilterChange])
 
   return (
     <div className="space-y-6">

@@ -17,10 +17,16 @@ import {
 } from "docx"
 
 import { INK, LINE, MUTED, TEXT, WARN, ZEBRA, personStyle } from "./theme"
-import { dayLabel, formatHoursRound, formatHoursShort } from "../../lib/report-format"
+import {
+  dayLabel,
+  formatHoursRound,
+  formatHoursShort,
+  periodLine,
+  reportKind,
+} from "../../lib/report-format"
 import type { DayRow, PersonReport, WorkReport } from "../../types"
 
-// The work report as an editable Word document (same content as the slides), A4 portrait.
+// The progress report as an editable Word document (same content as the slides), A4 portrait.
 
 const PAGE_CONTENT_DXA = 9900 // A4 width minus 0.7in margins, in twentieths of a point
 const FONT = "Calibri"
@@ -212,7 +218,7 @@ function personSection(p: PersonReport, index: number): (Paragraph | Table)[] {
   } else {
     out.push(
       para([
-        run("No task time was recorded in DNMS for this month.", { italics: true, color: MUTED }),
+        run("No task time was recorded in DNMS for this period.", { italics: true, color: MUTED }),
       ]),
     )
   }
@@ -220,7 +226,7 @@ function personSection(p: PersonReport, index: number): (Paragraph | Table)[] {
   if (p.highlights.length) out.push(...p.highlights.map((h) => bullet(h)))
   else
     out.push(
-      para([run("No completed or tracked tasks this month.", { italics: true, color: MUTED })]),
+      para([run("No completed or tracked tasks in this period.", { italics: true, color: MUTED })]),
     )
 
   out.push(heading("Day by day", HeadingLevel.HEADING_3))
@@ -261,19 +267,17 @@ function personSection(p: PersonReport, index: number): (Paragraph | Table)[] {
       ),
     )
   } else {
-    out.push(para([run("No open tasks due this month.", { color: MUTED })]))
+    out.push(para([run("No open tasks due in this period.", { color: MUTED })]))
   }
   return out
 }
 
 export async function renderWorkReportDocx(r: WorkReport): Promise<Uint8Array<ArrayBuffer>> {
   const people = r.people
-  const fromDay = Number(r.period.from.slice(8))
-  const toDay = Number(r.period.to.slice(8))
   const preparer = [r.preparedBy.name, r.preparedBy.designation].filter(Boolean).join(", ")
 
   const children: (Paragraph | Table)[] = [
-    para([run("MONTH-END WORK REPORT", { bold: true, color: WARN, size: 20 })], {
+    para([run(reportKind(r.period).toUpperCase(), { bold: true, color: WARN, size: 20 })], {
       spacingAfter: 60,
     }),
     new Paragraph({
@@ -285,10 +289,9 @@ export async function renderWorkReportDocx(r: WorkReport): Promise<Uint8Array<Ar
     }),
     para([run(r.title, { size: 32, color: MUTED })]),
     para([
-      run(
-        `Period: ${fromDay} - ${toDay} ${r.period.label}${preparer ? `   ·   Prepared by ${preparer}` : ""}`,
-        { color: MUTED },
-      ),
+      run(`Period: ${periodLine(r.period)}${preparer ? `   ·   Prepared by ${preparer}` : ""}`, {
+        color: MUTED,
+      }),
     ]),
 
     heading("At a glance", HeadingLevel.HEADING_2),
@@ -445,7 +448,7 @@ export async function renderWorkReportDocx(r: WorkReport): Promise<Uint8Array<Ar
 
   const doc = new Document({
     creator: r.preparedBy.name || "DNMS",
-    title: `${r.title} - ${r.period.label} work report`,
+    title: `${r.title} - ${r.period.label} progress report`,
     styles: { default: { document: { run: { font: FONT, size: 21, color: TEXT } } } },
     sections: [
       {

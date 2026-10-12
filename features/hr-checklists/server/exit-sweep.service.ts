@@ -9,7 +9,13 @@ import { setMembershipActive } from "@/server/identity"
 
 export interface ExitSweepResult {
   checked: number
-  deactivated: { employeeId: string; name: string; lastWorkingDate: string | null }[]
+  deactivated: {
+    employeeId: string
+    name: string
+    lastWorkingDate: string | null
+    /** Their exit checklist, still open; null if none was ever started. */
+    checklistId: string | null
+  }[]
 }
 
 export async function sweepOverdueExits(now: Date = new Date()): Promise<ExitSweepResult> {
@@ -25,6 +31,7 @@ export async function sweepOverdueExits(now: Date = new Date()): Promise<ExitSwe
     select: {
       requestedLastWorkingDate: true,
       employee: { select: { id: true, firstName: true, lastName: true, employeeNo: true } },
+      checklist: { select: { id: true } },
     },
   })
 
@@ -53,6 +60,7 @@ export async function sweepOverdueExits(now: Date = new Date()): Promise<ExitSwe
         employeeId: e.id,
         name: `${e.firstName} ${e.lastName}`.trim(),
         lastWorkingDate: row.requestedLastWorkingDate?.toISOString().slice(0, 10) ?? null,
+        checklistId: row.checklist?.id ?? null,
       })
     } catch (err) {
       // One stuck employee must not stop the sweep for everybody else.
@@ -69,18 +77,20 @@ export async function sweepOverdueExits(now: Date = new Date()): Promise<ExitSwe
       },
       select: { id: true },
     })
+    // One per leaver, linking to their checklist: the Exit Clearance list only shows active people.
     if (hr.length > 0) {
-      const names = result.deactivated.map((d) => d.name).join(", ")
       await createNotifications(
-        hr.map((h) => ({
-          employeeId: h.id,
-          title: "Exit closed without clearance",
-          message: `${result.deactivated.length} account${
-            result.deactivated.length === 1 ? "" : "s"
-          } past the last working day were deactivated with the exit clearance unfinished: ${names}.`,
-          type: "warning" as const,
-          link: "/exit-clearance",
-        })),
+        result.deactivated.flatMap((d) =>
+          hr.map((h) => ({
+            employeeId: h.id,
+            title: "Exit closed without clearance",
+            message: `${d.name}'s account was deactivated after their last working day${
+              d.lastWorkingDate ? ` (${d.lastWorkingDate})` : ""
+            } with the exit clearance unfinished.`,
+            type: "warning" as const,
+            link: d.checklistId ? `/exit-clearance/${d.checklistId}` : "/exit-clearance",
+          })),
+        ),
       )
     }
   }

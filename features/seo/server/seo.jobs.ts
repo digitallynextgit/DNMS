@@ -72,7 +72,7 @@ export async function runSeoDailyJob(): Promise<SeoDailyResult> {
             ? `${worst?.detail} (+${res.issues.length - 1} more money-page issue${res.issues.length > 2 ? "s" : ""})`
             : (worst?.detail ?? "A money page has a critical problem."),
         type: "error",
-        link: projectHref({ id: p.projectId, slug: p.project.slug }, "seo"),
+        link: projectHref({ id: p.projectId, slug: p.project.slug }, "seo", { site: p.id }),
       })
       notified++
     } else if (res.recovered) {
@@ -81,7 +81,7 @@ export async function runSeoDailyJob(): Promise<SeoDailyResult> {
         title: `SEO recovered - ${site}`,
         message: "Money pages are back to 200 and indexable.",
         type: "success",
-        link: projectHref({ id: p.projectId, slug: p.project.slug }, "seo"),
+        link: projectHref({ id: p.projectId, slug: p.project.slug }, "seo", { site: p.id }),
       })
       notified++
     }
@@ -131,7 +131,7 @@ export async function runSeoWeeklyJob(): Promise<SeoWeeklyResult> {
           title: `SEO sync failed - ${site}`,
           message: res.error ?? "Search Console sync failed.",
           type: "error",
-          link: projectHref({ id: p.projectId, slug: p.project.slug }, "seo"),
+          link: projectHref({ id: p.projectId, slug: p.project.slug }, "seo", { site: p.id }),
         })
         notified++
       }
@@ -173,7 +173,10 @@ export async function runSeoWeeklyJob(): Promise<SeoWeeklyResult> {
           title: `SEO content results - ${site}`,
           message: `${review.reviewed} page${review.reviewed > 1 ? "s" : ""} hit their 30-day check: ${review.won} improved, ${review.flat} flat, ${review.lost} slipped.`,
           type: review.lost > review.won ? "warning" : "success",
-          link: projectHref({ id: p.projectId, slug: p.project.slug }, "seo"),
+          link: projectHref({ id: p.projectId, slug: p.project.slug }, "seo", {
+            site: p.id,
+            report: "content",
+          }),
         })
         notified++
       }
@@ -195,7 +198,7 @@ export async function runSeoWeeklyJob(): Promise<SeoWeeklyResult> {
             ? `${worst.title}. ${actionable.length - 1} more issue${actionable.length > 2 ? "s" : ""} to review.`
             : `${worst.title}. ${worst.detail}`,
         type: worst.level === "critical" ? "error" : "warning",
-        link: projectHref({ id: p.projectId, slug: p.project.slug }, "seo"),
+        link: projectHref({ id: p.projectId, slug: p.project.slug }, "seo", { site: p.id }),
       })
       notified++
     }
@@ -204,13 +207,15 @@ export async function runSeoWeeklyJob(): Promise<SeoWeeklyResult> {
   // Alert once, not per site, so a scorecard on stale vitals is explained.
   if (psiQuotaError) {
     console.error("[SEO_WEEKLY] vitals skipped:", psiQuotaError)
-    const owner = properties.find((p) => p.project.ownerId)?.project.ownerId
-    if (owner) {
+    const first = properties.find((p) => p.project.ownerId)
+    const owner = first?.project.ownerId
+    if (first && owner) {
       await createNotification({
         employeeId: owner,
         title: "SEO: Core Web Vitals skipped",
         message: psiQuotaError,
         type: "warning",
+        link: projectHref({ id: first.projectId, slug: first.project.slug }, "seo"),
       })
       notified++
     }

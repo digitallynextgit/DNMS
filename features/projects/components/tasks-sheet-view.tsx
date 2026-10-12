@@ -49,6 +49,7 @@ import {
 } from "@/features/projects/components/task-status-reason-dialog"
 import { TaskHistoryDialog } from "@/features/projects/components/task-history-dialog"
 import { apiFetch } from "@/lib/api-fetch"
+import { useUrlState } from "@/hooks/use-url-state"
 import { cn } from "@/lib/utils"
 import { TASK_STATUS_LABELS, TASK_WORKFLOW_STATUSES } from "@/lib/constants"
 import { formatHours } from "@/features/projects/lib/format-hours"
@@ -425,7 +426,13 @@ export function TasksSheetView({
 }: Props) {
   const qc = useQueryClient()
   const askFollowUpConflict = useFollowUpConflictStore((s) => s.ask)
-  const [weekStart, setWeekStart] = useState(() => toKey(mondayOf(new Date())))
+  const thisMonday = toKey(mondayOf(new Date()))
+  // In the URL so a notification can open the week its task is due (?week=<any day of it>).
+  const [weekParam, setWeekParam] = useUrlState("week", "")
+  const weekStart = /^\d{4}-\d{2}-\d{2}$/.test(weekParam)
+    ? toKey(mondayOf(fromKey(weekParam)))
+    : thisMonday
+  const setWeekStart = (key: string) => setWeekParam(key === thisMonday ? "" : key)
   const [busyCells, setBusyCells] = useState<Record<string, boolean>>({})
   /** A Plan edit that would delete tasks, held until it is confirmed. */
   const [pendingPlan, setPendingPlan] = useState<CellPlan | null>(null)
@@ -435,7 +442,6 @@ export function TasksSheetView({
     mode: "ON_HOLD" | "DISCARDED"
   } | null>(null)
 
-  const thisMonday = toKey(mondayOf(new Date()))
   const todayKey = toKey(new Date())
 
   // Tick while a clock runs or an edit window is open, so lines lock right when their 15 minutes end.

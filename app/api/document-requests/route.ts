@@ -62,7 +62,7 @@ export const POST = withSession(
         title: "Document requested",
         message: `HR requested you upload "${request.title}".${dueDate ? ` Due ${new Date(dueDate).toDateString()}.` : ""}`,
         type: "info",
-        link: "/profile",
+        link: "/profile?tab=documents",
       })
 
       return NextResponse.json({ data: request }, { status: 201 })

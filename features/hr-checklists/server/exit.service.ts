@@ -99,7 +99,6 @@ export async function completeExitChecklist(instanceId: string): Promise<ActionR
       message:
         "Your clearance is complete and your relieving has been processed. Your account access has now ended.",
       type: "info",
-      link: "/profile",
     })
 
     // Relieving confirmation, best-effort - the sign-off itself has happened.

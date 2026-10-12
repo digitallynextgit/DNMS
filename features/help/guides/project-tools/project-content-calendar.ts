@@ -43,8 +43,8 @@ export const projectContentCalendarGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Open the project from My Projects and click the Calendars tab. The calendar's name (1) switches between calendars. The month name (2), with the arrows on each side, moves between months. New calendar (3) starts another one.",
-            hi: "My Projects से प्रोजेक्ट खोलें और Calendars टैब पर क्लिक करें। कैलेंडर का नाम (1) एक कैलेंडर से दूसरे पर ले जाता है। महीने का नाम (2), और उसके दोनों ओर के तीर, एक महीने से दूसरे महीने पर ले जाते हैं। New calendar (3) से नया कैलेंडर शुरू होता है।",
+            en: "Open the project from Projects and click the Calendars tab. The bar at the top is about the whole calendar: its name (1) switches between calendars - New calendar is at the bottom of that list - and the month (2), with the arrows on each side, moves between months. On the right are the calendar's Owner (3) and Share.",
+            hi: "Projects से प्रोजेक्ट खोलें और Calendars टैब पर क्लिक करें। ऊपर की पट्टी पूरे कैलेंडर के लिए है: उसका नाम (1) एक कैलेंडर से दूसरे पर ले जाता है - New calendar उसी लिस्ट में सबसे नीचे है - और महीना (2), दोनों ओर के तीरों के साथ, एक महीने से दूसरे पर ले जाता है। दाईं ओर कैलेंडर का Owner (3) और Share है।",
           },
           shot: {
             id: "project-content-calendar-overview",
@@ -55,15 +55,16 @@ export const projectContentCalendarGuide: HelpGuide = {
             highlight: [
               { role: "button", name: "Switch calendar" },
               { role: "button", name: "Jump to a month" },
-              { role: "button", name: "New calendar" },
+              // Owner is a picker for managers (a combobox), so match it by its label.
+              { label: "Calendar owner" },
               { role: "button", name: "Manage plan" },
             ],
           },
         },
         {
           text: {
-            en: "The Team plan strip, with its Manage plan button (4), shows what each team owes - more on that below. Under it, the small buttons are the tabs of this month. Click one to open its grid.",
-            hi: "Team plan वाली पट्टी, अपने Manage plan बटन (4) के साथ, दिखाती है कि हर टीम को क्या देना है - इसके बारे में नीचे बताया गया है। उसके नीचे वाले छोटे बटन इस महीने के टैब हैं। किसी का ग्रिड खोलने के लिए उस पर क्लिक करें।",
+            en: "Below it, the Team plan panel, with its Manage plan button (4), shows what each team owes - more on that below. Under that are the tabs of this month: click one to open its grid, or + to add a tab. The tools on the right of the tabs work on the open tab.",
+            hi: "उसके नीचे Team plan पैनल, अपने Manage plan बटन (4) के साथ, दिखाता है कि हर टीम को क्या देना है - इसके बारे में नीचे बताया गया है। उसके नीचे इस महीने के टैब हैं: ग्रिड खोलने के लिए किसी पर क्लिक करें, या नया टैब जोड़ने के लिए + पर। टैब के दाईं ओर के टूल खुले हुए टैब पर काम करते हैं।",
           },
         },
       ],
@@ -80,15 +81,16 @@ export const projectContentCalendarGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Click New calendar. A box called New sheet opens. Type a Name (1), like Content calendar, and click Create (3). It starts in the current month with one blank tab.",
-            hi: "New calendar पर क्लिक करें। New sheet नाम का बॉक्स खुलेगा। Name (1) लिखें, जैसे Content calendar, और Create (3) पर क्लिक करें। ये मौजूदा महीने में एक खाली टैब के साथ शुरू होता है।",
+            en: "Click the calendar's name, then New calendar at the bottom of the list. A box called New sheet opens. Type a Name (1), like Content calendar, and click Create (3). It starts in the current month with one blank tab.",
+            hi: "कैलेंडर के नाम पर क्लिक करें, फिर लिस्ट में सबसे नीचे New calendar पर। New sheet नाम का बॉक्स खुलेगा। Name (1) लिखें, जैसे Content calendar, और Create (3) पर क्लिक करें। ये मौजूदा महीने में एक खाली टैब के साथ शुरू होता है।",
           },
           shot: {
             id: "project-content-calendar-new",
             as: "manager",
             path: CALENDARS,
             actions: [
-              { click: { role: "button", name: "New calendar" } },
+              { click: { role: "button", name: "Switch calendar" } },
+              { click: { role: "menuitem", name: "New calendar" } },
               // Typed in, so Create shows enabled rather than greyed out.
               { fill: { css: "#sheet-name" }, value: "Content calendar" },
             ],
@@ -182,8 +184,8 @@ export const projectContentCalendarGuide: HelpGuide = {
         },
         {
           text: {
-            en: "New tab adds another grid to this month. Find in this tab… searches the open tab. History shows every change to the open tab - who changed what, and when.",
-            hi: "New tab से इस महीने में एक और ग्रिड जुड़ता है। Find in this tab… खुले हुए टैब में खोजता है। History खुले हुए टैब का हर बदलाव दिखाती है - किसने क्या बदला, और कब।",
+            en: "The + after the tabs adds another grid to this month. Find in this tab… searches the open tab. History, in the ⋯ menu on the right, shows every change to the open tab - who changed what, and when.",
+            hi: "टैब के बाद वाला + इस महीने में एक और ग्रिड जोड़ता है। Find in this tab… खुले हुए टैब में खोजता है। दाईं ओर ⋯ मेन्यू में History खुले हुए टैब का हर बदलाव दिखाती है - किसने क्या बदला, और कब।",
           },
         },
       ],

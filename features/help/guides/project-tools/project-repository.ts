@@ -39,8 +39,8 @@ export const projectRepositoryGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Open the project from My Projects and click the Repository tab. Folders come first, then files and links.",
-            hi: "My Projects से प्रोजेक्ट खोलें और Repository टैब पर क्लिक करें। पहले फोल्डर दिखते हैं, फिर फाइलें और लिंक।",
+            en: "Open the project from Projects and click the Repository tab. Folders come first, then files and links.",
+            hi: "Projects से प्रोजेक्ट खोलें और Repository टैब पर क्लिक करें। पहले फोल्डर दिखते हैं, फिर फाइलें और लिंक।",
           },
         },
         {

@@ -34,3 +34,15 @@ export function useUrlPage(key = "page"): [number, (page: number) => void] {
   const setPage = useCallback((next: number) => setRaw(String(next)), [setRaw])
   return [page, setPage]
 }
+
+/** Sets several `?key=` values in one go (null or "" drops one), the same quiet way as useUrlState. */
+export function replaceUrlParams(updates: Record<string, string | null>) {
+  const params = new URLSearchParams(window.location.search)
+  for (const [key, value] of Object.entries(updates)) {
+    if (value) params.set(key, value)
+    else params.delete(key)
+  }
+  const qs = params.toString()
+  const path = window.location.pathname
+  window.history.replaceState(null, "", qs ? `${path}?${qs}` : path)
+}

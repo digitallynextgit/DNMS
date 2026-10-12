@@ -80,6 +80,11 @@ const PORTAL_ITEM_SELECT = {
 /** A DATE column as "yyyy-MM-dd": the browser date helpers append their own time part. */
 const asDay = (d: Date | null): string | null => (d ? d.toISOString().slice(0, 10) : null)
 
+/** The project's page for one planned period (or the unplanned bucket), as the team sees it. */
+function periodHref(slug: string, start: string | null, end: string | null): string {
+  return `/projects/${slug}/deliverables/${start && end ? `${start}_${end}` : "unplanned"}`
+}
+
 /** The plan for one project: every item, and whether planning is possible yet. */
 export async function listClientPlan(projectRef: string): Promise<ActionResult<unknown>> {
   return runAction(async () => {
@@ -239,7 +244,7 @@ export async function createClientPlanLines(
             created === 1 ? "" : "s"
           } on ${grant.projectName}.`,
           type: "info" as const,
-          link: `/projects/${slug}`,
+          link: periodHref(slug, input.periodStart, input.periodEnd),
         })),
       )
     }
@@ -324,6 +329,8 @@ async function findItem(projectId: string, deliverableId: string) {
       quantity: true,
       loggedById: true,
       loggedByClientId: true,
+      periodStart: true,
+      periodEnd: true,
       _count: { select: { files: { where: { isClientVisible: true } } } },
     },
   })
@@ -737,7 +744,7 @@ export async function setClientPlanStatus(
               `${DELIVERABLE_STATUS_LABELS[to].toLowerCase()} on ${grant.projectName}.` +
               (reason ? ` Reason: ${reason}` : ""),
             type: notice.type,
-            link: `/projects/${slug}`,
+            link: periodHref(slug, asDay(item.periodStart), asDay(item.periodEnd)),
           })),
         )
       }

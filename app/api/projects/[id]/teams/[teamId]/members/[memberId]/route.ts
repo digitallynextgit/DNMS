@@ -84,7 +84,7 @@ export const DELETE = withSession(
           title: "Removed from team",
           message: `You've been removed from the "${team.name}" team in ${projectName}.`,
           type: "info",
-          link: "/projects",
+          link: "/projects/my-projects",
         })
       } catch (_e) {
         /* non-blocking */

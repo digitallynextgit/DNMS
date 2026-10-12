@@ -150,7 +150,7 @@ export const PATCH = withAuth(
           title: "Payslip Paid",
           message: `Your ${monthName} ${updated.year} salary of ₹${updated.netSalary.toLocaleString("en-IN")} has been paid.`,
           type: "success",
-          link: "/payroll/me",
+          link: `/payroll/me/${updated.id}`,
         })
         const emp = await db.employee.findUnique({
           where: { id: updated.employeeId },

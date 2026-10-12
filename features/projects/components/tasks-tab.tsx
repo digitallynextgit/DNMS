@@ -1,6 +1,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { replaceUrlParams } from "@/hooks/use-url-state"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -50,7 +52,11 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all")
   const [createOpen, setCreateOpen] = useState(false)
   const [requirementOpen, setRequirementOpen] = useState(false)
-  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+  // In the URL so a notification opens the task (?task=<id>) on its team (?team=<id>).
+  const searchParams = useSearchParams()
+  const openTaskId = searchParams.get("task")
+  const setOpenTaskId = (id: string | null) => replaceUrlParams({ task: id })
+  const linkedTeamId = searchParams.get("team")
 
   const teamsInScope = useMemo(
     () => (activeTeamId === "all" ? teams : teams.filter((t) => t.id === activeTeamId)),
@@ -193,6 +199,13 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
     if (mine) setActiveTeamId(mine.id)
   }
 
+  // A linked team wins over that default, and again whenever a new link arrives.
+  const [appliedTeamLink, setAppliedTeamLink] = useState<string | null>(null)
+  if (linkedTeamId !== appliedTeamLink && teams.length > 0) {
+    setAppliedTeamLink(linkedTeamId)
+    if (linkedTeamId && teams.some((t) => t.id === linkedTeamId)) setActiveTeamId(linkedTeamId)
+  }
+
   if (teamsLoading) return <Skeleton className="h-64 rounded-sm" />
   if (teams.length === 0) {
     return (
@@ -209,7 +222,14 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <Label className="text-xs">Team</Label>
-          <Select value={activeTeamId} onValueChange={(v) => setActiveTeamId(v)}>
+          <Select
+            value={activeTeamId}
+            onValueChange={(v) => {
+              setActiveTeamId(v)
+              // A hand-picked team replaces the linked one, so a reload keeps the pick.
+              if (linkedTeamId) replaceUrlParams({ team: null })
+            }}
+          >
             <SelectTrigger className="h-8 w-44 text-sm">
               <SelectValue />
             </SelectTrigger>

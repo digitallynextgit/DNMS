@@ -48,8 +48,8 @@ export const projectMonitoringGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Open the project from My Projects and click the Monitoring tab. The three numbers at the top show sites Down right now (1), items Expiring in 30 days, and items Without an owner.",
-            hi: "My Projects से प्रोजेक्ट खोलें और Monitoring टैब पर क्लिक करें। ऊपर के तीन नंबर दिखाते हैं: अभी बंद साइट्स - Down right now (1), 30 दिन में एक्सपायर होने वाली चीज़ें - Expiring in 30 days, और बिना ज़िम्मेदार वाली चीज़ें - Without an owner।",
+            en: "Open the project from Projects and click the Monitoring tab. The three numbers at the top show sites Down right now (1), items Expiring in 30 days, and items Without an owner.",
+            hi: "Projects से प्रोजेक्ट खोलें और Monitoring टैब पर क्लिक करें। ऊपर के तीन नंबर दिखाते हैं: अभी बंद साइट्स - Down right now (1), 30 दिन में एक्सपायर होने वाली चीज़ें - Expiring in 30 days, और बिना ज़िम्मेदार वाली चीज़ें - Without an owner।",
           },
           shot: {
             id: "project-monitoring-tab",

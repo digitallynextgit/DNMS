@@ -53,11 +53,14 @@ import {
   Target,
   PackageCheck,
   Building2,
+  Boxes,
+  ArrowRight,
 } from "lucide-react"
 import { ProjectFormDialog } from "@/features/projects/components/project-form-dialog"
 import { clientHref } from "@/features/clients/lib/client-href"
 import { ProjectLogo } from "@/features/projects/components/project-logo"
 import { ProjectServicesPanel } from "@/features/projects/components/project-services-panel"
+import { ProjectDescription } from "@/features/projects/components/project-description"
 import { projectHref } from "@/features/projects/lib/project-href"
 import {
   ProjectTabsBar,
@@ -198,6 +201,9 @@ export default function ProjectDetailPage() {
   const handleTabChange = (value: string) => {
     const next = new URLSearchParams(Array.from(searchParams.entries()))
     next.set("tab", value)
+    // Links to one item (from notifications) belong to the tab they opened.
+    for (const key of ["task", "team", "thread", "reply", "site", "report", "section"])
+      next.delete(key)
     router.replace(`${pathname}?${next.toString()}`, { scroll: false })
   }
 
@@ -241,10 +247,10 @@ export default function ProjectDetailPage() {
           <Skeleton className="h-3 w-28 rounded-sm" />
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Skeleton className="h-10 w-10 shrink-0 rounded-sm" />
-              <div className="space-y-2">
-                <Skeleton className="h-5 w-48 rounded-sm" />
-                <Skeleton className="h-3 w-24 rounded-sm" />
+              <Skeleton className="h-13 w-13 shrink-0 rounded-sm" />
+              <div className="space-y-0.5">
+                <Skeleton className="h-7 w-48 rounded-sm" />
+                <Skeleton className="h-5.5 w-28 rounded-sm" />
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -290,10 +296,13 @@ export default function ProjectDetailPage() {
         className="space-y-4"
         backHref="/projects"
         backLabel="Back to projects"
-        leading={<ProjectLogo src={project.logo} name={project.name} className="h-10 w-10" />}
+        // As tall as the name and the short-name/code line beside it (28 + 2 + 22px).
+        leading={
+          <ProjectLogo src={project.logo} name={project.name} className="h-13 w-13" natural />
+        }
         title={project.name}
-        titleSuffix={
-          <>
+        description={
+          <div className="flex items-center gap-2">
             {project.shortName && (
               <span className="bg-primary text-primary-foreground shrink-0 rounded-sm px-2 py-0.5 text-xs font-bold">
                 {project.shortName}
@@ -302,6 +311,10 @@ export default function ProjectDetailPage() {
             <span className="bg-muted/50 text-muted-foreground shrink-0 rounded-sm border px-2 py-0.5 font-mono text-xs">
               {project.code}
             </span>
+          </div>
+        }
+        titleSuffix={
+          <>
             {project.client && (
               <Link
                 href={clientHref(project.client)}
@@ -313,7 +326,7 @@ export default function ProjectDetailPage() {
             )}
           </>
         }
-        /* No description here: the subtitle truncates to one line, so it's shown in full below. */
+        /* The project's description isn't the subtitle (that truncates to one line): it's below. */
         actions={
           <>
             {project.stage && (
@@ -347,9 +360,12 @@ export default function ProjectDetailPage() {
       />
 
       {project.description && (
-        <p className="text-muted-foreground -mt-7 max-w-4xl text-sm leading-relaxed whitespace-pre-line">
-          {project.description}
-        </p>
+        <ProjectDescription
+          key={project.description}
+          text={project.description}
+          projectName={project.name}
+          className="-mt-7"
+        />
       )}
 
       <Tabs value={shownTab} onValueChange={handleTabChange}>
@@ -448,17 +464,40 @@ export default function ProjectDetailPage() {
                   icon={Calendar}
                 />
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="space-y-2 border-t pt-3">
-                <p className="text-muted-foreground text-xs tracking-wide uppercase">Services</p>
-                <ProjectServicesPanel
-                  projectId={projectRef}
-                  projectPath={projectHref(project)}
-                  services={project.services ?? []}
-                  owners={project.serviceOwners ?? []}
-                  canManage={canManage}
-                />
-              </div>
+          {/* Its own card, laid out like Goals below. */}
+          <Card data-mod="services">
+            <CardContent className="p-5">
+              <ProjectServicesPanel
+                title={
+                  <div className="flex items-center gap-2">
+                    <Boxes className="text-muted-foreground h-4 w-4" data-mod-icon="" />
+                    <h3 className="text-sm font-semibold">Services</h3>
+                    <span className="text-muted-foreground text-xs tabular-nums">
+                      {(project.services ?? []).length}
+                    </span>
+                  </div>
+                }
+                action={
+                  (project.services ?? []).length > 0 ? (
+                    <Button
+                      variant="ghost"
+                      className="gap-1 px-2"
+                      onClick={() => handleTabChange("calendar")}
+                    >
+                      Open calendars
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
+                  ) : null
+                }
+                projectId={projectRef}
+                projectPath={projectHref(project)}
+                services={project.services ?? []}
+                owners={project.serviceOwners ?? []}
+                canManage={canManage}
+              />
             </CardContent>
           </Card>
 

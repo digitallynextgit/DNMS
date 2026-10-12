@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUrlState } from "@/hooks/use-url-state"
 import { Spinner } from "@/components/shared/spinner"
 import { useMutation } from "@tanstack/react-query"
 import { toast } from "sonner"
@@ -37,6 +38,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { ProfileSelfActions } from "@/features/employees"
+import { ResignationNotice } from "@/features/resignations"
 import { TaskReminderSettings } from "@/features/notifications"
 import { DocumentList } from "@/features/documents"
 import { DocumentUploadDialog } from "@/features/documents"
@@ -77,6 +79,8 @@ async function saveGmailAppPassword(body: { gmailAppPassword: string }) {
 export default function ProfilePage() {
   const { data: session, status: sessionStatus } = useSession()
   const userId = session?.user?.id ?? null
+  // In the URL so notifications can open a tab (?tab=documents, ?tab=roles).
+  const [tab, setTab] = useUrlState("tab", "info")
 
   const { data, isLoading, error, refetch } = useEmployee(userId)
   // Read-only; the tab appears once HR has started one. Same query as the tab, so no second request.
@@ -174,6 +178,8 @@ export default function ProfilePage() {
         }
       />
 
+      <ResignationNotice />
+
       <Card>
         <CardContent className="pt-6 pb-6">
           <div className="flex flex-col items-start gap-6 sm:flex-row">
@@ -248,7 +254,7 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="info">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsBar
           items={[
             { value: "info", label: "Info", icon: Users },

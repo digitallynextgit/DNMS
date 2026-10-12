@@ -172,7 +172,7 @@ export async function uploadClientDocument(
           title: "Client uploaded a file",
           message: `${session.user.name ?? "A client"} uploaded "${created.fileName}" to ${grant.projectName}.`,
           type: "info" as const,
-          link: `/projects/${owner?.slug ?? grant.projectId}`,
+          link: `/projects/${owner?.slug ?? grant.projectId}?tab=repository`,
         })),
       )
     }

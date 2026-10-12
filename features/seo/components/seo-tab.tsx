@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUrlState } from "@/hooks/use-url-state"
 import {
   AlertTriangle,
   ArrowDown,
@@ -182,7 +183,8 @@ function AlertCard({ a, prefix }: { a: SeoAlert; prefix?: string }) {
 
 export function SeoTab({ projectId, canManage }: { projectId: string; canManage: boolean }) {
   const { data, isLoading } = useSeoSites(projectId)
-  const [selected, setSelected] = useState<string>(ALL)
+  // In the URL so a notification opens its site (?site=<id>) and report section (?report=).
+  const [selected, setSelected] = useUrlState("site", ALL)
   const [formOpen, setFormOpen] = useState(false)
   const [settingsFor, setSettingsFor] = useState<string | null>(null)
   /** When set, the settings dialog opens straight into this one field. */
@@ -819,7 +821,7 @@ function SiteReport({
   })
   const { data: setup } = useSeoSetup(projectId, propertyId)
   // Land on "Start here" until the essentials are configured, then on Performance.
-  const [tab, setTab] = useState<string | null>(null)
+  const [tab, setTab] = useUrlState("report", "")
 
   if (isLoading)
     return (
@@ -834,7 +836,7 @@ function SiteReport({
   if (!o) return null
 
   const needsSetup = !!setup && setup.nextStepId !== null
-  const active = tab ?? (needsSetup ? "start" : "performance")
+  const active = tab || (needsSetup ? "start" : "performance")
 
   return (
     <div className="space-y-4">

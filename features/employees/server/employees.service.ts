@@ -615,7 +615,8 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
                 fieldNames.length === 1 ? "was" : "were"
               } changed by HR. Please check it's correct.`,
               type: "info",
-              link: `/employees/${employeeSlug(employee.employeeNo, employee.firstName, employee.lastName)}`,
+              // Their own profile: /employees/* needs employee:read, which most people lack.
+              link: "/profile",
             },
           ])
         } catch (e) {

@@ -21,7 +21,7 @@ const HR_ROLE_NAMES = ["hr_manager", "admin"]
 // APPROVED blocks too: an accepted leaver stays signed in during the notice period.
 const BLOCKING_STATUSES = ["PENDING", "APPROVED"] as const
 
-// Latest resignation (any status); drives the profile button (Apply / Pending / Resigned).
+// Latest resignation (any status); drives the profile button and the decision notice.
 export async function getMyResignation(): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
@@ -30,6 +30,8 @@ export async function getMyResignation(): Promise<ActionResult<unknown>> {
       orderBy: { createdAt: "desc" },
       include: {
         reviewer: { select: { id: true, firstName: true, lastName: true } },
+        // Set on approval: the requested day, or the approval day when none was asked for.
+        employee: { select: { lastWorkingDate: true } },
       },
     })
     return ok(serialize({ data: resignation }))

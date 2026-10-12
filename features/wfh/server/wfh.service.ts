@@ -259,8 +259,8 @@ async function sendWfhRequestLetter(
       isEmergency: request.isEmergency,
       bodyText: customBody,
       subjectText: customSubject,
-      // /wfh, not /wfh/requests (HR-only): managers approve from the /wfh tab.
-      reviewUrl: appUrl ? `${appUrl.replace(/\/$/, "")}/wfh` : undefined,
+      // /wfh, not /wfh/requests (HR-only): managers approve from the /wfh Requests tab.
+      reviewUrl: appUrl ? `${appUrl.replace(/\/$/, "")}/wfh?tab=requests` : undefined,
     })
 
     const cc = [envelope.ccHr, applicant?.email].filter(
@@ -568,7 +568,10 @@ export async function applyWfh(body: {
           ? `for ${rangeLabel} (${workingDays.length} working days)`
           : `on ${rangeLabel}`
       }.`,
-      link: "/wfh",
+      // Managers approve from their WFH Requests tab; HR from the company-wide queue.
+      link: "/wfh?tab=requests",
+      hrLink: "/wfh/requests",
+      hrRoles: [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.HR_EMPLOYEE, SYSTEM_ROLES.ADMIN],
     })
 
     await sendWfhRequestLetter(
@@ -619,7 +622,10 @@ export async function updateWfhRequest(
 
     // HR or the employee's own manager may act; the FIRST decision is final.
     const roles = session.user.roles ?? []
-    const isHr = roles.some((r) => HR_ROLE_NAMES.includes(r))
+    // wfh:approve covers HR executives, who see the company-wide queue and must be able to act on it.
+    const isHr =
+      roles.some((r) => HR_ROLE_NAMES.includes(r)) ||
+      hasPermission(session, PERMISSIONS.WFH_APPROVE)
     const isManager = request.employee.managerId === session.user.id
     if (!isHr && !isManager) return fail("You can only act on your own team's WFH requests.")
     if (action === "REJECT" && !rejectionReason?.trim()) return fail("Rejection reason is required")

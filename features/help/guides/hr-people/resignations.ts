@@ -169,8 +169,8 @@ export const resignationsGuide: HelpGuide = {
         },
         {
           text: {
-            en: "The employee is told it was declined, and carries on working as before.",
-            hi: "Employee को बता दिया जाता है कि resignation decline हुआ, और वो पहले की तरह काम करता रहता है।",
+            en: "The employee is told it was declined, and carries on working as before. Their profile shows who declined it and your note for a month.",
+            hi: "Employee को बता दिया जाता है कि resignation decline हुआ, और वो पहले की तरह काम करता रहता है। एक महीने तक उनकी प्रोफाइल पर दिखता है कि किसने decline किया और आपका नोट।",
           },
         },
       ],

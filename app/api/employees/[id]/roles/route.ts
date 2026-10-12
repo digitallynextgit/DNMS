@@ -102,7 +102,8 @@ export const PUT = withAuth(
               title: "Your access was updated",
               message: `Your role is now: ${rolesText}. Sign out and back in for it to take effect.`,
               type: "warning",
-              link: `/employees/${slug}`,
+              // Their own profile: /employees/* needs employee:read, which most people lack.
+              link: "/profile?tab=roles",
             })
           }
 

@@ -160,13 +160,16 @@ export function ProjectsClient() {
       header: "Project",
       sortValue: (p) => p.name,
       cell: (p) => (
-        <div className="flex items-center gap-2">
-          <ProjectLogo src={p.logo} name={p.name} className="h-7 w-7" />
+        // Fixed line heights (20 + 16px) so the logo can match the two lines exactly.
+        <div className="flex items-center gap-2.5">
+          <ProjectLogo src={p.logo} name={p.name} className="h-9 w-9" />
           <div className="min-w-0">
-            <Link href={projectHref(p)} className="block font-medium hover:underline">
+            <Link href={projectHref(p)} className="block leading-5 font-medium hover:underline">
               {p.name}
             </Link>
-            <span className="text-muted-foreground font-mono text-[11px]">{p.code}</span>
+            <span className="text-muted-foreground block font-mono text-[11px] leading-4">
+              {p.code}
+            </span>
           </div>
         </div>
       ),

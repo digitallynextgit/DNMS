@@ -1,4 +1,4 @@
-// Pure helpers for the work report period and text, shared by the loader and every renderer.
+// Pure helpers for the progress report period and text, shared by the loader and every renderer.
 
 const MONTH_NAMES = [
   "January",
@@ -17,15 +17,21 @@ const MONTH_NAMES = [
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
 export const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
+export const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
+
+/** The longest custom period one report covers. */
+export const MAX_RANGE_DAYS = 92
 
 export interface ReportPeriod {
-  /** "YYYY-MM" */
+  /** "YYYY-MM" (of `from`, for a custom range) */
   month: string
   /** First and last calendar day, "YYYY-MM-DD". */
   from: string
   to: string
-  /** "September 2026" */
+  /** "September 2026", or "5–11 Oct 2026" for a custom range */
   label: string
+  /** A whole calendar month, which looks ahead to the next month. */
+  wholeMonth: boolean
 }
 
 /** The period for a "YYYY-MM" month, or null when the string is not one. */
@@ -38,7 +44,41 @@ export function parseReportMonth(month: string): ReportPeriod | null {
     from: `${month}-01`,
     to: `${month}-${String(last).padStart(2, "0")}`,
     label: `${MONTH_NAMES[m - 1]} ${y}`,
+    wholeMonth: true,
   }
+}
+
+/** "11 Oct" for a "YYYY-MM-DD" day. */
+export function shortDate(day: string): string {
+  const d = new Date(`${day}T00:00:00Z`)
+  return `${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()]!.slice(0, 3)}`
+}
+
+/**
+ * The period for "YYYY-MM-DD" to "YYYY-MM-DD" (this week, a custom range), or null when it is not
+ * a real range of at most MAX_RANGE_DAYS. A range that is exactly one month reads as that month.
+ */
+export function parseReportRange(from: string, to: string): ReportPeriod | null {
+  if (!DATE_RE.test(from) || !DATE_RE.test(to) || from > to) return null
+  const a = new Date(`${from}T00:00:00Z`)
+  const b = new Date(`${to}T00:00:00Z`)
+  // 2026-02-31 parses as 3 March: not a real day.
+  if (a.toISOString().slice(0, 10) !== from || b.toISOString().slice(0, 10) !== to) return null
+  if ((b.getTime() - a.getTime()) / 86_400_000 + 1 > MAX_RANGE_DAYS) return null
+
+  const asMonth = parseReportMonth(from.slice(0, 7))!
+  if (asMonth.from === from && asMonth.to === to) return asMonth
+
+  const [ya, yb] = [a.getUTCFullYear(), b.getUTCFullYear()]
+  const label =
+    from === to
+      ? `${shortDate(from)} ${ya}`
+      : ya !== yb
+        ? `${shortDate(from)} ${ya} – ${shortDate(to)} ${yb}`
+        : a.getUTCMonth() === b.getUTCMonth()
+          ? `${a.getUTCDate()}–${shortDate(to)} ${yb}`
+          : `${shortDate(from)} – ${shortDate(to)} ${yb}`
+  return { month: from.slice(0, 7), from, to, label, wholeMonth: false }
 }
 
 /** "YYYY-MM" of the month before the one `now` falls in (IST). */
@@ -66,6 +106,22 @@ export function daysOf(period: ReportPeriod): string[] {
     out.push(new Date(t).toISOString().slice(0, 10))
   }
   return out
+}
+
+/** The cover's heading: "Monthly progress report" or "Weekly progress report" when the period is
+ *  exactly one, else "Progress report". */
+export function reportKind(period: ReportPeriod): string {
+  if (period.wholeMonth) return "Monthly progress report"
+  return daysOf(period).length === 7 ? "Weekly progress report" : "Progress report"
+}
+
+/** The cover's period line: "1–30 September 2026 (30 days)", "12–18 Oct 2026 (7 days)". */
+export function periodLine(period: ReportPeriod): string {
+  const n = daysOf(period).length
+  const span = period.wholeMonth
+    ? `${Number(period.from.slice(8))}–${Number(period.to.slice(8))} ${period.label}`
+    : period.label
+  return `${span} (${n} ${n === 1 ? "day" : "days"})`
 }
 
 export function isWeekendKey(day: string): boolean {
@@ -130,13 +186,14 @@ export function formatHoursRound(h: number): string {
   return `${Math.round(h)} h`
 }
 
-/** "WorkReport-September-2026-Diwakar-Jha.pptx" style, ASCII only. */
+/** "Progress-Report-September-2026-Diwakar-Jha.pptx" style, ASCII only. */
 export function reportFilename(label: string, who: string, ext: string): string {
   const slug = (s: string) =>
     s
       .normalize("NFKD")
+      .replace(/[–—]/g, "-")
       .replace(/[^\w\s-]/g, "")
       .trim()
       .replace(/\s+/g, "-")
-  return `Work-Report-${slug(label)}-${slug(who)}.${ext}`
+  return `Progress-Report-${slug(label)}-${slug(who)}.${ext}`
 }
