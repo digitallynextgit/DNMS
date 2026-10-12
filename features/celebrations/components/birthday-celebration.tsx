@@ -1,9 +1,9 @@
-import type { Session } from "next-auth"
-import { birthdayShowFor } from "../server/celebrations.service"
+import { birthdayShowsFor } from "../server/celebrations.service"
+import type { BirthdayViewer } from "../types"
 import { BirthdayShow } from "./birthday-show"
 
 /** Mounted by the dashboard layout, so it plays on each full page load, not on in-app navigation. */
-export function BirthdayCelebration({ user }: { user: Session["user"] }) {
-  const show = birthdayShowFor(user)
-  return show ? <BirthdayShow {...show} /> : null
+export async function BirthdayCelebration({ viewer }: { viewer: BirthdayViewer }) {
+  const shows = await birthdayShowsFor(viewer)
+  return shows.length > 0 ? <BirthdayShow shows={shows} /> : null
 }

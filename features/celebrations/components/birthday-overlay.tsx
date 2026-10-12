@@ -143,7 +143,14 @@ function Sparkle() {
   )
 }
 
-function Show({ name, photos, onClose }: BirthdayShowProps & { onClose: () => void }) {
+function Show({
+  name,
+  photos,
+  message,
+  wish,
+  signature,
+  onClose,
+}: BirthdayShowProps & { onClose: () => void }) {
   const reduce = useReducedMotion() ?? false
   // -1 while the font and photos load; then title, name, photos, message, make-a-wish.
   const [stage, setStage] = useState(-1)
@@ -190,7 +197,11 @@ function Show({ name, photos, onClose }: BirthdayShowProps & { onClose: () => vo
           setChapter(i)
         })
       })
-      const messageAt = BEATS.chapters + photos.length * CHAPTER_MS + MESSAGE_AFTER_CHAPTERS_MS
+      // No photos: a plain greeting goes straight from the name to the message.
+      const messageAt =
+        photos.length > 0
+          ? BEATS.chapters + photos.length * CHAPTER_MS + MESSAGE_AFTER_CHAPTERS_MS
+          : BEATS.name + 1400
       at(messageAt, () => {
         setChapter(null)
         setStage(4)
@@ -374,8 +385,7 @@ function Show({ name, photos, onClose }: BirthdayShowProps & { onClose: () => vo
                   className="text-[15px] leading-relaxed text-white/90 md:text-lg"
                   style={{ textShadow: "0 2px 18px rgba(0,0,0,0.7)" }}
                 >
-                  Thank you for leading with heart, for every lesson you&apos;ve taught us, and for
-                  always believing in us.
+                  {message}
                 </p>
                 <motion.p
                   className="text-[15px] font-medium text-amber-100 md:text-lg"
@@ -384,7 +394,7 @@ function Show({ name, photos, onClose }: BirthdayShowProps & { onClose: () => vo
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.9, delay: 1.2 }}
                 >
-                  Wishing you a year as beautiful as you are.
+                  {wish}
                 </motion.p>
               </motion.div>
             ) : null}
@@ -426,7 +436,7 @@ function Show({ name, photos, onClose }: BirthdayShowProps & { onClose: () => vo
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 1, ease: EASE, delay: 0.5 }}
                 >
-                  With love, Team Digitally Next
+                  {signature}
                 </motion.p>
               ) : null}
             </AnimatePresence>
@@ -443,23 +453,32 @@ function Show({ name, photos, onClose }: BirthdayShowProps & { onClose: () => vo
   )
 }
 
-export default function BirthdayOverlay({ name, photos }: BirthdayShowProps) {
-  const [open, setOpen] = useState(true)
+/** Plays the shows one after another (a preview account may have several), then offers a replay. */
+export default function BirthdayOverlay({ shows }: { shows: BirthdayShowProps[] }) {
+  // Index of the show on screen; null once the last one has closed.
+  const [index, setIndex] = useState<number | null>(0)
   // Bumped on replay so the show starts again from the top.
   const [run, setRun] = useState(0)
+  const current = index === null ? null : shows[index]
 
   return (
     <>
       <AnimatePresence>
-        {open && <Show key={run} name={name} photos={photos} onClose={() => setOpen(false)} />}
+        {current && (
+          <Show
+            key={`${run}-${index}`}
+            {...current}
+            onClose={() => setIndex((i) => (i !== null && i + 1 < shows.length ? i + 1 : null))}
+          />
+        )}
       </AnimatePresence>
       <AnimatePresence>
-        {!open && (
+        {index === null && (
           <motion.button
             type="button"
             onClick={() => {
               setRun((r) => r + 1)
-              setOpen(true)
+              setIndex(0)
             }}
             title="Replay your birthday wish"
             className="fixed right-5 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 flex items-center gap-2 rounded-full bg-gradient-to-r from-pink-500 to-amber-400 py-2 pr-4 pl-3 text-sm font-medium text-white shadow-lg shadow-pink-500/30 md:bottom-5"

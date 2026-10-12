@@ -31,7 +31,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // deactivated mid-session (e.g. an approved resignation).
   const account = await db.employee.findUnique({
     where: { id: session.user.id },
-    select: { isActive: true },
+    select: { isActive: true, firstName: true, dateOfBirth: true },
   })
   if (!account || !account.isActive) {
     return <AccountDeactivated />
@@ -57,7 +57,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <MobileTabbar />
           </div>
           <AiAssistant />
-          <BirthdayCelebration user={session.user} />
+          <BirthdayCelebration
+            viewer={{
+              id: session.user.id,
+              email: session.user.email,
+              firstName: account.firstName,
+              dateOfBirth: account.dateOfBirth,
+            }}
+          />
         </div>
       </TenantProvider>
     </SessionBridge>
