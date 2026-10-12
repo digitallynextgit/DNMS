@@ -90,7 +90,7 @@ export const projectContentCalendarGuide: HelpGuide = {
             path: CALENDARS,
             actions: [
               { click: { role: "button", name: "Switch calendar" } },
-              { click: { role: "menuitem", name: "New calendar" } },
+              { click: { role: "button", name: "New calendar" } },
               // Typed in, so Create shows enabled rather than greyed out.
               { fill: { css: "#sheet-name" }, value: "Content calendar" },
             ],

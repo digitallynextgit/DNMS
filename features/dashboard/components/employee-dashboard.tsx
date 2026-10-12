@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   CalendarDays,
   CheckCircle2,
-  CircleDot,
   Clock,
   DollarSign,
   Laptop,
@@ -26,6 +25,7 @@ import { LeaveBalanceCard } from "@/features/leave"
 // Direct import, not the projects barrel, which would pull every project component into this bundle.
 import { formatHours } from "@/features/projects/lib/format-hours"
 import { MyWorkCard } from "@/features/projects/components/my-work-card"
+import { PerformanceTile } from "@/features/performance"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 import { PAYROLL_STATUS_LABELS } from "@/lib/constants"
 import type { LeaveBalance } from "@/features/leave"
@@ -133,7 +133,8 @@ export function EmployeeDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+      {/* Five at a glance; the rest (running clock, request detail) lives in the panels below. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatCard
           title="Due Today"
           value={work?.counts.dueToday ?? 0}
@@ -150,14 +151,6 @@ export function EmployeeDashboard() {
           loading={isLoading}
         />
         <StatCard
-          title="In Progress"
-          value={work?.counts.running ?? 0}
-          description={work && work.counts.running > 0 ? "clock running" : "nothing started"}
-          icon={CircleDot}
-          iconColor={work && work.counts.running > 0 ? "text-blue-500" : undefined}
-          loading={isLoading}
-        />
-        <StatCard
           title="Present This Month"
           value={data?.attendance.present ?? 0}
           description={`Avg ${data?.attendance.avgHours ?? 0}h / day`}
@@ -167,17 +160,16 @@ export function EmployeeDashboard() {
         <StatCard
           title="Leave Available"
           value={data?.totalLeaveAvailable ?? 0}
-          description="Days, all types"
+          description={
+            pendingTotal > 0
+              ? `Days · ${pendingTotal} ${pendingTotal === 1 ? "request" : "requests"} pending`
+              : "Days, all types"
+          }
           icon={CalendarDays}
           loading={isLoading}
         />
-        <StatCard
-          title="Pending Requests"
-          value={pendingTotal}
-          description={`${data?.pending.leave ?? 0} leave · ${data?.pending.wfh ?? 0} WFH`}
-          icon={Clock}
-          loading={isLoading}
-        />
+        {/* Full width on phones, where the six tiles above fill three rows of two. */}
+        <PerformanceTile className="col-span-2 lg:col-span-1" />
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

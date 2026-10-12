@@ -988,7 +988,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/performance/evaluations",
     methods: {
       GET: {
-        query: ["status", "period", "q", "page", "limit"],
+        query: ["status", "period", "q", "page", "limit", "mine"],
         permissions: ["performance:review"],
         guard: "withSession",
       },

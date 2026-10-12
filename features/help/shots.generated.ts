@@ -976,7 +976,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "dashboard-employee-top": {
-    src: "/help-shots/dashboard-employee-top.d9d49d28.webp",
+    src: "/help-shots/dashboard-employee-top.6490f632.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -987,26 +987,26 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
         h: 0.0267,
       },
       {
-        x: 0.3206,
+        x: 0.3479,
         y: 0.2178,
         w: 0.0801,
         h: 0.0267,
       },
       {
-        x: 0.5938,
+        x: 0.5118,
         y: 0.2178,
-        w: 0.0852,
-        h: 0.0444,
+        w: 0.1067,
+        h: 0.0267,
       },
       {
-        x: 0.8669,
+        x: 0.8396,
         y: 0.2178,
-        w: 0.0852,
-        h: 0.0444,
+        w: 0.1125,
+        h: 0.0267,
       },
       {
         x: 0.3333,
-        y: 0.3744,
+        y: 0.3767,
         w: 0.1611,
         h: 0.0489,
       },
@@ -4350,6 +4350,37 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     height: 1350,
     boxes: [],
   },
+  "project-deliverables-board": {
+    src: "/help-shots/project-deliverables-board.6cf291e3.webp",
+    width: 2160,
+    height: 1350,
+    boxes: [
+      {
+        x: 0.1694,
+        y: 0.4028,
+        w: 0.0797,
+        h: 0.0489,
+      },
+      {
+        x: 0.2492,
+        y: 0.4028,
+        w: 0.0977,
+        h: 0.0489,
+      },
+      {
+        x: 0.3469,
+        y: 0.4028,
+        w: 0.1169,
+        h: 0.0489,
+      },
+      {
+        x: 0.1701,
+        y: 0.5744,
+        w: 0.8153,
+        h: 0.0767,
+      },
+    ],
+  },
   "project-deliverables-log-work": {
     src: "/help-shots/project-deliverables-log-work.bd4bd0e1.webp",
     width: 1776,
@@ -4403,6 +4434,25 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
         y: 0.2112,
         w: 0.064,
         h: 0.1016,
+      },
+    ],
+  },
+  "project-deliverables-period": {
+    src: "/help-shots/project-deliverables-period.c16894a5.webp",
+    width: 2160,
+    height: 1350,
+    boxes: [
+      {
+        x: 0.1694,
+        y: 0.7369,
+        w: 0.075,
+        h: 0.0489,
+      },
+      {
+        x: 0.5113,
+        y: 0.8669,
+        w: 0.0491,
+        h: 0.0311,
       },
     ],
   },

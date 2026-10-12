@@ -60,20 +60,24 @@ export function useEvaluations(params?: {
   q?: string
   page?: number
   limit?: number
+  /** Only the viewer's own evaluations, even for reviewers who can see everyone's. */
+  mine?: boolean
 }) {
   const status = params?.status
   const period = params?.period
   const q = params?.q
   const page = params?.page ?? 1
   const limit = params?.limit ?? 10
+  const mine = !!params?.mine
   return useQuery({
-    queryKey: ["evaluations", status ?? "all", period ?? "all", q ?? "", page, limit],
+    queryKey: ["evaluations", status ?? "all", period ?? "all", q ?? "", page, limit, mine],
     placeholderData: keepPreviousData,
     queryFn: (): Promise<{ data: Evaluation[]; periods: string[]; pagination: PaginationMeta }> => {
       const qs = new URLSearchParams({ page: String(page), limit: String(limit) })
       if (status) qs.set("status", status)
       if (period) qs.set("period", period)
       if (q?.trim()) qs.set("q", q.trim())
+      if (mine) qs.set("mine", "1")
       return apiFetch(`/api/performance/evaluations?${qs.toString()}`)
     },
     staleTime: 30_000,

@@ -1,10 +1,20 @@
 "use client"
 
 import * as React from "react"
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react"
+import {
+  CalendarDays,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Search,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +25,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   formatMonth,
-  formatMonthShort,
   MONTH_LABELS,
   NO_MONTH_LABEL,
   parseMonth,
@@ -30,7 +39,10 @@ import { PersonAvatar } from "./person-bits"
 
 type Series = CalendarSeries<WorkbookIndexEntry>
 
-/** The calendar itself: one row per NAME, whatever months sit behind it. */
+/**
+ * The calendar itself: one row per NAME, whatever months sit behind it. Just the names, with a
+ * search box, and the list scrolls once there are more than fit.
+ */
 export function CalendarNamePicker({
   series,
   activeName,
@@ -43,9 +55,23 @@ export function CalendarNamePicker({
   /** "New calendar" at the foot of the list: switching and adding live in one place. */
   onNew?: () => void
 }) {
+  const [open, setOpen] = React.useState(false)
+  const [query, setQuery] = React.useState("")
+  const q = query.trim().toLowerCase()
+  const shown = q ? series.filter((s) => s.name.toLowerCase().includes(q)) : series
+
+  const close = () => {
+    setOpen(false)
+    setQuery("")
+  }
+  const pick = (name: string) => {
+    onPick(name)
+    close()
+  }
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <Popover open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
+      <PopoverTrigger asChild>
         <Button
           variant="outline"
           // No width cap or truncation: this name must be readable in full; the strip wraps.
@@ -57,63 +83,71 @@ export function CalendarNamePicker({
           <span className="whitespace-nowrap">{activeName ?? "No calendar yet"}</span>
           <ChevronDown className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[24rem]">
-        <DropdownMenuLabel className="text-muted-foreground text-[11px] font-medium">
-          {series.length} {series.length === 1 ? "calendar" : "calendars"}
-        </DropdownMenuLabel>
-        {series.map((s) => {
-          const dated = s.editions.filter((e) => e.periodMonth)
-          const newest = dated[0]
-          const oldest = dated[dated.length - 1]
-          return (
-            <DropdownMenuItem
-              key={s.name}
-              onSelect={() => onPick(s.name)}
-              className={cn(
-                "flex-col items-start gap-0.5",
-                s.name === activeName && "bg-primary/10 text-primary font-medium",
-              )}
-            >
-              <span className="min-w-0 break-words whitespace-normal">{s.name}</span>
-              <span className="flex w-full items-center gap-1.5 text-[11px] opacity-70">
-                {dated.length > 0 ? (
-                  <>
-                    {dated.length} {dated.length === 1 ? "month" : "months"}
-                    {newest && oldest && (
-                      <span>
-                        ·{" "}
-                        {newest === oldest
-                          ? formatMonthShort(newest.periodMonth)
-                          : `${formatMonthShort(oldest.periodMonth)} – ${formatMonthShort(newest.periodMonth)}`}
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <span>Not monthly</span>
-                )}
-                <span className="ml-auto flex items-center gap-1">
-                  {(newest ?? s.editions[0])?.assignedTo && (
-                    <PersonAvatar
-                      person={(newest ?? s.editions[0])!.assignedTo!}
-                      className="h-4 w-4"
-                    />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-0">
+        <div className="border-b p-2">
+          <div className="relative">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2" />
+            <Input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter opens the first match, so type-and-go works without the mouse.
+                if (e.key === "Enter" && shown[0]) {
+                  e.preventDefault()
+                  pick(shown[0].name)
+                }
+              }}
+              placeholder={`Search ${series.length} ${series.length === 1 ? "calendar" : "calendars"}…`}
+              aria-label="Search calendars"
+              className="h-8 pl-8 text-sm"
+            />
+          </div>
+        </div>
+        <div role="listbox" aria-label="Calendars" className="max-h-72 overflow-y-auto p-1">
+          {shown.length === 0 ? (
+            <p className="text-muted-foreground px-2 py-6 text-center text-xs">
+              No calendar matches &ldquo;{query.trim()}&rdquo;.
+            </p>
+          ) : (
+            shown.map((s) => {
+              const active = s.name === activeName
+              return (
+                <button
+                  key={s.name}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  onClick={() => pick(s.name)}
+                  className={cn(
+                    "hover:bg-accent focus-visible:bg-accent flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm focus-visible:outline-none",
+                    active && "text-primary font-medium",
                   )}
-                </span>
-              </span>
-            </DropdownMenuItem>
-          )
-        })}
+                >
+                  <span className="min-w-0 flex-1 break-words">{s.name}</span>
+                  {active && <Check className="h-3.5 w-3.5 shrink-0" />}
+                </button>
+              )
+            })
+          )}
+        </div>
         {onNew && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onNew} className="gap-2">
+          <div className="border-t p-1">
+            <button
+              type="button"
+              onClick={() => {
+                close()
+                onNew()
+              }}
+              className="hover:bg-accent focus-visible:bg-accent flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm focus-visible:outline-none"
+            >
               <Plus className="h-3.5 w-3.5" /> New calendar
-            </DropdownMenuItem>
-          </>
+            </button>
+          </div>
         )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverContent>
+    </Popover>
   )
 }
 
