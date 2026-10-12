@@ -77,6 +77,7 @@ import {
   subtitleOf,
   TYPE_LABEL,
   type FileType,
+  driveOpenUrl,
   storageOf,
   type Source,
   type UnifiedFile,
@@ -264,12 +265,12 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const driveConfigured = data?.drive.configured ?? false
   // Once the Repository is on Drive, every upload goes there; no storage choice to make.
   const onDrive = data?.drive.onDrive ?? false
-  // Word, Excel and the like can't show in a browser tab; Drive's viewer can, for those it's shared with.
+  // Word, Excel and the like can't show in a browser tab: they open in Google's editors (or Drive's
+  // viewer), where the project team works on the one shared copy. PDFs and images preview here.
   const opensInDrive = (f: UnifiedFile) =>
     f.source === "b2" &&
     f.storedIn === "drive" &&
     !!f.webViewLink &&
-    !!data?.drive.hasAccess &&
     f.type !== "pdf" &&
     f.type !== "image"
   const currentFolderName = data?.folder?.name ?? null
@@ -307,7 +308,14 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       ownerId: r.uploadedById,
       description: r.description,
       storedIn: r.driveFileId ? "drive" : "b2",
-      webViewLink: r.driveWebViewLink ?? null,
+      webViewLink: r.driveFileId
+        ? driveOpenUrl({
+            driveFileId: r.driveFileId,
+            mimeType: r.mimeType,
+            fileName: r.fileName,
+            webViewLink: r.driveWebViewLink ?? null,
+          })
+        : null,
     }))
     const drive: UnifiedFile[] = data.driveFiles.map((f: DriveFile) => ({
       id: f.id,
@@ -316,7 +324,14 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       size: f.size,
       mimeType: f.mimeType,
       modified: f.modifiedTime,
-      webViewLink: f.webViewLink,
+      webViewLink: f.mimeType.startsWith("application/vnd.google-apps.")
+        ? f.webViewLink
+        : driveOpenUrl({
+            driveFileId: f.id,
+            mimeType: f.mimeType,
+            fileName: f.name,
+            webViewLink: f.webViewLink,
+          }),
       type: classify(f.mimeType, "drive"),
       // Drive files have no row of ours to store a tag on, so theirs is always computed.
       tag: classifyDoc({ name: f.name, mimeType: f.mimeType }),

@@ -25,8 +25,8 @@ const PERSON = { select: { email: true, isActive: true, status: true } } as cons
 // Leavers lose access the moment they are marked as gone, not when someone tidies the team.
 const GONE = new Set(["RESIGNED", "TERMINATED", "SUSPENDED"])
 
-/** The owner + every team member who still works here, by work email: who the folder is shared with. */
-export async function projectMemberEmails(projectId: string): Promise<string[]> {
+/** The owner + every team member who still works here, by work email. */
+async function projectMemberEmails(projectId: string): Promise<string[]> {
   const project = await db.project.findUnique({
     where: { id: projectId },
     select: {

@@ -118,6 +118,29 @@ export function compare(a: UnifiedFile, b: UnifiedFile, key: SortKey): number {
   }
 }
 
+// Office files in Drive open in Google's editors, which save back to the same file, so the whole
+// team sees one copy. "rtpof" is Google's Office-editing mode.
+const GOOGLE_EDITORS: [RegExp, RegExp, string][] = [
+  [/spreadsheetml|ms-excel/, /\.(xlsx|xlsm|xls)$/i, "spreadsheets"],
+  [/wordprocessingml|msword/, /\.(docx|doc)$/i, "document"],
+  [/presentationml|ms-powerpoint/, /\.(pptx|ppt)$/i, "presentation"],
+]
+
+/** Where a Drive file opens: Sheets/Docs/Slides for Office files, else Drive's own viewer. */
+export function driveOpenUrl(f: {
+  driveFileId: string
+  mimeType: string
+  fileName: string
+  webViewLink: string | null
+}): string {
+  for (const [mime, ext, app] of GOOGLE_EDITORS) {
+    if (mime.test(f.mimeType) || ext.test(f.fileName)) {
+      return `https://docs.google.com/${app}/d/${f.driveFileId}/edit?rtpof=true&sd=true`
+    }
+  }
+  return f.webViewLink ?? `https://drive.google.com/file/d/${f.driveFileId}/view`
+}
+
 /** The one-line summary under a name, in both the table and the cards. */
 export function subtitleOf(f: UnifiedFile): string {
   if (f.source === "folder") return `${f.itemCount ?? 0} ${f.itemCount === 1 ? "item" : "items"}`

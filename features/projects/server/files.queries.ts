@@ -4,11 +4,7 @@ import type { Prisma } from "@prisma/client"
 
 import { db } from "@/server/db"
 import { driveFolderUrl, isDriveNotFound, listFolder, type DriveFile } from "@/lib/google-drive"
-import {
-  ensureProjectFolder,
-  projectMemberEmails,
-  syncProjectFolderAccess,
-} from "./project-drive.service"
+import { ensureProjectFolder, syncProjectFolderAccess } from "./project-drive.service"
 import {
   FOLDER_SELECT,
   activeMirrorField,
@@ -43,8 +39,6 @@ export interface FolderListing {
     onDrive: boolean
     folderLink: string | null
     memberCount: number
-    /** The viewer is on the folder's share list, so Drive's own viewer opens for them. */
-    hasAccess: boolean
   }
 }
 
@@ -67,15 +61,9 @@ export async function getFolderListing(
     onDrive: field === "driveMirrorId",
     folderLink: null as string | null,
     memberCount: 0,
-    hasAccess: false,
   }
 
   if (field) {
-    const [emails, me] = await Promise.all([
-      projectMemberEmails(projectId),
-      db.employee.findUnique({ where: { id: actorId }, select: { email: true } }),
-    ])
-    drive.hasAccess = !!me?.email && emails.includes(me.email.toLowerCase())
     const root = await ensureProjectFolder(projectId)
     const mirrorId = folder ? folder[field] : root.id
     drive.folderLink = folder ? (mirrorId ? driveFolderUrl(mirrorId) : null) : root.webViewLink
