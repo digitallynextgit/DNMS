@@ -175,6 +175,23 @@ export function ProjectsClient() {
       ),
     },
     {
+      header: "Account Manager",
+      sortValue: (p) => `${p.owner.firstName} ${p.owner.lastName}`.trim(),
+      cell: (p) => (
+        <div className="flex items-center gap-1.5">
+          <AvatarDisplay
+            src={p.owner.profilePhoto}
+            firstName={p.owner.firstName}
+            lastName={p.owner.lastName}
+            size="xs"
+          />
+          <span className="text-xs">
+            {p.owner.firstName} {p.owner.lastName}
+          </span>
+        </div>
+      ),
+    },
+    {
       header: "Code",
       defaultHidden: true,
       sortValue: (p) => p.code,
@@ -230,23 +247,6 @@ export function ProjectsClient() {
               labelMap={PROJECT_STAGE_LABELS}
             />
           )}
-        </div>
-      ),
-    },
-    {
-      header: "Account Manager",
-      sortValue: (p) => `${p.owner.firstName} ${p.owner.lastName}`.trim(),
-      cell: (p) => (
-        <div className="flex items-center gap-1.5">
-          <AvatarDisplay
-            src={p.owner.profilePhoto}
-            firstName={p.owner.firstName}
-            lastName={p.owner.lastName}
-            size="xs"
-          />
-          <span className="text-xs">
-            {p.owner.firstName} {p.owner.lastName}
-          </span>
         </div>
       ),
     },
