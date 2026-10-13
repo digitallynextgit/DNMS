@@ -46,19 +46,26 @@ export function LoginForm() {
 
   const { isSubmitting } = form.formState
 
-  // Toast auth redirect errors, then strip ?error= so it doesn't re-fire on refresh.
+  // Toast auth redirect errors (or the password-updated notice), then strip the param so it
+  // doesn't re-fire on refresh.
   useEffect(() => {
     const err = searchParams.get("error")
-    if (!err) return
-    const messages: Record<string, string> = {
-      no_account: "No account exists for this email. Contact your HR administrator.",
-      deactivated: "Your account has been deactivated. Contact your HR administrator.",
-      AccessDenied: "You do not have permission to sign in.",
+    const passwordUpdated = searchParams.get("passwordUpdated")
+    if (!err && !passwordUpdated) return
+    if (err) {
+      const messages: Record<string, string> = {
+        no_account: "No account exists for this email. Contact your HR administrator.",
+        deactivated: "Your account has been deactivated. Contact your HR administrator.",
+        AccessDenied: "You do not have permission to sign in.",
+      }
+      toast.error(messages[err] ?? "Sign-in failed. Please try again.")
+    } else {
+      toast.success("Password updated. Sign in with your new password.")
     }
-    toast.error(messages[err] ?? "Sign-in failed. Please try again.")
 
     const params = new URLSearchParams(Array.from(searchParams.entries()))
     params.delete("error")
+    params.delete("passwordUpdated")
     const qs = params.toString()
     router.replace(qs ? `/login?${qs}` : "/login", { scroll: false })
   }, [searchParams, router])

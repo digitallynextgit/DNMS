@@ -24,7 +24,7 @@ export default async function ChangePasswordPage() {
         </p>
       </div>
 
-      <ChangePasswordForm />
+      <ChangePasswordForm email={session.user.email} />
 
       <p className="text-muted-foreground mt-6 text-center text-xs">
         This is required because your account uses a temporary password issued by HR.
