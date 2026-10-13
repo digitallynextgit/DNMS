@@ -102,9 +102,10 @@ export const AI_KINDS: Record<AiKind, AiKindInfo> = {
     label: "Cloudflare Workers AI",
     transport: "openai",
     url: null,
-    // Cloudflare retires models on a schedule; each tier keeps a backup.
+    // Cloudflare retires models on a schedule; each tier keeps a backup. gpt-oss-20b answers in
+    // ~2s where llama-3.1-8b takes 4-5s, so it goes first.
     models: {
-      fast: "@cf/meta/llama-3.1-8b-instruct-fp8, @cf/openai/gpt-oss-20b",
+      fast: "@cf/openai/gpt-oss-20b, @cf/meta/llama-3.1-8b-instruct-fp8",
       smart: "@cf/openai/gpt-oss-120b, @cf/meta/llama-3.3-70b-instruct-fp8-fast",
     },
     keysUrl: "https://dash.cloudflare.com/?to=/:account/ai/workers-ai",

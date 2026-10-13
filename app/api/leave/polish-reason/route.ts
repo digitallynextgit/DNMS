@@ -6,8 +6,13 @@ import type { Session } from "next-auth"
 export const runtime = "nodejs"
 
 // Returns three rewrites of the employee's reason to choose from. Advisory only - nothing is stored.
+// Also serves work-from-home requests (`kind: "wfh"`): same rules, different request name.
 
-const SYSTEM_PROMPT = `You help an employee word the reason on their leave request so their manager reads it clearly and takes it seriously. You are NOT writing the whole email - only the reason paragraph that sits inside it.
+type Kind = "leave" | "wfh"
+
+const systemPrompt = (
+  kind: Kind,
+) => `You help an employee word the reason on their ${kind === "wfh" ? "work-from-home request" : "leave request"} so their manager reads it clearly and takes it seriously. You are NOT writing the whole email - only the reason paragraph that sits inside it.
 
 ## Absolute rules (breaking these is a failure)
 1. NEVER invent facts. Use only what the employee wrote. Do not add dates, illnesses, diagnoses, doctor visits, medical certificates, family details, destinations, names, or promises they did not make.
@@ -15,7 +20,7 @@ const SYSTEM_PROMPT = `You help an employee word the reason on their leave reque
 3. Do not exaggerate or add drama. Do not plead, apologise excessively, or grovel.
 4. Never add a greeting ("Dear ..."), sign-off ("Regards"), subject line, quotes, bullet points, or markdown. The surrounding email already has those.
 5. Always reply in English, even when the input is Hindi, Hinglish, or broken English. Preserve the meaning, not the grammar mistakes.
-6. Do not mention the leave dates or day-count. The email states those separately - repeating them is noise.
+6. Do not mention the ${kind === "wfh" ? "WFH" : "leave"} dates or day-count. The email states those separately - repeating them is noise.
 7. Keep the employee's own voice. First person, past/present tense as appropriate. Do not switch to third person.
 8. Never reveal medical or personal detail BEYOND what the employee chose to share.
 
@@ -46,12 +51,13 @@ export const POST = withSession(
       return NextResponse.json({ error: AI_NOT_CONFIGURED_MESSAGE }, { status: 503 })
     }
 
-    let body: { reason?: string; leaveType?: string; days?: number }
+    let body: { reason?: string; leaveType?: string; days?: number; kind?: Kind }
     try {
       body = await req.json()
     } catch {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
     }
+    const kind: Kind = body.kind === "wfh" ? "wfh" : "leave"
 
     const reason = body.reason?.trim()
     if (!reason) return NextResponse.json({ error: "Write a reason first" }, { status: 400 })
@@ -60,6 +66,7 @@ export const POST = withSession(
     }
 
     const context = [
+      kind === "wfh" ? "Request type: work from home" : null,
       body.leaveType ? `Leave type: ${body.leaveType}` : null,
       body.days ? `Duration: ${body.days} day(s) (context only - do NOT mention it)` : null,
       ``,
@@ -71,7 +78,7 @@ export const POST = withSession(
 
     try {
       const out = await aiComplete<{ variants?: Variant[] }>({
-        system: SYSTEM_PROMPT,
+        system: systemPrompt(kind),
         user: context,
         // A little room to differ between variants, but low enough to stay faithful.
         temperature: 0.6,

@@ -14,7 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { DateField, parseDateString, toDateString } from "@/components/shared/date-field"
 import { useWfhEligibility, useApplyWfh, WfhMailPreview } from "@/features/wfh"
 import { useHolidays } from "@/features/attendance"
-import { AlertTriangle, Info, Home } from "lucide-react"
+import { AlertTriangle, Info, Home, Sparkles } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
 /** Fallback until eligibility loads; the server is the real authority (MAX_WFH_RANGE_DAYS). */
@@ -34,6 +35,33 @@ export default function ApplyWfhPage() {
   const [endDate, setEndDate] = useState("")
   const [reason, setReason] = useState("")
   const [isEmergency, setIsEmergency] = useState(false)
+  const [polishing, setPolishing] = useState(false)
+  const [variants, setVariants] = useState<{ label: string; text: string }[]>([])
+
+  // Same helper as leave: three rewrites to pick from. A failure never blocks the request.
+  async function suggestReasons() {
+    const original = reason.trim()
+    if (!original || polishing) return
+    setPolishing(true)
+    setVariants([])
+    try {
+      const res = await fetch("/api/leave/polish-reason", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: original, kind: "wfh" }),
+      })
+      const body = await res.json().catch(() => null)
+      const list = body?.data?.variants as { label: string; text: string }[] | undefined
+      if (!res.ok || !list?.length) {
+        throw new Error(body?.error ?? "Couldn't suggest an improvement")
+      }
+      setVariants(list)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't suggest an improvement")
+    } finally {
+      setPolishing(false)
+    }
+  }
 
   // Refs, not state, so the preview's live edits don't re-render the whole form per keystroke.
   const emailBodyRef = useRef("")
@@ -288,12 +316,24 @@ export default function ApplyWfhPage() {
           )}
 
           <div className="space-y-2">
-            <Label required={mustBeEmergency} htmlFor="reason">
-              Reason{" "}
-              {!mustBeEmergency && (
-                <span className="text-muted-foreground font-normal">(optional)</span>
-              )}
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label required={mustBeEmergency} htmlFor="reason">
+                Reason{" "}
+                {!mustBeEmergency && (
+                  <span className="text-muted-foreground font-normal">(optional)</span>
+                )}
+              </Label>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={!reason.trim() || polishing}
+                title="Suggest clearer wording. Pick one, or keep yours."
+                onClick={suggestReasons}
+              >
+                <Sparkles className={cn("mr-1 h-3 w-3", polishing && "animate-pulse")} />
+                {polishing ? "Thinking…" : "Improve with AI"}
+              </Button>
+            </div>
             <Textarea
               id="reason"
               placeholder={
@@ -306,6 +346,38 @@ export default function ApplyWfhPage() {
               rows={3}
               className="resize-none"
             />
+            {variants.length > 0 && (
+              <div className="space-y-1.5 rounded-sm border p-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-muted-foreground flex items-center gap-1 text-[11px] font-medium">
+                    <Sparkles className="h-3 w-3" /> Pick a version
+                  </p>
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground text-[11px]"
+                    onClick={() => setVariants([])}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+                {variants.map((v) => (
+                  <button
+                    key={v.label}
+                    type="button"
+                    onClick={() => {
+                      setReason(v.text)
+                      setVariants([])
+                    }}
+                    className="hover:bg-muted/60 focus-visible:ring-ring w-full rounded-sm border p-2 text-left transition-colors focus:outline-none focus-visible:ring-2"
+                  >
+                    <span className="text-primary text-[10px] font-semibold tracking-wide uppercase">
+                      {v.label}
+                    </span>
+                    <p className="text-foreground mt-0.5 text-xs leading-relaxed">{v.text}</p>
+                  </button>
+                ))}
+              </div>
+            )}
             <p className="text-muted-foreground text-[11px]">
               Whatever you write here flows straight into the letter on the right - you can edit
               that letter before submitting.
