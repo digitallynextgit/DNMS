@@ -61,6 +61,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             viewer={{
               id: session.user.id,
               email: session.user.email,
+              roles: session.user.roles,
               firstName: account.firstName,
               dateOfBirth: account.dateOfBirth,
             }}

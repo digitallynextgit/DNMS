@@ -454,9 +454,34 @@ function Show({
 }
 
 /** Plays the shows one after another (a preview account may have several), then offers a replay. */
+// Onlookers' shows play once per browser; the celebrant's play on every load. Storage can be
+// blocked (private mode): then it just plays.
+function seen(key: string): boolean {
+  try {
+    return localStorage.getItem(key) !== null
+  } catch {
+    return false
+  }
+}
+function markSeen(key: string): void {
+  try {
+    localStorage.setItem(key, "1")
+  } catch {
+    // Nothing to do: it plays again next time.
+  }
+}
+function firstUnseen(shows: BirthdayShowProps[]): number | null {
+  const i = shows.findIndex((s) => !s.onceKey || !seen(s.onceKey))
+  return i === -1 ? null : i
+}
+
 export default function BirthdayOverlay({ shows }: { shows: BirthdayShowProps[] }) {
   // Index of the show on screen; null once the last one has closed.
-  const [index, setIndex] = useState<number | null>(0)
+  const [index, setIndex] = useState<number | null>(() => firstUnseen(shows))
+  const onceKey = index === null ? undefined : shows[index]?.onceKey
+  useEffect(() => {
+    if (onceKey) markSeen(onceKey)
+  }, [onceKey])
   // Bumped on replay so the show starts again from the top.
   const [run, setRun] = useState(0)
   const current = index === null ? null : shows[index]

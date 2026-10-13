@@ -5,11 +5,14 @@ export interface BirthdayShowProps {
   message: string
   wish: string
   signature: string
+  /** Set for onlookers (admins): play once per browser, then only on the replay button. */
+  onceKey?: string
 }
 
 export interface BirthdayViewer {
   id: string
   email?: string | null
+  roles?: readonly string[]
   firstName?: string
   dateOfBirth?: Date | null
 }

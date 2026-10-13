@@ -25,6 +25,15 @@ function isCelebrant(viewer: BirthdayViewer): boolean {
   return viewer.id === BIRTHDAY.employeeId || viewer.email?.toLowerCase() === BIRTHDAY.email
 }
 
+/** Admins watch her show too, on her day only. */
+function isAdmin(viewer: BirthdayViewer): boolean {
+  return viewer.roles?.some((r) => r === "admin" || r === "admin_") ?? false
+}
+
+function isHerDay(now: number): boolean {
+  return now >= BIRTHDAY.startsAt && now < BIRTHDAY.endsAt
+}
+
 function isPreviewer(viewer: BirthdayViewer): boolean {
   return (BIRTHDAY.previewEmails as readonly string[]).includes(viewer.email?.toLowerCase() ?? "")
 }
@@ -69,6 +78,9 @@ export async function birthdayShowsFor(
   const herDay = isCelebrant(viewer) && now >= BIRTHDAY.startsAt && now < BIRTHDAY.endsAt
 
   if (herDay || isPreviewer(viewer)) shows.push(specialShow())
+  else if (isAdmin(viewer) && isHerDay(now)) {
+    shows.push({ ...specialShow(), onceKey: `birthday:${BIRTHDAY.employeeId}:${today}` })
+  }
 
   if (isPreviewer(viewer)) {
     const tomorrow = istMonthDay(now + DAY_MS)
@@ -95,7 +107,9 @@ export async function birthdayShowsFor(
 
 /** Her photos go only to her and the preview accounts; anyone else gets a 404. */
 export async function readBirthdayPhoto(viewer: BirthdayViewer, n: number): Promise<Buffer> {
-  if (!isCelebrant(viewer) && !isPreviewer(viewer)) throw new NotFoundError("Photo")
+  const allowed =
+    isCelebrant(viewer) || isPreviewer(viewer) || (isAdmin(viewer) && isHerDay(Date.now()))
+  if (!allowed) throw new NotFoundError("Photo")
   if (!Number.isInteger(n) || n < 1 || n > BIRTHDAY.chapters.length) {
     throw new NotFoundError("Photo")
   }
