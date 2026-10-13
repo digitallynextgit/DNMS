@@ -47,6 +47,8 @@ export interface ProjectListItem {
     employee: { id: string; firstName: string; lastName: string; profilePhoto: string | null }
   }[]
   _count: { tasks: number }
+  /** Kickoff must-haves progress; only sent to people who can manage the project. */
+  kickoff?: { done: number; total: number } | null
 }
 
 export interface EmployeeSnippet {

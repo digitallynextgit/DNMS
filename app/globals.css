@@ -336,6 +336,7 @@
   --m-messages: #2dd4bf;
   --m-activity: #94a3b8;
   --m-passwords: #fb7185;
+  --m-kickoff: #f59e0b;
   --m-monitoring: #f87171;
   --m-mailer: #e879f9;
   --m-services: #c084fc;
@@ -366,6 +367,7 @@
   --m-messages: #0d9488;
   --m-activity: #64748b;
   --m-passwords: #e11d48;
+  --m-kickoff: #b45309;
   --m-monitoring: #dc2626;
   --m-mailer: #c026d3;
   --m-services: #9333ea;
@@ -422,6 +424,9 @@
 }
 [data-modules] [data-mod="passwords"] {
   --mod: var(--m-passwords);
+}
+[data-modules] [data-mod="kickoff"] {
+  --mod: var(--m-kickoff);
 }
 [data-modules] [data-mod="monitoring"] {
   --mod: var(--m-monitoring);

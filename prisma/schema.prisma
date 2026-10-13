@@ -632,6 +632,7 @@ model Employee {
   checklistsCompleted ChecklistInstance[]     @relation("ChecklistCompletedBy")
   checklistItems      ChecklistInstanceItem[] @relation("ChecklistItemAssignee")
   checklistItemsDone  ChecklistInstanceItem[] @relation("ChecklistItemDoneBy")
+  kickoffItemsDone    ProjectKickoffItem[]    @relation("KickoffDoneBy")
 
   joineeScorecard       JoineeScorecard?  @relation("JoineeScorecardEmployee")
   joineeScorecardsSpoc  JoineeScorecard[] @relation("JoineeScorecardHrSpoc")
@@ -1602,6 +1603,7 @@ model Project {
   metaCampaigns   MetaCampaign[]
   seoProperties   SeoProperty[]
   requirements    ProjectRequirement[]
+  kickoffItems    ProjectKickoffItem[]
 
   mailers        ProjectMailer[]
   emailTemplates ProjectEmailTemplate[]
@@ -2663,6 +2665,31 @@ model ProjectRequirement {
   @@index([raisedById])
   @@index([tenantId])
   @@map("project_requirements")
+}
+
+// Pre-campaign "must-haves" for the Account Manager: one row per template item (lib/kickoff-template.ts),
+// created on first read so older projects get the list too. Only the AM and project admins see it.
+model ProjectKickoffItem {
+  tenantId     String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id           String    @id @default(uuid()) @map("id")
+  projectId    String    @map("project_id")
+  key          String    @map("key")
+  section      String    @map("section")
+  text         String    @map("text")
+  displayOrder Int       @default(0) @map("display_order")
+  isDone       Boolean   @default(false) @map("is_done")
+  doneAt       DateTime? @map("done_at")
+  doneById     String?   @map("done_by_id")
+  note         String?   @map("note") @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  doneBy  Employee? @relation("KickoffDoneBy", fields: [doneById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, key])
+  @@index([tenantId])
+  @@map("project_kickoff_items")
 }
 
 model ProjectActivity {

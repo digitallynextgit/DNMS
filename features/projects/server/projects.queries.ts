@@ -7,6 +7,7 @@ import { PERMISSIONS } from "@/lib/constants"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { resolveProjectId, canAccessProject } from "./project-access"
 import { SERVICE_OWNER_SELECT } from "./project-service-owners"
+import { kickoffProgressFor } from "./kickoff.service"
 
 export interface ListProjectsOptions {
   status?: string
@@ -64,7 +65,11 @@ export async function listProjects(opts: ListProjectsOptions, session: Session) 
   ])
 
   // Once per person: someone can be on several of the project's teams.
+  // Kickoff progress only for people who can manage the project: it is the AM's own checklist.
+  const canManage = (p: { ownerId: string }) => canViewAll || p.ownerId === session.user.id
+  const kickoff = await kickoffProgressFor(projects.filter(canManage).map((p) => p.id))
   const decorated = projects.map((p) => ({
+    kickoff: canManage(p) ? (kickoff[p.id] ?? null) : null,
     ...p,
     members: [
       ...new Map(p.teams.flatMap((t) => t.members).map((m) => [m.employee.id, m])).values(),

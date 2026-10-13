@@ -22,6 +22,7 @@ import {
   useUnreadMessageCount,
   useProjectRequirements,
 } from "@/features/projects/hooks/use-projects"
+import { useProjectKickoff } from "@/features/projects/hooks/use-kickoff"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import {
   PERMISSIONS,
@@ -44,6 +45,7 @@ import {
   MessageSquare,
   Mail,
   KeyRound,
+  Rocket,
   Palette,
   CalendarDays,
   HardDrive,
@@ -174,9 +176,15 @@ const PROJECT_TABS = [
   "messages",
   "activity",
   "passwords",
+  "kickoff",
   "monitoring",
   "mailer",
 ] as const
+
+const KickoffTab = dynamic(
+  () => import("@/features/projects/components/kickoff-tab").then((m) => m.KickoffTab),
+  { loading: () => <Skeleton className="h-40 w-full" /> },
+)
 
 export default function ProjectDetailPage() {
   const params = useParams()
@@ -230,13 +238,18 @@ export default function ProjectDetailPage() {
 
   // project:write holders manage any project; the account manager (owner) manages their own.
   const canManage = can(PERMISSIONS.PROJECT_WRITE) || (!!project && project.owner.id === userId)
+  // The AM's pre-campaign checklist: the tab badge and the overview chip read it; others never fetch it.
+  const kickoff = useProjectKickoff(projectRef, canManage).data?.data
+  const kickoffLeft = kickoff ? kickoff.total - kickoff.done : 0
 
   /**
    * A ?tab=passwords bookmark for someone who may not see it. Judged only once the project has
    * LOADED - canManage is false mid-fetch and would bounce the account manager off their own.
    */
   const shownTab =
-    Boolean(project) && !canManage && activeTab === "passwords" ? "overview" : activeTab
+    Boolean(project) && !canManage && (activeTab === "passwords" || activeTab === "kickoff")
+      ? "overview"
+      : activeTab
 
   const [editOpen, setEditOpen] = useState(false)
 
@@ -399,7 +412,15 @@ export default function ProjectDetailPage() {
               { value: "activity", label: "Activity", icon: Activity },
               // Account Manager and project admins only, matching the guard on every /passwords route.
               ...(canManage
-                ? [{ value: "passwords" as const, label: "Passwords", icon: KeyRound }]
+                ? [
+                    {
+                      value: "kickoff" as const,
+                      label: "Pre Campaign Kick Start",
+                      icon: Rocket,
+                      badge: kickoffLeft || undefined,
+                    },
+                    { value: "passwords" as const, label: "Passwords", icon: KeyRound },
+                  ]
                 : []),
               // Open to the whole project team, not only the owner.
               { value: "monitoring", label: "Monitoring", icon: Activity },
@@ -426,6 +447,11 @@ export default function ProjectDetailPage() {
                     {
                       label: "Budget",
                       value: project.budget ? `₹${project.budget.toLocaleString("en-IN")}` : "-",
+                      isText: true,
+                    },
+                    {
+                      label: "Kickoff",
+                      value: kickoff ? `${kickoff.done} / ${kickoff.total}` : "-",
                       isText: true,
                     },
                   ]
@@ -559,6 +585,12 @@ export default function ProjectDetailPage() {
         {canManage && (
           <TabsContent value="passwords" className="mt-4">
             <PasswordsTab projectId={projectRef} currentUserId={userId} canManage={canManage} />
+          </TabsContent>
+        )}
+
+        {canManage && (
+          <TabsContent value="kickoff" className="mt-4">
+            <KickoffTab projectId={projectRef} />
           </TabsContent>
         )}
 
