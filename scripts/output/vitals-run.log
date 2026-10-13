@@ -1,0 +1,23 @@
+npm warn Unknown project config "approve-builds". This will stop working in the next major version of npm.
+◇ injected env (9) from .env // tip: ⌘ enable debugging { debug: true }
+17 of 19 sites have no vitals yet
+
+[1/17] HARD2SOFT / H2S ... checked 10, green 1, failed 0
+[2/17] KNOW YOUR GENES / Knowyourgenes.in ... checked 8, green 0, failed 0
+[3/17] KNOW YOUR GENES / knowgenes.com ... checked 7, green 2, failed 0
+[4/17] KNOW YOUR GENES / knowourgenes.com ... checked 8, green 3, failed 0
+[5/17] KNOW YOUR GENES / knowyourgenes.ai ... checked 6, green 6, failed 0
+[6/17] KNOW YOUR GENES / kyg.co.in ... checked 8, green 8, failed 0
+[7/17] KNOW YOUR GENES / mapmygenes.co.in ... checked 7, green 1, failed 0
+[8/17] KNOW YOUR GENES / mapmygenes.life ... checked 6, green 2, failed 0
+[9/17] KNOW YOUR GENES / mapmygenetic.com ... checked 1, green 0, failed 0
+[10/17] KNOW YOUR GENES / mapmygenomics.com ... checked 7, green 7, failed 0
+[11/17] KNOW YOUR GENES / matchgenes.in ... checked 5, green 0, failed 0
+[12/17] KNOW YOUR GENES / matchgenes.life ... checked 7, green 7, failed 0
+[13/17] KNOW YOUR GENES / matchgenesnow.com ... checked 7, green 2, failed 0
+[14/17] KNOW YOUR GENES / mygenesmap.com ... checked 8, green 8, failed 0
+[15/17] KNOW YOUR GENES / mygenesmap.in ... checked 8, green 8, failed 0
+[16/17] REALTY CANVAS / Realty Canvas ... checked 0, green 0, failed 0
+[17/17] TALENTIFI-X / talentifix.com ... checked 7, green 1, failed 0
+
+Done. 16 site(s) now have vitals.

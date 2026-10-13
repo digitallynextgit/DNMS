@@ -1,0 +1,123 @@
+npm warn Unknown project config "approve-builds". This will stop working in the next major version of npm.
+◇ injected env (9) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+=== DIGITALLY NEXT / Digitally Next ===
+  backlog   : skip (44 already)
+  technical : {"ok":true,"auditId":"98e00374-3fb0-4d32-9e46-74999890616a","pagesChecked":8,"criticalCount":0,"warningCount":0}
+  gap       : skip (5 competitors, 1 runs)
+  scorecard : rebuilt
+
+=== HAPPY GANGA / Happy Ganga ===
+  backlog   : added 37, total 37
+  technical : {"ok":true,"auditId":"96356468-dfd6-4a9a-bb97-4c8c44793e92","pagesChecked":6,"criticalCount":0,"warningCount":4}
+  gap       : {"ok":true,"auditId":"41defc22-d651-431e-be77-53dc8c28ab4f","competitorsChecked":3,"ourPagesChecked":6,"gapCount":60}
+  scorecard : rebuilt
+
+=== HARD2SOFT / H2S ===
+  backlog   : added 500, total 500
+  technical : {"ok":true,"auditId":"89b2a071-37fd-4051-a841-cfcb13aabbf5","pagesChecked":7,"criticalCount":0,"warningCount":8}
+  gap       : {"ok":true,"auditId":"f86cb1b0-8dd4-490c-b85e-1bba7737d435","competitorsChecked":3,"ourPagesChecked":7,"gapCount":58}
+  scorecard : rebuilt
+
+=== KNOW YOUR GENES / Knowyourgenes.in ===
+  backlog   : skip (74 already)
+  technical : {"ok":true,"auditId":"5068d4d8-b7ef-4956-afd4-1a18db3829bb","pagesChecked":8,"criticalCount":0,"warningCount":17}
+  gap       : skip (4 competitors, 4 runs)
+  scorecard : rebuilt
+
+=== KNOW YOUR GENES / knowgenes.com ===
+  backlog   : added 25, total 25
+  technical : {"ok":true,"auditId":"bd55ff80-d04e-456b-b6ec-f3173de64e80","pagesChecked":7,"criticalCount":0,"warningCount":13}
+  gap       : {"ok":true,"auditId":"e1385162-27d9-4806-81ab-dd6f54b273cc","competitorsChecked":4,"ourPagesChecked":7,"gapCount":60}
+  scorecard : rebuilt
+
+=== KNOW YOUR GENES / knowourgenes.com ===
+  backlog   : added 2, total 2
+  technical : {"ok":true,"auditId":"7d902a13-eccd-4809-b13c-63db10533c9a","pagesChecked":8,"criticalCount":1,"warningCount":13}
+  gap       : {"ok":true,"auditId":"6bcf0436-f24a-42f4-aa29-5401e9baa99d","competitorsChecked":4,"ourPagesChecked":8,"gapCount":60}
+  scorecard : rebuilt
+
+=== KNOW YOUR GENES / knowyourgenes.ai ===
+  backlog   : added 1, total 1
+  technical : {"ok":true,"auditId":"686bc16f-e8b8-4794-a017-2947a2bfba58","pagesChecked":6,"criticalCount":1,"warningCount":18}
+  gap       : {"ok":true,"auditId":"79fea707-4780-4ec8-8850-9f264b3bea5a","competitorsChecked":4,"ourPagesChecked":6,"gapCount":60}
+  scorecard : rebuilt
+
+=== KNOW YOUR GENES / kyg.co.in ===
+  backlog   : added 9, total 9
+  technical : {"ok":true,"auditId":"6ffa3abf-1eed-4d60-a3ce-308d601519cb","pagesChecked":8,"criticalCount":1,"warningCount":16}
+  gap       : {"ok":true,"auditId":"a7779756-ce7a-4495-bd98-364d042fb50e","competitorsChecked":4,"ourPagesChecked":8,"gapCount":60}
+  scorecard : rebuilt
+
+=== KNOW YOUR GENES / mapmygenes.co.in ===
+  backlog   : added 0, total 0
+  technical : {"ok":true,"auditId":"61578720-f4d9-40ff-b176-b105bdcb39c7","pagesChecked":7,"criticalCount":1,"warningCount":15}
+  gap       : {"ok":true,"auditId":"51748824-021c-45d6-bbb4-49cea0746690","competitorsChecked":3,"ourPagesChecked":7,"gapCount":60}
+  scorecard : rebuilt
+
+=== KNOW YOUR GENES / mapmygenes.life ===
+  backlog   : added 0, total 0
+  technical : {"ok":true,"auditId":"9d5ee543-030d-4db6-b03c-d93ad96c1eb4","pagesChecked":6,"criticalCount":1,"warningCount":16}
+  gap       : {"ok":true,"auditId":"a9c96517-978b-4e41-8734-fbd05bebc6c9","competitorsChecked":3,"ourPagesChecked":6,"gapCount":60}
+  scorecard : rebuilt
+
+=== KNOW YOUR GENES / mapmygenetic.com ===
+  backlog   : added 7, total 7
+  technical : {"ok":true,"auditId":"3b3a2e18-b1bd-443e-840e-54820d2fa94b","pagesChecked":1,"criticalCount":1,"warningCount":3}
+  gap       : {"ok":true,"auditId":"8e291060-2a1c-4d89-a007-c7c4bf9c4d1f","competitorsChecked":3,"ourPagesChecked":1,"gapCount":60}
+  scorecard : rebuilt
+
+=== KNOW YOUR GENES / mapmygenomics.com ===
+  backlog   : added 31, total 31
+  technical : {"ok":true,"auditId":"73cc8de0-97f7-4112-9790-94b3380a35f8","pagesChecked":7,"criticalCount":1,"warningCount":21}
+  gap       : {"ok":true,"auditId":"96563cb1-6ab4-483c-a50c-2bb99bc9a1e7","competitorsChecked":4,"ourPagesChecked":7,"gapCount":60}
+  scorecard : rebuilt
+
+=== KNOW YOUR GENES / matchgenes.in ===
+  backlog   : added 0, total 0
+  technical : {"ok":true,"auditId":"c8dc5a1c-0854-4f17-bed8-cee902a894e8","pagesChecked":5,"criticalCount":1,"warningCount":15}
+  gap       : {"ok":true,"auditId":"0b45affe-7297-4c0e-8494-921577131d11","competitorsChecked":3,"ourPagesChecked":5,"gapCount":60}
+  scorecard : rebuilt
+
+=== KNOW YOUR GENES / matchgenes.life ===
+  backlog   : added 0, total 0
+  technical : {"ok":true,"auditId":"3f29f4bd-d0cd-4d1f-8f0d-34c592e8abad","pagesChecked":7,"criticalCount":1,"warningCount":10}
+  gap       : {"ok":true,"auditId":"7be97adf-b8f8-4a5d-93dc-0364431f8de1","competitorsChecked":3,"ourPagesChecked":7,"gapCount":60}
+  scorecard : rebuilt
+
+=== KNOW YOUR GENES / matchgenesnow.com ===
+  backlog   : added 2, total 2
+  technical : {"ok":true,"auditId":"63dd9de1-64f4-4250-a4f3-44e889920263","pagesChecked":7,"criticalCount":1,"warningCount":20}
+  gap       : {"ok":true,"auditId":"71c4f6d6-326a-4fe7-8941-53b47ba3a2c1","competitorsChecked":3,"ourPagesChecked":7,"gapCount":60}
+  scorecard : rebuilt
+
+=== KNOW YOUR GENES / mygenesmap.com ===
+  backlog   : added 1, total 1
+  technical : {"ok":true,"auditId":"f7e991d1-6378-45fc-a50f-1e08c5956c00","pagesChecked":8,"criticalCount":1,"warningCount":16}
+  gap       : {"ok":true,"auditId":"9f05cabb-33aa-4cbd-9338-44b62de74d14","competitorsChecked":3,"ourPagesChecked":8,"gapCount":60}
+  scorecard : rebuilt
+
+=== KNOW YOUR GENES / mygenesmap.in ===
+  backlog   : added 11, total 11
+  technical : {"ok":true,"auditId":"495003df-19a9-4d04-867f-debf22a5d6eb","pagesChecked":8,"criticalCount":1,"warningCount":17}
+  gap       : {"ok":true,"auditId":"8fa8f8fb-f768-43da-9055-1605e22611d6","competitorsChecked":4,"ourPagesChecked":8,"gapCount":60}
+  scorecard : rebuilt
+
+=== REALTY CANVAS / Realty Canvas ===
+  backlog   : added 0, total 0
+  technical : {"ok":true,"auditId":"4069f469-0b42-488a-84cd-32fed6ad1cb5","pagesChecked":7,"criticalCount":0,"warningCount":9}
+  gap       : {"ok":true,"auditId":"800e1144-d9dc-419c-8fd7-40821515c0b1","competitorsChecked":4,"ourPagesChecked":7,"gapCount":60}
+  scorecard : rebuilt
+
+=== TALENTIFI-X / talentifix.com ===
+  backlog   : skip (11 already)
+  technical : {"ok":true,"auditId":"01c37cc5-9773-4e6e-9555-1519dad646dd","pagesChecked":7,"criticalCount":0,"warningCount":18}
+  gap       : skip (5 competitors, 2 runs)
+  scorecard : rebuilt
+
+All done.
+npm notice
+npm notice New minor version of npm available! 11.4.1 -> 11.19.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.19.1
+npm notice To update run: npm install -g npm@11.19.1
+npm notice
