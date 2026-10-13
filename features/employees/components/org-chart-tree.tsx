@@ -46,7 +46,8 @@ function OrgNodeCard({ node }: { node: OrgNode }) {
 }
 
 function TreeNode({ node, depth = 0 }: { node: OrgNode; depth?: number }) {
-  const [expanded, setExpanded] = useState(depth < 2)
+  // Everything open by default: the chart is read at a glance, not explored level by level.
+  const [expanded, setExpanded] = useState(true)
   const hasChildren = node.children.length > 0
 
   return (
