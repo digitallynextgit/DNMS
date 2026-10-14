@@ -45,6 +45,8 @@ export interface DataTableColumn<T> {
   hideable?: boolean
   /** Starts hidden until someone shows it in the column picker. */
   defaultHidden?: boolean
+  /** A control beside the header, outside its sort button (e.g. a "which one?" switcher). */
+  headerAction?: React.ReactNode
 }
 
 /** Pass the result of `useRowSelection(...)`. */
@@ -269,6 +271,33 @@ export function DataTable<T>({
     else pickedRows.forEach((row) => sel.toggle(keyOf(row)))
   }
   const selecting = pickedCount > 0
+
+  // A sortable header: ascending, descending, then back to the original order.
+  const headerSortButton = (col: DataTableColumn<T>, key: string, active: boolean) => (
+    <button
+      type="button"
+      onClick={() => {
+        setSort((s) =>
+          s?.key !== key ? { key, dir: "asc" } : s.dir === "asc" ? { key, dir: "desc" } : null,
+        )
+        setPage(1)
+      }}
+      className={cn(
+        "hover:text-foreground inline-flex items-center gap-1 font-semibold transition-colors",
+        active && "text-foreground",
+        col.align === "right" && "flex-row-reverse",
+      )}
+    >
+      {col.header}
+      {active ? (
+        sort!.dir === "asc" ? (
+          <ArrowUp className="h-3 w-3" />
+        ) : (
+          <ArrowDown className="h-3 w-3" />
+        )
+      ) : null}
+    </button>
+  )
 
   const exportCols = keyed.filter(
     ({ col }) => typeof col.header === "string" && (col.exportValue ?? col.sortValue),
@@ -605,35 +634,18 @@ export function DataTable<T>({
                       col.headClassName,
                     )}
                   >
-                    {sortable ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          // Ascending, descending, then back to the original order.
-                          setSort((s) =>
-                            s?.key !== key
-                              ? { key, dir: "asc" }
-                              : s.dir === "asc"
-                                ? { key, dir: "desc" }
-                                : null,
-                          )
-                          setPage(1)
-                        }}
+                    {col.headerAction ? (
+                      <span
                         className={cn(
-                          "hover:text-foreground inline-flex items-center gap-1 font-semibold transition-colors",
-                          active && "text-foreground",
+                          "inline-flex items-center gap-1",
                           col.align === "right" && "flex-row-reverse",
                         )}
                       >
-                        {col.header}
-                        {active ? (
-                          sort!.dir === "asc" ? (
-                            <ArrowUp className="h-3 w-3" />
-                          ) : (
-                            <ArrowDown className="h-3 w-3" />
-                          )
-                        ) : null}
-                      </button>
+                        {sortable ? headerSortButton(col, key, active) : col.header}
+                        {col.headerAction}
+                      </span>
+                    ) : sortable ? (
+                      headerSortButton(col, key, active)
                     ) : (
                       col.header
                     )}

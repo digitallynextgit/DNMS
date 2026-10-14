@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { Link } from "@/components/tenant-link"
 import { useQuery } from "@tanstack/react-query"
-import { Plus, FolderKanban, Eye, Pencil, Rocket } from "lucide-react"
+import { Plus, FolderKanban, Eye, Pencil, Rocket, ChevronDown } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
@@ -35,6 +35,13 @@ import {
   type LeadPerson,
   type ServiceOwner,
 } from "@/features/projects"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Select,
   SelectContent,
@@ -144,6 +151,13 @@ export function ProjectsClient() {
 
   // A status view and a search narrow the list further.
   const [status, setStatus] = useState<string>(ALL_STATUSES)
+  // Which Account Manager the column shows: the primary (default) or the secondary.
+  const [amView, setAmView] = useState<AmView>("P")
+  const amOf = (p: Project) => (amView === "P" ? p.owner : p.secondaryAccountManager)
+  const amName = (p: Project) => {
+    const am = amOf(p)
+    return am ? `${am.firstName} ${am.lastName}`.trim() : ""
+  }
   const [query, setQuery] = useState("")
   const needle = query.trim().toLowerCase()
   const tableProjects = projects.filter(
@@ -205,8 +219,10 @@ export function ProjectsClient() {
     },
     {
       header: "Account Manager",
-      sortValue: (p) => `${p.owner.firstName} ${p.owner.lastName}`.trim(),
-      cell: (p) => <LeadCell primary={p.owner} secondary={p.secondaryAccountManager} />,
+      // Sorts (and exports) whichever one the column is showing.
+      sortValue: amName,
+      headerAction: <AmViewSwitch value={amView} onChange={setAmView} />,
+      cell: (p) => <LeadCell person={amOf(p)} />,
     },
     {
       header: "Code",
@@ -437,32 +453,47 @@ export function ProjectsClient() {
   )
 }
 
-/** The Account Manager with their secondary underneath. */
-function LeadCell({
-  primary,
-  secondary,
-}: {
-  primary: LeadPerson | null
-  secondary: LeadPerson | null
-}) {
-  if (!primary) return <span className="text-muted-foreground text-xs">Not set</span>
+type AmView = "P" | "S"
+
+const AM_VIEW_LABEL: Record<AmView, string> = { P: "Primary", S: "Secondary" }
+
+/** "(Primary) v" beside the Account Manager header: show the primary or the secondary. */
+function AmViewSwitch({ value, onChange }: { value: AmView; onChange: (v: AmView) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 text-[11px] font-normal"
+          aria-label="Show the primary or the secondary Account Manager"
+        >
+          ({AM_VIEW_LABEL[value]})
+          <ChevronDown className="h-3 w-3" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuRadioGroup value={value} onValueChange={(v) => onChange(v as AmView)}>
+          <DropdownMenuRadioItem value="P">P · Primary</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="S">S · Secondary</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** One Account Manager, or "Not assigned" (a project with no secondary yet). */
+function LeadCell({ person }: { person: LeadPerson | null }) {
+  if (!person) return <span className="text-muted-foreground text-xs">Not assigned</span>
   return (
     <div className="flex items-center gap-1.5">
       <AvatarDisplay
-        src={primary.profilePhoto}
-        firstName={primary.firstName}
-        lastName={primary.lastName}
+        src={person.profilePhoto}
+        firstName={person.firstName}
+        lastName={person.lastName}
         size="xs"
       />
-      <span className="flex flex-col text-xs leading-4">
-        <span>
-          {primary.firstName} {primary.lastName}
-        </span>
-        {secondary && (
-          <span className="text-muted-foreground text-[11px]">
-            + {secondary.firstName} {secondary.lastName}
-          </span>
-        )}
+      <span className="text-xs">
+        {person.firstName} {person.lastName}
       </span>
     </div>
   )
