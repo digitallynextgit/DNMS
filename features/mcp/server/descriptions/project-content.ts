@@ -210,7 +210,7 @@ export const PROJECT_CONTENT: DescriptionMap = {
   },
   "GET /api/projects/[id]/workbooks/[workbookId]": {
     summary:
-      "Open one sheet / content calendar in full: every tab with its columns (id, name, type) and rows (cells keyed by column id), plus the team plan (what each team owes, status, due date, links, files, people). Anyone on the project.",
+      "Open one sheet / content calendar in full: every tab with its columns (id, name, type) and rows (cells keyed by column id), plus the team plan (what each team owes, status, due date, links, files, people), its owner (assignedTo) and secondary (secondaryOwner). Anyone on the project.",
     keywords: [
       "open content calendar",
       "read sheet",
@@ -233,6 +233,20 @@ export const PROJECT_CONTENT: DescriptionMap = {
       "content calendar file",
     ],
     notes: "Returns a file - use dnms_download.",
+  },
+  "PUT /api/projects/[id]/workbooks/[workbookId]/secondary": {
+    summary:
+      "Set or clear who covers a content calendar for its owner, with the same powers (plan it, edit the team plan). For a service calendar this is the service's secondary owner (every month of the service follows); for a custom, hand-made calendar it applies to this month and its later months. The calendar's owner, an Account Manager or a project admin may set it.",
+    body: "{ employeeId: active employee id (someone other than the calendar's owner; on the project's teams for a service calendar), or null to clear }",
+    keywords: [
+      "calendar secondary",
+      "secondary owner",
+      "backup calendar owner",
+      "cover calendar",
+      "custom calendar owner",
+    ],
+    notes:
+      "The calendar needs an owner first. Notifies the person in-app and by email. Returns { secondaryOwner }.",
   },
   "GET /api/projects/[id]/workbooks/[workbookId]/teams": {
     summary:

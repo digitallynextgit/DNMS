@@ -83,6 +83,7 @@ export async function getEmployeeWork(employeeId: string, month: string): Promis
       AND: {
         OR: [
           { assignedToId: employeeId },
+          { secondaryAssignedToId: employeeId },
           { teams: { some: { members: { some: { employeeId } } } } },
           ...owned.map((o) => ({ projectId: o.project.id, service: o.service })),
         ],
@@ -95,6 +96,7 @@ export async function getEmployeeWork(employeeId: string, month: string): Promis
       periodMonth: true,
       service: true,
       assignedToId: true,
+      secondaryAssignedToId: true,
       project: { select: PROJECT_REF },
       teams: { select: PLAN_SELECT },
     },
@@ -144,8 +146,16 @@ export async function getEmployeeWork(employeeId: string, month: string): Promis
   })
 
   const ownedCalendars: OwnedCalendar[] = books
-    .filter((b) => b.assignedToId === employeeId && !ownsService(b.project.id, b.service))
-    .map((b) => ({ ...toCalendar(b), project: b.project }))
+    .filter(
+      (b) =>
+        (b.assignedToId === employeeId || b.secondaryAssignedToId === employeeId) &&
+        !ownsService(b.project.id, b.service),
+    )
+    .map((b) => ({
+      ...toCalendar(b),
+      project: b.project,
+      secondary: b.assignedToId !== employeeId,
+    }))
 
   const assignments: CalendarAssignment[] = books.flatMap((b) =>
     b.teams

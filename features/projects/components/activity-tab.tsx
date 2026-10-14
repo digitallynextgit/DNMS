@@ -81,6 +81,11 @@ function getActivityText(activity: ProjectActivity): string {
     case "TEAM_CREATED":
       return `created team "${meta.teamName ?? ""}"`
     case "SHEET_ASSIGNED":
+      if (meta.secondary) {
+        return meta.assigneeName
+          ? `made ${meta.assigneeName} the secondary owner of "${meta.sheetName ?? ""}"`
+          : `removed the secondary owner of "${meta.sheetName ?? ""}"`
+      }
       return meta.assigneeName
         ? `assigned sheet "${meta.sheetName ?? ""}" to ${meta.assigneeName}`
         : `removed the owner of sheet "${meta.sheetName ?? ""}"`

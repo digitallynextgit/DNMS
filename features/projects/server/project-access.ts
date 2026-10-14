@@ -154,9 +154,9 @@ export function withProjectAccess(handler: ProjectHandler) {
 }
 
 /**
- * Edit a team's calendar row: project managers, the calendar's manager or - when that manager is the
- * service's owner - its secondary owner (any row), or that team's own manager (own row only - which
- * is why this isn't withTeamStaffing). Members are not enough.
+ * Edit a team's calendar row: project managers, the calendar's manager or their secondary (any row),
+ * or that team's own manager (own row only - which is why this isn't withTeamStaffing). Members are
+ * not enough.
  * Omit `teamId` to ask "may they edit anything on this plan" (the Add team button).
  */
 export async function canEditWorkbookTeam(
@@ -170,22 +170,12 @@ export async function canEditWorkbookTeam(
 
   const workbook = await db.projectWorkbook.findFirst({
     where: { id: workbookId, projectId },
-    select: { assignedToId: true, service: true },
+    select: { assignedToId: true, secondaryAssignedToId: true },
   })
   // Not found = not on this project, or doesn't exist; both are no.
   if (!workbook) return false
-  if (workbook.assignedToId === session.user.id) return true
-  if (workbook.service && workbook.assignedToId) {
-    const covering = await db.projectServiceOwner.count({
-      where: {
-        projectId,
-        service: workbook.service,
-        employeeId: workbook.assignedToId,
-        secondaryEmployeeId: session.user.id,
-      },
-    })
-    if (covering > 0) return true
-  }
+  const me = session.user.id
+  if (workbook.assignedToId === me || workbook.secondaryAssignedToId === me) return true
 
   return canStaffTeam(session, projectId, teamId)
 }

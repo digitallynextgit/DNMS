@@ -9,6 +9,7 @@ import type {
   ProjectSheet,
   SheetColumnType,
   SheetEvent,
+  SheetAssignee,
   SheetWorkbook,
   StaffWorkbook,
   WorkbookIndexEntry,
@@ -148,6 +149,28 @@ export function useSheetMutations(projectId: string) {
       )
     },
     onError: (e) => fail(e, "Could not assign the sheet"),
+  })
+
+  /** Who covers the calendar for its owner (null clears). A service calendar's is the service's. */
+  const setWorkbookSecondary = useMutation({
+    mutationFn: ({ workbookId, employeeId }: { workbookId: string; employeeId: string | null }) =>
+      apiFetch<{ data: { secondaryOwner: SheetAssignee | null } }>(
+        `${workbooks}/${workbookId}/secondary`,
+        { method: "PUT", headers: json, body: JSON.stringify({ employeeId }) },
+      ),
+    onSuccess: (res) => {
+      void invalidate()
+      // A service calendar's secondary is the service's secondary owner too.
+      void qc.invalidateQueries({ queryKey: ["project"] })
+      void qc.invalidateQueries({ queryKey: ["projects"] })
+      const who = res.data.secondaryOwner
+      toast.success(
+        who
+          ? `${who.firstName} ${who.lastName} now covers this calendar`.trim()
+          : "Secondary removed",
+      )
+    },
+    onError: (e) => fail(e, "Could not change the secondary"),
   })
 
   /** Give an edition a month, move it, or clear it. Managers, via the picker. */
@@ -373,6 +396,7 @@ export function useSheetMutations(projectId: string) {
     saveTeamPlan,
     removeTeamPlan,
     assignWorkbook,
+    setWorkbookSecondary,
     shareWorkbook,
     deleteWorkbook,
     createSheet,

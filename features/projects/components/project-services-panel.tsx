@@ -54,13 +54,9 @@ const NO_OWNER = "__none__"
 
 type Service = (typeof PROJECT_SERVICES)[number]
 
-function OwnerLabel({
-  person,
-  empty = "No owner",
-}: {
-  person: ServiceOwner["employee"] | null
-  empty?: string
-}) {
+type Person = { id: string; firstName: string; lastName: string; profilePhoto?: string | null }
+
+function OwnerLabel({ person, empty = "No owner" }: { person: Person | null; empty?: string }) {
   if (!person) return <span className="text-muted-foreground truncate text-xs">{empty}</span>
   return (
     <span className="flex min-w-0 items-center gap-2">
@@ -77,9 +73,7 @@ function OwnerLabel({
   )
 }
 
-type Person = { id: string; firstName: string; lastName: string; profilePhoto?: string | null }
-
-/** Pick a service's owner or secondary owner from the people on the project. */
+/** Pick a service's (or custom calendar's) owner or secondary from the people on the project. */
 function OwnerSelect({
   value,
   onChange,
@@ -90,7 +84,7 @@ function OwnerSelect({
   excludeId,
   disabled,
 }: {
-  value: ServiceOwner["employee"] | null
+  value: Person | null
   onChange: (employeeId: string | null) => void
   people: (Person & { isManager?: boolean; designation?: { title: string } | null })[]
   label: string
@@ -150,13 +144,14 @@ function OwnerSelect({
 function ServiceCalendarMenu({
   projectId,
   projectPath,
-  service,
+  name,
   editions,
   canManage,
 }: {
   projectId: string
   projectPath: string
-  service: Service
+  /** The service's (or custom calendar's) name, for screen readers. */
+  name: string
   /** Newest month first. */
   editions: WorkbookIndexEntry[]
   canManage: boolean
@@ -181,7 +176,7 @@ function ServiceCalendarMenu({
         <Button
           variant="ghost"
           className="text-muted-foreground hover:text-foreground h-7 gap-1 px-2 text-xs"
-          aria-label={`${service.name} calendar months`}
+          aria-label={`${name} calendar months`}
           disabled={m.createWorkbook.isPending}
         >
           <CalendarDays className="h-3.5 w-3.5" />
@@ -195,7 +190,7 @@ function ServiceCalendarMenu({
         </DropdownMenuLabel>
         {editions.map((w) => (
           <DropdownMenuItem key={w.id} asChild>
-            <Link href={hrefOf(w.id)} aria-label={`Open the ${service.name} calendar`}>
+            <Link href={hrefOf(w.id)} aria-label={`Open the ${name} calendar`}>
               <span className="flex-1">{formatMonth(w.periodMonth)}</span>
               {w.id === shown.id ? <Check className="h-3.5 w-3.5" /> : null}
             </Link>
@@ -259,10 +254,24 @@ export function ProjectServicesPanel({
   const rows = PROJECT_SERVICES.filter((s) => services.includes(s.code))
   const unticked = PROJECT_SERVICES.filter((s) => !services.includes(s.code))
   const { userId } = usePermissions()
-  // A service's owner may pick their own secondary, so they need the people list too.
-  const ownsOne = !!userId && owners.some((o) => o.employee.id === userId)
+  const calendars = useWorkbookIndex(projectId)
+  const sheets = useSheetMutations(projectId)
+  // Hand-made calendars (no service), one per name; the index lists each name's months newest first.
+  const customSeries = [
+    ...(calendars.data ?? [])
+      .filter((w) => !w.service)
+      .reduce(
+        (byName, w) => byName.set(w.name, [...(byName.get(w.name) ?? []), w]),
+        new Map<string, WorkbookIndexEntry[]>(),
+      )
+      .values(),
+  ]
+  // An owner may pick their own secondary, so they need the people list too.
+  const ownsOne =
+    !!userId &&
+    (owners.some((o) => o.employee.id === userId) ||
+      customSeries.some((e) => e.some((w) => w.assignedTo?.id === userId)))
   const people = useProjectMembers(canManage || ownsOne ? projectId : undefined)
-  const calendars = useWorkbookIndex(rows.length > 0 ? projectId : "")
   const setOwner = useSetServiceOwner(projectId)
   const setServices = useSetProjectServices(projectId)
   const createCalendar = useCreateServiceCalendar(projectId)
@@ -363,7 +372,7 @@ export function ProjectServicesPanel({
                       <ServiceCalendarMenu
                         projectId={projectId}
                         projectPath={projectPath}
-                        service={s}
+                        name={s.name}
                         editions={editions}
                         canManage={canManage}
                       />
@@ -425,10 +434,109 @@ export function ProjectServicesPanel({
           })}
         </ul>
       </div>
+      {customSeries.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-muted-foreground text-xs font-medium">Custom calendars</p>
+          <div className="@container">
+            <ul className="grid gap-2 @xl:grid-cols-2 @4xl:grid-cols-3">
+              {customSeries.map((editions) => {
+                // Its newest dated month (an undated edition only when it has nothing else).
+                const latest = editions.find((w) => w.periodMonth) ?? editions[0]!
+                const owner = latest.assignedTo
+                const secondary = latest.secondaryAssignedTo
+                const canPickSecondary = !!owner && (canManage || owner.id === userId)
+                const saving =
+                  (sheets.assignWorkbook.isPending &&
+                    sheets.assignWorkbook.variables?.workbookId === latest.id) ||
+                  (sheets.setWorkbookSecondary.isPending &&
+                    sheets.setWorkbookSecondary.variables?.workbookId === latest.id)
+                return (
+                  <li
+                    key={latest.name}
+                    className="flex min-w-0 flex-col gap-1.5 rounded-sm border px-3 py-2.5"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <CalendarDays className="text-muted-foreground h-4 w-4 shrink-0" />
+                      <span className="truncate text-sm font-medium">{latest.name}</span>
+                      <span
+                        className="text-muted-foreground shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px]"
+                        title="Made by hand, not tied to a service"
+                      >
+                        Custom
+                      </span>
+                    </div>
+
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      {canManage ? (
+                        <OwnerSelect
+                          value={owner}
+                          onChange={(employeeId) =>
+                            sheets.assignWorkbook.mutate({ workbookId: latest.id, employeeId })
+                          }
+                          people={people.data?.data ?? []}
+                          label={`Owner of ${latest.name}`}
+                          empty="Assign an owner"
+                          clearLabel="No owner"
+                          disabled={saving}
+                        />
+                      ) : (
+                        <div className="flex h-7 min-w-0 items-center">
+                          <OwnerLabel person={owner} />
+                        </div>
+                      )}
+                      <div className="shrink-0">
+                        <ServiceCalendarMenu
+                          projectId={projectId}
+                          projectPath={projectPath}
+                          name={latest.name}
+                          editions={editions}
+                          canManage={canManage}
+                        />
+                      </div>
+                    </div>
+
+                    {canPickSecondary ? (
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="text-muted-foreground shrink-0 text-[11px]">
+                          Secondary
+                        </span>
+                        <OwnerSelect
+                          value={secondary}
+                          onChange={(employeeId) =>
+                            sheets.setWorkbookSecondary.mutate({
+                              workbookId: latest.id,
+                              employeeId,
+                            })
+                          }
+                          people={people.data?.data ?? []}
+                          label={`Secondary owner of ${latest.name}`}
+                          empty="Add a secondary owner"
+                          clearLabel="No secondary owner"
+                          excludeId={owner?.id}
+                          disabled={saving}
+                        />
+                      </div>
+                    ) : secondary ? (
+                      <div className="flex h-7 min-w-0 items-center gap-1.5">
+                        <span className="text-muted-foreground shrink-0 text-[11px]">
+                          Secondary
+                        </span>
+                        <OwnerLabel person={secondary} />
+                      </div>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
+
       {canManage && (
         <p className="text-muted-foreground text-xs">
           A service&apos;s owner also owns its calendar; its secondary owner covers it with the same
-          powers. Owners come from this project&apos;s teams and are told by notification and email.
+          powers. Custom calendars, made by hand, have an owner and a secondary of their own. Owners
+          are told by notification and email.
         </p>
       )}
 

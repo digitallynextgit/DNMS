@@ -177,6 +177,8 @@ export interface WorkbookIndexEntry {
   createdByName: string | null
   createdByClientId: string | null
   assignedTo: SheetAssignee | null
+  /** Covers for the manager with the same powers (staff only). */
+  secondaryAssignedTo: SheetAssignee | null
   isClientVisible: boolean
   /** The project service this calendar is for (PROJECT_SERVICES code), or null. */
   service: string | null
@@ -188,7 +190,8 @@ export interface WorkbookIndexEntry {
 /** One calendar in FULL: the grid, plus the team plan. Staff only. */
 export type StaffWorkbook = SheetWorkbook & {
   teams: WorkbookTeam[]
-  /** The service's secondary owner when its owner runs this calendar: they can plan it too. */
+  /** Covers for the calendar's manager with the same powers: for a service calendar, the
+   *  service's secondary owner (this month on); a custom calendar has its own. */
   secondaryOwner: SheetAssignee | null
 }
 

@@ -10,7 +10,8 @@ interface Row {
 }
 let row: Row | null = null
 const written: (Row | null)[] = []
-const synced: (string | null)[] = []
+/** What the service's calendars were given: manager, and secondary (undefined = left as it was). */
+const synced: { manager: string | null; secondary?: string | null }[] = []
 
 vi.mock("@/server/db", () => {
   const tx = {
@@ -47,9 +48,11 @@ vi.mock("@/server/db", () => {
   }
 })
 vi.mock("./service-calendars", () => ({
-  syncServiceCalendarManager: vi.fn(async (_p: string, _s: string, id: string | null) => {
-    synced.push(id)
-  }),
+  syncServiceCalendarManager: vi.fn(
+    async (_p: string, _s: string, manager: string | null, secondary?: string | null) => {
+      synced.push({ manager, secondary })
+    },
+  ),
 }))
 vi.mock("./sheets.service", () => ({ parsePeriodMonth: () => new Date("2026-10-01") }))
 let manager = false
@@ -79,18 +82,18 @@ beforeEach(() => {
 })
 
 describe("setServiceOwners", () => {
-  it("adds a secondary owner without touching the owner or its calendars", async () => {
+  it("adds a secondary owner, who covers the service's calendars under the same manager", async () => {
     const assigned = await setServiceOwners("p", "SEO", { secondary: "b" })
     expect(saved()).toEqual({ employeeId: "a", secondaryEmployeeId: "b" })
     expect(assigned).toEqual([{ employeeId: "b", secondary: true }])
-    expect(synced).toEqual([])
+    expect(synced).toEqual([{ manager: "a", secondary: "b" }])
   })
 
   it("moves the secondary up when the owner is cleared, calendars and all", async () => {
     row = { employeeId: "a", secondaryEmployeeId: "b" }
     await setServiceOwners("p", "SEO", { primary: null })
     expect(saved()).toEqual({ employeeId: "b", secondaryEmployeeId: null })
-    expect(synced).toEqual(["b"])
+    expect(synced).toEqual([{ manager: "b", secondary: null }])
   })
 
   it("empties the secondary slot when the secondary is made the owner", async () => {

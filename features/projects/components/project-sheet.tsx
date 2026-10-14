@@ -497,8 +497,14 @@ function PersonAvatar({ person, className }: { person: SheetAssignee; className?
   )
 }
 
-function AssigneeChip({ person }: { person: SheetAssignee | null }) {
-  if (!person) return <span className="text-muted-foreground text-xs">No owner</span>
+function AssigneeChip({
+  person,
+  empty = "No owner",
+}: {
+  person: SheetAssignee | null
+  empty?: string
+}) {
+  if (!person) return <span className="text-muted-foreground text-xs">{empty}</span>
   return (
     <span
       className="flex min-w-0 items-center gap-1.5"
@@ -511,78 +517,77 @@ function AssigneeChip({ person }: { person: SheetAssignee | null }) {
 }
 
 /**
- * The calendar's owner: one person answering for the month. A service calendar's owner is the
- * service's owner, so only people on the project can be picked; any active employee otherwise. The
- * service's secondary owner, who covers for them, shows alongside.
+ * Who answers for the calendar: its owner (one person answering for the month), or the secondary
+ * who covers for them with the same powers. A service calendar's are the service's owner and
+ * secondary owner, so only people on the project can be picked; any active employee otherwise.
  */
-function WorkbookAssignee({
+function WorkbookPerson({
   projectId,
-  workbook,
-  canStaff,
-  onAssign,
+  service,
+  label,
+  person,
+  empty,
+  clearLabel,
+  excludeId,
+  canChoose,
+  lockedTitle,
+  onChoose,
   pending,
 }: {
   projectId: string
-  workbook: {
-    assignedTo: SheetAssignee | null
-    service: string | null
-    secondaryOwner?: SheetAssignee | null
-  }
-  canStaff: boolean
-  onAssign: (employeeId: string | null) => void
+  service: string | null
+  /** "Calendar owner" or "Secondary". */
+  label: string
+  person: SheetAssignee | null
+  /** Shown when nobody holds it. */
+  empty: string
+  /** The menu's "nobody" choice. */
+  clearLabel: string
+  excludeId?: string
+  canChoose: boolean
+  /** Hover text when it can't be changed here. */
+  lockedTitle: string
+  onChoose: (employeeId: string | null) => void
   pending: boolean
 }) {
-  const anyone = useAssignableEmployees(projectId, canStaff && !workbook.service)
-  const onProject = useProjectMembers(canStaff && workbook.service ? projectId : undefined)
+  const anyone = useAssignableEmployees(projectId, canChoose && !service)
+  const onProject = useProjectMembers(canChoose && service ? projectId : undefined)
   const people: Array<{
     id: string
     firstName: string
     lastName: string
     profilePhoto?: string | null
     designation?: { title: string } | null
-  }> = (workbook.service ? onProject.data?.data : anyone.data?.data) ?? []
+  }> = ((service ? onProject.data?.data : anyone.data?.data) ?? []).filter(
+    (p) => p.id !== excludeId,
+  )
 
-  const secondary = workbook.secondaryOwner ? (
-    <span
-      className="text-muted-foreground flex items-center gap-1 text-xs"
-      title="Secondary owner: covers this calendar whenever the owner is away"
-    >
-      + <AssigneeChip person={workbook.secondaryOwner} />
-    </span>
-  ) : null
-
-  if (!canStaff) {
+  if (!canChoose) {
     return (
-      <span className="flex items-center gap-1.5 px-2" title="Only a manager can change this">
-        <span className="text-muted-foreground text-xs">Calendar owner</span>
-        <AssigneeChip person={workbook.assignedTo} />
-        {secondary}
+      <span className="flex items-center gap-1.5 px-2" title={lockedTitle}>
+        <span className="text-muted-foreground text-xs">{label}</span>
+        <AssigneeChip person={person} empty={empty} />
       </span>
     )
   }
 
   return (
     <Select
-      value={workbook.assignedTo?.id ?? UNASSIGNED}
-      onValueChange={(v) => onAssign(v === UNASSIGNED ? null : v)}
+      value={person?.id ?? UNASSIGNED}
+      onValueChange={(v) => onChoose(v === UNASSIGNED ? null : v)}
       disabled={pending}
     >
-      {/* Custom trigger content: shows the avatar, and still works if the owner was deactivated. */}
-      <SelectTrigger
-        className="w-auto gap-1.5 px-2.5"
-        title="Who owns this calendar"
-        aria-label="Calendar owner"
-      >
+      {/* Custom trigger content: shows the avatar, and still works if the person was deactivated. */}
+      <SelectTrigger className="w-auto gap-1.5 px-2.5" aria-label={label}>
         {/* A div, not a span: the trigger line-clamps span children, which stacks the chip. */}
         <div className="flex min-w-0 items-center gap-1.5">
-          <span className="text-muted-foreground text-xs">Calendar owner</span>
-          <AssigneeChip person={workbook.assignedTo} />
-          {secondary}
+          <span className="text-muted-foreground text-xs">{label}</span>
+          <AssigneeChip person={person} empty={empty} />
         </div>
       </SelectTrigger>
       <SelectContent align="end" className="max-h-72">
         <SelectItem value={UNASSIGNED}>
-          <span className="text-muted-foreground text-xs">No owner</span>
+          <span className="text-muted-foreground text-xs">{clearLabel}</span>
         </SelectItem>
         {people.map((p) => (
           <SelectItem key={p.id} value={p.id}>
@@ -1173,15 +1178,38 @@ export function ProjectSheetSection({
 
         {workbook && (
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <WorkbookAssignee
+            <WorkbookPerson
               projectId={projectId}
-              workbook={workbook}
-              canStaff={canStaff}
+              service={workbook.service}
+              label="Calendar owner"
+              person={workbook.assignedTo}
+              empty="No owner"
+              clearLabel="No owner"
+              canChoose={canStaff}
+              lockedTitle="Only a manager can change this"
               pending={m.assignWorkbook.isPending}
-              onAssign={(employeeId) =>
+              onChoose={(employeeId) =>
                 m.assignWorkbook.mutate({ workbookId: workbook.id, employeeId })
               }
             />
+            {/* The owner, an Account Manager or an admin picks who covers; needs an owner first. */}
+            {(workbook.assignedTo || workbook.secondaryOwner) && (
+              <WorkbookPerson
+                projectId={projectId}
+                service={workbook.service}
+                label="Secondary"
+                person={workbook.secondaryOwner}
+                empty="Not assigned"
+                clearLabel="No secondary"
+                excludeId={workbook.assignedTo?.id}
+                canChoose={!!workbook.assignedTo && (canManage || workbook.assignedTo.id === me)}
+                lockedTitle="Covers this calendar with the owner's powers. The owner, an Account Manager or an admin picks them."
+                pending={m.setWorkbookSecondary.isPending}
+                onChoose={(employeeId) =>
+                  m.setWorkbookSecondary.mutate({ workbookId: workbook.id, employeeId })
+                }
+              />
+            )}
             {/* Managers only: this decides whether an outside party can read and write the sheet. */}
             {canManage && (
               <Button

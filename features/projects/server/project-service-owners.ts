@@ -132,8 +132,14 @@ export async function setServiceOwners(
       })
     }
   })
-  if (change.primary !== undefined) {
-    await syncServiceCalendarManager(projectId, service, primary)
+  // The calendars follow: their manager when the owner is set, their secondary whenever it moved.
+  if (change.primary !== undefined || secondary !== before.secondary) {
+    await syncServiceCalendarManager(
+      projectId,
+      service,
+      change.primary !== undefined ? primary : before.primary,
+      secondary !== before.secondary || change.primary !== undefined ? secondary : undefined,
+    )
   }
 
   const assigned: { employeeId: string; secondary: boolean }[] = []
@@ -176,15 +182,25 @@ export async function dropServicesIfOffProject(
   ])
   if (teams > 0 || (project && isProjectLead(project, employeeId))) return
 
+  const from = parsePeriodMonth(currentPlanMonth())!
+  const thisMonthOn = [{ periodMonth: null }, { periodMonth: { gte: from } }]
   await tx.projectServiceOwner.updateMany({
     where: { projectId, secondaryEmployeeId: employeeId },
     data: { secondaryEmployeeId: null },
+  })
+  await tx.projectWorkbook.updateMany({
+    where: {
+      projectId,
+      service: { not: null },
+      secondaryAssignedToId: employeeId,
+      OR: thisMonthOn,
+    },
+    data: { secondaryAssignedToId: null },
   })
   const owned = await tx.projectServiceOwner.findMany({
     where: { projectId, employeeId },
     select: { id: true, service: true, secondaryEmployeeId: true },
   })
-  const from = parsePeriodMonth(currentPlanMonth())!
   for (const o of owned) {
     if (!o.secondaryEmployeeId) {
       await tx.projectServiceOwner.delete({ where: { id: o.id } })
@@ -196,31 +212,32 @@ export async function dropServicesIfOffProject(
     })
     // The same hand-over as syncServiceCalendarManager: this month on; past months keep theirs.
     await tx.projectWorkbook.updateMany({
-      where: {
-        projectId,
-        service: o.service,
-        OR: [{ periodMonth: null }, { periodMonth: { gte: from } }],
-      },
-      data: { assignedToId: o.secondaryEmployeeId },
+      where: { projectId, service: o.service, OR: thisMonthOn },
+      data: { assignedToId: o.secondaryEmployeeId, secondaryAssignedToId: null },
     })
   }
 }
 
 /**
- * A leaver's service ownership, as steps for a batch `db.$transaction([...])`: where they own a
- * service, its secondary takes over (with its calendars from this month on); where they are the
- * secondary, they just drop off; a service with nobody behind them is left unowned. Raw SQL is
- * scoped by the leaver's id, which belongs to one company.
+ * A leaver's service and calendar ownership, as steps for a batch `db.$transaction([...])`: where
+ * they own a service or manage a calendar, its secondary takes over (calendars from this month on);
+ * where they are the secondary, they just drop off; a service with nobody behind them is left
+ * unowned. Raw SQL is scoped by the leaver's id, which belongs to one company.
  */
 export function serviceOwnerExitSteps(employeeId: string) {
   const from = parsePeriodMonth(currentPlanMonth())!
   return [
+    // Calendars they manage, this month on: their secondary takes over (service calendars carry the
+    // service's secondary, which steps up just below).
     db.$executeRaw`
-      UPDATE project_workbooks w SET assigned_to_id = o.secondary_employee_id
-      FROM project_service_owners o
-      WHERE o.employee_id = ${employeeId} AND o.secondary_employee_id IS NOT NULL
-        AND w.project_id = o.project_id AND w.service = o.service
-        AND (w.period_month IS NULL OR w.period_month >= ${from})`,
+      UPDATE project_workbooks
+      SET assigned_to_id = secondary_assigned_to_id, secondary_assigned_to_id = NULL
+      WHERE assigned_to_id = ${employeeId} AND secondary_assigned_to_id IS NOT NULL
+        AND (period_month IS NULL OR period_month >= ${from})`,
+    db.projectWorkbook.updateMany({
+      where: { secondaryAssignedToId: employeeId },
+      data: { secondaryAssignedToId: null },
+    }),
     db.$executeRaw`
       UPDATE project_service_owners
       SET employee_id = secondary_employee_id, secondary_employee_id = NULL

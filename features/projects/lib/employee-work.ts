@@ -44,6 +44,8 @@ export interface OwnedService {
 
 export interface OwnedCalendar extends WorkCalendar {
   project: WorkProjectRef
+  /** They cover it as its secondary rather than own it. */
+  secondary: boolean
 }
 
 /** A team plan row this person is named in. */

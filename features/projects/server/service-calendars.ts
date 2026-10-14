@@ -19,7 +19,7 @@ export async function ensureServiceCalendars(
     where: { id: projectId },
     select: {
       services: true,
-      serviceOwners: { select: { service: true, employeeId: true } },
+      serviceOwners: { select: { service: true, employeeId: true, secondaryEmployeeId: true } },
     },
   })
   if (!project) return 0
@@ -50,24 +50,34 @@ export async function ensureServiceCalendars(
     for (const tab of moreTabs) {
       await createSheet(projectId, actorId, { workbookId: book.id, name: tab })
     }
-    const ownerId = project.serviceOwners.find((o) => o.service === code)?.employeeId
-    if (ownerId) {
-      await db.projectWorkbook.update({ where: { id: book.id }, data: { assignedToId: ownerId } })
+    const owner = project.serviceOwners.find((o) => o.service === code)
+    if (owner) {
+      await db.projectWorkbook.update({
+        where: { id: book.id },
+        data: { assignedToId: owner.employeeId, secondaryAssignedToId: owner.secondaryEmployeeId },
+      })
     }
     created++
   }
   return created
 }
 
-/** The service's owner manages its calendar from this month on; past months keep their manager. */
+/**
+ * The service's owner manages its calendar from this month on, and its secondary owner covers it;
+ * past months keep theirs. `secondaryId` undefined leaves the secondary as it is.
+ */
 export async function syncServiceCalendarManager(
   projectId: string,
   service: string,
   employeeId: string | null,
+  secondaryId?: string | null,
 ): Promise<void> {
   const from = parsePeriodMonth(currentPlanMonth())!
   await db.projectWorkbook.updateMany({
     where: { projectId, service, OR: [{ periodMonth: null }, { periodMonth: { gte: from } }] },
-    data: { assignedToId: employeeId },
+    data: {
+      assignedToId: employeeId,
+      ...(secondaryId !== undefined && { secondaryAssignedToId: secondaryId }),
+    },
   })
 }

@@ -63,7 +63,9 @@ export async function notifyOwnerAssigned(args: {
         ? "You own a service"
         : "You own a calendar",
     message: args.secondary
-      ? `You're now the secondary owner of ${serviceName ?? "a service"} on ${project.name}: you cover its calendar whenever its owner is away.`
+      ? serviceName
+        ? `You're now the secondary owner of ${serviceName} on ${project.name}: you cover its calendar whenever its owner is away.`
+        : `You're now the secondary owner of the calendar "${calendar?.name}" on ${project.name}: you cover it whenever its owner is away.`
       : serviceName
         ? `You're now the owner of ${serviceName} on ${project.name}, and of its calendar.`
         : `You're now the owner of the calendar "${calendar?.name}" on ${project.name}.`,

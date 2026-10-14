@@ -261,7 +261,16 @@ export function EmployeeWorkView({ employeeId }: { employeeId?: string }) {
     {
       header: "Calendar",
       sortValue: (c) => c.name,
-      cell: (c) => <CalendarLink project={c.project} id={c.id} name={c.name} />,
+      cell: (c) => (
+        <span className="flex items-center gap-1.5">
+          <CalendarLink project={c.project} id={c.id} name={c.name} />
+          {c.secondary && (
+            <span className="text-primary text-[11px] font-medium" title="Covers for the owner">
+              secondary
+            </span>
+          )}
+        </span>
+      ),
     },
     { header: "Team plan", cell: (c) => <TeamsDone progress={c.progress} /> },
     {

@@ -178,6 +178,8 @@ export async function sheetBelongsToProject(sheetId: string, projectId: string):
 
 // Workbooks: what the UI calls a "sheet" - a named set of tabs.
 
+const PERSON_SELECT = { id: true, firstName: true, lastName: true, profilePhoto: true } as const
+
 const WORKBOOK_INCLUDE = {
   createdBy: { select: { firstName: true, lastName: true } },
   createdByClient: { select: { name: true } },
@@ -294,7 +296,8 @@ export async function listWorkbookIndex(projectId: string): Promise<WorkbookInde
       updatedAt: true,
       createdBy: { select: { firstName: true, lastName: true } },
       createdByClient: { select: { name: true } },
-      assignedTo: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
+      assignedTo: { select: PERSON_SELECT },
+      secondaryAssignedTo: { select: PERSON_SELECT },
       sheets: { orderBy: { position: "asc" }, select: { id: true, name: true, position: true } },
     },
   })
@@ -307,6 +310,7 @@ export async function listWorkbookIndex(projectId: string): Promise<WorkbookInde
       name(w.createdBy) ?? (w.createdByClient ? `${w.createdByClient.name} (client)` : null),
     createdByClientId: w.createdByClientId,
     assignedTo: w.assignedTo,
+    secondaryAssignedTo: w.secondaryAssignedTo,
     isClientVisible: w.isClientVisible,
     service: w.service,
     updatedAt: w.updatedAt.toISOString(),
@@ -321,7 +325,8 @@ export async function getWorkbook(
 ): Promise<StaffWorkbook | null> {
   const book = await db.projectWorkbook.findFirst({
     where: { id: workbookId, projectId },
-    include: WORKBOOK_INCLUDE,
+    // The secondary stays out of WORKBOOK_INCLUDE, which the client portal shares.
+    include: { ...WORKBOOK_INCLUDE, secondaryAssignedTo: { select: PERSON_SELECT } },
   })
   if (!book) return null
   const teams = await db.projectWorkbookTeam.findMany({
@@ -333,20 +338,7 @@ export async function getWorkbook(
     teams.map((t) => ({ name: t.team.name, row: toWorkbookTeam(t) })),
   ).map((t) => t.row)
 
-  // A service calendar run by the service's owner is covered by its secondary owner too.
-  const cover =
-    book.service && book.assignedToId
-      ? await db.projectServiceOwner.findFirst({
-          where: { projectId, service: book.service, employeeId: book.assignedToId },
-          select: {
-            secondaryEmployee: {
-              select: { id: true, firstName: true, lastName: true, profilePhoto: true },
-            },
-          },
-        })
-      : null
-
-  return { ...toWorkbook(book), teams: ordered, secondaryOwner: cover?.secondaryEmployee ?? null }
+  return { ...toWorkbook(book), teams: ordered, secondaryOwner: book.secondaryAssignedTo }
 }
 
 /** Every workbook on the project, each with its tabs (columns and rows included). */
@@ -508,8 +500,9 @@ export async function createWorkbook(
       // Stored on the workbook: the portal's delete rule reads it.
       createdByClientId: input.actorClientId ?? null,
       isClientVisible: input.isClientVisible ?? false,
-      // The calendar manager carries forward to the next month.
+      // The calendar manager and their secondary carry forward to the next month.
       assignedToId: source?.assignedToId ?? null,
+      secondaryAssignedToId: source?.secondaryAssignedToId ?? null,
       service,
     },
   })
@@ -662,6 +655,31 @@ export async function assignWorkbook(
     include: WORKBOOK_INCLUDE,
   })
   return toWorkbook(full)
+}
+
+/**
+ * A custom calendar's secondary (or null), on this month and its later months: they cover the
+ * calendar with its manager's powers. The caller checks who may, and that the person is active.
+ */
+export async function setWorkbookSecondary(
+  workbookId: string,
+  employeeId: string | null,
+): Promise<void> {
+  const book = await db.projectWorkbook.findUniqueOrThrow({
+    where: { id: workbookId },
+    select: { projectId: true, name: true, periodMonth: true },
+  })
+  await db.projectWorkbook.updateMany({
+    where: {
+      projectId: book.projectId,
+      name: book.name,
+      OR: [
+        { id: workbookId },
+        ...(book.periodMonth ? [{ periodMonth: { gt: book.periodMonth } }] : []),
+      ],
+    },
+    data: { secondaryAssignedToId: employeeId },
+  })
 }
 
 /** Manager-only. Cascades to every tab, their columns, rows and history. */

@@ -595,6 +595,7 @@ model Employee {
   workbookTeamSeats    ProjectWorkbookTeamMember[] @relation("WorkbookTeamMembership")
   workbooksCreated     ProjectWorkbook[]           @relation("WorkbookAuthor")
   workbooksAssigned    ProjectWorkbook[]           @relation("WorkbookAssignee")
+  workbooksCovered     ProjectWorkbook[]           @relation("WorkbookSecondaryAssignee")
   sheetRowsCreated     ProjectSheetRow[]           @relation("SheetRowAuthor")
   sheetEvents          ProjectSheetEvent[]         @relation("SheetEventActor")
   timesheets           Timesheet[]
@@ -1853,33 +1854,37 @@ model ProjectSheet {
 
 /// A named set of tabs - what the Calendars UI calls a "sheet". Deleting it deletes every tab.
 model ProjectWorkbook {
-  tenantId          String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
-  id                String    @id @default(uuid()) @map("id")
-  projectId         String    @map("project_id")
-  name              String    @map("name")
+  tenantId              String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id                    String    @id @default(uuid()) @map("id")
+  projectId             String    @map("project_id")
+  name                  String    @map("name")
   /// The month this calendar edition covers, stored as its 1st day (2026-09-01 = September 2026).
   /// NULL = an undated calendar; the two unique indexes below keep both cases unique by name.
-  periodMonth       DateTime? @map("period_month") @db.Date
-  position          Int       @default(0) @map("position")
-  createdById       String?   @map("created_by_id")
+  periodMonth           DateTime? @map("period_month") @db.Date
+  position              Int       @default(0) @map("position")
+  createdById           String?   @map("created_by_id")
   /// Set when a CLIENT started this calendar from the portal. A client may delete only calendars they started.
-  createdByClientId String?   @map("created_by_client_id")
+  createdByClientId     String?   @map("created_by_client_id")
   /// The calendar manager supervising this month (not necessarily the author). Null = unassigned.
-  assignedToId      String?   @map("assigned_to_id")
+  assignedToId          String?   @map("assigned_to_id")
+  /// Always-on cover for the manager, with the same powers. A service calendar takes it from the
+  /// service's secondary owner (this month on); a custom calendar has its own.
+  secondaryAssignedToId String?   @map("secondary_assigned_to_id")
   /// Publishes this calendar to the client portal. Off by default on purpose: internal sheets must be shared
   /// deliberately.
-  isClientVisible   Boolean   @default(false) @map("is_client_visible")
+  isClientVisible       Boolean   @default(false) @map("is_client_visible")
   /// The project service (PROJECT_SERVICES code) this calendar is for; every month of the series carries it.
-  service           String?   @map("service")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  service               String?   @map("service")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
-  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdBy       Employee?             @relation("WorkbookAuthor", fields: [createdById], references: [id], onDelete: SetNull)
-  createdByClient ClientUser?           @relation("WorkbookClientAuthor", fields: [createdByClientId], references: [id], onDelete: SetNull)
-  assignedTo      Employee?             @relation("WorkbookAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  sheets          ProjectSheet[]
-  teams           ProjectWorkbookTeam[]
+  project             Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy           Employee?             @relation("WorkbookAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByClient     ClientUser?           @relation("WorkbookClientAuthor", fields: [createdByClientId], references: [id], onDelete: SetNull)
+  assignedTo          Employee?             @relation("WorkbookAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  secondaryAssignedTo Employee?             @relation("WorkbookSecondaryAssignee", fields: [secondaryAssignedToId], references: [id], onDelete: SetNull)
+  sheets              ProjectSheet[]
+  teams               ProjectWorkbookTeam[]
 
   /// One calendar of a given name per month (dated editions). Also serves the month picker's ordered read.
   @@unique([projectId, name, periodMonth])
@@ -1888,6 +1893,7 @@ model ProjectWorkbook {
   @@unique([projectId, name], name: "undatedName", map: "project_workbooks_project_id_name_undated_key", where: raw("period_month IS NULL"))
   @@index([projectId])
   @@index([assignedToId])
+  @@index([secondaryAssignedToId])
   @@index([createdByClientId])
   @@index([projectId, isClientVisible])
   @@index([projectId, service])
