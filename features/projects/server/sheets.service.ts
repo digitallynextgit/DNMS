@@ -761,8 +761,9 @@ export async function resize(
 ): Promise<void> {
   if (input.columnWidth) {
     const width = Math.min(MAX_COL_W, Math.max(MIN_COL_W, Math.round(input.columnWidth.width)))
-    await db.projectSheetColumn.update({
-      where: { id: input.columnWidth.columnId },
+    // Pinned to this sheet: the caller was checked against the sheet's project, not the column's.
+    await db.projectSheetColumn.updateMany({
+      where: { id: input.columnWidth.columnId, sheetId },
       data: { width },
     })
   }

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/server/api-handler"
 import { db } from "@/server/db"
-import { emailTemplateSchema } from "@/features/admin/schemas/email-template.schema"
+import {
+  emailTemplateSchema,
+  emailTemplateUpdateSchema,
+} from "@/features/admin/schemas/email-template.schema"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
@@ -83,7 +86,7 @@ export const PATCH = withAuth(
         return NextResponse.json({ error: "Template not found" }, { status: 404 })
       }
 
-      const result = emailTemplateSchema.partial().safeParse(rest)
+      const result = emailTemplateUpdateSchema.safeParse(rest)
       if (!result.success) {
         return NextResponse.json(
           { error: "Validation failed", details: result.error.flatten() },

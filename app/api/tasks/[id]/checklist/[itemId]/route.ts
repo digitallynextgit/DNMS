@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
-import { canAccessProject } from "@/features/projects/server/project-access"
+import { canAccessTask } from "@/features/projects/server/project-access"
 import type { Session } from "next-auth"
 
 // Proves the item belongs to the task in the URL and the caller may access its project.
@@ -13,13 +13,14 @@ async function authorizeChecklistItem(
 ): Promise<{ ok: true } | { ok: false; res: NextResponse }> {
   const item = await db.taskChecklistItem.findUnique({
     where: { id: itemId },
-    select: { taskId: true, task: { select: { projectId: true } } },
+    select: { taskId: true },
   })
   if (!item || item.taskId !== taskId) {
     return { ok: false, res: NextResponse.json({ error: "Not found" }, { status: 404 }) }
   }
-  // Adhoc tasks (no project) are open to any staffer; project tasks need project access.
-  if (item.task.projectId && !(await canAccessProject(session, item.task.projectId))) {
+  // The same rule as listing and adding items: project access, or (an adhoc task) its assignee,
+  // creator or the assignee's manager.
+  if (!(await canAccessTask(session, taskId))) {
     return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
   }
   return { ok: true }

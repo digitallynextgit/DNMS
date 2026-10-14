@@ -15,3 +15,10 @@ export const emailTemplateSchema = z.object({
 })
 
 export type EmailTemplateInput = z.infer<typeof emailTemplateSchema>
+
+// zod 4's .partial() still applies .default(): without the overrides an edit would clear the merge
+// fields and switch a disabled template back on.
+export const emailTemplateUpdateSchema = emailTemplateSchema.partial().extend({
+  mergeFields: z.array(z.string()).optional(),
+  isActive: z.boolean().optional(),
+})

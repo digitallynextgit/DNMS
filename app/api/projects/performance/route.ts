@@ -40,9 +40,12 @@ export const GET = withSession(
 
       // Aggregated in the DB, grouped by (assignee, project): summary, byEmployee and byProject are cheap
       // roll-ups of the same result, and the NULL groups drop out of the per-employee/per-project ones.
+      // Raw SQL skips the per-company Prisma guard (server/tenant-guard.ts): scope to this company here,
+      // or an admin's counts would include every company's tasks.
+      const tenantSql = Prisma.sql`t.tenant_id = ${session.user.tenantId}`
       const scopeSql = isAdmin
-        ? Prisma.sql`TRUE`
-        : Prisma.sql`(tm.manager_id = ${session.user.id} OR p.owner_id = ${session.user.id} OR t.assignee_id = ${session.user.id})`
+        ? tenantSql
+        : Prisma.sql`${tenantSql} AND (tm.manager_id = ${session.user.id} OR p.owner_id = ${session.user.id} OR t.assignee_id = ${session.user.id})`
       const projectSql = projectId ? Prisma.sql`t.project_id = ${projectId}` : Prisma.sql`TRUE`
       const fromSql = from
         ? Prisma.sql`t.due_date >= ${new Date(`${from}T00:00:00.000Z`)}`

@@ -21,7 +21,8 @@ export const createGroupSchema = z.object({
   order: z.number().int().min(0).optional(),
   status: status.optional(),
 })
-export const updateGroupSchema = createGroupSchema.partial()
+// zod 4's .partial() still applies .default(): re-declare tone so an edit doesn't repaint it teal.
+export const updateGroupSchema = createGroupSchema.partial().extend({ tone: tone.optional() })
 
 export const createSubDepartmentSchema = z.object({
   groupId: z.string().min(1),
@@ -32,7 +33,10 @@ export const createSubDepartmentSchema = z.object({
   order: z.number().int().min(0).optional(),
   status: status.optional(),
 })
-export const updateSubDepartmentSchema = createSubDepartmentSchema.partial().omit({ groupId: true })
+export const updateSubDepartmentSchema = createSubDepartmentSchema
+  .partial()
+  .omit({ groupId: true })
+  .extend({ tone: tone.optional() })
 
 export const createRoleSchema = z.object({
   subDepartmentId: z.string().min(1),

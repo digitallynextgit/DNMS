@@ -22,7 +22,11 @@ export const clientCreateSchema = z.object({
 })
 export type ClientCreateInput = z.infer<typeof clientCreateSchema>
 
-export const clientUpdateSchema = clientCreateSchema.partial()
+// zod 4's .partial() still applies .default(): without the override an edit that leaves status out
+// (changing just the account manager, say) would reactivate an INACTIVE client.
+export const clientUpdateSchema = clientCreateSchema.partial().extend({
+  status: z.enum(CLIENT_STATUSES).optional(),
+})
 export type ClientUpdateInput = z.infer<typeof clientUpdateSchema>
 
 export const clientListQuerySchema = z.object({

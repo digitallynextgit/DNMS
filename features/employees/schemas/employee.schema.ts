@@ -82,7 +82,11 @@ export const createEmployeeSchema = z.object({
 
 export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>
 
-export const updateEmployeeSchema = createEmployeeSchema.partial()
+// zod 4's .partial() still applies .default(): without the override every edit (phone, address...)
+// would reset the employment type to FULL_TIME and recompute the leave balances.
+export const updateEmployeeSchema = createEmployeeSchema.partial().extend({
+  employmentType: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"]).optional(),
+})
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>
 
 export const employeeFilterSchema = z.object({
