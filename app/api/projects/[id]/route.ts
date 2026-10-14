@@ -6,7 +6,17 @@ import {
   withProjectManager,
   withProjectAccess,
 } from "@/features/projects/server/project-access"
-import { syncAccountManagerTeam } from "@/features/projects/server/project-teams"
+import {
+  addToAccountManagerTeam,
+  syncAccountManagerTeam,
+} from "@/features/projects/server/project-teams"
+import {
+  LeadChangeError,
+  leadInputFrom,
+  planLeadChange,
+} from "@/features/projects/server/project-leads.service"
+import { notifyLeadAssigned } from "@/features/projects/server/owner-notifications"
+import { PROJECT_LEADS_SELECT } from "@/features/projects/lib/project-leads"
 import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
 import { shortNameTaken } from "@/features/projects/server/project-create.service"
 import {
@@ -23,13 +33,16 @@ import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS, PROJECT_STAGE_LABELS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
+const PERSON = { id: true, firstName: true, lastName: true, profilePhoto: true } as const
+
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const project = await db.project.findUnique({
         where: { id: ctx.params.id },
         include: {
-          owner: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
+          owner: { select: PERSON },
+          secondaryAccountManager: { select: PERSON },
           client: { select: { id: true, name: true, slug: true, code: true } },
           teams: {
             include: {
@@ -77,8 +90,9 @@ export const GET = withProjectAccess(
   },
 )
 
-// PATCH /api/projects/[id] - update a project (name, status, priority, phase, client, dates, budget, archive).
-// Change the Account Manager with accountManagerId (an employee id); ownerId is accepted as an alias.
+// PATCH /api/projects/[id] - update a project (name, status, priority, phase, client, dates, budget, archive)
+// and its Account Managers: accountManagerId (alias ownerId; admins only) and secondaryAccountManagerId
+// (the primary or an admin; null clears).
 export const PATCH = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -94,14 +108,21 @@ export const PATCH = withProjectManager(
         clientId,
         stage,
       } = body
-      // The project's own data calls this field `ownerId`, so a caller that read
-      // the project first (the AI connector, an integration) naturally sends that.
-      // Ignoring it would answer 200 while changing nothing.
-      // A project always has an Account Manager (owner_id is NOT NULL), so only a
-      // real employee id changes it; anything else leaves it as it is.
-      const rawManager = body.accountManagerId !== undefined ? body.accountManagerId : body.ownerId
-      const accountManagerId: string | undefined =
-        typeof rawManager === "string" && rawManager.trim() ? rawManager.trim() : undefined
+      const current = await db.project.findUnique({
+        where: { id: ctx.params.id },
+        select: PROJECT_LEADS_SELECT,
+      })
+      if (!current) return NextResponse.json({ error: "Project not found" }, { status: 404 })
+      // Its Account Managers (lib/project-leads.ts): checked before anything else is touched.
+      let leads
+      try {
+        leads = await planLeadChange(session, current, leadInputFrom(body))
+      } catch (e) {
+        if (e instanceof LeadChangeError) {
+          return NextResponse.json({ error: e.message }, { status: e.status })
+        }
+        throw e
+      }
 
       // Lifecycle "Phase": a known stage, or null/"" to clear it.
       if (stage && !(stage in PROJECT_STAGE_LABELS)) {
@@ -129,19 +150,6 @@ export const PATCH = withProjectManager(
       }
       const services = body.services === undefined ? undefined : normaliseServices(body.services)
 
-      if (accountManagerId) {
-        const emp = await db.employee.findUnique({
-          where: { id: accountManagerId },
-          select: { id: true, isActive: true },
-        })
-        if (!emp) return NextResponse.json({ error: "Account Manager not found" }, { status: 422 })
-        if (!emp.isActive)
-          return NextResponse.json(
-            { error: "Account Manager is not an active employee" },
-            { status: 422 },
-          )
-      }
-
       const project = await db.project.update({
         where: { id: ctx.params.id },
         data: {
@@ -157,7 +165,7 @@ export const PATCH = withProjectManager(
           ...(startDate !== undefined && { startDate: startDate ? new Date(startDate) : null }),
           ...(budget !== undefined && { budget: budget ? parseFloat(budget) : null }),
           ...(isArchived !== undefined && { isArchived }),
-          ...(accountManagerId !== undefined && { ownerId: accountManagerId }),
+          ...leads.data,
           ...(clientId !== undefined && { clientId: clientId || null }),
         },
       })
@@ -170,10 +178,12 @@ export const PATCH = withProjectManager(
         )
       }
 
-      if (accountManagerId) {
-        await syncAccountManagerTeam(project.id, accountManagerId)
-        syncProjectFolderAccessAsync(project.id)
+      if (leads.data.ownerId) await syncAccountManagerTeam(project.id, leads.data.ownerId)
+      if (leads.data.secondaryAccountManagerId) {
+        await addToAccountManagerTeam(project.id, leads.data.secondaryAccountManagerId)
       }
+      // Both Account Managers open the project's Drive folder.
+      if (Object.keys(leads.data).length > 0) syncProjectFolderAccessAsync(project.id)
 
       // Filing under a client moves this project's unaffiliated portal logins to it (so they show on its
       // Contacts tab); logins at another company are left alone.
@@ -199,11 +209,16 @@ export const PATCH = withProjectManager(
           stage,
           startDate,
           budget,
-          accountManagerId,
+          ...leads.data,
           clientId,
           isArchived,
         } as object,
       })
+      await notifyLeadAssigned({
+        projectId: project.id,
+        assigned: leads.assigned,
+        actorId: session.user.id,
+      }).catch((e) => console.error("[PROJECT_LEADS_NOTIFY]", e))
 
       return NextResponse.json({ data: project })
     } catch (error) {

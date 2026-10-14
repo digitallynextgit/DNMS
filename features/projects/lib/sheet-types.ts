@@ -186,7 +186,11 @@ export interface WorkbookIndexEntry {
 }
 
 /** One calendar in FULL: the grid, plus the team plan. Staff only. */
-export type StaffWorkbook = SheetWorkbook & { teams: WorkbookTeam[] }
+export type StaffWorkbook = SheetWorkbook & {
+  teams: WorkbookTeam[]
+  /** The service's secondary owner when its owner runs this calendar: they can plan it too. */
+  secondaryOwner: SheetAssignee | null
+}
 
 /** Coerce a cell to something storable: NUMBER/CHECKBOX normalised from strings, "" -> null. */
 export function normalizeCell(type: SheetColumnType, raw: unknown): CellValue {

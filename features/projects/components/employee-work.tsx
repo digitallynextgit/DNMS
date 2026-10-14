@@ -106,6 +106,31 @@ function DueDate({ date, open, today }: { date: string | null; open: boolean; to
   )
 }
 
+/** The Account Manager cell: "You" when it's the viewer, and a note when they're the secondary. */
+function LeadCell({
+  person,
+  primary,
+  secondary,
+  you,
+}: {
+  person: { firstName: string; lastName: string } | null
+  primary: boolean
+  secondary: boolean
+  you: string
+}) {
+  if (primary) return <span className="font-medium">{you}</span>
+  return (
+    <span className="flex flex-col text-xs">
+      {person ? (
+        `${person.firstName} ${person.lastName}`
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      )}
+      {secondary && <span className="text-primary text-[11px] font-medium">{you}: secondary</span>}
+    </span>
+  )
+}
+
 function TeamsDone({ progress }: { progress: CalendarProgress }) {
   if (progress.teams === 0)
     return <span className="text-muted-foreground text-xs">No plan yet</span>
@@ -175,6 +200,11 @@ export function EmployeeWorkView({ employeeId }: { employeeId?: string }) {
         <span className="flex items-center gap-2">
           <ServiceChip code={s.service} />
           <span className="text-muted-foreground text-xs">{serviceInfo(s.service)?.name}</span>
+          {s.secondary && (
+            <span className="text-primary text-[11px] font-medium" title="Covers for the owner">
+              secondary
+            </span>
+          )}
         </span>
       ),
     },
@@ -311,14 +341,14 @@ export function EmployeeWorkView({ employeeId }: { employeeId?: string }) {
     {
       header: "Account Manager",
       sortValue: (p) => `${p.accountManager.firstName} ${p.accountManager.lastName}`,
-      cell: (p) =>
-        p.isAccountManager ? (
-          <span className="font-medium">{self ? "You" : who}</span>
-        ) : (
-          <span className="text-xs">
-            {p.accountManager.firstName} {p.accountManager.lastName}
-          </span>
-        ),
+      cell: (p) => (
+        <LeadCell
+          person={p.accountManager}
+          primary={p.isAccountManager}
+          secondary={p.leadRoles.includes("SECONDARY_ACCOUNT_MANAGER")}
+          you={self ? "You" : who}
+        />
+      ),
     },
     {
       header: self ? "Your teams" : "Teams",

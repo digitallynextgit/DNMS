@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
+import { PROJECT_LEADS_SELECT, accountManagerIds } from "@/features/projects/lib/project-leads"
 import { withProjectAccess } from "@/features/projects/server/project-access"
 import { logActivity } from "@/features/projects/server/activity"
 import { groupReactions } from "@/server/reactions"
@@ -17,7 +18,7 @@ const AUTHOR_SELECT = {
   designation: { select: { title: true } },
 }
 
-/** Keeps only ids on the project (Account Manager or any team member), so mentions can't notify outsiders. */
+/** Keeps only ids on the project (an Account Manager or any team member), so mentions can't notify outsiders. */
 export async function resolveProjectMemberIds(
   projectId: string,
   candidateIds: string[],
@@ -27,13 +28,12 @@ export async function resolveProjectMemberIds(
   const project = await db.project.findUnique({
     where: { id: projectId },
     select: {
-      ownerId: true,
+      ...PROJECT_LEADS_SELECT,
       teams: { select: { members: { select: { employeeId: true } } } },
     },
   })
   if (!project) return []
-  const valid = new Set<string>()
-  if (project.ownerId) valid.add(project.ownerId)
+  const valid = new Set<string>(accountManagerIds(project))
   for (const t of project.teams) for (const m of t.members) valid.add(m.employeeId)
   return ids.filter((id) => valid.has(id))
 }

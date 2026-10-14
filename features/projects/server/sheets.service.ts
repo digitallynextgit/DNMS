@@ -333,7 +333,20 @@ export async function getWorkbook(
     teams.map((t) => ({ name: t.team.name, row: toWorkbookTeam(t) })),
   ).map((t) => t.row)
 
-  return { ...toWorkbook(book), teams: ordered }
+  // A service calendar run by the service's owner is covered by its secondary owner too.
+  const cover =
+    book.service && book.assignedToId
+      ? await db.projectServiceOwner.findFirst({
+          where: { projectId, service: book.service, employeeId: book.assignedToId },
+          select: {
+            secondaryEmployee: {
+              select: { id: true, firstName: true, lastName: true, profilePhoto: true },
+            },
+          },
+        })
+      : null
+
+  return { ...toWorkbook(book), teams: ordered, secondaryOwner: cover?.secondaryEmployee ?? null }
 }
 
 /** Every workbook on the project, each with its tabs (columns and rows included). */

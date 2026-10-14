@@ -27,6 +27,7 @@ import { ClientFormDialog } from "@/features/clients/components/client-form-dial
 import { ProjectLogoPicker } from "./project-logo-picker"
 import { ServicePicker } from "./service-chips"
 import { SHORT_NAME_MAX } from "../lib/project-services"
+import { LEAD_LABEL } from "../lib/project-leads"
 import {
   PERMISSIONS,
   PROJECT_STAGE_LABELS,
@@ -49,7 +50,11 @@ interface ProjectFormValues {
   stage: string
   startDate: string // labelled "Onboarding Date" in UI
   budget: string
+  /** The Account Managers (lib/project-leads.ts); "" = not set. */
   accountManagerId: string
+  secondaryAccountManagerId: string
+  /** Display only: names for them, so a locked picker can show who it is. */
+  leadNames?: Record<string, string>
   /** The company this is delivered for. Empty = internal. */
   clientId: string
   /** Display only: the chosen client's name, so the picker can show it before a search. */
@@ -70,8 +75,11 @@ const EMPTY_FORM: ProjectFormValues = {
   startDate: "",
   budget: "",
   accountManagerId: "",
+  secondaryAccountManagerId: "",
   clientId: "",
 }
+
+const LEAD_KEYS = ["accountManagerId", "secondaryAccountManagerId"] as const
 
 interface Props {
   open: boolean
@@ -93,8 +101,15 @@ export function ProjectFormDialog({
   onSuccess,
 }: Props) {
   const qc = useQueryClient()
-  const { can } = usePermissions()
+  const { can, userId } = usePermissions()
   const canSeeBudget = can(PERMISSIONS.PROJECT_WRITE)
+  // The Account Manager (as they are when it opened) or an admin changes both: hands the project
+  // over, or picks the secondary. The secondary changes neither.
+  const opened = { ...EMPTY_FORM, ...initial }
+  const mayChangeAms =
+    can(PERMISSIONS.PROJECT_WRITE) ||
+    mode === "create" ||
+    (!!userId && opened.accountManagerId === userId)
   const canSeeClients = can(PERMISSIONS.CLIENT_READ)
   const canAddClient = can(PERMISSIONS.CLIENT_WRITE)
 
@@ -114,14 +129,14 @@ export function ProjectFormDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  // Resolve the selected manager's name for the combobox (edit mode only has an id).
+  // Resolve the leads' names for the comboboxes (edit mode only has ids).
   const { data: empsData } = useEmployees({ status: "ACTIVE", limit: 100 }, { enabled: open })
-  const selectedManager = (empsData?.data ?? []).find((e) => e.id === form.accountManagerId)
-  const managerLabel = useMemo(
-    () =>
-      selectedManager ? `${selectedManager.firstName} ${selectedManager.lastName}` : undefined,
-    [selectedManager],
-  )
+  const names = useMemo(() => {
+    const map = new Map<string, string>(Object.entries(initial?.leadNames ?? {}))
+    for (const e of empsData?.data ?? []) map.set(e.id, `${e.firstName} ${e.lastName}`)
+    return map
+  }, [empsData, initial?.leadNames])
+  const nameOf = (id: string) => (id ? names.get(id) : undefined)
 
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
@@ -188,7 +203,10 @@ export function ProjectFormDialog({
       priority: form.priority,
       stage: form.stage || null,
       startDate: form.startDate || null,
-      accountManagerId: form.accountManagerId,
+    }
+    // Only the Account Managers that changed, so nobody trips a rule over a field they didn't touch.
+    for (const key of LEAD_KEYS) {
+      if (mode === "create" || form[key] !== opened[key]) payload[key] = form[key] || null
     }
     // Only someone who can see the picker sends clientId, so an edit never silently clears it.
     if (canSeeClients) payload.clientId = form.clientId || null
@@ -317,18 +335,28 @@ export function ProjectFormDialog({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Account Manager *</Label>
+          <div className="space-y-3 rounded-md border p-3">
             <p className="text-muted-foreground text-xs">
-              The lead manager under whom all teams will be created for this project.
+              Both can manage the whole project. The Account Manager (or an admin) picks the
+              secondary, who covers whenever they are away, and can hand the project over.
             </p>
-            <EmployeeCombobox
-              value={form.accountManagerId || undefined}
-              onChange={(v) => setForm((f) => ({ ...f, accountManagerId: v ?? "" }))}
-              initialLabel={managerLabel}
-              placeholder="Search employees..."
-              modal
-            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <LeadPicker
+                label={`${LEAD_LABEL.ACCOUNT_MANAGER} *`}
+                value={form.accountManagerId}
+                onChange={(v) => setForm((f) => ({ ...f, accountManagerId: v }))}
+                nameOf={nameOf}
+                lockedReason={mayChangeAms ? null : "changed by the Account Manager or an admin"}
+              />
+              <LeadPicker
+                label={LEAD_LABEL.SECONDARY_ACCOUNT_MANAGER}
+                value={form.secondaryAccountManagerId}
+                onChange={(v) => setForm((f) => ({ ...f, secondaryAccountManagerId: v }))}
+                nameOf={nameOf}
+                excludeId={form.accountManagerId}
+                lockedReason={mayChangeAms ? null : "picked by the Account Manager or an admin"}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -441,5 +469,43 @@ export function ProjectFormDialog({
         />
       )}
     </>
+  )
+}
+
+/** One lead's picker, or a read-only line when this person may not change it. */
+function LeadPicker({
+  label,
+  value,
+  onChange,
+  nameOf,
+  excludeId,
+  lockedReason,
+}: {
+  label: string
+  value: string
+  onChange: (id: string) => void
+  nameOf: (id: string) => string | undefined
+  excludeId?: string
+  /** Why it can't be changed here; null = editable. */
+  lockedReason: string | null
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      {lockedReason ? (
+        <div className="bg-muted/40 rounded-md border px-3 py-2 text-sm">
+          {nameOf(value) ?? (value ? "Someone" : "Not set")}
+          <span className="text-muted-foreground block text-[11px]">{lockedReason}</span>
+        </div>
+      ) : (
+        <EmployeeCombobox
+          value={value || undefined}
+          onChange={(v) => onChange(v ?? "")}
+          initialLabel={nameOf(value)}
+          excludeId={excludeId || undefined}
+          placeholder="Search employees..."
+        />
+      )}
+    </div>
   )
 }

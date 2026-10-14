@@ -512,7 +512,8 @@ function AssigneeChip({ person }: { person: SheetAssignee | null }) {
 
 /**
  * The calendar's owner: one person answering for the month. A service calendar's owner is the
- * service's owner, so only people on the project can be picked; any active employee otherwise.
+ * service's owner, so only people on the project can be picked; any active employee otherwise. The
+ * service's secondary owner, who covers for them, shows alongside.
  */
 function WorkbookAssignee({
   projectId,
@@ -522,7 +523,11 @@ function WorkbookAssignee({
   pending,
 }: {
   projectId: string
-  workbook: { assignedTo: SheetAssignee | null; service: string | null }
+  workbook: {
+    assignedTo: SheetAssignee | null
+    service: string | null
+    secondaryOwner?: SheetAssignee | null
+  }
   canStaff: boolean
   onAssign: (employeeId: string | null) => void
   pending: boolean
@@ -537,11 +542,21 @@ function WorkbookAssignee({
     designation?: { title: string } | null
   }> = (workbook.service ? onProject.data?.data : anyone.data?.data) ?? []
 
+  const secondary = workbook.secondaryOwner ? (
+    <span
+      className="text-muted-foreground flex items-center gap-1 text-xs"
+      title="Secondary owner: covers this calendar whenever the owner is away"
+    >
+      + <AssigneeChip person={workbook.secondaryOwner} />
+    </span>
+  ) : null
+
   if (!canStaff) {
     return (
       <span className="flex items-center gap-1.5 px-2" title="Only a manager can change this">
-        <span className="text-muted-foreground text-xs">Owner</span>
+        <span className="text-muted-foreground text-xs">Calendar owner</span>
         <AssigneeChip person={workbook.assignedTo} />
+        {secondary}
       </span>
     )
   }
@@ -560,8 +575,9 @@ function WorkbookAssignee({
       >
         {/* A div, not a span: the trigger line-clamps span children, which stacks the chip. */}
         <div className="flex min-w-0 items-center gap-1.5">
-          <span className="text-muted-foreground text-xs">Owner</span>
+          <span className="text-muted-foreground text-xs">Calendar owner</span>
           <AssigneeChip person={workbook.assignedTo} />
+          {secondary}
         </div>
       </SelectTrigger>
       <SelectContent align="end" className="max-h-72">
@@ -1833,7 +1849,9 @@ export function ProjectSheetSection({
           projectId={projectId}
           workbook={workbook}
           projectTeams={projectTeams}
-          canPlanAll={canManage || workbook.assignedTo?.id === me}
+          canPlanAll={
+            canManage || workbook.assignedTo?.id === me || workbook.secondaryOwner?.id === me
+          }
           managedTeamIds={managedTeamIds}
           myTeamIds={myTeamIds}
           focusTeamId={planFocusTeamId}

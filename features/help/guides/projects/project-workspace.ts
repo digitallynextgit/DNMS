@@ -134,8 +134,8 @@ export const projectWorkspaceGuide: HelpGuide = {
         },
         {
           text: {
-            en: "The new owner gets a notification. If an owner leaves the project's teams, their service goes back to having no owner.",
-            hi: "नए owner को notification मिलता है। अगर owner प्रोजेक्ट की टीमों से हट जाए, तो उसकी service का फिर से कोई owner नहीं रहता।",
+            en: "The new owner gets a notification. Under the owner, the owner (or the Account Manager or a project admin) can add a Secondary owner, who covers the service and its calendar with the same powers whenever the owner is away. If the owner leaves the project's teams, the secondary takes over; with no secondary, the service goes back to having no owner.",
+            hi: "नए owner को notification मिलता है। owner के नीचे, owner (या Account Manager या प्रोजेक्ट एडमिन) एक Secondary owner जोड़ सकते हैं, जो owner की गैरमौजूदगी में उसी अधिकार के साथ service और उसका कैलेंडर संभालते हैं। अगर owner प्रोजेक्ट की टीमों से हट जाए, तो secondary उसकी जगह ले लेते हैं; secondary न हो तो service का फिर से कोई owner नहीं रहता।",
           },
         },
       ],

@@ -103,6 +103,13 @@ export function serviceInfo(code: string) {
 export interface ServiceOwner {
   service: string
   employee: { id: string; firstName: string; lastName: string; profilePhoto: string | null }
+  /** Always-on cover for the owner: the same powers on the service's calendars. */
+  secondaryEmployee?: {
+    id: string
+    firstName: string
+    lastName: string
+    profilePhoto: string | null
+  } | null
 }
 
 /** "SEO (Priya Sharma), Web" - for exports and other plain-text places. */

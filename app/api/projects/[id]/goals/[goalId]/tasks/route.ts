@@ -14,7 +14,9 @@ export const POST = withProjectAccess(
     const projectId = ctx.params.id!
     if (!(await canStaffTeam(session, projectId))) {
       return NextResponse.json(
-        { error: "Only a project admin, the Account Manager or a team manager can do this" },
+        {
+          error: "Only a project admin, an Account Manager or a team manager can do this",
+        },
         { status: 403 },
       )
     }

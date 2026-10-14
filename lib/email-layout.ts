@@ -402,15 +402,20 @@ export function renderOwnerAssignedEmail(input: {
   serviceName?: string | null
   /** The calendar they now run, e.g. "Social Media Calendar". */
   calendarName?: string | null
+  /** They are the service's secondary owner, covering for its owner. */
+  secondary?: boolean
   url?: string
 }): { subject: string; html: string; text: string } {
   const { recipientFirstName, assignedByName, projectName, serviceName, calendarName, url } = input
   const what = serviceName ?? calendarName ?? "a calendar"
-  const subject = `You're the owner of ${what} - ${projectName}`
+  const role = input.secondary ? "the secondary owner" : "the owner"
+  const subject = `You're ${role} of ${what} - ${projectName}`
   const para = "margin:0 0 16px; font-size:15px; line-height:1.7; color:#374151;"
-  const duty = serviceName
-    ? "You answer for this service on the project and run its calendar each month: planning it, keeping it filled in and seeing the work through."
-    : "You answer for this calendar: planning it, keeping it filled in and seeing the work through."
+  const duty = input.secondary
+    ? "You cover for its owner with the same say over its calendar each month, so the work keeps moving whenever they are away."
+    : serviceName
+      ? "You answer for this service on the project and run its calendar each month: planning it, keeping it filled in and seeing the work through."
+      : "You answer for this calendar: planning it, keeping it filled in and seeing the work through."
 
   const body = `
     <h1 style="margin:0 0 14px; font-size:20px; font-weight:600; color:#111827;">You have a new responsibility</h1>
@@ -418,7 +423,7 @@ export function renderOwnerAssignedEmail(input: {
     <p style="margin:0 0 18px; font-size:15px; color:#111827;">Hi ${escapeHtml(recipientFirstName)},</p>
 
     <p style="${para}">
-      <strong style="color:#111827;">${escapeHtml(assignedByName)}</strong> has made you the owner of
+      <strong style="color:#111827;">${escapeHtml(assignedByName)}</strong> has made you ${role} of
       <strong style="color:#111827;">${escapeHtml(what)}</strong> on
       <strong style="color:#111827;">${escapeHtml(projectName)}</strong>.
     </p>
@@ -449,7 +454,7 @@ export function renderOwnerAssignedEmail(input: {
     "",
     `Hi ${recipientFirstName},`,
     "",
-    `${assignedByName} has made you the owner of ${what} on ${projectName}.`,
+    `${assignedByName} has made you ${role} of ${what} on ${projectName}.`,
     duty,
     "",
     `Project: ${projectName}`,

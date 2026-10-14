@@ -8,6 +8,7 @@ import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { resolveProjectId, canAccessProject } from "./project-access"
 import { SERVICE_OWNER_SELECT } from "./project-service-owners"
 import { kickoffProgressFor } from "./kickoff.service"
+import { isProjectLead, leadConditions } from "../lib/project-leads"
 
 export interface ListProjectsOptions {
   status?: string
@@ -16,6 +17,8 @@ export interface ListProjectsOptions {
   page?: number | string | null
   limit?: number | string | null
 }
+
+const PERSON = { id: true, firstName: true, lastName: true, profilePhoto: true } as const
 
 /** Permission-scoped project list, shared by GET /api/projects and the page prefetch. */
 export async function listProjects(opts: ListProjectsOptions, session: Session) {
@@ -26,11 +29,11 @@ export async function listProjects(opts: ListProjectsOptions, session: Session) 
   const where: Record<string, unknown> = {}
   if (status) where.status = status
   if (opts.clientId) where.clientId = opts.clientId
-  // project:write sees all; everyone else only projects they own or are on. `mine` only narrows.
+  // project:write sees all; everyone else only projects they are AM of or on. `mine` only narrows.
   const canViewAll = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
   if (!canViewAll || mine) {
     where.OR = [
-      { ownerId: session.user.id },
+      ...leadConditions(session.user.id),
       { teams: { some: { members: { some: { employeeId: session.user.id } } } } },
     ]
   }
@@ -42,7 +45,8 @@ export async function listProjects(opts: ListProjectsOptions, session: Session) 
       take,
       orderBy: { createdAt: "desc" },
       include: {
-        owner: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
+        owner: { select: PERSON },
+        secondaryAccountManager: { select: PERSON },
         client: { select: { id: true, name: true, slug: true } },
         teams: {
           select: {
@@ -65,8 +69,9 @@ export async function listProjects(opts: ListProjectsOptions, session: Session) 
   ])
 
   // Once per person: someone can be on several of the project's teams.
-  // Kickoff progress only for people who can manage the project: it is the AM's own checklist.
-  const canManage = (p: { ownerId: string }) => canViewAll || p.ownerId === session.user.id
+  // Kickoff progress only for people who can manage the project (admins and its Account Managers).
+  const canManage = (p: Parameters<typeof isProjectLead>[0]) =>
+    canViewAll || isProjectLead(p, session.user.id)
   const kickoff = await kickoffProgressFor(projects.filter(canManage).map((p) => p.id))
   const decorated = projects.map((p) => ({
     kickoff: canManage(p) ? (kickoff[p.id] ?? null) : null,

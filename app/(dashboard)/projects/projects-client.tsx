@@ -28,8 +28,11 @@ import {
   ProjectLogo,
   ProjectServicesDialog,
   ServiceChips,
+  isProjectLead,
+  leadFormValues,
   projectHref,
   servicesText,
+  type LeadPerson,
   type ServiceOwner,
 } from "@/features/projects"
 import {
@@ -60,7 +63,11 @@ interface Project {
   startDate: string | null
   endDate: string | null
   budget: number | null
-  owner: { id: string; firstName: string; lastName: string; profilePhoto: string | null }
+  /** The Account Managers (lib/project-leads.ts); `owner` is the primary. */
+  ownerId: string
+  owner: LeadPerson
+  secondaryAccountManagerId: string | null
+  secondaryAccountManager: LeadPerson | null
   /** The company this is delivered for. Null for internal projects. */
   client: { id: string; name: string; slug: string | null } | null
   members: {
@@ -110,9 +117,9 @@ export function ProjectsClient() {
     [allProjects, service],
   )
 
-  // The account manager (owner) can manage their own project even without project:write.
-  const canManageProject = (p: Project) => canWrite || p.owner.id === userId
-  const showBudget = canWrite || projects.some((p) => p.owner.id === userId)
+  // Its Account Managers (primary and secondary) manage a project even without project:write.
+  const canManageProject = (p: Project) => canWrite || (!!userId && isProjectLead(p, userId))
+  const showBudget = canWrite || projects.some((p) => !!userId && isProjectLead(p, userId))
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<Project | null>(null)
@@ -143,7 +150,15 @@ export function ProjectsClient() {
     (p) =>
       (status === ALL_STATUSES || p.status === status) &&
       (!needle ||
-        [p.name, p.code, p.shortName, p.client?.name, `${p.owner.firstName} ${p.owner.lastName}`]
+        [
+          p.name,
+          p.code,
+          p.shortName,
+          p.client?.name,
+          `${p.owner.firstName} ${p.owner.lastName}`,
+          p.secondaryAccountManager &&
+            `${p.secondaryAccountManager.firstName} ${p.secondaryAccountManager.lastName}`,
+        ]
           .filter(Boolean)
           .some((v) => v!.toLowerCase().includes(needle))),
   )
@@ -191,19 +206,7 @@ export function ProjectsClient() {
     {
       header: "Account Manager",
       sortValue: (p) => `${p.owner.firstName} ${p.owner.lastName}`.trim(),
-      cell: (p) => (
-        <div className="flex items-center gap-1.5">
-          <AvatarDisplay
-            src={p.owner.profilePhoto}
-            firstName={p.owner.firstName}
-            lastName={p.owner.lastName}
-            size="xs"
-          />
-          <span className="text-xs">
-            {p.owner.firstName} {p.owner.lastName}
-          </span>
-        </div>
-      ),
+      cell: (p) => <LeadCell primary={p.owner} secondary={p.secondaryAccountManager} />,
     },
     {
       header: "Code",
@@ -424,12 +427,43 @@ export function ProjectsClient() {
             stage: editing.stage ?? "",
             startDate: editing.startDate ? editing.startDate.split("T")[0] : "",
             budget: editing.budget != null ? String(editing.budget) : "",
-            accountManagerId: editing.owner.id,
+            ...leadFormValues(editing),
             clientId: editing.client?.id ?? "",
             clientName: editing.client?.name,
           }}
         />
       )}
+    </div>
+  )
+}
+
+/** The Account Manager with their secondary underneath. */
+function LeadCell({
+  primary,
+  secondary,
+}: {
+  primary: LeadPerson | null
+  secondary: LeadPerson | null
+}) {
+  if (!primary) return <span className="text-muted-foreground text-xs">Not set</span>
+  return (
+    <div className="flex items-center gap-1.5">
+      <AvatarDisplay
+        src={primary.profilePhoto}
+        firstName={primary.firstName}
+        lastName={primary.lastName}
+        size="xs"
+      />
+      <span className="flex flex-col text-xs leading-4">
+        <span>
+          {primary.firstName} {primary.lastName}
+        </span>
+        {secondary && (
+          <span className="text-muted-foreground text-[11px]">
+            + {secondary.firstName} {secondary.lastName}
+          </span>
+        )}
+      </span>
     </div>
   )
 }

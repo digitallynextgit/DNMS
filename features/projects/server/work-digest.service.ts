@@ -1,6 +1,7 @@
 import "server-only"
 
 import { db } from "@/server/db"
+import { PROJECT_LEADS_SELECT, accountManagerIds } from "@/features/projects/lib/project-leads"
 import { createNotifications } from "@/lib/notifications"
 import { addEmailJob } from "@/lib/queue"
 import { detailRow, wrapEmail, BRAND_NAME } from "@/lib/email-layout"
@@ -106,7 +107,7 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
     select: {
       id: true,
       name: true,
-      ownerId: true,
+      ...PROJECT_LEADS_SELECT,
       teams: { select: { id: true, managerId: true } },
     },
   })
@@ -131,7 +132,8 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
   }
 
   for (const project of projects) {
-    addTo(projectManagers, project.id, project.ownerId)
+    // Both Account Managers hear the whole project's news.
+    for (const lead of accountManagerIds(project)) addTo(projectManagers, project.id, lead)
     for (const team of project.teams) {
       if (team.managerId) addTo(teamManagers, team.id, team.managerId)
     }

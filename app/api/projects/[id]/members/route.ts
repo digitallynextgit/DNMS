@@ -3,7 +3,9 @@ import { db } from "@/server/db"
 import { withProjectAccess } from "@/features/projects/server/project-access"
 import type { Session } from "next-auth"
 
-// Account Manager + every team member, deduped - powers the @mention picker.
+// Both Account Managers + every team member, deduped - powers the @mention picker.
+const PERSON = { id: true, firstName: true, lastName: true, profilePhoto: true } as const
+
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
@@ -11,9 +13,8 @@ export const GET = withProjectAccess(
       const project = await db.project.findUnique({
         where: { id: projectId },
         select: {
-          owner: {
-            select: { id: true, firstName: true, lastName: true, profilePhoto: true },
-          },
+          owner: { select: PERSON },
+          secondaryAccountManager: { select: PERSON },
           teams: {
             select: {
               members: {
@@ -36,7 +37,8 @@ export const GET = withProjectAccess(
       if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 })
 
       const byId = new Map<string, unknown>()
-      if (project.owner) byId.set(project.owner.id, { ...project.owner, isManager: true })
+      const leads = [project.owner, project.secondaryAccountManager]
+      for (const lead of leads) if (lead) byId.set(lead.id, { ...lead, isManager: true })
       for (const team of project.teams) {
         for (const m of team.members) {
           if (!byId.has(m.employee.id)) byId.set(m.employee.id, m.employee)

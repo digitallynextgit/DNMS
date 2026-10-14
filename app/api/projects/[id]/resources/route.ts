@@ -6,6 +6,7 @@ import {
 } from "@/features/projects/server/project-access"
 import { randomUUID } from "node:crypto"
 import { db } from "@/server/db"
+import { PROJECT_LEADS_SELECT, isProjectLead } from "@/features/projects/lib/project-leads"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { createAuditLog } from "@/lib/audit"
@@ -30,8 +31,8 @@ async function isProjectParticipant(projectId: string, employeeId: string): Prom
     select: { id: true },
   })
   if (m) return true
-  const p = await db.project.findUnique({ where: { id: projectId }, select: { ownerId: true } })
-  return p?.ownerId === employeeId
+  const p = await db.project.findUnique({ where: { id: projectId }, select: PROJECT_LEADS_SELECT })
+  return !!p && isProjectLead(p, employeeId)
 }
 
 // "myfile.pdf" -> ".pdf", "README" -> "", "x.tar.gz" -> ".gz"

@@ -1,6 +1,7 @@
 import "server-only"
 
 import { db } from "@/server/db"
+import { ledBy } from "../lib/project-leads"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { ADHOC_LABEL } from "@/features/projects/lib/task-permissions"
@@ -57,9 +58,9 @@ export async function visiblePeople(
     return { memberIds: all.map((e) => e.id), scope: "all" }
   }
 
-  // ProjectTeamMember.projectId has no relation/FK, so resolve owned projects first and match on id.
+  // ProjectTeamMember.projectId has no relation/FK, so resolve led projects first and match on id.
   const ownedProjects = await db.project.findMany({
-    where: { ownerId: me },
+    where: ledBy(me),
     select: { id: true },
   })
   const ownedProjectIds = ownedProjects.map((p) => p.id)

@@ -2,7 +2,7 @@ import "server-only"
 
 import { db } from "@/server/db"
 import { generateProjectSlug } from "./project-slug"
-import { ensureProjectTeams } from "./project-teams"
+import { addToAccountManagerTeam, ensureProjectTeams } from "./project-teams"
 import { syncProjectFolderAccessAsync } from "./project-drive.service"
 import { ensureServiceCalendars } from "./service-calendars"
 import type { ProjectServiceCode } from "../lib/project-services"
@@ -13,7 +13,9 @@ export interface NewProject {
   status?: "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED"
   priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
   stage?: "LAUNCH" | "GROWTH" | "REBRANDING" | "DECLINE" | null
+  /** The primary Account Manager; the secondary is optional. See lib/project-leads.ts. */
   ownerId: string
+  secondaryAccountManagerId?: string | null
   clientId?: string | null
   startDate?: Date | null
   budget?: number | null
@@ -74,6 +76,7 @@ export async function createProject(input: NewProject, actorId: string | null = 
           priority: input.priority ?? "MEDIUM",
           stage: input.stage ?? null,
           ownerId: input.ownerId,
+          secondaryAccountManagerId: input.secondaryAccountManagerId ?? null,
           clientId: input.clientId || null,
           startDate: input.startDate ?? null,
           budget: input.budget ?? null,
@@ -92,13 +95,16 @@ export async function createProject(input: NewProject, actorId: string | null = 
     }
   }
 
-  // Every project gets the whole team catalogue from day one, its owner on AM.
+  // Every project gets the whole team catalogue from day one, its Account Manager managing AM.
   const teams = await ensureProjectTeams(project.id)
+  if (input.secondaryAccountManagerId) {
+    await addToAccountManagerTeam(project.id, input.secondaryAccountManagerId)
+  }
   // The project exists either way; a calendar that fails can be made from the services popup.
   await ensureServiceCalendars(project.id, actorId).catch((e) =>
     console.error("[SERVICE_CALENDARS]", e),
   )
-  // Share the Drive folder with the owner and team managers straight away.
+  // Share the Drive folder with the Account Managers and team members straight away.
   syncProjectFolderAccessAsync(project.id)
   return { project, teams }
 }

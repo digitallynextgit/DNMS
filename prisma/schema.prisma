@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   /// partialIndexes is needed for the partial unique index on ProjectWorkbook; without it `db push` sees that index as drift and drops it.
   previewFeatures = ["partialIndexes"]
 }
@@ -417,13 +417,13 @@ model Department {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  head            Employee?               @relation("DepartmentHead", fields: [headId], references: [id], onDelete: SetNull)
-  parent          Department?             @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children        Department[]            @relation("DepartmentHierarchy")
-  employees       Employee[]
-  jobPostings     JobPosting[]
-  jobRoles        JobRole[]
-  clearanceItems  ChecklistTemplateItem[] @relation("ChecklistClearanceDepartment")
+  head           Employee?               @relation("DepartmentHead", fields: [headId], references: [id], onDelete: SetNull)
+  parent         Department?             @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children       Department[]            @relation("DepartmentHierarchy")
+  employees      Employee[]
+  jobPostings    JobPosting[]
+  jobRoles       JobRole[]
+  clearanceItems ChecklistTemplateItem[] @relation("ChecklistClearanceDepartment")
 
   @@unique([tenantId, name])
   @@unique([tenantId, code])
@@ -583,24 +583,25 @@ model Employee {
   salaryStructure SalaryStructure?
   payrollRecords  PayrollRecord[]
 
-  projectMemberships ProjectMember[]
-  assignedTasks      ProjectTask[]          @relation("TaskAssignee")
-  raisedRequirements ProjectRequirement[]   @relation("RequirementRaiser")
-  ownedRequirements  ProjectRequirement[]   @relation("RequirementOwner")
-  createdTasks       ProjectTask[]          @relation("TaskCreator")
-  taskStatusChanges  TaskStatusPeriod[]     @relation("TaskStatusActor")
-  contentEntries     ContentCalendarEntry[] @relation("ContentAssignee")
-  sheetsCreated      ProjectSheet[]         @relation("SheetAuthor")
-  workbookTeamsCreated ProjectWorkbookTeam[] @relation("WorkbookTeamAuthor")
-  workbookTeamSeats  ProjectWorkbookTeamMember[] @relation("WorkbookTeamMembership")
-  workbooksCreated   ProjectWorkbook[]      @relation("WorkbookAuthor")
-  workbooksAssigned  ProjectWorkbook[]      @relation("WorkbookAssignee")
-  sheetRowsCreated   ProjectSheetRow[]      @relation("SheetRowAuthor")
-  sheetEvents        ProjectSheetEvent[]    @relation("SheetEventActor")
-  timesheets         Timesheet[]
-  ownedProjects      Project[]              @relation("ProjectOwner")
-  ownedClients       Client[]               @relation("ClientOwner")
-  brandAssets        BrandAsset[]           @relation("BrandAssetUploader")
+  projectMemberships   ProjectMember[]
+  assignedTasks        ProjectTask[]               @relation("TaskAssignee")
+  raisedRequirements   ProjectRequirement[]        @relation("RequirementRaiser")
+  ownedRequirements    ProjectRequirement[]        @relation("RequirementOwner")
+  createdTasks         ProjectTask[]               @relation("TaskCreator")
+  taskStatusChanges    TaskStatusPeriod[]          @relation("TaskStatusActor")
+  contentEntries       ContentCalendarEntry[]      @relation("ContentAssignee")
+  sheetsCreated        ProjectSheet[]              @relation("SheetAuthor")
+  workbookTeamsCreated ProjectWorkbookTeam[]       @relation("WorkbookTeamAuthor")
+  workbookTeamSeats    ProjectWorkbookTeamMember[] @relation("WorkbookTeamMembership")
+  workbooksCreated     ProjectWorkbook[]           @relation("WorkbookAuthor")
+  workbooksAssigned    ProjectWorkbook[]           @relation("WorkbookAssignee")
+  sheetRowsCreated     ProjectSheetRow[]           @relation("SheetRowAuthor")
+  sheetEvents          ProjectSheetEvent[]         @relation("SheetEventActor")
+  timesheets           Timesheet[]
+  ownedProjects        Project[]                   @relation("ProjectOwner")
+  secondaryAmProjects  Project[]                   @relation("ProjectSecondaryAccountManager")
+  ownedClients         Client[]                    @relation("ClientOwner")
+  brandAssets          BrandAsset[]                @relation("BrandAssetUploader")
 
   perfKpis             PerfKpi[]    @relation("EmployeePerfKpis")
   evaluations          Evaluation[] @relation("EvaluationEmployee")
@@ -641,22 +642,23 @@ model Employee {
   checklistItemsDone  ChecklistInstanceItem[] @relation("ChecklistItemDoneBy")
   kickoffItemsDone    ProjectKickoffItem[]    @relation("KickoffDoneBy")
 
-  joineeScorecard       JoineeScorecard?  @relation("JoineeScorecardEmployee")
-  joineeScorecardsSpoc  JoineeScorecard[] @relation("JoineeScorecardHrSpoc")
+  joineeScorecard      JoineeScorecard?  @relation("JoineeScorecardEmployee")
+  joineeScorecardsSpoc JoineeScorecard[] @relation("JoineeScorecardHrSpoc")
 
-  managedTeams           ProjectTeam[]          @relation("TeamManager")
-  projectTeamMemberships ProjectTeamMember[]    @relation("ProjectTeamMembership")
-  ownedProjectServices   ProjectServiceOwner[]  @relation("ProjectServiceOwner")
-  uploadedResources      ProjectResource[]      @relation("ResourceUploader")
-  reviewedResources      ProjectResource[]      @relation("ResourceStaffReviewer")
-  createdFolders         ProjectFolder[]        @relation("FolderCreator")
-  createdLinks           ProjectLink[]          @relation("LinkCreator")
-  taskComments           TaskComment[]          @relation("CommentAuthor")
-  projectActivities      ProjectActivity[]      @relation("ActivityActor")
-  projectMessages        ProjectMessage[]       @relation("MessageAuthor")
-  messageReplies         ProjectMessageReply[]  @relation("MessageReplyAuthor")
-  messageReads           ProjectMessageRead[]
-  createdPasswords       ProjectPasswordEntry[] @relation("PasswordCreator")
+  managedTeams               ProjectTeam[]          @relation("TeamManager")
+  projectTeamMemberships     ProjectTeamMember[]    @relation("ProjectTeamMembership")
+  ownedProjectServices       ProjectServiceOwner[]  @relation("ProjectServiceOwner")
+  secondaryServiceOwnerships ProjectServiceOwner[]  @relation("ProjectServiceSecondaryOwner")
+  uploadedResources          ProjectResource[]      @relation("ResourceUploader")
+  reviewedResources          ProjectResource[]      @relation("ResourceStaffReviewer")
+  createdFolders             ProjectFolder[]        @relation("FolderCreator")
+  createdLinks               ProjectLink[]          @relation("LinkCreator")
+  taskComments               TaskComment[]          @relation("CommentAuthor")
+  projectActivities          ProjectActivity[]      @relation("ActivityActor")
+  projectMessages            ProjectMessage[]       @relation("MessageAuthor")
+  messageReplies             ProjectMessageReply[]  @relation("MessageReplyAuthor")
+  messageReads               ProjectMessageRead[]
+  createdPasswords           ProjectPasswordEntry[] @relation("PasswordCreator")
 
   createdClientUsers  ClientUser[]          @relation("ClientUserCreator")
   createdClients      Client[]              @relation("ClientCreator")
@@ -1170,7 +1172,7 @@ model ChecklistTemplateSection {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  template ChecklistTemplate      @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  template ChecklistTemplate       @relation(fields: [templateId], references: [id], onDelete: Cascade)
   items    ChecklistTemplateItem[]
 
   @@index([templateId])
@@ -1179,22 +1181,22 @@ model ChecklistTemplateSection {
 }
 
 model ChecklistTemplateItem {
-  tenantId     String                @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
-  id           String                @id @default(uuid()) @map("id")
-  sectionId    String                @map("section_id")
-  text         String                @map("text")
-  helpText     String?               @map("help_text")
-  itemKind     ChecklistItemKind     @default(TASK) @map("item_kind")
-  assigneeRole ChecklistAssigneeRole @default(HR) @map("assignee_role")
+  tenantId              String                @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id                    String                @id @default(uuid()) @map("id")
+  sectionId             String                @map("section_id")
+  text                  String                @map("text")
+  helpText              String?               @map("help_text")
+  itemKind              ChecklistItemKind     @default(TASK) @map("item_kind")
+  assigneeRole          ChecklistAssigneeRole @default(HR) @map("assignee_role")
   /// Department that clears DEPARTMENT_HEAD items (Finance and IT/Admin are just Departments here).
-  clearanceDepartmentId String?      @map("clearance_department_id")
+  clearanceDepartmentId String?               @map("clearance_department_id")
   /// A required CLEARANCE blocks completion. A required TASK only warns.
-  isRequired   Boolean               @default(true) @map("is_required")
+  isRequired            Boolean               @default(true) @map("is_required")
   /// Days from the instance's anchor date (joining date / last working date).
-  offsetDays   Int?                  @map("offset_days")
-  displayOrder Int                   @default(0) @map("display_order")
-  createdAt    DateTime              @default(now()) @map("created_at")
-  updatedAt    DateTime              @updatedAt @map("updated_at")
+  offsetDays            Int?                  @map("offset_days")
+  displayOrder          Int                   @default(0) @map("display_order")
+  createdAt             DateTime              @default(now()) @map("created_at")
+  updatedAt             DateTime              @updatedAt @map("updated_at")
 
   section    ChecklistTemplateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   department Department?              @relation("ChecklistClearanceDepartment", fields: [clearanceDepartmentId], references: [id], onDelete: SetNull)
@@ -1205,17 +1207,17 @@ model ChecklistTemplateItem {
 }
 
 model ChecklistInstance {
-  tenantId   String          @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
-  id         String          @id @default(uuid()) @map("id")
-  kind       ChecklistKind   @map("kind")
-  employeeId String          @map("employee_id")
+  tenantId      String          @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id            String          @id @default(uuid()) @map("id")
+  kind          ChecklistKind   @map("kind")
+  employeeId    String          @map("employee_id")
   /// Exit checklists hang off the resignation that started them. One each.
-  resignationId String?      @unique @map("resignation_id")
+  resignationId String?         @unique @map("resignation_id")
   /// Provenance only; nulled if the template is deleted, since the snapshot stands on its own.
-  templateId String?         @map("template_id")
-  status     ChecklistStatus @default(IN_PROGRESS) @map("status")
+  templateId    String?         @map("template_id")
+  status        ChecklistStatus @default(IN_PROGRESS) @map("status")
   /// dateOfJoining for onboarding, lastWorkingDate for exit; item due dates derive from it.
-  anchorDate DateTime?       @db.Date @map("anchor_date")
+  anchorDate    DateTime?       @map("anchor_date") @db.Date
 
   startedById   String?   @map("started_by_id")
   completedAt   DateTime? @map("completed_at")
@@ -1255,8 +1257,8 @@ model JoineeScorecard {
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
-  employee Employee              @relation("JoineeScorecardEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
-  hrSpoc   Employee?             @relation("JoineeScorecardHrSpoc", fields: [hrSpocId], references: [id], onDelete: SetNull)
+  employee Employee             @relation("JoineeScorecardEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  hrSpoc   Employee?            @relation("JoineeScorecardHrSpoc", fields: [hrSpocId], references: [id], onDelete: SetNull)
   days     JoineeScorecardDay[]
 
   @@unique([employeeId])
@@ -1305,7 +1307,7 @@ model ChecklistInstanceItem {
   /// person (or an HR override).
   assigneeId   String?               @map("assignee_id")
   isRequired   Boolean               @default(true) @map("is_required")
-  dueDate      DateTime?             @db.Date @map("due_date")
+  dueDate      DateTime?             @map("due_date") @db.Date
   displayOrder Int                   @default(0) @map("display_order")
   /// Added on the instance, not copied from the template.
   isAdHoc      Boolean               @default(false) @map("is_ad_hoc")
@@ -1553,64 +1555,69 @@ model PayrollRecord {
 }
 
 model Project {
-  tenantId       String        @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
-  id             String        @id @default(uuid()) @map("id")
-  name           String        @map("name")
-  description    String?       @map("description") @db.Text
-  code           String        @map("code")
+  tenantId                  String        @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id                        String        @id @default(uuid()) @map("id")
+  name                      String        @map("name")
+  description               String?       @map("description") @db.Text
+  code                      String        @map("code")
   /// e.g. "DN", "H2S". Unique per company ignoring case (a lower() index in the migration).
-  shortName      String?       @map("short_name")
+  shortName                 String?       @map("short_name")
   /// Codes from PROJECT_SERVICES (features/projects/lib/project-services.ts). Owners: serviceOwners.
-  services       String[]      @default([]) @map("services")
+  services                  String[]      @default([]) @map("services")
   // URL slug from the name at creation; null on old rows (reads fall back to id). Never regenerated on
   // rename, so shared links keep working.
-  slug           String?       @map("slug")
-  status         ProjectStatus @default(PLANNING) @map("status")
-  priority       TaskPriority  @default(MEDIUM) @map("priority")
+  slug                      String?       @map("slug")
+  status                    ProjectStatus @default(PLANNING) @map("status")
+  priority                  TaskPriority  @default(MEDIUM) @map("priority")
   /// The brand lifecycle "Phase" shown in the UI. Not `currentPhase` (unused legacy relation). Null = not set.
-  stage          ProjectStage? @map("stage")
+  stage                     ProjectStage? @map("stage")
   /// Stable serve URL (/api/projects/<id>/logo?v=<ts>) that redirects to a signed URL; ?v= busts the cache.
-  logo           String?       @map("logo")
+  logo                      String?       @map("logo")
   /// B2 object key behind `logo`.
-  logoKey        String?       @map("logo_key")
-  ownerId        String        @map("owner_id")
+  logoKey                   String?       @map("logo_key")
+  /// The PRIMARY Account Manager - a historical name. Primary and secondary have the same powers:
+  /// features/projects/lib/project-leads.ts.
+  ownerId                   String        @map("owner_id")
+  /// Always-on secondary Account Manager. Set by the primary Account Manager or a project admin.
+  secondaryAccountManagerId String?       @map("secondary_account_manager_id")
   /// The company this is delivered for. Null = an internal project.
-  clientId       String?       @map("client_id")
+  clientId                  String?       @map("client_id")
   // DEPRECATED: the phase feature is gone; kept so the shared DB stays compatible with the deployed build.
-  currentPhaseId String?       @map("current_phase_id")
-  startDate      DateTime?     @map("start_date") @db.Date // "Onboarding Date" in UI
-  endDate        DateTime?     @map("end_date") @db.Date // deprecated - kept for back-compat
-  budget         Float?        @map("budget")
-  isArchived     Boolean       @default(false) @map("is_archived")
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
+  currentPhaseId            String?       @map("current_phase_id")
+  startDate                 DateTime?     @map("start_date") @db.Date // "Onboarding Date" in UI
+  endDate                   DateTime?     @map("end_date") @db.Date // deprecated - kept for back-compat
+  budget                    Float?        @map("budget")
+  isArchived                Boolean       @default(false) @map("is_archived")
+  createdAt                 DateTime      @default(now()) @map("created_at")
+  updatedAt                 DateTime      @updatedAt @map("updated_at")
 
-  owner           Employee               @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  client          Client?                @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  currentPhase    ProjectPhase?          @relation(fields: [currentPhaseId], references: [id], onDelete: SetNull)
-  members         ProjectMember[] // legacy - kept for migration safety
-  teams           ProjectTeam[] // v2 - primary structure
-  serviceOwners   ProjectServiceOwner[]
-  tasks           ProjectTask[]
-  resources       ProjectResource[]
-  folders         ProjectFolder[]
-  links           ProjectLink[]
-  deliverables    ProjectDeliverable[]
-  timesheets      Timesheet[]
-  activities      ProjectActivity[]
-  messages        ProjectMessage[]
-  messageReads    ProjectMessageRead[]
-  passwordEntries ProjectPasswordEntry[]
-  brand           ProjectBrand?
-  brandAssets     BrandAsset[]
-  contentCalendar ContentCalendarEntry[]
-  sheets          ProjectSheet[]
-  workbooks       ProjectWorkbook[]
-  integration     ProjectIntegration?
-  metaCampaigns   MetaCampaign[]
-  seoProperties   SeoProperty[]
-  requirements    ProjectRequirement[]
-  kickoffItems    ProjectKickoffItem[]
+  owner                   Employee               @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  secondaryAccountManager Employee?              @relation("ProjectSecondaryAccountManager", fields: [secondaryAccountManagerId], references: [id], onDelete: SetNull)
+  client                  Client?                @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  currentPhase            ProjectPhase?          @relation(fields: [currentPhaseId], references: [id], onDelete: SetNull)
+  members                 ProjectMember[] // legacy - kept for migration safety
+  teams                   ProjectTeam[] // v2 - primary structure
+  serviceOwners           ProjectServiceOwner[]
+  tasks                   ProjectTask[]
+  resources               ProjectResource[]
+  folders                 ProjectFolder[]
+  links                   ProjectLink[]
+  deliverables            ProjectDeliverable[]
+  timesheets              Timesheet[]
+  activities              ProjectActivity[]
+  messages                ProjectMessage[]
+  messageReads            ProjectMessageRead[]
+  passwordEntries         ProjectPasswordEntry[]
+  brand                   ProjectBrand?
+  brandAssets             BrandAsset[]
+  contentCalendar         ContentCalendarEntry[]
+  sheets                  ProjectSheet[]
+  workbooks               ProjectWorkbook[]
+  integration             ProjectIntegration?
+  metaCampaigns           MetaCampaign[]
+  seoProperties           SeoProperty[]
+  requirements            ProjectRequirement[]
+  kickoffItems            ProjectKickoffItem[]
 
   mailers        ProjectMailer[]
   emailTemplates ProjectEmailTemplate[]
@@ -1631,6 +1638,7 @@ model Project {
   @@unique([tenantId, slug])
   @@index([status])
   @@index([ownerId])
+  @@index([secondaryAccountManagerId])
   @@index([clientId])
   @@index([tenantId])
   @@map("projects")
@@ -1845,33 +1853,33 @@ model ProjectSheet {
 
 /// A named set of tabs - what the Calendars UI calls a "sheet". Deleting it deletes every tab.
 model ProjectWorkbook {
-  tenantId     String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
-  id           String   @id @default(uuid()) @map("id")
-  projectId    String   @map("project_id")
-  name         String   @map("name")
+  tenantId          String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id                String    @id @default(uuid()) @map("id")
+  projectId         String    @map("project_id")
+  name              String    @map("name")
   /// The month this calendar edition covers, stored as its 1st day (2026-09-01 = September 2026).
   /// NULL = an undated calendar; the two unique indexes below keep both cases unique by name.
-  periodMonth  DateTime? @map("period_month") @db.Date
-  position     Int      @default(0) @map("position")
-  createdById  String?  @map("created_by_id")
+  periodMonth       DateTime? @map("period_month") @db.Date
+  position          Int       @default(0) @map("position")
+  createdById       String?   @map("created_by_id")
   /// Set when a CLIENT started this calendar from the portal. A client may delete only calendars they started.
-  createdByClientId String? @map("created_by_client_id")
+  createdByClientId String?   @map("created_by_client_id")
   /// The calendar manager supervising this month (not necessarily the author). Null = unassigned.
-  assignedToId String?  @map("assigned_to_id")
+  assignedToId      String?   @map("assigned_to_id")
   /// Publishes this calendar to the client portal. Off by default on purpose: internal sheets must be shared
   /// deliberately.
-  isClientVisible Boolean @default(false) @map("is_client_visible")
+  isClientVisible   Boolean   @default(false) @map("is_client_visible")
   /// The project service (PROJECT_SERVICES code) this calendar is for; every month of the series carries it.
-  service      String?  @map("service")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  service           String?   @map("service")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdBy  Employee?      @relation("WorkbookAuthor", fields: [createdById], references: [id], onDelete: SetNull)
-  createdByClient ClientUser? @relation("WorkbookClientAuthor", fields: [createdByClientId], references: [id], onDelete: SetNull)
-  assignedTo Employee?      @relation("WorkbookAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  sheets     ProjectSheet[]
-  teams      ProjectWorkbookTeam[]
+  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy       Employee?             @relation("WorkbookAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByClient ClientUser?           @relation("WorkbookClientAuthor", fields: [createdByClientId], references: [id], onDelete: SetNull)
+  assignedTo      Employee?             @relation("WorkbookAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  sheets          ProjectSheet[]
+  teams           ProjectWorkbookTeam[]
 
   /// One calendar of a given name per month (dated editions). Also serves the month picker's ordered read.
   @@unique([projectId, name, periodMonth])
@@ -1902,21 +1910,21 @@ enum WorkbookTeamStatus {
 /// One team's commitment on a monthly calendar: how much they owe, by when, who is doing it, and what came out.
 /// This is the plan, not a ProjectTask, and it creates none.
 model ProjectWorkbookTeam {
-  tenantId    String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
-  id          String    @id @default(uuid()) @map("id")
-  workbookId  String    @map("workbook_id")
-  teamId      String    @map("team_id")
+  tenantId    String             @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String             @id @default(uuid()) @map("id")
+  workbookId  String             @map("workbook_id")
+  teamId      String             @map("team_id")
   /// Items this team owes. 0 = on it but not yet quantified.
-  quantity    Int       @default(0) @map("quantity")
+  quantity    Int                @default(0) @map("quantity")
   status      WorkbookTeamStatus @default(TODO) @map("status")
   /// Null = no date agreed yet.
-  dueOn       DateTime? @map("due_on") @db.Date
+  dueOn       DateTime?          @map("due_on") @db.Date
   /// http(s) links to the work (task, Drive folder, page), validated by the route. Uploads are ProjectResource rows.
-  links       String[]  @default([]) @map("links")
-  notes       String?   @map("notes") @db.Text
-  createdById String?   @map("created_by_id")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  links       String[]           @default([]) @map("links")
+  notes       String?            @map("notes") @db.Text
+  createdById String?            @map("created_by_id")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
 
   workbook    ProjectWorkbook             @relation(fields: [workbookId], references: [id], onDelete: Cascade)
   team        ProjectTeam                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -2009,23 +2017,23 @@ enum SheetEventType {
 /// Append-only change log for a sheet. rowId/columnId are NOT foreign keys so deletion events survive the
 /// deletion; `label` keeps the name as it read at the time.
 model ProjectSheetEvent {
-  tenantId  String         @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
-  id        String         @id @default(uuid()) @map("id")
-  sheetId   String         @map("sheet_id")
-  rowId     String?        @map("row_id")
-  columnId  String?        @map("column_id")
-  type      SheetEventType @map("type")
-  label     String?        @map("label")
-  before    Json?          @map("before")
-  after     Json?          @map("after")
-  actorId   String?        @map("actor_id")
+  tenantId      String         @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id            String         @id @default(uuid()) @map("id")
+  sheetId       String         @map("sheet_id")
+  rowId         String?        @map("row_id")
+  columnId      String?        @map("column_id")
+  type          SheetEventType @map("type")
+  label         String?        @map("label")
+  before        Json?          @map("before")
+  after         Json?          @map("after")
+  actorId       String?        @map("actor_id")
   /// Set when a CLIENT made the edit from the portal. Both actor ids null = a system write.
-  actorClientId String?     @map("actor_client_id")
-  createdAt DateTime       @default(now()) @map("created_at")
+  actorClientId String?        @map("actor_client_id")
+  createdAt     DateTime       @default(now()) @map("created_at")
 
-  sheet ProjectSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
-  actor Employee?    @relation("SheetEventActor", fields: [actorId], references: [id], onDelete: SetNull)
-  actorClient ClientUser? @relation("SheetEventClientActor", fields: [actorClientId], references: [id], onDelete: SetNull)
+  sheet       ProjectSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  actor       Employee?    @relation("SheetEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actorClient ClientUser?  @relation("SheetEventClientActor", fields: [actorClientId], references: [id], onDelete: SetNull)
 
   @@index([sheetId, createdAt])
   @@index([tenantId])
@@ -2042,13 +2050,13 @@ model ProjectTeam {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  manager      Employee?            @relation("TeamManager", fields: [managerId], references: [id], onDelete: SetNull)
-  members      ProjectTeamMember[]
-  tasks        ProjectTask[]
-  resources    ProjectResource[]
-  requirements ProjectRequirement[]
-  deliverables ProjectDeliverable[]
+  project       Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  manager       Employee?             @relation("TeamManager", fields: [managerId], references: [id], onDelete: SetNull)
+  members       ProjectTeamMember[]
+  tasks         ProjectTask[]
+  resources     ProjectResource[]
+  requirements  ProjectRequirement[]
+  deliverables  ProjectDeliverable[]
   workbookTeams ProjectWorkbookTeam[]
 
   @@unique([projectId, name])
@@ -2079,20 +2087,26 @@ model ProjectTeamMember {
 /// Who owns one of a project's services. Only for codes in Project.services, and only someone on the
 /// project (a team member or the Account Manager) - leaving the project drops the row.
 model ProjectServiceOwner {
-  tenantId   String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
-  id         String   @id @default(uuid()) @map("id")
-  projectId  String   @map("project_id")
+  tenantId            String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id                  String   @id @default(uuid()) @map("id")
+  projectId           String   @map("project_id")
   /// A PROJECT_SERVICES code, e.g. "SEO".
-  service    String   @map("service")
-  employeeId String   @map("employee_id")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  service             String   @map("service")
+  /// The PRIMARY owner: manages the service's calendars.
+  employeeId          String   @map("employee_id")
+  /// Always-on secondary owner: the same powers on the service's calendars. Picked by the primary
+  /// owner, an Account Manager or a project admin.
+  secondaryEmployeeId String?  @map("secondary_employee_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
-  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  employee Employee @relation("ProjectServiceOwner", fields: [employeeId], references: [id], onDelete: Cascade)
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  employee          Employee  @relation("ProjectServiceOwner", fields: [employeeId], references: [id], onDelete: Cascade)
+  secondaryEmployee Employee? @relation("ProjectServiceSecondaryOwner", fields: [secondaryEmployeeId], references: [id], onDelete: SetNull)
 
   @@unique([projectId, service])
   @@index([employeeId])
+  @@index([secondaryEmployeeId])
   @@index([tenantId])
   @@map("project_service_owners")
 }
@@ -2128,61 +2142,61 @@ enum DocTag {
 }
 
 model ProjectResource {
-  tenantId      String           @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
-  id            String           @id @default(uuid()) @map("id")
-  projectId     String           @map("project_id")
-  teamId        String?          @map("team_id") // null = project-level
-  category      ResourceCategory @default(OTHER) @map("category")
-  tag           DocTag?          @map("tag")
-  fileName      String           @map("file_name")
-  fileSize      Int              @map("file_size")
-  mimeType      String           @map("mime_type")
+  tenantId           String           @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id                 String           @id @default(uuid()) @map("id")
+  projectId          String           @map("project_id")
+  teamId             String?          @map("team_id") // null = project-level
+  category           ResourceCategory @default(OTHER) @map("category")
+  tag                DocTag?          @map("tag")
+  fileName           String           @map("file_name")
+  fileSize           Int              @map("file_size")
+  mimeType           String           @map("mime_type")
   /// B2 object key. NULL when the file lives in Google Drive (video: too big for the 20 MB cap).
   /// Exactly one of objectKey / driveFileId is set (CHECK constraint).
-  objectKey     String?          @unique @map("object_key")
-  driveFileId   String?          @unique @map("drive_file_id")
+  objectKey          String?          @unique @map("object_key")
+  driveFileId        String?          @unique @map("drive_file_id")
   /// Drive's viewer URL - internal only, the file isn't public in Drive. Public sharing uses shareToken.
-  driveWebViewLink String?       @map("drive_web_view_link")
+  driveWebViewLink   String?          @map("drive_web_view_link")
   /// True while a share link exists, so the portal can show Copy without selecting the secret.
-  isPublicLink  Boolean          @default(false) @map("is_public_link")
+  isPublicLink       Boolean          @default(false) @map("is_public_link")
   /// Secret behind /api/public/share/<token>, which streams the video with no sign-in. Proxied because this
   /// Workspace forbids public Drive files; clearing it revokes the link. Never return it from a list query.
-  shareToken    String?          @unique @map("share_token")
-  sharedPubliclyAt DateTime?     @map("shared_publicly_at")
-  description   String?          @map("description")
+  shareToken         String?          @unique @map("share_token")
+  sharedPubliclyAt   DateTime?        @map("shared_publicly_at")
+  description        String?          @map("description")
   /// Exactly one of uploadedById / uploadedByClientId is set (CHECK constraint).
-  uploadedById  String?          @map("uploaded_by_id")
+  uploadedById       String?          @map("uploaded_by_id")
   /// Set when the file came from the client portal (staff and portal accounts are separate tables).
-  uploadedByClientId String?     @map("uploaded_by_client_id")
+  uploadedByClientId String?          @map("uploaded_by_client_id")
 
   /// Visible in the client portal. Off by default on purpose: files reach outsiders only when deliberately shared.
-  isClientVisible Boolean        @default(false) @map("is_client_visible")
-  sharedAt      DateTime?        @map("shared_at")
+  isClientVisible Boolean   @default(false) @map("is_client_visible")
+  sharedAt        DateTime? @map("shared_at")
 
   /// The approval loop. Only meaningful while isClientVisible.
-  reviewStatus  AssetReviewStatus? @map("review_status")
-  reviewedAt    DateTime?        @map("reviewed_at")
-  reviewedByClientId String?     @map("reviewed_by_client_id")
+  reviewStatus       AssetReviewStatus? @map("review_status")
+  reviewedAt         DateTime?          @map("reviewed_at")
+  reviewedByClientId String?            @map("reviewed_by_client_id")
   /// Set when STAFF reviewed instead - how a client's own upload gets decided.
-  reviewedById  String?          @map("reviewed_by_id")
-  reviewNote    String?          @map("review_note")
+  reviewedById       String?            @map("reviewed_by_id")
+  reviewNote         String?            @map("review_note")
   /// Set when the file is a logged deliverable's output. SetNull so a wrong log line can't destroy the work.
-  deliverableId String?          @map("deliverable_id")
+  deliverableId      String?            @map("deliverable_id")
   /// Set when the file is a team's output on a monthly calendar (SetNull for the same reason).
-  workbookTeamId String?         @map("workbook_team_id")
+  workbookTeamId     String?            @map("workbook_team_id")
   /// Folder in the Files tree; null = top level. The service refuses to delete a non-empty folder.
-  folderId      String?          @map("folder_id")
-  createdAt     DateTime         @default(now()) @map("created_at")
+  folderId           String?            @map("folder_id")
+  createdAt          DateTime           @default(now()) @map("created_at")
 
-  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  team        ProjectTeam?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  uploadedBy  Employee?           @relation("ResourceUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
-  uploadedByClient ClientUser?    @relation("ResourceClientUploader", fields: [uploadedByClientId], references: [id], onDelete: SetNull)
-  reviewedByClient ClientUser?    @relation("ResourceReviewer", fields: [reviewedByClientId], references: [id], onDelete: SetNull)
-  reviewedBy  Employee?           @relation("ResourceStaffReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  deliverable ProjectDeliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
-  workbookTeam ProjectWorkbookTeam? @relation(fields: [workbookTeamId], references: [id], onDelete: SetNull)
-  folder      ProjectFolder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  project          Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  team             ProjectTeam?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  uploadedBy       Employee?            @relation("ResourceUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedByClient ClientUser?          @relation("ResourceClientUploader", fields: [uploadedByClientId], references: [id], onDelete: SetNull)
+  reviewedByClient ClientUser?          @relation("ResourceReviewer", fields: [reviewedByClientId], references: [id], onDelete: SetNull)
+  reviewedBy       Employee?            @relation("ResourceStaffReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  deliverable      ProjectDeliverable?  @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
+  workbookTeam     ProjectWorkbookTeam? @relation(fields: [workbookTeamId], references: [id], onDelete: SetNull)
+  folder           ProjectFolder?       @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([teamId])
@@ -2250,67 +2264,67 @@ model ProjectLink {
 /// Something a person PRODUCED for a project (a video, product pages): one row per thing or batch (`quantity`).
 /// Its files are ProjectResource rows (DELIVERABLES category) linked back here.
 model ProjectDeliverable {
-  tenantId          String            @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
-  id                String            @id @default(uuid()) @map("id")
-  projectId         String            @map("project_id")
+  tenantId           String            @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id                 String            @id @default(uuid()) @map("id")
+  projectId          String            @map("project_id")
   /// The team that owes/made it: from the plan, else the maker's team at logging time. Null = no team.
-  teamId            String?           @map("team_id")
+  teamId             String?           @map("team_id")
   /// Who made it. Null only while still owed and unclaimed (teamId says who owes it); a CHECK enforces this.
-  employeeId        String?           @map("employee_id")
+  employeeId         String?           @map("employee_id")
   /// Who wrote the entry - the maker, or a manager logging on their behalf.
-  loggedById        String?           @map("logged_by_id")
+  loggedById         String?           @map("logged_by_id")
   /// Set instead of loggedById for client-portal entries. No CHECK: older rows legitimately have neither.
-  loggedByClientId  String?           @map("logged_by_client_id")
-  taskId            String?           @map("task_id")
+  loggedByClientId   String?           @map("logged_by_client_id")
+  taskId             String?           @map("task_id")
   /// "Video", "Reel"... free text, normalised so "reel" and "Reel" count together.
-  type              String            @map("type")
-  title             String            @map("title")
+  type               String            @map("type")
+  title              String            @map("title")
   /// "10 product pages" can be one entry. Every count sums this.
-  quantity          Int               @default(1) @map("quantity")
+  quantity           Int               @default(1) @map("quantity")
   /// How many of `quantity` are made so far; DELIVERED is only offered once it reaches `quantity`.
-  deliveredQuantity Int               @default(0) @map("delivered_quantity")
+  deliveredQuantity  Int               @default(0) @map("delivered_quantity")
   /// PLANNED = owed; DELIVERED = made; ACCEPTED / REJECTED = the client's verdict, recorded by staff.
-  status            DeliverableStatus @default(DELIVERED) @map("status")
+  status             DeliverableStatus @default(DELIVERED) @map("status")
   /// Current reason for STUCK / DISCARDED (history is on ProjectDeliverableEvent). Cleared when no longer needed.
-  statusReason      String?           @map("status_reason")
+  statusReason       String?           @map("status_reason")
   /// When a PLANNED row is owed by. Null for after-the-fact logging.
-  dueOn             DateTime?         @map("due_on") @db.Date
+  dueOn              DateTime?         @map("due_on") @db.Date
   /// The window the commitment covers. Both set or both null, end >= start (CHECK). dueOn stays the deadline.
-  periodStart       DateTime?         @map("period_start") @db.Date
-  periodEnd         DateTime?         @map("period_end") @db.Date
+  periodStart        DateTime?         @map("period_start") @db.Date
+  periodEnd          DateTime?         @map("period_end") @db.Date
   /// The goal this serves when the task link isn't enough. SetNull: removing a goal must not remove the work.
-  goalId            String?           @map("goal_id")
-  startedOn         DateTime?         @map("started_on") @db.Date
+  goalId             String?           @map("goal_id")
+  startedOn          DateTime?         @map("started_on") @db.Date
   /// The day it counts for. Null only while PLANNED / IN_PROGRESS (CHECK constraint).
-  completedOn       DateTime?         @map("completed_on") @db.Date
+  completedOn        DateTime?         @map("completed_on") @db.Date
   /// How many times it went REJECTED -> DELIVERED.
-  revisionCount     Int               @default(0) @map("revision_count")
-  acceptedAt        DateTime?         @map("accepted_at")
-  acceptedById      String?           @map("accepted_by_id")
+  revisionCount      Int               @default(0) @map("revision_count")
+  acceptedAt         DateTime?         @map("accepted_at")
+  acceptedById       String?           @map("accepted_by_id")
   /// Set instead of acceptedById when the client accepted it in the portal.
-  acceptedByClientId String?          @map("accepted_by_client_id")
-  acceptanceNote    String?           @map("acceptance_note") @db.Text
+  acceptedByClientId String?           @map("accepted_by_client_id")
+  acceptanceNote     String?           @map("acceptance_note") @db.Text
   /// Where it lives: the Drive folder, the published page. http(s) only.
-  links             String[]          @default([]) @map("links")
-  notes             String?           @map("notes") @db.Text
+  links              String[]          @default([]) @map("links")
+  notes              String?           @map("notes") @db.Text
   /// Internal QC sign-off by a manager; null = self-reported. ACCEPTED is the client's word.
-  verifiedById      String?           @map("verified_by_id")
-  verifiedAt        DateTime?         @map("verified_at")
-  createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
+  verifiedById       String?           @map("verified_by_id")
+  verifiedAt         DateTime?         @map("verified_at")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
 
-  project    Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  team       ProjectTeam?              @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  employee   Employee?                 @relation("DeliverableMaker", fields: [employeeId], references: [id], onDelete: Cascade)
-  loggedBy   Employee?                 @relation("DeliverableLogger", fields: [loggedById], references: [id], onDelete: SetNull)
-  verifiedBy Employee?                 @relation("DeliverableVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
-  acceptedBy Employee?                 @relation("DeliverableAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
-  loggedByClient   ClientUser?         @relation("DeliverableClientLogger", fields: [loggedByClientId], references: [id], onDelete: SetNull)
-  acceptedByClient ClientUser?         @relation("DeliverableClientAcceptor", fields: [acceptedByClientId], references: [id], onDelete: SetNull)
-  task       ProjectTask?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
-  goal       ProjectGoal?              @relation(fields: [goalId], references: [id], onDelete: SetNull)
-  files      ProjectResource[]
-  events     ProjectDeliverableEvent[]
+  project          Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  team             ProjectTeam?              @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  employee         Employee?                 @relation("DeliverableMaker", fields: [employeeId], references: [id], onDelete: Cascade)
+  loggedBy         Employee?                 @relation("DeliverableLogger", fields: [loggedById], references: [id], onDelete: SetNull)
+  verifiedBy       Employee?                 @relation("DeliverableVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  acceptedBy       Employee?                 @relation("DeliverableAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+  loggedByClient   ClientUser?               @relation("DeliverableClientLogger", fields: [loggedByClientId], references: [id], onDelete: SetNull)
+  acceptedByClient ClientUser?               @relation("DeliverableClientAcceptor", fields: [acceptedByClientId], references: [id], onDelete: SetNull)
+  task             ProjectTask?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  goal             ProjectGoal?              @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  files            ProjectResource[]
+  events           ProjectDeliverableEvent[]
 
   @@index([projectId, completedOn])
   @@index([employeeId, completedOn])
@@ -3696,12 +3710,12 @@ model ClientUser {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  createdBy Employee?             @relation("ClientUserCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  client    Client?               @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  access    ClientProjectAccess[]
-  uploadedResources ProjectResource[] @relation("ResourceClientUploader")
-  reviewedResources ProjectResource[] @relation("ResourceReviewer")
-  activity  ClientActivityLog[]
+  createdBy         Employee?             @relation("ClientUserCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  client            Client?               @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  access            ClientProjectAccess[]
+  uploadedResources ProjectResource[]     @relation("ResourceClientUploader")
+  reviewedResources ProjectResource[]     @relation("ResourceReviewer")
+  activity          ClientActivityLog[]
 
   membership Membership?
 
@@ -4376,20 +4390,20 @@ model StorageAccount {
 /// An AI service DNMS may call (Admin -> AI Models). Platform-wide, like StorageAccount. Every AI task
 /// tries the default provider first, then the rest by position; within one, its keys in order.
 model AiProvider {
-  id         String   @id @default(uuid()) @map("id")
+  id          String   @id @default(uuid()) @map("id")
   /// gemini | anthropic | openai | mistral | groq | openrouter | cerebras | custom (lib/ai-providers.ts)
-  kind       String   @map("kind")
-  label      String   @map("label")
+  kind        String   @map("kind")
+  label       String   @map("label")
   /// Custom (OpenAI-compatible) providers only: the full chat-completions URL.
-  baseUrl    String?  @map("base_url")
+  baseUrl     String?  @map("base_url")
   /// Comma-separated, tried in order: quick jobs (polishing a sentence) and bigger ones (reports).
-  fastModels  String  @map("fast_models")
-  smartModels String  @map("smart_models")
-  isDefault  Boolean  @default(false) @map("is_default")
-  isActive   Boolean  @default(true) @map("is_active")
-  position   Int      @default(0) @map("position")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  fastModels  String   @map("fast_models")
+  smartModels String   @map("smart_models")
+  isDefault   Boolean  @default(false) @map("is_default")
+  isActive    Boolean  @default(true) @map("is_active")
+  position    Int      @default(0) @map("position")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   keys AiProviderKey[]
 

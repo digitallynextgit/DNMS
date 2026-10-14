@@ -122,8 +122,8 @@ export const projectContentCalendarGuide: HelpGuide = {
           hi: "New month… Account Manager, प्रोजेक्ट एडमिन और टीम मैनेजर्स को दिखता है।",
         },
         {
-          en: "Owner, at the top next to Share, is the person who answers for the calendar. A service's calendar (Social Media Calendar, SEO / AEO / GEO Calendar and so on) is owned by that service's owner: change it here or in the project's services and both stay the same. The new owner gets a notification and an email.",
-          hi: "ऊपर Share के पास दिखने वाला Owner वो व्यक्ति है जो इस कैलेंडर के लिए ज़िम्मेदार है। किसी service का कैलेंडर (Social Media Calendar, SEO / AEO / GEO Calendar वगैरह) उसी service के owner का होता है: इसे यहाँ बदलें या प्रोजेक्ट की services में - दोनों जगह एक ही व्यक्ति रहता है। नए owner को notification और ईमेल मिलता है।",
+          en: "Calendar owner, at the top next to Share, is the person who answers for the calendar. A service's calendar (Social Media Calendar, SEO / AEO / GEO Calendar and so on) is owned by that service's owner: change it here or in the project's services and both stay the same. The service's secondary owner shows next to them (+) and can plan the calendar too. The new owner gets a notification and an email.",
+          hi: "ऊपर Share के पास दिखने वाला Calendar owner वो व्यक्ति है जो इस कैलेंडर के लिए ज़िम्मेदार है। किसी service का कैलेंडर (Social Media Calendar, SEO / AEO / GEO Calendar वगैरह) उसी service के owner का होता है: इसे यहाँ बदलें या प्रोजेक्ट की services में - दोनों जगह एक ही व्यक्ति रहता है। service के secondary owner उनके बगल में (+) दिखते हैं और कैलेंडर की planning भी कर सकते हैं। नए owner को notification और ईमेल मिलता है।",
         },
         {
           en: "When you start from the latest month or from a file, Team plan from (that month) is ticked too: it carries over the teams, their people and quantities. Untick it to start the plan empty. Due dates and links are never carried over.",

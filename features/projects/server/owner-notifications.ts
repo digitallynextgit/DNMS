@@ -2,7 +2,8 @@ import "server-only"
 
 import { db } from "@/server/db"
 import { tenantPath } from "@/server/tenant-request"
-import { createNotification } from "@/lib/notifications"
+import { createNotification, createNotifications } from "@/lib/notifications"
+import { LEAD_LABEL, type ProjectLeadRole } from "../lib/project-leads"
 import { renderOwnerAssignedEmail } from "@/lib/email-layout"
 import { addEmailJob } from "@/lib/queue"
 import { currentPlanMonth } from "../lib/calendar-months"
@@ -22,6 +23,8 @@ export async function notifyOwnerAssigned(args: {
   service?: string | null
   /** The calendar edition to open; for a service, its current month is found when omitted. */
   calendar?: { id: string; name: string } | null
+  /** They are the service's secondary owner. */
+  secondary?: boolean
 }): Promise<void> {
   if (args.silentActor || args.employeeId === args.actorId) return
   const [project, owner, actor] = await Promise.all([
@@ -54,10 +57,16 @@ export async function notifyOwnerAssigned(args: {
   const link = calendar ? `${base}?tab=calendar&calendar=${calendar.id}` : base
   await createNotification({
     employeeId: args.employeeId,
-    title: serviceName ? "You own a service" : "You own a calendar",
-    message: serviceName
-      ? `You're now the owner of ${serviceName} on ${project.name}, and of its calendar.`
-      : `You're now the owner of the calendar "${calendar?.name}" on ${project.name}.`,
+    title: args.secondary
+      ? "You're a secondary owner"
+      : serviceName
+        ? "You own a service"
+        : "You own a calendar",
+    message: args.secondary
+      ? `You're now the secondary owner of ${serviceName ?? "a service"} on ${project.name}: you cover its calendar whenever its owner is away.`
+      : serviceName
+        ? `You're now the owner of ${serviceName} on ${project.name}, and of its calendar.`
+        : `You're now the owner of the calendar "${calendar?.name}" on ${project.name}.`,
     type: "info",
     link,
   })
@@ -68,7 +77,35 @@ export async function notifyOwnerAssigned(args: {
     projectName: project.name,
     serviceName,
     calendarName: calendar?.name ?? null,
+    secondary: args.secondary,
     url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}${await tenantPath(link)}`,
   })
   addEmailJob({ to: owner.email, subject: mail.subject, html: mail.html, text: mail.text })
+}
+
+/**
+ * Tell people they are now a project's Account Manager (primary or secondary), in-app.
+ * Not when they picked themselves; createNotifications already stays silent for admin_.
+ */
+export async function notifyLeadAssigned(args: {
+  projectId: string
+  assigned: { role: ProjectLeadRole; employeeId: string }[]
+  actorId: string
+}): Promise<void> {
+  const told = args.assigned.filter((a) => a.employeeId !== args.actorId)
+  if (told.length === 0) return
+  const project = await db.project.findUnique({
+    where: { id: args.projectId },
+    select: { name: true, slug: true },
+  })
+  if (!project) return
+  await createNotifications(
+    told.map((a) => ({
+      employeeId: a.employeeId,
+      title: `New role: ${LEAD_LABEL[a.role]}`,
+      message: `You're now the ${LEAD_LABEL[a.role]} of ${project.name}. You can manage the whole project.`,
+      type: "info",
+      link: `/projects/${project.slug ?? args.projectId}`,
+    })),
+  )
 }

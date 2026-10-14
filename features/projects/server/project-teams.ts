@@ -92,6 +92,24 @@ export async function syncAccountManagerTeam(
   }
 }
 
+/** Put the secondary Account Manager on the AM team as a member (the primary stays its manager). */
+export async function addToAccountManagerTeam(
+  projectId: string,
+  employeeId: string,
+  client: Client = db,
+): Promise<void> {
+  const team = await client.projectTeam.findUnique({
+    where: { projectId_name: { projectId, name: ACCOUNT_MANAGER_TEAM } },
+    select: { id: true },
+  })
+  if (!team) return
+  await client.projectTeamMember.upsert({
+    where: { teamId_employeeId: { teamId: team.id, employeeId } },
+    create: { teamId: team.id, projectId, employeeId },
+    update: {},
+  })
+}
+
 async function usualManagerFor(
   name: ProjectTeamName,
   projectId: string,

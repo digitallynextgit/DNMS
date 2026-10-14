@@ -3,6 +3,7 @@ import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
+import { ledBy } from "@/features/projects/lib/project-leads"
 import { aiComplete, isAiConfigured, AiError, AI_NOT_CONFIGURED_MESSAGE } from "@/lib/ai"
 import {
   DEFAULT_SECTIONS,
@@ -61,7 +62,7 @@ export const POST = withSession(
         : {
             OR: [
               { team: { managerId: session.user.id } },
-              { project: { ownerId: session.user.id } },
+              { project: ledBy(session.user.id) },
               { assigneeId: session.user.id },
             ],
           }

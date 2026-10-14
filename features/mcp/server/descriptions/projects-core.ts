@@ -9,7 +9,7 @@ export const PROJECTS_CORE: DescriptionMap = {
       "Permanently delete a project and everything under it (teams, tasks, deliverables, goals, requirements, calendars). Needs the project:delete permission - being the Account Manager is not enough.",
     keywords: ["delete project", "remove project", "destroy project"],
     notes:
-      "Irreversible, cascades to all project data, writes no audit entry - confirm first. [id] must be the project's uuid from GET /api/projects (a slug is not resolved here). To close a project instead, PATCH /api/projects/[id] with status COMPLETED or CANCELLED.",
+      "Irreversible, cascades to all project data, writes no audit entry - confirm first. [id] = project id or slug from GET /api/projects. To close a project instead, PATCH /api/projects/[id] with status COMPLETED or CANCELLED.",
   },
   "DELETE /api/projects/[id]/deliverables/[deliverableId]": {
     summary:
@@ -76,9 +76,9 @@ export const PROJECTS_CORE: DescriptionMap = {
 
   "GET /api/projects": {
     summary:
-      "List projects, newest first, with Account Manager (owner), client, teams, members, service owners, task counts and kick-off checklist progress. project:write holders see every project; everyone else only projects they are Account Manager of or on a team of.",
+      "List projects, newest first, with their Account Managers (owner = primary, secondaryAccountManager), client, teams, members, service owners (each with its secondary owner), task counts and kick-off checklist progress. project:write holders see every project; everyone else only projects they are an Account Manager of or on a team of.",
     query:
-      "status: PLANNING|ACTIVE|ON_HOLD|COMPLETED|CANCELLED; mine: true = only projects I am Account Manager of or a team member on; clientId: client id; page (default 1); limit (default 20, max 100)",
+      "status: PLANNING|ACTIVE|ON_HOLD|COMPLETED|CANCELLED; mine: true = only projects I am an Account Manager of (primary or secondary) or a team member on; clientId: client id; page (default 1); limit (default 20, max 100)",
     keywords: [
       "all projects",
       "project list",
@@ -92,16 +92,18 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "GET /api/projects/[id]": {
     summary:
-      "One project's full details: name, code, slug, status, priority, phase (stage), services, client, budget, start date, the Account Manager (owner), every team with its manager and members, service owners and counts. [id] = project id or slug from GET /api/projects.",
+      "One project's full details: name, code, slug, status, priority, phase (stage), services, client, budget, start date, its Account Managers (owner = primary, secondaryAccountManager - null when not set), every team with its manager and members, service owners (serviceOwners[].employee = owner, .secondaryEmployee = secondary owner) and counts. [id] = project id or slug from GET /api/projects.",
     keywords: [
       "project details",
       "who is the account manager",
-      "project owner",
+      "secondary account manager",
+      "who owns the service",
+      "secondary owner",
       "project teams",
       "project info",
     ],
     notes:
-      "Visible to the Account Manager, anyone on one of its teams, and project:read/project:write holders.",
+      "Visible to its Account Managers, anyone on one of its teams, and project:read/project:write holders. The field `owner`/`ownerId` is the primary Account Manager (a historical name).",
   },
   "GET /api/projects/[id]/activity": {
     summary:
@@ -352,18 +354,18 @@ export const PROJECTS_CORE: DescriptionMap = {
 
   "PATCH /api/projects/[id]": {
     summary:
-      "Edit a project and/or change its Account Manager (project owner): name, short name, services, description, status, priority, phase, client, start date, budget. Only the current Account Manager or project:write holders. Send only the fields to change.",
-    body: "{ accountManagerId?: employee id of the new Account Manager, must be active (alias ownerId); name?; shortName?: up to 24 chars, unique, null clears; services?: full list of service codes (see POST /api/projects), replaces the old list; description?; status?: PLANNING|ACTIVE|ON_HOLD|COMPLETED|CANCELLED; priority?: LOW|MEDIUM|HIGH|URGENT; stage?: LAUNCH|GROWTH|REBRANDING|DECLINE or null (the Phase); clientId?: client id or null; startDate?: YYYY-MM-DD or null; budget?: number (INR) or null; isArchived?: boolean (legacy, hides nothing) }",
+      "Edit a project and/or its Account Managers (primary and secondary, both with the same powers), plus name, short name, services, description, status, priority, phase, client, start date, budget. Either Account Manager or a project:write holder may edit; the primary Account Manager (or project:write) can hand the project to a new Account Manager and picks the secondary - the secondary can change neither. Send only the fields to change.",
+    body: "{ accountManagerId?: active employee id, the new PRIMARY Account Manager (alias ownerId; the current Account Manager or project:write); secondaryAccountManagerId?: active employee id, or null to clear (the primary Account Manager or project:write); name?; shortName?: up to 24 chars, unique, null clears; services?: full list of service codes (see POST /api/projects), replaces the old list; description?; status?: PLANNING|ACTIVE|ON_HOLD|COMPLETED|CANCELLED; priority?: LOW|MEDIUM|HIGH|URGENT; stage?: LAUNCH|GROWTH|REBRANDING|DECLINE or null (the Phase); clientId?: client id or null; startDate?: YYYY-MM-DD or null; budget?: number (INR) or null; isArchived?: boolean (legacy, hides nothing) }",
     keywords: [
       "change account manager",
-      "account manager",
-      "project owner",
+      "secondary account manager",
+      "backup account manager",
       "reassign project",
       "rename project",
       "project status",
     ],
     notes:
-      "A new Account Manager becomes manager and member of the AM team (the old one stays on it until removed) and gets Drive folder access; nobody is notified. Changing services drops owners of removed services and creates calendars for new ones. Setting clientId moves the project's unaffiliated client-portal logins to that client.",
+      "The secondary must be someone other than the primary; promoting the secondary to primary empties the secondary slot. A new primary Account Manager becomes manager and member of the AM team (the old one stays until removed); a secondary joins the AM team. Both get Drive folder access and an in-app notification. Service owners are set with PUT /api/projects/[id]/service-owners, not here. Changing services drops owners of removed services and creates calendars for new ones. Setting clientId moves the project's unaffiliated client-portal logins to that client.",
   },
   "PATCH /api/projects/[id]/deliverables/[deliverableId]": {
     summary:
@@ -453,10 +455,10 @@ export const PROJECTS_CORE: DescriptionMap = {
   "POST /api/projects": {
     summary:
       "Create a new project. It gets the next DN code, a URL slug, all 11 fixed teams (its Account Manager managing AM) and a calendar per service. Needs project:write. The Account Manager defaults to you.",
-    body: "{ name (required); accountManagerId?: active employee id (default you); clientId?; description?; status?: PLANNING (default)|ACTIVE|ON_HOLD|COMPLETED|CANCELLED; priority?: LOW|MEDIUM (default)|HIGH|URGENT; stage?: LAUNCH|GROWTH|REBRANDING|DECLINE (the Phase); startDate?: YYYY-MM-DD; budget?: number (INR); shortName?: up to 24 chars, unique; services?: array of SMO (Social Media), SEO (SEO/AEO/GEO), PM (Paid Performance), MSG (Email/WhatsApp/SMS), INF (Influencers), ALL (Alliances & Partnerships), DPR (Digital PR), WEB (Website), CAMP (Campaign Planning), OFF (Offline), BD (BD/Sales), BRAND (Branding Kit) }",
+    body: "{ name (required); accountManagerId?: active employee id, the primary Account Manager (default you); secondaryAccountManagerId?: active employee id, someone other than the primary; clientId?; description?; status?: PLANNING (default)|ACTIVE|ON_HOLD|COMPLETED|CANCELLED; priority?: LOW|MEDIUM (default)|HIGH|URGENT; stage?: LAUNCH|GROWTH|REBRANDING|DECLINE (the Phase); startDate?: YYYY-MM-DD; budget?: number (INR); shortName?: up to 24 chars, unique; services?: array of SMO (Social Media), SEO (SEO/AEO/GEO), PM (Paid Performance), MSG (Email/WhatsApp/SMS), INF (Influencers), ALL (Alliances & Partnerships), DPR (Digital PR), WEB (Website), CAMP (Campaign Planning), OFF (Offline), BD (BD/Sales), BRAND (Branding Kit) }",
     keywords: ["new project", "create project", "add project", "start project", "onboard client"],
     notes:
-      "Also shares the project's Drive folder with the Account Manager and team managers. Unknown service codes are silently dropped.",
+      "Also shares the project's Drive folder with its Account Managers and team members, and notifies a new Account Manager in-app. Unknown service codes are silently dropped. Set service owners afterwards with PUT /api/projects/[id]/service-owners.",
   },
   "POST /api/projects/[id]/deliverables": {
     summary:
@@ -633,10 +635,17 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "PUT /api/projects/[id]/service-owners": {
     summary:
-      "Set or clear who owns one service on a project (e.g. who owns SEO); the owner also manages that service's calendar. Only the Account Manager or project:write holders.",
-    body: "{ service (required): a service code ticked on the project (SMO, SEO, PM, MSG, INF, ALL, DPR, WEB, CAMP, OFF, BD, BRAND); employeeId: someone on one of the project's teams (or the Account Manager), or null to clear }",
-    keywords: ["service owner", "who owns SEO", "assign service", "service lead", "calendar owner"],
+      "Set or clear who owns one service on a project (e.g. who owns SEO) and its always-on secondary owner, who has the same powers on the service's calendars. An Account Manager or project:write holder sets either; the service's owner may also pick or clear their own secondary.",
+    body: "{ service (required): a service code ticked on the project (SMO, SEO, PM, MSG, INF, ALL, DPR, WEB, CAMP, OFF, BD, BRAND); employeeId?: the owner - someone on the project's teams (or an Account Manager), or null to clear; secondaryEmployeeId?: the secondary owner, same rule, someone other than the owner, or null to clear. A key left out stays as it is. }",
+    keywords: [
+      "service owner",
+      "secondary service owner",
+      "backup owner",
+      "who owns SEO",
+      "assign service",
+      "calendar owner",
+    ],
     notes:
-      "Notifies the new owner in-app and by email (not when you pick yourself). Returns every service owner on the project.",
+      "Clearing the owner moves the secondary up (with the calendars from this month on); making the secondary the owner empties the secondary slot. A secondary needs an owner. Notifies each newly named person in-app and by email (not when you pick yourself). Returns every service owner on the project.",
   },
 }

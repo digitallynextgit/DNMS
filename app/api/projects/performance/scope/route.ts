@@ -5,6 +5,7 @@ import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { sortProjectTeams } from "@/features/projects/lib/project-teams"
+import { leadConditions } from "@/features/projects/lib/project-leads"
 import type { Session } from "next-auth"
 
 // Not filtered by the current selection, or picking one option would strand you with no way back.
@@ -18,7 +19,7 @@ export const GET = withSession(
         ? {}
         : {
             OR: [
-              { ownerId: session.user.id },
+              ...leadConditions(session.user.id),
               { teams: { some: { managerId: session.user.id } } },
               { tasks: { some: { assigneeId: session.user.id } } },
             ],

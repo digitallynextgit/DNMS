@@ -9,6 +9,12 @@ import {
   ShortNameTakenError,
 } from "@/features/projects/server/project-create.service"
 import {
+  LeadChangeError,
+  leadInputFrom,
+  planLeadChange,
+} from "@/features/projects/server/project-leads.service"
+import { notifyLeadAssigned } from "@/features/projects/server/owner-notifications"
+import {
   normaliseServices,
   normaliseShortName,
   shortNameProblem,
@@ -41,8 +47,7 @@ export const POST = withAuth(
   async (req: NextRequest, _ctx: unknown, session: Session) => {
     try {
       const body = await req.json()
-      const { name, description, status, priority, startDate, budget, accountManagerId, clientId } =
-        body
+      const { name, description, status, priority, startDate, budget, clientId } = body
       // Optional lifecycle "Phase"; anything but a known stage is refused.
       const stage: string | null = body.stage || null
       if (stage && !(stage in PROJECT_STAGE_LABELS)) {
@@ -59,20 +64,17 @@ export const POST = withAuth(
       const shortNameError = shortName && shortNameProblem(shortName)
       if (shortNameError) return NextResponse.json({ error: shortNameError }, { status: 422 })
 
-      // The Account Manager defaults to the creator.
-      const ownerId: string = accountManagerId || session.user.id
-      const accountManager = await db.employee.findUnique({
-        where: { id: ownerId },
-        select: { id: true, isActive: true },
-      })
-      if (!accountManager) {
-        return NextResponse.json({ error: "Account Manager not found" }, { status: 422 })
-      }
-      if (!accountManager.isActive) {
-        return NextResponse.json(
-          { error: "Account Manager is not an active employee" },
-          { status: 422 },
-        )
+      // The Account Managers (lib/project-leads.ts); the primary defaults to the creator.
+      const leadInput = leadInputFrom(body)
+      leadInput.ACCOUNT_MANAGER ??= session.user.id
+      let leads
+      try {
+        leads = await planLeadChange(session, null, leadInput)
+      } catch (e) {
+        if (e instanceof LeadChangeError) {
+          return NextResponse.json({ error: e.message }, { status: e.status })
+        }
+        throw e
       }
 
       let created
@@ -84,7 +86,8 @@ export const POST = withAuth(
             status: status ?? "PLANNING",
             priority: priority ?? "MEDIUM",
             stage: stage as "LAUNCH" | "GROWTH" | "REBRANDING" | "DECLINE" | null,
-            ownerId,
+            ownerId: leads.data.ownerId ?? session.user.id,
+            secondaryAccountManagerId: leads.data.secondaryAccountManagerId ?? null,
             clientId: clientId || null,
             startDate: startDate ? new Date(startDate) : null,
             budget: budget ? parseFloat(budget) : null,
@@ -113,9 +116,15 @@ export const POST = withAuth(
           services: project.services,
           status: project.status,
           clientId: clientId || null,
+          ...leads.data,
           teams: teams.map((t) => t.name),
         },
       })
+      await notifyLeadAssigned({
+        projectId: project.id,
+        assigned: leads.assigned,
+        actorId: session.user.id,
+      }).catch((e) => console.error("[PROJECT_LEADS_NOTIFY]", e))
 
       return NextResponse.json({ data: project }, { status: 201 })
     } catch (error) {

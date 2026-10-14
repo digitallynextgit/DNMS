@@ -1,6 +1,7 @@
 import "server-only"
 
 import { db } from "@/server/db"
+import { PROJECT_LEADS_SELECT, accountManagerIds } from "@/features/projects/lib/project-leads"
 import { requireClientModule } from "@/server/client-guard"
 import { recordActivity } from "@/lib/activity"
 import { createNotifications } from "@/lib/notifications"
@@ -136,12 +137,14 @@ async function projectWatchers(projectId: string): Promise<string[]> {
       where: { projectId, managerId: { not: null } },
       select: { managerId: true },
     }),
-    db.project.findUnique({ where: { id: projectId }, select: { ownerId: true } }),
+    db.project.findUnique({ where: { id: projectId }, select: PROJECT_LEADS_SELECT }),
   ])
+  // Client news reaches the team managers and both Account Managers.
   return [
-    ...new Set(
-      [...teams.map((t) => t.managerId), project?.ownerId].filter((v): v is string => !!v),
-    ),
+    ...new Set([
+      ...teams.map((t) => t.managerId).filter((v): v is string => !!v),
+      ...(project ? accountManagerIds(project) : []),
+    ]),
   ]
 }
 

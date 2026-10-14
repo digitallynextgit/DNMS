@@ -13,7 +13,6 @@ import { StatStrip } from "@/components/shared/stat-strip"
 import { InfoRow } from "@/components/shared/info-row"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AvatarDisplay } from "@/components/shared/avatar-display"
 // Concrete modules, never the feature barrel: a static barrel import would put the whole
 // feature in this page's eager chunk and defeat every dynamic() below.
 import {
@@ -59,6 +58,8 @@ import {
   ArrowRight,
 } from "lucide-react"
 import { ProjectFormDialog } from "@/features/projects/components/project-form-dialog"
+import { ProjectLeads, leadFormValues } from "@/features/projects/components/project-leads"
+import { isProjectLead } from "@/features/projects/lib/project-leads"
 import { clientHref } from "@/features/clients/lib/client-href"
 import { ProjectLogo } from "@/features/projects/components/project-logo"
 import { ProjectServicesPanel } from "@/features/projects/components/project-services-panel"
@@ -236,8 +237,9 @@ export default function ProjectDetailPage() {
     (r) => r.status === "OPEN" || r.status === "IN_PROGRESS",
   ).length
 
-  // project:write holders manage any project; the account manager (owner) manages their own.
-  const canManage = can(PERMISSIONS.PROJECT_WRITE) || (!!project && project.owner.id === userId)
+  // project:write holders manage any project; its Account Managers (primary, secondary) theirs.
+  const canManage =
+    can(PERMISSIONS.PROJECT_WRITE) || (!!project && !!userId && isProjectLead(project, userId))
   // The AM's pre-campaign checklist: the tab badge and the overview chip read it; others never fetch it.
   const kickoff = useProjectKickoff(projectRef, canManage).data?.data
   const kickoffLeft = kickoff ? kickoff.total - kickoff.done : 0
@@ -461,25 +463,7 @@ export default function ProjectDetailPage() {
 
           <Card>
             <CardContent className="space-y-4 p-5">
-              <div>
-                <p className="text-muted-foreground mb-2 text-[10px] font-medium tracking-widest uppercase">
-                  Account Manager
-                </p>
-                <div className="flex items-center gap-3">
-                  <AvatarDisplay
-                    src={project.owner.profilePhoto}
-                    firstName={project.owner.firstName}
-                    lastName={project.owner.lastName}
-                    size="md"
-                  />
-                  <div>
-                    <p className="font-medium">
-                      {project.owner.firstName} {project.owner.lastName}
-                    </p>
-                    <p className="text-muted-foreground text-xs">Lead manager for this project</p>
-                  </div>
-                </div>
-              </div>
+              <ProjectLeads project={project} />
 
               <div className="grid grid-cols-1 gap-4 border-t pt-3 text-sm sm:grid-cols-3">
                 <InfoRow label="Code" value={project.code} mono />
@@ -621,7 +605,7 @@ export default function ProjectDetailPage() {
           stage: project.stage ?? "",
           startDate: project.startDate ? project.startDate.split("T")[0] : "",
           budget: project.budget != null ? String(project.budget) : "",
-          accountManagerId: project.owner.id,
+          ...leadFormValues(project),
           clientId: project.client?.id ?? "",
           clientName: project.client?.name,
         }}

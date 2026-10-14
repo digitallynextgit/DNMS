@@ -11,6 +11,7 @@ import {
   type WorkProject,
 } from "../lib/employee-work"
 import { isProjectService } from "../lib/project-services"
+import { PROJECT_LEADS_SELECT, leadConditions, leadRolesOf } from "../lib/project-leads"
 import type { WorkbookTeamStatus } from "../lib/workbook-team-progress"
 import { parsePeriodMonth } from "./sheets.service"
 
@@ -37,20 +38,28 @@ export async function getEmployeeWork(employeeId: string, month: string): Promis
       where: { id: employeeId },
       select: { id: true, firstName: true, lastName: true },
     }),
+    // Services they own, or cover as the secondary owner.
     db.projectServiceOwner.findMany({
-      where: { employeeId },
-      select: { service: true, project: { select: { ...PROJECT_REF, services: true } } },
+      where: { OR: [{ employeeId }, { secondaryEmployeeId: employeeId }] },
+      select: {
+        service: true,
+        employeeId: true,
+        project: { select: { ...PROJECT_REF, services: true } },
+      },
     }),
     db.project.findMany({
       where: {
-        OR: [{ ownerId: employeeId }, { teams: { some: { members: { some: { employeeId } } } } }],
+        OR: [
+          ...leadConditions(employeeId),
+          { teams: { some: { members: { some: { employeeId } } } } },
+        ],
       },
       orderBy: { name: "asc" },
       select: {
         ...PROJECT_REF,
         code: true,
         status: true,
-        ownerId: true,
+        ...PROJECT_LEADS_SELECT,
         owner: { select: { id: true, firstName: true, lastName: true } },
         teams: {
           where: { members: { some: { employeeId } } },
@@ -127,6 +136,7 @@ export async function getEmployeeWork(employeeId: string, month: string): Promis
         shortName: o.project.shortName,
       },
       service: o.service,
+      secondary: o.employeeId !== employeeId,
       calendar: book ? toCalendar(book) : null,
       latestCalendarId:
         latest.find((w) => w.projectId === o.project.id && w.service === o.service)?.id ?? null,
@@ -160,6 +170,7 @@ export async function getEmployeeWork(employeeId: string, month: string): Promis
     status: p.status,
     accountManager: p.owner,
     isAccountManager: p.ownerId === employeeId,
+    leadRoles: leadRolesOf(p, employeeId),
     teams: p.teams.map((t) => ({ name: t.name, isManager: t.managerId === employeeId })),
   }))
 

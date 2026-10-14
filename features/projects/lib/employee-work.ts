@@ -1,6 +1,7 @@
 // One person's project work for a month: what they own and what they owe. Shared by server and client.
 
 import { teamProgress, type WorkbookTeamStatus } from "./workbook-team-progress"
+import type { ProjectLeadRole } from "./project-leads"
 
 export interface WorkProjectRef {
   id: string
@@ -33,6 +34,8 @@ export interface WorkCalendar {
 export interface OwnedService {
   project: WorkProjectRef
   service: string
+  /** They cover it as the secondary owner rather than own it. */
+  secondary: boolean
   /** The service's calendar for the month asked for, if it has one. */
   calendar: WorkCalendar | null
   /** Its newest month otherwise, so there is still somewhere to go. */
@@ -58,7 +61,10 @@ export interface WorkProject extends WorkProjectRef {
   code: string
   status: string
   accountManager: { id: string; firstName: string; lastName: string }
+  /** The PRIMARY Account Manager. */
   isAccountManager: boolean
+  /** The Account Manager roles this person holds here (lib/project-leads.ts). */
+  leadRoles: ProjectLeadRole[]
   /** The project's teams this person is on, and whether they manage it. */
   teams: { name: string; isManager: boolean }[]
 }

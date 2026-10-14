@@ -31,7 +31,9 @@ export const DELETE = withSession(
 
       if (!(await canStaffTeam(session, projectId, teamId))) {
         return NextResponse.json(
-          { error: "Only a project admin, the Account Manager or this team's manager can do this" },
+          {
+            error: "Only a project admin, an Account Manager or this team's manager can do this",
+          },
           { status: 403 },
         )
       }

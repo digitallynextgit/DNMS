@@ -4,9 +4,10 @@ import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
+import { ledBy } from "@/features/projects/lib/project-leads"
 import type { Session } from "next-auth"
 
-// Admins (project:write) see all; others see their managed teams, owned projects and own tasks.
+// Admins (project:write) see all; others see their managed teams, projects they are AM of and own tasks.
 export const GET = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -16,7 +17,7 @@ export const GET = withSession(
         : {
             OR: [
               { team: { managerId: session.user.id } },
-              { project: { ownerId: session.user.id } },
+              { project: ledBy(session.user.id) },
               { assigneeId: session.user.id },
             ],
           }
@@ -43,9 +44,11 @@ export const GET = withSession(
       // Raw SQL skips the per-company Prisma guard (server/tenant-guard.ts): scope to this company here,
       // or an admin's counts would include every company's tasks.
       const tenantSql = Prisma.sql`t.tenant_id = ${session.user.tenantId}`
+      const me = session.user.id
       const scopeSql = isAdmin
         ? tenantSql
-        : Prisma.sql`${tenantSql} AND (tm.manager_id = ${session.user.id} OR p.owner_id = ${session.user.id} OR t.assignee_id = ${session.user.id})`
+        : Prisma.sql`${tenantSql} AND (tm.manager_id = ${me} OR t.assignee_id = ${me}
+            OR p.owner_id = ${me} OR p.secondary_account_manager_id = ${me})`
       const projectSql = projectId ? Prisma.sql`t.project_id = ${projectId}` : Prisma.sql`TRUE`
       const fromSql = from
         ? Prisma.sql`t.due_date >= ${new Date(`${from}T00:00:00.000Z`)}`

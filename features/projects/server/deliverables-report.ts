@@ -18,6 +18,7 @@ import type { Prisma } from "@prisma/client"
 import type { Session } from "next-auth"
 
 import { db } from "@/server/db"
+import { ledBy } from "../lib/project-leads"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
@@ -88,7 +89,7 @@ export async function resolveReportScope(session: Session): Promise<ReportScope>
   }
 
   const [owned, managed, memberOf, reports] = await Promise.all([
-    db.project.findMany({ where: { ownerId: me }, select: { id: true } }),
+    db.project.findMany({ where: ledBy(me), select: { id: true } }),
     db.projectTeam.findMany({ where: { managerId: me }, select: { id: true, projectId: true } }),
     db.projectTeamMember.findMany({
       where: { employeeId: me },
@@ -102,7 +103,7 @@ export async function resolveReportScope(session: Session): Promise<ReportScope>
   ])
   const ownedIds = owned.map((p) => p.id)
 
-  // AMs run every team on projects they own; team managers the teams they lead. Members: themselves.
+  // AMs run every team on projects they manage; team managers the teams they lead. Members: themselves.
   const teamsInOwned = ownedIds.length
     ? await db.projectTeam.findMany({
         where: { projectId: { in: ownedIds } },
@@ -298,7 +299,7 @@ function scopeWhereFor(scope: ReportScope): Prisma.ProjectDeliverableWhereInput 
   const me = scope.employeeId
   return {
     OR: [
-      { project: { ownerId: me } },
+      { project: ledBy(me) },
       { team: { managerId: me } },
       // A row with no team is the manager's when its maker is on their team in that same project.
       ...teamIdsByProject(scope.managedTeams).map(([projectId, teamIds]) => ({

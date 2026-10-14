@@ -42,6 +42,7 @@ import {
   driveProjectIdsFor,
   syncProjectsFolderAccessAsync,
 } from "@/features/projects/server/project-drive.service"
+import { serviceOwnerExitSteps } from "@/features/projects/server/project-service-owners"
 
 type EmployeeFilters = {
   search?: string
@@ -662,7 +663,8 @@ export async function deactivateEmployee(id: string): Promise<ActionResult<{ mes
     const [seats, teamsRun] = await db.$transaction([
       db.projectTeamMember.deleteMany({ where: { employeeId: id } }),
       db.projectTeam.updateMany({ where: { managerId: id }, data: { managerId: null } }),
-      db.projectServiceOwner.deleteMany({ where: { employeeId: id } }),
+      // A service they own passes to its secondary owner.
+      ...serviceOwnerExitSteps(id),
     ])
     syncProjectsFolderAccessAsync(driveProjects)
     const meta = await getAuditMeta()

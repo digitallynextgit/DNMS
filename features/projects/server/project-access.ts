@@ -5,9 +5,11 @@ import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
+import { PROJECT_LEADS_SELECT, isProjectLead, leadConditions } from "../lib/project-leads"
 import type { Session } from "next-auth"
 
-// Managing a project: global `project:write`, or the project's Account Manager (its owner).
+// Managing a project: global `project:write`, or one of its Account Managers - primary or secondary,
+// with the same powers (lib/project-leads.ts).
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -27,13 +29,13 @@ export async function canManageProject(session: Session, projectId: string): Pro
   if (!projectId) return false
   const project = await db.project.findUnique({
     where: { id: projectId },
-    select: { ownerId: true },
+    select: PROJECT_LEADS_SELECT,
   })
-  return !!project && project.ownerId === session.user.id
+  return !!project && isProjectLead(project, session.user.id)
 }
 
 /**
- * View: `project:read`/`project:write`, the owner, or a member of any team on it. Membership is
+ * View: `project:read`/`project:write`, an Account Manager, or a member of any team on it. Membership is
  * per project, so the middleware lets everyone through and each read route checks this.
  */
 export async function canAccessProject(session: Session, projectId: string): Promise<boolean> {
@@ -47,7 +49,7 @@ export async function canAccessProject(session: Session, projectId: string): Pro
     where: {
       id: projectId,
       OR: [
-        { ownerId: session.user.id },
+        ...leadConditions(session.user.id),
         { teams: { some: { members: { some: { employeeId: session.user.id } } } } },
       ],
     },
@@ -103,7 +105,7 @@ type ProjectHandler = (
   session: Session,
 ) => Promise<Response> | Response
 
-/** Write guard: `project:write` holders and the Account Manager. Project id at `ctx.params.id`. */
+/** Write guard: `project:write` holders and the project's Account Managers. Project id at `ctx.params.id`. */
 export function withProjectManager(handler: ProjectHandler) {
   return withSession(async (req, ctx, session) => {
     const projectId = await resolveProjectId(ctx.params.id)
@@ -112,7 +114,7 @@ export function withProjectManager(handler: ProjectHandler) {
     ctx.params.id = projectId
     if (!(await canManageProject(session, projectId))) {
       return NextResponse.json(
-        { error: "Only the Account Manager or a project admin can do this" },
+        { error: "Only an Account Manager or a project admin can do this" },
         { status: 403 },
       )
     }
@@ -128,7 +130,9 @@ export function withTeamStaffing(handler: ProjectHandler) {
     ctx.params.id = projectId
     if (!(await canStaffTeam(session, projectId, ctx.params.teamId))) {
       return NextResponse.json(
-        { error: "Only a project admin, the Account Manager or a team manager can do this" },
+        {
+          error: "Only a project admin, an Account Manager or a team manager can do this",
+        },
         { status: 403 },
       )
     }
@@ -150,8 +154,9 @@ export function withProjectAccess(handler: ProjectHandler) {
 }
 
 /**
- * Edit a team's calendar row: project managers, the calendar's manager (any row), or that team's
- * own manager (own row only - which is why this isn't withTeamStaffing). Members are not enough.
+ * Edit a team's calendar row: project managers, the calendar's manager or - when that manager is the
+ * service's owner - its secondary owner (any row), or that team's own manager (own row only - which
+ * is why this isn't withTeamStaffing). Members are not enough.
  * Omit `teamId` to ask "may they edit anything on this plan" (the Add team button).
  */
 export async function canEditWorkbookTeam(
@@ -165,11 +170,22 @@ export async function canEditWorkbookTeam(
 
   const workbook = await db.projectWorkbook.findFirst({
     where: { id: workbookId, projectId },
-    select: { assignedToId: true },
+    select: { assignedToId: true, service: true },
   })
   // Not found = not on this project, or doesn't exist; both are no.
   if (!workbook) return false
   if (workbook.assignedToId === session.user.id) return true
+  if (workbook.service && workbook.assignedToId) {
+    const covering = await db.projectServiceOwner.count({
+      where: {
+        projectId,
+        service: workbook.service,
+        employeeId: workbook.assignedToId,
+        secondaryEmployeeId: session.user.id,
+      },
+    })
+    if (covering > 0) return true
+  }
 
   return canStaffTeam(session, projectId, teamId)
 }
@@ -239,7 +255,7 @@ export function withWorkbookTeamAccess(handler: ProjectHandler) {
       return NextResponse.json(
         {
           error:
-            "Only a project admin, the Account Manager, the calendar's manager or that team's own manager can do this",
+            "Only a project admin, an Account Manager, the calendar's manager or that team's own manager can do this",
         },
         { status: 403 },
       )

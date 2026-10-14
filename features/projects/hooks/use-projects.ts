@@ -40,7 +40,11 @@ export interface ProjectListItem {
   startDate: string | null
   endDate: string | null
   budget: number | null
-  owner: { id: string; firstName: string; lastName: string; profilePhoto?: string | null }
+  /** The PRIMARY Account Manager (`owner` below); see lib/project-leads.ts. */
+  ownerId: string
+  owner: LeadPerson
+  secondaryAccountManagerId: string | null
+  secondaryAccountManager: LeadPerson | null
   /** The company this is delivered for. Null for internal projects. */
   client: { id: string; name: string; slug: string | null } | null
   members: {
@@ -49,6 +53,13 @@ export interface ProjectListItem {
   _count: { tasks: number }
   /** Kickoff must-haves progress; only sent to people who can manage the project. */
   kickoff?: { done: number; total: number } | null
+}
+
+export interface LeadPerson {
+  id: string
+  firstName: string
+  lastName: string
+  profilePhoto?: string | null
 }
 
 export interface EmployeeSnippet {
@@ -1061,7 +1072,12 @@ export function useSetServiceOwner(projectId: string) {
   const qc = useQueryClient()
   return useMutation(
     mutationWithToast(qc, {
-      mutationFn: (body: { service: string; employeeId: string | null }) =>
+      // A key left out stays as it is; null clears.
+      mutationFn: (body: {
+        service: string
+        employeeId?: string | null
+        secondaryEmployeeId?: string | null
+      }) =>
         apiFetch<{ data: ServiceOwner[] }>(`/api/projects/${projectId}/service-owners`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -1069,7 +1085,14 @@ export function useSetServiceOwner(projectId: string) {
         }),
       // The owner also becomes the service calendar's manager.
       invalidate: [["project"], ["projects"], ["project-sheets"], ["project-workbook"]],
-      success: (_d, vars) => (vars.employeeId ? "Owner set" : "Owner removed"),
+      success: (_d, vars) =>
+        vars.secondaryEmployeeId !== undefined
+          ? vars.secondaryEmployeeId
+            ? "Secondary owner set"
+            : "Secondary owner removed"
+          : vars.employeeId
+            ? "Owner set"
+            : "Owner removed",
     }),
   )
 }

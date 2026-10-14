@@ -4,6 +4,7 @@ import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import { getAwayDaysForMany } from "@/features/leave/server/day-status.queries"
+import { leadConditions, ledBy } from "@/features/projects/lib/project-leads"
 import type { Session } from "next-auth"
 
 // A bounded snapshot of what THIS user may see, for the AI assistant (the model never queries the DB).
@@ -78,7 +79,7 @@ export async function buildAiContext(session: Session): Promise<string> {
     ? {}
     : {
         OR: [
-          { ownerId: userId },
+          ...leadConditions(userId),
           { members: { some: { employeeId: userId } } },
           { teams: { some: { managerId: userId } } },
         ],
@@ -103,7 +104,7 @@ export async function buildAiContext(session: Session): Promise<string> {
   for (const p of projects) {
     out.push(
       `- ${p.name} (${p.code}) | status ${p.status} | priority ${p.priority} | ` +
-        `${fmt(p.startDate)}→${fmt(p.endDate)} | owner ${p.owner ? `${p.owner.firstName} ${p.owner.lastName}` : "-"}`,
+        `${fmt(p.startDate)}→${fmt(p.endDate)} | account manager ${p.owner ? `${p.owner.firstName} ${p.owner.lastName}` : "-"}`,
     )
     if (p.description) out.push(`  goal: ${p.description.slice(0, 400)}`)
   }
@@ -112,11 +113,7 @@ export async function buildAiContext(session: Session): Promise<string> {
   const taskWhere = canSeeAllProjects
     ? {}
     : {
-        OR: [
-          { team: { managerId: userId } },
-          { project: { ownerId: userId } },
-          { assigneeId: userId },
-        ],
+        OR: [{ team: { managerId: userId } }, { project: ledBy(userId) }, { assigneeId: userId }],
       }
   const tasks = await db.projectTask.findMany({
     where: taskWhere,

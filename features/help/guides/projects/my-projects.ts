@@ -37,14 +37,14 @@ export const myProjectsGuide: HelpGuide = {
       id: "list",
       title: { en: "See your projects", hi: "अपने प्रोजेक्ट्स देखें" },
       intro: {
-        en: "Projects lists every project you are on a team of, plus any project where you are the Account Manager. Admins who manage projects see every project in the company.",
-        hi: "Projects में वो सारे प्रोजेक्ट्स दिखते हैं जिनकी किसी टीम में आप हैं, और वो भी जिनके आप Account Manager हैं। जो एडमिन प्रोजेक्ट्स संभालते हैं, उन्हें कंपनी के सारे प्रोजेक्ट्स दिखते हैं।",
+        en: "Projects lists every project you are on a team of, plus any project where you are the Account Manager or the secondary Account Manager. Admins who manage projects see every project in the company.",
+        hi: "Projects में वो सारे प्रोजेक्ट्स दिखते हैं जिनकी किसी टीम में आप हैं, और वो भी जिनके आप Account Manager या secondary Account Manager हैं। जो एडमिन प्रोजेक्ट्स संभालते हैं, उन्हें कंपनी के सारे प्रोजेक्ट्स दिखते हैं।",
       },
       steps: [
         {
           text: {
-            en: "Click Projects in the sidebar. Your projects are listed in one table, newest first, with columns for Project (the name, with its DN code underneath), Short name, Client, Services, Status / Phase, Account Manager, Tasks and Employees.",
-            hi: "साइडबार में Projects पर क्लिक करें। आपके प्रोजेक्ट्स एक ही टेबल में दिखते हैं, सबसे नए सबसे ऊपर - Project (नाम, और उसके नीचे DN कोड), Short name, Client, Services, Status / Phase, Account Manager, Tasks और Employees के कॉलम के साथ।",
+            en: "Click Projects in the sidebar. Your projects are listed in one table, newest first, with columns for Project (the name, with its DN code underneath), Short name, Client, Services, Status / Phase, Account Manager, Tasks and Employees. A secondary Account Manager shows under the Account Manager's name.",
+            hi: "साइडबार में Projects पर क्लिक करें। आपके प्रोजेक्ट्स एक ही टेबल में दिखते हैं, सबसे नए सबसे ऊपर - Project (नाम, और उसके नीचे DN कोड), Short name, Client, Services, Status / Phase, Account Manager, Tasks और Employees के कॉलम के साथ। secondary Account Manager का नाम Account Manager के नाम के नीचे दिखता है।",
           },
         },
         {
@@ -129,8 +129,8 @@ export const myProjectsGuide: HelpGuide = {
           hi: "आपने जो कॉलम छिपाए (टेबल के ऊपर दाईं ओर वाले कॉलम बटन से) और Rows per page (नीचे), DNMS उन्हें इस कंप्यूटर पर याद रखता है।",
         },
         {
-          en: "If you are the Account Manager of a project (or an admin), you also see a Budget column.",
-          hi: "अगर आप किसी प्रोजेक्ट के Account Manager (या एडमिन) हैं, तो आपको Budget कॉलम भी दिखता है।",
+          en: "If you are the Account Manager or secondary Account Manager of a project (or an admin), you also see a Budget column.",
+          hi: "अगर आप किसी प्रोजेक्ट के Account Manager या secondary Account Manager (या एडमिन) हैं, तो आपको Budget कॉलम भी दिखता है।",
         },
       ],
       faq: [
@@ -215,8 +215,8 @@ export const myProjectsGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Scroll down and pick the Account Manager (1) - the lead manager for this project. The Account Manager can manage everything on their project, even without admin rights.",
-            hi: "नीचे स्क्रॉल करें और Account Manager (1) चुनें - इस प्रोजेक्ट का मुख्य मैनेजर। Account Manager अपने प्रोजेक्ट पर सब कुछ संभाल सकता है, चाहे उसके पास एडमिन के अधिकार न हों।",
+            en: "Scroll down and pick the Account Manager (1) - the lead manager for this project - and, if you like, a Secondary Account Manager who covers whenever they are away. Both can manage everything on the project, even without admin rights. Later, the Account Manager (or an admin) can hand the project to someone else and picks their own secondary.",
+            hi: "नीचे स्क्रॉल करें और Account Manager (1) चुनें - इस प्रोजेक्ट का मुख्य मैनेजर - और चाहें तो एक Secondary Account Manager, जो उनकी गैरमौजूदगी में काम संभालते हैं। दोनों प्रोजेक्ट पर सब कुछ संभाल सकते हैं, चाहे उनके पास एडमिन के अधिकार न हों। बाद में Account Manager (या एडमिन) प्रोजेक्ट किसी और को सौंप सकते हैं और अपना secondary खुद चुनते हैं।",
           },
           shot: {
             id: "my-projects-new-details",

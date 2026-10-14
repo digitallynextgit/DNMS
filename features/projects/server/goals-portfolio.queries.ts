@@ -2,6 +2,7 @@ import "server-only"
 
 import type { Session } from "next-auth"
 import { db } from "@/server/db"
+import { leadConditions } from "../lib/project-leads"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { todayUtc } from "@/lib/dates"
@@ -66,7 +67,7 @@ function scopeWhere(session: Session) {
   }
   return {
     OR: [
-      { ownerId: session.user.id },
+      ...leadConditions(session.user.id),
       { teams: { some: { members: { some: { employeeId: session.user.id } } } } },
     ],
   }

@@ -47,6 +47,7 @@ import {
 } from "../lib/project-services"
 import type { WorkbookIndexEntry } from "../lib/sheet-types"
 import { ServiceChip } from "./service-chips"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { cn } from "@/lib/utils"
 
 const NO_OWNER = "__none__"
@@ -73,6 +74,72 @@ function OwnerLabel({
         {person.firstName} {person.lastName}
       </span>
     </span>
+  )
+}
+
+type Person = { id: string; firstName: string; lastName: string; profilePhoto?: string | null }
+
+/** Pick a service's owner or secondary owner from the people on the project. */
+function OwnerSelect({
+  value,
+  onChange,
+  people,
+  label,
+  empty,
+  clearLabel,
+  excludeId,
+  disabled,
+}: {
+  value: ServiceOwner["employee"] | null
+  onChange: (employeeId: string | null) => void
+  people: (Person & { isManager?: boolean; designation?: { title: string } | null })[]
+  label: string
+  empty: string
+  clearLabel: string
+  excludeId?: string
+  disabled?: boolean
+}) {
+  return (
+    <Select
+      value={value?.id ?? NO_OWNER}
+      onValueChange={(v) => onChange(v === NO_OWNER ? null : v)}
+      disabled={disabled}
+    >
+      <SelectTrigger
+        className="hover:bg-muted -ml-1.5 h-7 w-auto max-w-full min-w-0 gap-1 border-0 bg-transparent px-1.5 focus:ring-offset-0"
+        aria-label={label}
+      >
+        {/* A div, not a span: the trigger line-clamps span children, which stacks the avatar. */}
+        <div className="flex min-w-0 items-center">
+          <OwnerLabel person={value} empty={empty} />
+        </div>
+      </SelectTrigger>
+      <SelectContent align="start" className="max-h-72">
+        <SelectItem value={NO_OWNER}>
+          <span className="text-muted-foreground text-xs">{clearLabel}</span>
+        </SelectItem>
+        {people
+          .filter((p) => p.id !== excludeId)
+          .map((p) => (
+            <SelectItem key={p.id} value={p.id}>
+              <span className="flex items-center gap-2">
+                <AvatarDisplay
+                  src={p.profilePhoto}
+                  firstName={p.firstName}
+                  lastName={p.lastName}
+                  size="xs"
+                />
+                <span className="truncate">
+                  {p.firstName} {p.lastName}
+                </span>
+                <span className="text-muted-foreground truncate text-[11px]">
+                  {p.isManager ? "Account Manager" : p.designation?.title}
+                </span>
+              </span>
+            </SelectItem>
+          ))}
+      </SelectContent>
+    </Select>
   )
 }
 
@@ -191,7 +258,10 @@ export function ProjectServicesPanel({
 }) {
   const rows = PROJECT_SERVICES.filter((s) => services.includes(s.code))
   const unticked = PROJECT_SERVICES.filter((s) => !services.includes(s.code))
-  const people = useProjectMembers(canManage ? projectId : undefined)
+  const { userId } = usePermissions()
+  // A service's owner may pick their own secondary, so they need the people list too.
+  const ownsOne = !!userId && owners.some((o) => o.employee.id === userId)
+  const people = useProjectMembers(canManage || ownsOne ? projectId : undefined)
   const calendars = useWorkbookIndex(rows.length > 0 ? projectId : "")
   const setOwner = useSetServiceOwner(projectId)
   const setServices = useSetProjectServices(projectId)
@@ -247,7 +317,10 @@ export function ProjectServicesPanel({
       <div className="@container">
         <ul className="grid gap-2 @xl:grid-cols-2 @4xl:grid-cols-3">
           {rows.map((s) => {
-            const owner = owners.find((o) => o.service === s.code)?.employee ?? null
+            const row = owners.find((o) => o.service === s.code)
+            const owner = row?.employee ?? null
+            const secondary = row?.secondaryEmployee ?? null
+            const canPickSecondary = !!owner && (canManage || owner.id === userId)
             const saving = setOwner.isPending && setOwner.variables?.service === s.code
             const editions = (calendars.data ?? []).filter((w) => w.service === s.code)
             return (
@@ -270,46 +343,15 @@ export function ProjectServicesPanel({
 
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   {canManage ? (
-                    <Select
-                      value={owner?.id ?? NO_OWNER}
-                      onValueChange={(v) =>
-                        setOwner.mutate({ service: s.code, employeeId: v === NO_OWNER ? null : v })
-                      }
+                    <OwnerSelect
+                      value={owner}
+                      onChange={(employeeId) => setOwner.mutate({ service: s.code, employeeId })}
+                      people={people.data?.data ?? []}
+                      label={`Owner of ${s.name}`}
+                      empty="Assign an owner"
+                      clearLabel={secondary ? "No owner (the secondary takes over)" : "No owner"}
                       disabled={saving}
-                    >
-                      <SelectTrigger
-                        className="hover:bg-muted -ml-1.5 h-7 w-auto max-w-full min-w-0 gap-1 border-0 bg-transparent px-1.5 focus:ring-offset-0"
-                        aria-label={`Owner of ${s.name}`}
-                      >
-                        {/* A div, not a span: the trigger line-clamps span children, which stacks the avatar. */}
-                        <div className="flex min-w-0 items-center">
-                          <OwnerLabel person={owner} empty="Assign an owner" />
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent align="start" className="max-h-72">
-                        <SelectItem value={NO_OWNER}>
-                          <span className="text-muted-foreground text-xs">No owner</span>
-                        </SelectItem>
-                        {(people.data?.data ?? []).map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            <span className="flex items-center gap-2">
-                              <AvatarDisplay
-                                src={p.profilePhoto}
-                                firstName={p.firstName}
-                                lastName={p.lastName}
-                                size="xs"
-                              />
-                              <span className="truncate">
-                                {p.firstName} {p.lastName}
-                              </span>
-                              <span className="text-muted-foreground truncate text-[11px]">
-                                {p.isManager ? "Account Manager" : p.designation?.title}
-                              </span>
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
                   ) : (
                     <div className="flex h-7 min-w-0 items-center">
                       <OwnerLabel person={owner} />
@@ -341,6 +383,29 @@ export function ProjectServicesPanel({
                   </div>
                 </div>
 
+                {canPickSecondary ? (
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="text-muted-foreground shrink-0 text-[11px]">Secondary</span>
+                    <OwnerSelect
+                      value={secondary}
+                      onChange={(secondaryEmployeeId) =>
+                        setOwner.mutate({ service: s.code, secondaryEmployeeId })
+                      }
+                      people={people.data?.data ?? []}
+                      label={`Secondary owner of ${s.name}`}
+                      empty="Add a secondary owner"
+                      clearLabel="No secondary owner"
+                      excludeId={owner?.id}
+                      disabled={saving}
+                    />
+                  </div>
+                ) : secondary ? (
+                  <div className="flex h-7 min-w-0 items-center gap-1.5">
+                    <span className="text-muted-foreground shrink-0 text-[11px]">Secondary</span>
+                    <OwnerLabel person={secondary} />
+                  </div>
+                ) : null}
+
                 {canManage ? (
                   <Button
                     variant="ghost"
@@ -362,8 +427,8 @@ export function ProjectServicesPanel({
       </div>
       {canManage && (
         <p className="text-muted-foreground text-xs">
-          A service&apos;s owner also owns its calendar. Owners come from this project&apos;s teams
-          and are told by notification and email.
+          A service&apos;s owner also owns its calendar; its secondary owner covers it with the same
+          powers. Owners come from this project&apos;s teams and are told by notification and email.
         </p>
       )}
 

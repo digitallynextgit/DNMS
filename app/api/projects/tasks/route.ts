@@ -6,6 +6,7 @@ import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
+import { ledBy } from "@/features/projects/lib/project-leads"
 
 // The tasks behind a count on the Progress page. `state` uses exactly the performance route's buckets
 // and visibility rules - if they disagreed, a slice of 42 would open a list of 39.
@@ -41,7 +42,7 @@ export const GET = withSession(
       : {
           OR: [
             { team: { managerId: session.user.id } },
-            { project: { ownerId: session.user.id } },
+            { project: ledBy(session.user.id) },
             { assigneeId: session.user.id },
           ],
         }

@@ -84,7 +84,7 @@ export const PUT = withWorkbookTeamContribute(
       return NextResponse.json(
         {
           error:
-            "Only a project admin, the Account Manager, the calendar's manager or that team's own manager can change what a team owes.",
+            "Only a project admin, an Account Manager, the calendar's manager or that team's own manager can change what a team owes.",
         },
         { status: 403 },
       )

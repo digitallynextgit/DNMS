@@ -91,7 +91,9 @@ export const POST = withTeamStaffing(
         }
       } else if (!(await canManageProject(session, ctx.params.id))) {
         return NextResponse.json(
-          { error: "Only the Account Manager or a project admin can raise a project-level task" },
+          {
+            error: "Only an Account Manager or a project admin can raise a project-level task",
+          },
           { status: 403 },
         )
       }

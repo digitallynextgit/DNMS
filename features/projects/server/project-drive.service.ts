@@ -25,17 +25,22 @@ const PERSON = { select: { email: true, isActive: true, status: true } } as cons
 // Leavers lose access the moment they are marked as gone, not when someone tidies the team.
 const GONE = new Set(["RESIGNED", "TERMINATED", "SUSPENDED"])
 
-/** The owner + every team member who still works here, by work email. */
+/** Both Account Managers + every team member who still works here, by work email. */
 async function projectMemberEmails(projectId: string): Promise<string[]> {
   const project = await db.project.findUnique({
     where: { id: projectId },
     select: {
       owner: PERSON,
+      secondaryAccountManager: PERSON,
       teams: { select: { members: { select: { employee: PERSON } } } },
     },
   })
   if (!project) return []
-  const people = [project.owner, ...project.teams.flatMap((t) => t.members.map((m) => m.employee))]
+  const people = [
+    project.owner,
+    project.secondaryAccountManager,
+    ...project.teams.flatMap((t) => t.members.map((m) => m.employee)),
+  ]
   const emails = new Set<string>()
   for (const p of people) {
     if (!p?.email || !p.isActive || GONE.has(p.status)) continue
@@ -105,6 +110,7 @@ export async function driveProjectIdsFor(employeeIds: string[]): Promise<string[
     where: {
       OR: [
         { ownerId: { in: employeeIds } },
+        { secondaryAccountManagerId: { in: employeeIds } },
         { teams: { some: { members: { some: { employeeId: { in: employeeIds } } } } } },
       ],
     },

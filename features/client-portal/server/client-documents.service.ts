@@ -1,6 +1,7 @@
 import "server-only"
 
 import { db } from "@/server/db"
+import { PROJECT_LEADS_SELECT, accountManagerIds } from "@/features/projects/lib/project-leads"
 import { requireClientModule } from "@/server/client-guard"
 import { recordActivity } from "@/lib/activity"
 import { createNotifications } from "@/lib/notifications"
@@ -164,12 +165,14 @@ export async function uploadClientDocument(
     })
     const owner = await db.project.findUnique({
       where: { id: grant.projectId },
-      select: { ownerId: true, slug: true },
+      select: { ...PROJECT_LEADS_SELECT, slug: true },
     })
+    // Client news reaches the team managers and both Account Managers.
     const recipients = [
-      ...new Set(
-        [...staff.map((t) => t.managerId), owner?.ownerId].filter((v): v is string => !!v),
-      ),
+      ...new Set([
+        ...staff.map((t) => t.managerId).filter((v): v is string => !!v),
+        ...(owner ? accountManagerIds(owner) : []),
+      ]),
     ]
     if (recipients.length > 0) {
       await createNotifications(
