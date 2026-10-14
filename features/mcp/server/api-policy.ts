@@ -35,6 +35,27 @@ export const BLOCKED_API_METHODS: Readonly<Record<string, readonly string[]>> = 
   "/api/projects/[id]/integration/credentials": ["GET"],
 }
 
+/** Body fields the AI may not send because they set a sign-in password. The rest of the call is fine. */
+export const BLOCKED_BODY_FIELDS: Readonly<
+  Record<string, Readonly<Record<string, readonly string[]>>>
+> = {
+  // Changing your own password from the profile page.
+  "/api/profile": { PATCH: ["currentPassword", "newPassword"] },
+  // Left out, a new hire gets a generated password emailed to them - the normal path.
+  "/api/employees": { POST: ["password"] },
+}
+
+/** The first body field this call may not send, or null. */
+export function blockedBodyField(
+  routePattern: string,
+  method: string,
+  body: unknown,
+): string | null {
+  const fields = BLOCKED_BODY_FIELDS[routePattern]?.[method]
+  if (!fields || !body || typeof body !== "object") return null
+  return fields.find((f) => (body as Record<string, unknown>)[f] !== undefined) ?? null
+}
+
 /** Why a route pattern is off-limits, or null if it is allowed. */
 export function exclusionReason(routePattern: string, method?: string): string | null {
   for (const [re, reason] of EXCLUDED_API_PATHS) {

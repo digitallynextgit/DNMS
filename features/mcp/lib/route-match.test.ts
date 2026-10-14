@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { compilePatterns, matchPattern } from "./route-match"
-import { exclusionReason } from "../server/api-policy"
+import { blockedBodyField, exclusionReason } from "../server/api-policy"
 
 const paths = [
   "/api/leave/requests",
@@ -79,5 +79,22 @@ describe("exclusionReason (AI connector policy)", () => {
     ]) {
       expect(exclusionReason(p, "GET")).toBeNull()
     }
+  })
+})
+
+describe("blockedBodyField (no sign-in passwords through the AI)", () => {
+  it("refuses a profile password change but not the rest of a profile edit", () => {
+    expect(
+      blockedBodyField("/api/profile", "PATCH", { currentPassword: "a", newPassword: "b" }),
+    ).toBe("currentPassword")
+    expect(blockedBodyField("/api/profile", "PATCH", { phone: "9999999999" })).toBeNull()
+  })
+
+  it("lets a new hire be created without choosing their password", () => {
+    expect(blockedBodyField("/api/employees", "POST", { firstName: "A", password: "x" })).toBe(
+      "password",
+    )
+    expect(blockedBodyField("/api/employees", "POST", { firstName: "A" })).toBeNull()
+    expect(blockedBodyField("/api/employees", "GET", { password: "x" })).toBeNull()
   })
 })

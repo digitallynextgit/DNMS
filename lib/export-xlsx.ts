@@ -55,6 +55,13 @@ export async function exportBookToXlsx(
   tabs: { name: string; header: string[]; rows: Cell[][] }[],
   filename: string,
 ): Promise<void> {
+  download(await buildBookXlsx(tabs), filename)
+}
+
+/** The same workbook as bytes, without the browser download - works on the server too. */
+export async function buildBookXlsx(
+  tabs: { name: string; header: string[]; rows: Cell[][] }[],
+): Promise<ArrayBuffer> {
   const ExcelJS = (await import("exceljs")).default
   const book = new ExcelJS.Workbook()
   const used = new Set<string>()
@@ -68,7 +75,7 @@ export async function exportBookToXlsx(
     used.add(name.toLowerCase())
     addSheet(book.addWorksheet(name), tab.header, tab.rows)
   }
-  download((await book.xlsx.writeBuffer()) as ArrayBuffer, filename)
+  return (await book.xlsx.writeBuffer()) as ArrayBuffer
 }
 
 function addSheet(sheet: Worksheet, header: string[], rows: Cell[][]): void {

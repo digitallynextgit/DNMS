@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
-import { withProjectManager, withProjectAccess } from "@/features/projects/server/project-access"
+import {
+  resolveProjectId,
+  withProjectManager,
+  withProjectAccess,
+} from "@/features/projects/server/project-access"
 import { syncAccountManagerTeam } from "@/features/projects/server/project-teams"
 import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
 import { shortNameTaken } from "@/features/projects/server/project-create.service"
@@ -73,6 +77,8 @@ export const GET = withProjectAccess(
   },
 )
 
+// PATCH /api/projects/[id] - update a project (name, status, priority, phase, client, dates, budget, archive).
+// Change the Account Manager with accountManagerId (an employee id); ownerId is accepted as an alias.
 export const PATCH = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -85,10 +91,17 @@ export const PATCH = withProjectManager(
         startDate,
         budget,
         isArchived,
-        accountManagerId,
         clientId,
         stage,
       } = body
+      // The project's own data calls this field `ownerId`, so a caller that read
+      // the project first (the AI connector, an integration) naturally sends that.
+      // Ignoring it would answer 200 while changing nothing.
+      // A project always has an Account Manager (owner_id is NOT NULL), so only a
+      // real employee id changes it; anything else leaves it as it is.
+      const rawManager = body.accountManagerId !== undefined ? body.accountManagerId : body.ownerId
+      const accountManagerId: string | undefined =
+        typeof rawManager === "string" && rawManager.trim() ? rawManager.trim() : undefined
 
       // Lifecycle "Phase": a known stage, or null/"" to clear it.
       if (stage && !(stage in PROJECT_STAGE_LABELS)) {
@@ -211,7 +224,10 @@ export const DELETE = withAuth(
   PERMISSIONS.PROJECT_DELETE,
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
-      await db.project.delete({ where: { id: ctx.params.id } })
+      // Slug-tolerant like the project's other routes (withAuth doesn't swap the slug for the id).
+      const projectId = await resolveProjectId(ctx.params.id!)
+      if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
+      await db.project.delete({ where: { id: projectId } })
       return NextResponse.json({ message: "Project deleted" })
     } catch (error) {
       console.error("[PROJECT_DELETE]", error)

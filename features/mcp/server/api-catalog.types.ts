@@ -17,6 +17,10 @@ export interface ApiMethodInfo {
   upload?: true
   /** Produces a downloadable file (or a signed link to one): use dnms_download. */
   file?: true
+  /** Query parameters explained in plain words (from features/mcp/server/descriptions). */
+  queryHelp?: string
+  /** Extra search words people might use for this endpoint. */
+  keywords?: string[]
 }
 
 export interface ApiRouteEntry {

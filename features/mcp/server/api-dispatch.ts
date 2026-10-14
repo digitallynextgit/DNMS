@@ -4,7 +4,7 @@ import { NextRequest } from "next/server"
 import { MCP_SCOPES } from "../constants"
 import { API_ROUTES } from "./api-routes.generated"
 import type { ApiMethodInfo, HttpMethod } from "./api-catalog.types"
-import { exclusionReason } from "./api-policy"
+import { blockedBodyField, exclusionReason } from "./api-policy"
 import { compilePatterns, matchPattern } from "../lib/route-match"
 import { publicOrigin } from "./config"
 import { runAsPrincipal, type Principal } from "./principal"
@@ -117,6 +117,15 @@ export async function invokeRoute(
       status: 403,
       route: routeLabel,
       note: "This connection was granted read-only access. Reconnect DNMS and allow changes to do this.",
+    })
+  }
+  const passwordField = blockedBodyField(entry.path, method, input.body)
+  if (passwordField) {
+    return fail({
+      ok: false,
+      status: 403,
+      route: routeLabel,
+      note: `The AI connector cannot set sign-in passwords (${passwordField}). Leave that field out, or do this in the DNMS web app.`,
     })
   }
   if (info.upload) {
@@ -301,17 +310,32 @@ export function findEndpoints(query: string, limit = 25): EndpointSummary[] {
     .split(/[^a-z0-9]+/)
     .filter((w) => w.length > 1 && !STOP.has(w))
   if (words.length === 0) return []
+  // Adjacent word pairs ("account manager", "leave balance"): a phrase that
+  // appears in a description beats the same words scattered across a path.
+  const pairs = words.slice(1).map((w, i) => `${words[i]} ${w}`)
   const scored = API_ROUTES.map((entry) => {
     const pathText = entry.path.toLowerCase()
-    const docText = Object.values(entry.methods)
-      .map((m) => `${m?.doc ?? ""} ${(m?.query ?? []).join(" ")} ${m?.body ?? ""}`)
+    const methods = Object.values(entry.methods)
+    const docText = methods
+      .map(
+        (m) =>
+          `${m?.doc ?? ""} ${(m?.query ?? []).join(" ")} ${m?.queryHelp ?? ""} ${m?.body ?? ""}`,
+      )
       .join(" ")
+      .toLowerCase()
+    const keywordText = methods
+      .flatMap((m) => m?.keywords ?? [])
+      .join(" | ")
       .toLowerCase()
     let score = 0
     for (const w of words) {
       const stem = w.replace(/(ies|es|s)$/, "")
       if (pathText.includes(stem)) score += 3
+      if (keywordText.includes(stem)) score += 3
       if (docText.includes(stem)) score += 1
+    }
+    for (const pair of pairs) {
+      if (keywordText.includes(pair) || docText.includes(pair)) score += 4
     }
     // Prefer shorter (collection-level) paths on ties.
     return { entry, score: score - entry.path.length / 1000 }
@@ -319,7 +343,17 @@ export function findEndpoints(query: string, limit = 25): EndpointSummary[] {
     .filter((s) => s.score > 0.5)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
-  return scored.map(({ entry }) => ({ path: entry.path, methods: entry.methods }))
+  return scored.map(({ entry }) => ({ path: entry.path, methods: withoutKeywords(entry.methods) }))
+}
+
+/** Keywords only steer the search; the AI reads the doc, so leave them out of results. */
+function withoutKeywords(methods: EndpointSummary["methods"]): EndpointSummary["methods"] {
+  return Object.fromEntries(
+    Object.entries(methods).map(([m, info]) => {
+      const { keywords: _keywords, ...rest } = info ?? {}
+      return [m, rest]
+    }),
+  )
 }
 
 /** Every allowed endpoint as one compact line: "GET,POST /api/leave/requests". */
@@ -329,7 +363,7 @@ export function endpointIndex(): string[] {
 
 export function describeEndpoint(path: string): EndpointSummary | null {
   const exact = API_ROUTES.find((e) => e.path === path)
-  if (exact) return { path: exact.path, methods: exact.methods }
+  if (exact) return { path: exact.path, methods: withoutKeywords(exact.methods) }
   const m = matchRoute(path.split("?")[0]!.replace(/\/+$/, ""))
-  return m ? { path: m.entry.path, methods: m.entry.methods } : null
+  return m ? { path: m.entry.path, methods: withoutKeywords(m.entry.methods) } : null
 }

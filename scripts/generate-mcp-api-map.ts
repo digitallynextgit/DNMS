@@ -21,6 +21,8 @@ type Method = (typeof HTTP_METHODS)[number]
 
 // What is never reachable lives in ONE place, shared with the runtime check.
 import { exclusionReason } from "../features/mcp/server/api-policy"
+// Hand-written, plain-language descriptions - the AI's main way to find an endpoint.
+import { ENDPOINT_DESCRIPTIONS } from "../features/mcp/server/descriptions"
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -251,6 +253,25 @@ function bodyHint(segment: string, routeFile: string): string | null {
       }
     }
   }
+  // 4. Fields the route reads straight off the parsed body without a type or
+  //    schema - `const { a, b } = body` / `body.c`. Names only (no types), but
+  //    enough that the AI sends `accountManagerId` rather than guessing.
+  if (/req\.json\(\)/.test(segment)) {
+    const names = new Set<string>()
+    const destructured =
+      /const\s*\{([^}]*)\}\s*=\s*(?:\(?\s*await\s+req\.json\(\)\s*\)?|body)(?![\w.])/g
+    for (const m of segment.matchAll(destructured)) {
+      for (const part of m[1]!.split(",")) {
+        const name = part.split(/[:=]/)[0]!.replace("...", "").trim()
+        if (/^[A-Za-z_$][\w$]*$/.test(name)) names.add(name)
+      }
+    }
+    for (const m of segment.matchAll(/\bbody\.([A-Za-z_$][\w$]*)/g)) names.add(m[1]!)
+    if (names.size) {
+      return `{ ${[...names].map((n) => `${n}?`).join(", ")} } - fields the route reads; all optional unless the route says otherwise`
+    }
+  }
+
   return null
 }
 
@@ -271,6 +292,10 @@ interface MethodInfo {
   upload?: true
   /** Produces a downloadable file (or a signed link to one): use dnms_download. */
   file?: true
+  /** Query parameters explained (from the descriptions file). */
+  queryHelp?: string
+  /** Extra search words. */
+  keywords?: string[]
 }
 
 function analyse(file: string, scopes: Map<string, string>) {
@@ -375,6 +400,17 @@ function analyse(file: string, scopes: Map<string, string>) {
       info.file = true
     if (perms.length) info.permissions = perms
     if (guard) info.guard = guard
+    // The hand-written description wins over anything scraped from the code:
+    // it survives comment cleanups and is written for the AI.
+    const described = ENDPOINT_DESCRIPTIONS[`${s.method} ${path}`]
+    if (described) {
+      info.doc = described.notes
+        ? `${described.summary} Note: ${described.notes}`
+        : described.summary
+      if (described.query) info.queryHelp = described.query
+      if (described.body) info.body = described.body
+      if (described.keywords?.length) info.keywords = described.keywords
+    }
     methods[s.method] = info
   })
   if (Object.keys(methods).length === 0) return null
@@ -418,6 +454,20 @@ ${body}
     ...(await resolveConfig(OUT)),
     filepath: OUT,
   })
+  const methodCount = entries.reduce((n, e) => n + Object.keys(e.methods).length, 0)
+  const undescribed = entries.flatMap((e) =>
+    Object.keys(e.methods)
+      .filter((m) => !ENDPOINT_DESCRIPTIONS[`${m} ${e.path}`])
+      .map((m) => `${m} ${e.path}`),
+  )
+  if (undescribed.length) {
+    const shown = undescribed.slice(0, 15).join("\n  ")
+    const more = undescribed.length > 15 ? `\n  ...and ${undescribed.length - 15} more` : ""
+    console.warn(
+      `[mcp:api-map] ${undescribed.length} of ${methodCount} endpoint methods have no description ` +
+        `in features/mcp/server/descriptions/ - the AI will struggle to find them:\n  ${shown}${more}`,
+    )
+  }
   const label = `${entries.length} routes → ${relative(ROOT, OUT)} (${skipped} excluded)`
   if (existsSync(OUT) && readFileSync(OUT, "utf8") === formatted) {
     console.log(`[mcp:api-map] ${label}, unchanged`)

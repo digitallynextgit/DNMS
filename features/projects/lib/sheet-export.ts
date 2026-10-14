@@ -1,6 +1,9 @@
 // A calendar tab as a plain table for CSV/Excel downloads: what the grid shows, in grid order.
 import type { CellValue, ProjectSheet, SheetColumn } from "./sheet-types"
 
+/** Prefixed to CSV downloads so Excel reads curly quotes and Hindi as UTF-8. */
+export const UTF8_BOM = String.fromCharCode(0xfeff)
+
 export interface SheetTable {
   name: string
   header: string[]

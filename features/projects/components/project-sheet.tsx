@@ -26,7 +26,7 @@ import { toast } from "sonner"
 import { SheetImportDialog } from "./sheet-import-dialog"
 import { downloadCsv, toCsv } from "@/lib/export-csv"
 import { exportBookToXlsx, exportToXlsx } from "@/lib/export-xlsx"
-import { exportFileName, sheetTable } from "../lib/sheet-export"
+import { UTF8_BOM, exportFileName, sheetTable } from "../lib/sheet-export"
 
 import { useMeasuredRowHeights } from "@/hooks/use-measured-row-heights"
 import { cn } from "@/lib/utils"
@@ -118,9 +118,6 @@ const TOTAL_ROWS = 1000
 const OVERSCAN = 8
 
 /** Types whose control IS the editor - Enter or a printable key must not try to "open" them. */
-// Leads a CSV so Excel reads it as UTF-8 (curly quotes, Hindi).
-const UTF8_BOM = String.fromCharCode(0xfeff)
-
 const LIVE_TYPES = new Set<SheetColumnType>(["SELECT", "PERSON", "CHECKBOX"])
 
 function fmtWhen(iso: string): string {
