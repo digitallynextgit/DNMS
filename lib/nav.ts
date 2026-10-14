@@ -30,6 +30,7 @@ import {
   DoorOpen,
   Package,
   Bot,
+  Smartphone,
   LifeBuoy,
   Wrench,
   Sparkles,
@@ -74,6 +75,10 @@ export const EMPLOYEE_ITEMS: NavItem[] = [
   { label: "Notifications", href: "/notifications", icon: Bell, badge: "unread-notifications" },
   // The AI only ever gets the connecting person's own permissions.
   { label: "AI Connections", href: "/ai-connections", icon: Bot },
+  // Sign the mobile app in from this browser. Ungated: it mints a code for the caller only,
+  // and for the many staff who sign in with Google and have no DNMS password it is the only
+  // way into the app at all.
+  { label: "Pair Your Phone", href: "/pair-phone", icon: Smartphone },
 ]
 
 export const COMPANY_ITEMS: NavItem[] = [

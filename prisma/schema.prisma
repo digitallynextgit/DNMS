@@ -90,7 +90,9 @@ model Membership {
   employee   Employee?   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   clientUser ClientUser? @relation(fields: [clientUserId], references: [id], onDelete: Cascade)
 
-  oauthGrants OAuthGrant[]
+  oauthGrants     OAuthGrant[]
+  mobileSessions  MobileSession[]
+  mobilePairCodes MobilePairCode[]
 
   /// A person can hold both a STAFF and a CLIENT membership in one tenant (e.g. a contractor who is also a client contact).
   @@unique([userId, tenantId, kind])
@@ -563,6 +565,11 @@ model Employee {
 
   // AI apps connected via MCP
   oauthGrants OAuthGrant[]
+
+  // Signed-in phones, and their FCM/APNs push tokens
+  mobileSessions  MobileSession[]
+  deviceTokens    DeviceToken[]
+  mobilePairCodes MobilePairCode[]
 
   attendanceLogs          AttendanceLog[]
   regularizations         AttendanceRegularization[] @relation("RegularizationEmployee")
@@ -4767,4 +4774,140 @@ model McpToolCall {
   @@index([tenantId, createdAt])
   @@index([grantId, createdAt])
   @@map("mcp_tool_calls")
+}
+
+/// ---------------------------------------------------------------------------
+/// Mobile app (iOS / Android). Deliberately shaped like OAuthGrant/OAuthToken
+/// above: a long-lived "connection" row plus opaque hashed tokens. What OAuth
+/// cannot hold is the DEVICE - and without the device there is no honest answer
+/// to "which of these is my old phone?", which is the whole lost-phone flow.
+///
+/// tenantId is REQUIRED on all three (no dbgenerated DEFAULT) so
+/// deprovisionTenant() - which deletes every tenantId-bearing model it finds at
+/// runtime - cleans them up, and so a missing tenant fails loudly at insert
+/// rather than silently landing in the founding tenant.
+/// ---------------------------------------------------------------------------
+
+/// One signed-in phone ("Karan's iPhone"). Revoking it kills every token it holds, on the next call.
+model MobileSession {
+  tenantId     String @map("tenant_id")
+  id           String @id @default(uuid()) @map("id")
+  userId       String @map("user_id")
+  membershipId String @map("membership_id")
+  employeeId   String @map("employee_id")
+
+  /// Stable per install, chosen by the app. A re-install is a different device.
+  deviceId   String  @map("device_id")
+  /// "ios" | "android"
+  platform   String  @map("platform")
+  /// Handset model as the app reports it, e.g. "iPhone 15 Pro". Shown when revoking.
+  deviceName String? @map("device_name")
+  appVersion String? @map("app_version")
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  lastSeenAt    DateTime? @map("last_seen_at")
+  /// Set = signed out, replaced, offboarded, password changed or refresh-token theft.
+  revokedAt     DateTime? @map("revoked_at")
+  revokedReason String?   @map("revoked_reason")
+
+  employee   Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  membership Membership    @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  tokens     MobileToken[]
+
+  @@index([tenantId, employeeId])
+  @@index([membershipId])
+  /// issueSession() retires the previous live session for the same install through this.
+  @@index([membershipId, deviceId])
+  @@index([userId])
+  @@map("mobile_sessions")
+}
+
+/// An access or refresh token for one phone. Looked up by hash with NO tenant filter: the token
+/// decides the company - so every read of this model must declare runUnscoped() (see
+/// server/mobile-auth.ts), and every write must name tenantId itself.
+model MobileToken {
+  tenantId  String    @map("tenant_id")
+  id        String    @id @default(uuid()) @map("id")
+  sessionId String    @map("session_id")
+  /// "access" | "refresh"
+  kind      String    @map("kind")
+  /// SHA-256 of the token; the token itself is never stored. Globally unique by construction, so
+  /// this index is NOT per-tenant - same reasoning as push_subscriptions(endpoint) in
+  /// 20260826140000_per_tenant_uniques.
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  /// Refresh tokens: when exchanged. Reuse after the race window is treated as theft and revokes
+  /// the whole session.
+  usedAt    DateTime? @map("used_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  session MobileSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([tenantId])
+  @@map("mobile_tokens")
+}
+
+/// An FCM / APNs device token for push. Device-global like push_subscriptions.endpoint: one handset
+/// can hold two companies' employees, so re-pointing a token at the signing-in user crosses tenants
+/// and the unique index stays global (not per-tenant).
+model DeviceToken {
+  tenantId   String  @map("tenant_id")
+  id         String  @id @default(uuid()) @map("id")
+  employeeId String  @map("employee_id")
+  /// The FCM registration token / APNs device token. Not a URL - which is exactly why
+  /// /api/notifications/push cannot be reused for it.
+  token      String  @unique @map("token")
+  /// "ios" | "android"
+  platform   String  @map("platform")
+  appVersion String? @map("app_version")
+
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastSeenAt DateTime? @map("last_seen_at")
+  /// Set when FCM/APNs reports the token dead (UNREGISTERED / 410) so the sender stops retrying.
+  disabledAt DateTime? @map("disabled_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([tenantId, employeeId])
+  @@map("device_tokens")
+}
+
+/// A six-digit phone-pairing code: minted by a browser that already holds a live DNMS web session,
+/// typed into the app once, and DELETED on redemption. Looked up BY HASH with no tenant filter -
+/// the code decides the company, exactly like mobile_tokens - so every read of this model must
+/// declare runUnscoped() and the insert must name tenantId itself (see server/mobile-pairing.ts).
+/// Rows live five minutes at most: every mint sweeps the expired ones.
+model MobilePairCode {
+  tenantId String @map("tenant_id")
+  id       String @id @default(uuid()) @map("id")
+
+  /// SHA-256 of the six digits; the code itself is never stored or logged. NOT secrecy - a million
+  /// hashes is milliseconds of work - it keeps the plaintext out of rows, query logs and backups.
+  /// Unique because the hash IS the lookup key, and because two live codes with the same digits
+  /// would leave one of them unredeemable. Global, not per-tenant, for that same reason.
+  codeHash String @unique @map("code_hash")
+
+  /// Who the code pairs AS. All three are re-validated through loadMembershipIfStillValid() before
+  /// a session is issued, so these columns decide the person and the handset never does.
+  userId       String @map("user_id")
+  membershipId String @map("membership_id")
+  employeeId   String @map("employee_id")
+
+  /// Both written from the APP's clock, never a database default: expiresAt is compared against
+  /// new Date() on redemption, so expiresAt - createdAt is the TTL and not the TTL plus the drift
+  /// between two machines. Same one-clock rule issueSession() states in server/mobile-auth.ts.
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  /// The sweep every mint runs - the only thing that deletes an expired code.
+  @@index([expiresAt])
+  /// "One live code per person": a mint replaces the caller's previous code through this.
+  @@index([membershipId])
+  @@map("mobile_pair_codes")
 }

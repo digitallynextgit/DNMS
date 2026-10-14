@@ -48,6 +48,11 @@ const PUBLIC_PREFIXES = [
   "/api/mcp",
   "/api/oauth",
   "/.well-known",
+  // Mobile app: the same rule as /api/mcp above. EVERY route under this prefix resolves its
+  // own opaque Bearer token in the Node runtime, where - unlike the Edge - there is a
+  // database to resolve it against. So a new file under app/api/mobile that skips that step
+  // is an open endpoint: app/api/mobile/mobile-surface.test.ts fails the build if one lands.
+  "/api/mobile",
   "/_next",
   "/favicon.ico",
   "/public",
