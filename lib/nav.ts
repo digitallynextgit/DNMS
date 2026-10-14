@@ -29,11 +29,11 @@ import {
   ClipboardCheck,
   DoorOpen,
   Package,
-  Presentation,
   Bot,
   Smartphone,
   LifeBuoy,
   Wrench,
+  Sparkles,
 } from "lucide-react"
 
 import { PERMISSIONS } from "@/lib/constants"
@@ -96,13 +96,14 @@ export const COMPANY_ITEMS: NavItem[] = [
 const PROJECT_ITEMS: NavItem[] = [
   // No gate: the pages are scoped to the user's own (owned + member) projects.
   {
-    label: "My Projects",
+    label: "Projects",
     href: "/projects/my-projects",
     icon: FolderKanban,
   },
+  // Tasks, plus the services and calendars you own, in two tabs.
   {
-    label: "My Tasks",
-    href: "/projects/my-tasks",
+    label: "My Work",
+    href: "/projects/my-work",
     icon: ListChecks,
   },
 ]
@@ -116,8 +117,6 @@ export function projectItems(canManageProjects: boolean): NavItem[] {
       href: "/projects/progress",
       icon: TrendingUp,
     },
-    // No gate: the route scopes it to self, a manager's reports, or (admin/HR) anyone.
-    { label: "Work Report", href: "/work-reports", icon: Presentation },
     {
       label: "Clients",
       href: "/projects/clients",
@@ -260,6 +259,12 @@ export const ADMIN_ITEMS: NavItem[] = [
     label: "Storage",
     href: "/admin/storage",
     icon: HardDrive,
+    permission: PERMISSIONS.SETTINGS_WRITE,
+  },
+  {
+    label: "AI Models",
+    href: "/admin/ai-models",
+    icon: Sparkles,
     permission: PERMISSIONS.SETTINGS_WRITE,
   },
 ]

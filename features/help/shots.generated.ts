@@ -4,20 +4,20 @@ import type { HelpShotFile } from "./types"
 
 export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
   "ai-connections-everyone": {
-    src: "/help-shots/ai-connections-everyone.fe5f9eaa.webp",
+    src: "/help-shots/ai-connections-everyone.43341d21.webp",
     width: 1800,
-    height: 513,
+    height: 599,
     boxes: [
       {
         x: 0.01,
-        y: 0.0351,
+        y: 0.0301,
         w: 0.98,
-        h: 0.0936,
+        h: 0.0802,
       },
     ],
   },
   "ai-connections-steps": {
-    src: "/help-shots/ai-connections-steps.b0b0000c.webp",
+    src: "/help-shots/ai-connections-steps.949297ff.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -42,7 +42,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "ai-connections-url": {
-    src: "/help-shots/ai-connections-url.b0b0000c.webp",
+    src: "/help-shots/ai-connections-url.949297ff.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -61,7 +61,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "ai-connections-yours": {
-    src: "/help-shots/ai-connections-yours.b0b0000c.webp",
+    src: "/help-shots/ai-connections-yours.949297ff.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -80,7 +80,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "analytics-cards": {
-    src: "/help-shots/analytics-cards.22e296be.webp",
+    src: "/help-shots/analytics-cards.9e295975.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -111,7 +111,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "analytics-charts": {
-    src: "/help-shots/analytics-charts.c6753f9f.webp",
+    src: "/help-shots/analytics-charts.a810bfb5.webp",
     width: 1800,
     height: 918,
     boxes: [
@@ -335,7 +335,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "attendance-admin-directory": {
-    src: "/help-shots/attendance-admin-directory.0a26d631.webp",
+    src: "/help-shots/attendance-admin-directory.a9becf7e.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -346,9 +346,9 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
         h: 0.0267,
       },
       {
-        x: 0.1694,
-        y: 0.3544,
-        w: 0.5556,
+        x: 0.1785,
+        y: 0.4333,
+        w: 0.2139,
         h: 0.0489,
       },
       {
@@ -398,63 +398,63 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "audit-log-filter-role": {
-    src: "/help-shots/audit-log-filter-role.78bcbcd2.webp",
+    src: "/help-shots/audit-log-filter-role.bff79133.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.3007,
-        y: 0.2133,
-        w: 0.3502,
+        x: 0.2951,
+        y: 0.2067,
+        w: 0.2139,
         h: 0.0489,
       },
       {
-        x: 0.8926,
-        y: 0.2133,
+        x: 0.7424,
+        y: 0.2067,
         w: 0.0817,
         h: 0.0489,
       },
     ],
   },
   "audit-log-filters": {
-    src: "/help-shots/audit-log-filters.80059254.webp",
+    src: "/help-shots/audit-log-filters.ee720f00.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.1813,
-        y: 0.2133,
+        x: 0.1785,
+        y: 0.2067,
         w: 0.1167,
         h: 0.0489,
       },
       {
-        x: 0.3007,
-        y: 0.2133,
-        w: 0.4347,
+        x: 0.2951,
+        y: 0.2067,
+        w: 0.2139,
         h: 0.0489,
       },
       {
-        x: 0.7382,
-        y: 0.2133,
+        x: 0.509,
+        y: 0.2067,
         w: 0.1167,
         h: 0.0489,
       },
       {
-        x: 0.8576,
-        y: 0.2133,
+        x: 0.6257,
+        y: 0.2067,
         w: 0.1167,
         h: 0.0489,
       },
     ],
   },
   "audit-log-table": {
-    src: "/help-shots/audit-log-table.c3c68178.webp",
+    src: "/help-shots/audit-log-table.01f7d85d.webp",
     width: 1797,
-    height: 1005,
+    height: 1019,
     boxes: [],
   },
   "calendar-birthdays": {
-    src: "/help-shots/calendar-birthdays.328ea427.webp",
+    src: "/help-shots/calendar-birthdays.7ca85281.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -473,57 +473,32 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "calendar-floating": {
-    src: "/help-shots/calendar-floating.f1204b09.webp",
+    src: "/help-shots/calendar-floating.63197fdf.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
         x: 0.9001,
-        y: 0.6189,
+        y: 0.8778,
         w: 0.0743,
         h: 0.0489,
       },
       {
         x: 0.8824,
-        y: 0.5511,
+        y: 0.81,
         w: 0.0919,
         h: 0.0489,
       },
       {
         x: 0.5951,
-        y: 0.2844,
+        y: 0.1433,
         w: 0.1376,
         h: 0.0267,
       },
     ],
   },
-  "calendar-floating-requests": {
-    src: "/help-shots/calendar-floating-requests.98b4111d.webp",
-    width: 2160,
-    height: 1350,
-    boxes: [
-      {
-        x: 0.3738,
-        y: 0.1989,
-        w: 0.1063,
-        h: 0.04,
-      },
-      {
-        x: 0.8144,
-        y: 0.5011,
-        w: 0.0865,
-        h: 0.0489,
-      },
-      {
-        x: 0.8981,
-        y: 0.5011,
-        w: 0.0762,
-        h: 0.0489,
-      },
-    ],
-  },
   "calendar-holidays-month": {
-    src: "/help-shots/calendar-holidays-month.dc07a2e3.webp",
+    src: "/help-shots/calendar-holidays-month.bb8b4e57.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -560,26 +535,21 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "calendar-holidays-table": {
-    src: "/help-shots/calendar-holidays-table.9025ebaa.webp",
+    src: "/help-shots/calendar-holidays-table.4fcba548.webp",
     width: 1797,
-    height: 1005,
+    height: 1289,
     boxes: [
+      null,
       {
-        x: 0.63,
-        y: 0.0179,
-        w: 0.2503,
-        h: 0.0784,
-      },
-      {
-        x: 0.8736,
-        y: 0.0179,
+        x: 0.8737,
+        y: 0.014,
         w: 0.1163,
-        h: 0.0784,
+        h: 0.0611,
       },
     ],
   },
   "calendar-picker": {
-    src: "/help-shots/calendar-picker.90892bfc.webp",
+    src: "/help-shots/calendar-picker.98903016.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -654,7 +624,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "chat-new-chat": {
-    src: "/help-shots/chat-new-chat.93f7c882.webp",
+    src: "/help-shots/chat-new-chat.509c70da.webp",
     width: 720,
     height: 737,
     boxes: [
@@ -667,7 +637,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "chat-overview": {
-    src: "/help-shots/chat-overview.d6e83e8b.webp",
+    src: "/help-shots/chat-overview.5a39431a.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -781,7 +751,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "clients-add-contact": {
-    src: "/help-shots/clients-add-contact.a58febab.webp",
+    src: "/help-shots/clients-add-contact.c686ff44.webp",
     width: 816,
     height: 908,
     boxes: [
@@ -812,7 +782,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "clients-contacts": {
-    src: "/help-shots/clients-contacts.a74fa0a2.webp",
+    src: "/help-shots/clients-contacts.14abd2f6.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -843,21 +813,21 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "clients-list": {
-    src: "/help-shots/clients-list.37557bd3.webp",
+    src: "/help-shots/clients-list.d3376c7a.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.1694,
-        y: 0.3022,
-        w: 0.2722,
+        x: 0.1785,
+        y: 0.3144,
+        w: 0.0497,
         h: 0.0489,
       },
       {
-        x: 0.4535,
-        y: 0.3111,
-        w: 0.0539,
-        h: 0.0311,
+        x: 0.2281,
+        y: 0.3144,
+        w: 0.2722,
+        h: 0.0489,
       },
       {
         x: 0.8912,
@@ -868,7 +838,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "clients-new": {
-    src: "/help-shots/clients-new.3471f784.webp",
+    src: "/help-shots/clients-new.e28ddc96.webp",
     width: 1776,
     height: 1127,
     boxes: [
@@ -887,7 +857,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "clients-new-password": {
-    src: "/help-shots/clients-new-password.152abcfa.webp",
+    src: "/help-shots/clients-new-password.24bae3f3.webp",
     width: 720,
     height: 476,
     boxes: [
@@ -906,7 +876,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "clients-page": {
-    src: "/help-shots/clients-page.a3a96c3f.webp",
+    src: "/help-shots/clients-page.23ebcd3f.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -937,7 +907,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "clients-sections": {
-    src: "/help-shots/clients-sections.7d0cb118.webp",
+    src: "/help-shots/clients-sections.89a5443c.webp",
     width: 816,
     height: 1310,
     boxes: [
@@ -962,7 +932,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "dashboard-company-news": {
-    src: "/help-shots/dashboard-company-news.fc64011d.webp",
+    src: "/help-shots/dashboard-company-news.fba0cca0.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -981,7 +951,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "dashboard-employee-leave-pay": {
-    src: "/help-shots/dashboard-employee-leave-pay.869de781.webp",
+    src: "/help-shots/dashboard-employee-leave-pay.5e8549c0.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -1006,62 +976,62 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "dashboard-employee-top": {
-    src: "/help-shots/dashboard-employee-top.25b58d26.webp",
+    src: "/help-shots/dashboard-employee-top.6490f632.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
         x: 0.184,
         y: 0.2178,
-        w: 0.0669,
+        w: 0.0652,
         h: 0.0267,
       },
       {
-        x: 0.3206,
+        x: 0.3479,
         y: 0.2178,
         w: 0.0801,
         h: 0.0267,
       },
       {
-        x: 0.5938,
+        x: 0.5118,
         y: 0.2178,
-        w: 0.0852,
-        h: 0.0444,
+        w: 0.1067,
+        h: 0.0267,
       },
       {
-        x: 0.8669,
+        x: 0.8396,
         y: 0.2178,
-        w: 0.0852,
-        h: 0.0444,
+        w: 0.1125,
+        h: 0.0267,
       },
       {
         x: 0.3333,
-        y: 0.3744,
+        y: 0.3767,
         w: 0.1611,
         h: 0.0489,
       },
     ],
   },
   "dashboard-employee-work": {
-    src: "/help-shots/dashboard-employee-work.25b58d26.webp",
+    src: "/help-shots/dashboard-employee-work.4f324209.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
         x: 0.184,
-        y: 0.4711,
+        y: 0.1833,
         w: 0.0865,
         h: 0.0311,
       },
       {
         x: 0.7322,
-        y: 0.4644,
+        y: 0.1767,
         w: 0.2393,
         h: 0.0311,
       },
       {
         x: 0.184,
-        y: 0.8233,
+        y: 0.8622,
         w: 0.0698,
         h: 0.0311,
       },
@@ -1374,7 +1344,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "email-templates-create": {
-    src: "/help-shots/email-templates-create.29fcde56.webp",
+    src: "/help-shots/email-templates-create.a92714fd.webp",
     width: 984,
     height: 1350,
     boxes: [
@@ -1393,7 +1363,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "email-templates-edit": {
-    src: "/help-shots/email-templates-edit.8e87a210.webp",
+    src: "/help-shots/email-templates-edit.2676b570.webp",
     width: 984,
     height: 1350,
     boxes: [
@@ -1412,7 +1382,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "email-templates-list": {
-    src: "/help-shots/email-templates-list.c6f32ddb.webp",
+    src: "/help-shots/email-templates-list.a990ab4e.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -1423,21 +1393,21 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
         h: 0.0489,
       },
       {
-        x: 0.7781,
-        y: 0.2772,
+        x: 0.7919,
+        y: 0.3272,
         w: 0.0361,
         h: 0.0356,
       },
       {
         x: 0.9438,
-        y: 0.2722,
+        y: 0.3222,
         w: 0.0306,
         h: 0.0489,
       },
     ],
   },
   "email-templates-merge-fields": {
-    src: "/help-shots/email-templates-merge-fields.8e87a210.webp",
+    src: "/help-shots/email-templates-merge-fields.2676b570.webp",
     width: 984,
     height: 1350,
     boxes: [
@@ -1531,31 +1501,31 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "employee-directory-list": {
-    src: "/help-shots/employee-directory-list.61e7c70b.webp",
+    src: "/help-shots/employee-directory-list.ebf791cb.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.1694,
-        y: 0.1944,
+        x: 0.1785,
+        y: 0.2067,
         w: 0.2722,
         h: 0.0489,
       },
       {
-        x: 0.4535,
-        y: 0.2033,
+        x: 0.4625,
+        y: 0.2156,
         w: 0.079,
         h: 0.0311,
       },
       {
-        x: 0.5868,
-        y: 0.2033,
+        x: 0.5958,
+        y: 0.2156,
         w: 0.0343,
         h: 0.0311,
       },
       {
-        x: 0.9264,
-        y: 0.1989,
+        x: 0.815,
+        y: 0.1067,
         w: 0.0306,
         h: 0.04,
       },
@@ -1593,7 +1563,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "employee-directory-roles": {
-    src: "/help-shots/employee-directory-roles.783fb586.webp",
+    src: "/help-shots/employee-directory-roles.be7c12e8.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -1606,21 +1576,21 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "employee-directory-roles-dialog": {
-    src: "/help-shots/employee-directory-roles-dialog.974cde90.webp",
+    src: "/help-shots/employee-directory-roles-dialog.2abca6e1.webp",
     width: 1776,
-    height: 672,
+    height: 348,
     boxes: [
       {
         x: 0.0625,
-        y: 0.6719,
+        y: 0.8319,
         w: 0.1689,
-        h: 0.0491,
+        h: 0.0948,
       },
       {
         x: 0.9073,
-        y: 0.8371,
+        y: 1.1509,
         w: 0.0615,
-        h: 0.0982,
+        h: 0.0043,
       },
     ],
   },
@@ -1739,7 +1709,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "getting-started-ask-dnms": {
-    src: "/help-shots/getting-started-ask-dnms.07cccffe.webp",
+    src: "/help-shots/getting-started-ask-dnms.26e0bc45.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -1758,7 +1728,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "getting-started-forgot-password": {
-    src: "/help-shots/getting-started-forgot-password.1b550a5b.webp",
+    src: "/help-shots/getting-started-forgot-password.b7fc64fc.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -1777,7 +1747,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "getting-started-login": {
-    src: "/help-shots/getting-started-login.d585a323.webp",
+    src: "/help-shots/getting-started-login.0402e22c.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -1846,7 +1816,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "getting-started-profile-menu": {
-    src: "/help-shots/getting-started-profile-menu.1ef4f294.webp",
+    src: "/help-shots/getting-started-profile-menu.615400b7.webp",
     width: 384,
     height: 260,
     boxes: [
@@ -1865,7 +1835,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "getting-started-sidebar": {
-    src: "/help-shots/getting-started-sidebar.25b58d26.webp",
+    src: "/help-shots/getting-started-sidebar.d9d49d28.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -1896,7 +1866,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "getting-started-theme": {
-    src: "/help-shots/getting-started-theme.dfa7ad8f.webp",
+    src: "/help-shots/getting-started-theme.8a90c4c9.webp",
     width: 1776,
     height: 687,
     boxes: [
@@ -1933,7 +1903,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "getting-started-top-bar": {
-    src: "/help-shots/getting-started-top-bar.25b58d26.webp",
+    src: "/help-shots/getting-started-top-bar.d9d49d28.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2127,7 +2097,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "leave-admin-directory": {
-    src: "/help-shots/leave-admin-directory.ed2c1bbb.webp",
+    src: "/help-shots/leave-admin-directory.a90c2b2a.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2150,21 +2120,21 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
         h: 0.04,
       },
       {
-        x: 0.1694,
-        y: 0.1944,
-        w: 0.3455,
+        x: 0.2281,
+        y: 0.2067,
+        w: 0.2139,
         h: 0.0489,
       },
       {
-        x: 0.5177,
-        y: 0.1944,
+        x: 0.442,
+        y: 0.2067,
         w: 0.1236,
         h: 0.0489,
       },
       {
-        x: 0.6441,
-        y: 0.1944,
-        w: 0.1097,
+        x: 0.1785,
+        y: 0.2067,
+        w: 0.0497,
         h: 0.0489,
       },
     ],
@@ -2238,7 +2208,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-attendance-calendar": {
-    src: "/help-shots/my-attendance-calendar.704fb082.webp",
+    src: "/help-shots/my-attendance-calendar.0e1a13ee.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2275,7 +2245,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-attendance-day-detail": {
-    src: "/help-shots/my-attendance-day-detail.6556b75c.webp",
+    src: "/help-shots/my-attendance-day-detail.5b07fb04.webp",
     width: 1776,
     height: 452,
     boxes: [
@@ -2300,7 +2270,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-attendance-overview": {
-    src: "/help-shots/my-attendance-overview.dccb83e4.webp",
+    src: "/help-shots/my-attendance-overview.7a04509a.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2331,7 +2301,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-leave-apply-form": {
-    src: "/help-shots/my-leave-apply-form.4d305a73.webp",
+    src: "/help-shots/my-leave-apply-form.2aa080ea.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2368,7 +2338,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-leave-balances": {
-    src: "/help-shots/my-leave-balances.18db23f3.webp",
+    src: "/help-shots/my-leave-balances.c944cb91.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2387,34 +2357,34 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-leave-cancel": {
-    src: "/help-shots/my-leave-cancel.58fee4a1.webp",
+    src: "/help-shots/my-leave-cancel.ecad2b48.webp",
     width: 1797,
-    height: 648,
+    height: 639,
     boxes: [
       {
         x: 0.9399,
-        y: 0.1595,
+        y: 0.1618,
         w: 0.0367,
-        h: 0.1017,
+        h: 0.1032,
       },
     ],
   },
   "my-leave-team-requests": {
-    src: "/help-shots/my-leave-team-requests.fcbba7e6.webp",
-    width: 1797,
-    height: 1032,
+    src: "/help-shots/my-leave-team-requests.a8838652.webp",
+    width: 1811,
+    height: 1019,
     boxes: [
       {
-        x: 0.9065,
-        y: 0.1003,
-        w: 0.0367,
-        h: 0.064,
+        x: 0.9473,
+        y: 0.1016,
+        w: 0.0365,
+        h: 0.0648,
       },
       {
-        x: 0.9399,
-        y: 0.1003,
-        w: 0.0367,
-        h: 0.064,
+        x: 0.9805,
+        y: 0.1016,
+        w: 0.0195,
+        h: 0.0648,
       },
     ],
   },
@@ -2456,7 +2426,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-payslips-download": {
-    src: "/help-shots/my-payslips-download.d2cf818c.webp",
+    src: "/help-shots/my-payslips-download.4ead6f1f.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2469,34 +2439,14 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-payslips-list": {
-    src: "/help-shots/my-payslips-list.a544adf4.webp",
+    src: "/help-shots/my-payslips-list.bb4c83e3.webp",
     width: 1797,
     height: 480,
     boxes: [
-      {
-        x: 0.2704,
-        y: 0.0375,
-        w: 0.1103,
-        h: 0.1641,
-      },
-      {
-        x: 0.374,
-        y: 0.0375,
-        w: 0.1366,
-        h: 0.1641,
-      },
-      {
-        x: 0.5039,
-        y: 0.0375,
-        w: 0.1129,
-        h: 0.1641,
-      },
-      {
-        x: 0.7414,
-        y: 0.0375,
-        w: 0.1031,
-        h: 0.1641,
-      },
+      null,
+      null,
+      null,
+      null,
       {
         x: 0.8956,
         y: 0.2156,
@@ -2506,7 +2456,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-performance-list": {
-    src: "/help-shots/my-performance-list.38ba67dc.webp",
+    src: "/help-shots/my-performance-list.abf16bc7.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2516,28 +2466,23 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
         w: 0.0938,
         h: 0.04,
       },
+      null,
       {
-        x: 0.6722,
-        y: 0.2533,
-        w: 0.1066,
-        h: 0.0583,
-      },
-      {
-        x: 0.7528,
-        y: 0.1944,
+        x: 0.2281,
+        y: 0.2733,
         w: 0.1236,
         h: 0.0489,
       },
       {
         x: 0.8422,
-        y: 0.3167,
+        y: 0.3889,
         w: 0.1321,
         h: 0.0489,
       },
     ],
   },
   "my-performance-manager-form": {
-    src: "/help-shots/my-performance-manager-form.8ed8affe.webp",
+    src: "/help-shots/my-performance-manager-form.2d682ab8.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2562,7 +2507,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-performance-manager-submit": {
-    src: "/help-shots/my-performance-manager-submit.ee1a7112.webp",
+    src: "/help-shots/my-performance-manager-submit.8f606474.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2581,7 +2526,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-performance-result": {
-    src: "/help-shots/my-performance-result.41c23269.webp",
+    src: "/help-shots/my-performance-result.a76e721d.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2606,26 +2551,26 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-performance-scale": {
-    src: "/help-shots/my-performance-scale.38ba67dc.webp",
+    src: "/help-shots/my-performance-scale.0a34b6a8.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
         x: 0.184,
-        y: 0.4889,
+        y: 0.5611,
         w: 0.7875,
         h: 0.0311,
       },
       {
         x: 0.4396,
-        y: 0.7394,
+        y: 0.8117,
         w: 0.0239,
         h: 0.0244,
       },
     ],
   },
   "my-performance-self-form": {
-    src: "/help-shots/my-performance-self-form.8116bf43.webp",
+    src: "/help-shots/my-performance-self-form.ace4d8d2.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2644,7 +2589,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-performance-self-submit": {
-    src: "/help-shots/my-performance-self-submit.39aa5573.webp",
+    src: "/help-shots/my-performance-self-submit.3a4f513b.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2663,7 +2608,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-performance-to-review": {
-    src: "/help-shots/my-performance-to-review.ef8f576c.webp",
+    src: "/help-shots/my-performance-to-review.72ae6b13.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2675,14 +2620,14 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
       },
       {
         x: 0.8768,
-        y: 0.3167,
+        y: 0.3889,
         w: 0.0975,
         h: 0.0489,
       },
     ],
   },
   "my-profile-avatar": {
-    src: "/help-shots/my-profile-avatar.d0609429.webp",
+    src: "/help-shots/my-profile-avatar.c46336f6.webp",
     width: 1776,
     height: 1077,
     boxes: [
@@ -2701,7 +2646,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-profile-documents": {
-    src: "/help-shots/my-profile-documents.62ee1440.webp",
+    src: "/help-shots/my-profile-documents.2eb4b6e7.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2720,7 +2665,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-profile-gmail": {
-    src: "/help-shots/my-profile-gmail.0073edbb.webp",
+    src: "/help-shots/my-profile-gmail.14dfc845.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2745,7 +2690,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-profile-overview": {
-    src: "/help-shots/my-profile-overview.37789638.webp",
+    src: "/help-shots/my-profile-overview.7fd1fdc3.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2770,7 +2715,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-profile-password": {
-    src: "/help-shots/my-profile-password.9cd18d05.webp",
+    src: "/help-shots/my-profile-password.74faaef0.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2801,7 +2746,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-profile-photo-menu": {
-    src: "/help-shots/my-profile-photo-menu.ff852d10.webp",
+    src: "/help-shots/my-profile-photo-menu.bb3b3dd8.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -2820,7 +2765,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-profile-resign": {
-    src: "/help-shots/my-profile-resign.d4cc2b38.webp",
+    src: "/help-shots/my-profile-resign.da671fa2.webp",
     width: 1776,
     height: 717,
     boxes: [
@@ -2845,7 +2790,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-profile-upload-document": {
-    src: "/help-shots/my-profile-upload-document.ca1051ab.webp",
+    src: "/help-shots/my-profile-upload-document.2acff3d1.webp",
     width: 1776,
     height: 990,
     boxes: [
@@ -2876,10 +2821,16 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-projects-cards": {
-    src: "/help-shots/my-projects-cards.a1dc1f7e.webp",
+    src: "/help-shots/my-projects-cards.0a642ef1.webp",
     width: 2160,
     height: 1350,
     boxes: [
+      {
+        x: 0.7847,
+        y: 0.1022,
+        w: 0.1389,
+        h: 0.0489,
+      },
       {
         x: 0.9264,
         y: 0.1067,
@@ -2894,57 +2845,76 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
       },
       {
         x: 0.1701,
-        y: 0.5789,
+        y: 0.6194,
         w: 0.2671,
-        h: 0.2656,
+        h: 0.3061,
       },
     ],
   },
   "my-projects-edit-menu": {
-    src: "/help-shots/my-projects-edit-menu.a2e28b3f.webp",
+    src: "/help-shots/my-projects-edit-menu.a397697b.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.335,
-        y: 0.3478,
-        w: 0.0875,
-        h: 0.0444,
+        x: 0.9439,
+        y: 0.4033,
+        w: 0.0306,
+        h: 0.0489,
       },
     ],
   },
   "my-projects-new": {
-    src: "/help-shots/my-projects-new.9dab1f52.webp",
+    src: "/help-shots/my-projects-new.817ed902.webp",
     width: 1776,
     height: 1350,
     boxes: [
       {
         x: 0.0313,
         y: 0.2267,
-        w: 0.9375,
+        w: 0.8057,
+        h: 0.0489,
+      },
+      {
+        x: 0.8404,
+        y: 0.2267,
+        w: 0.1284,
         h: 0.0489,
       },
       {
         x: 0.0608,
-        y: 0.375,
+        y: 0.4022,
         w: 0.7988,
         h: 0.0311,
       },
       {
+        x: 0.0313,
+        y: 0.5844,
+        w: 0.9375,
+        h: 0.2785,
+      },
+    ],
+  },
+  "my-projects-new-details": {
+    src: "/help-shots/my-projects-new-details.3accdc9f.webp",
+    width: 1776,
+    height: 1350,
+    boxes: [
+      {
         x: 0.0608,
-        y: 0.6194,
+        y: 0.5663,
         w: 0.8767,
         h: 0.0311,
       },
       {
         x: 0.0313,
-        y: 0.6706,
+        y: 0.6174,
         w: 0.9375,
         h: 0.0822,
       },
       {
         x: 0.0313,
-        y: 0.7861,
+        y: 0.7329,
         w: 0.9375,
         h: 0.0489,
       },
@@ -2956,33 +2926,90 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
       },
     ],
   },
-  "my-projects-table": {
-    src: "/help-shots/my-projects-table.d3b64a3e.webp",
+  "my-projects-services-popup": {
+    src: "/help-shots/my-projects-services-popup.f197b79a.webp",
+    width: 1776,
+    height: 650,
+    boxes: [
+      {
+        x: 0.5861,
+        y: 0.2656,
+        w: 0.1959,
+        h: 0.0924,
+      },
+      {
+        x: 0.7821,
+        y: 0.2656,
+        w: 0.1419,
+        h: 0.0924,
+      },
+    ],
+  },
+  "my-projects-services-remove": {
+    src: "/help-shots/my-projects-services-remove.68917a5d.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.5192,
-        y: 0.2444,
-        w: 0.0963,
-        h: 0.0583,
+        x: 0.3194,
+        y: 0.4011,
+        w: 0.3611,
+        h: 0.1978,
+      },
+    ],
+  },
+  "my-projects-table": {
+    src: "/help-shots/my-projects-table.ec893d30.webp",
+    width: 2160,
+    height: 1350,
+    boxes: [
+      {
+        x: 0.1785,
+        y: 0.2067,
+        w: 0.0497,
+        h: 0.0489,
+      },
+      {
+        x: 0.2281,
+        y: 0.2067,
+        w: 0.2139,
+        h: 0.0489,
       },
       {
         x: 0.9174,
-        y: 0.5267,
+        y: 0.4033,
         w: 0.0306,
         h: 0.0489,
       },
       {
         x: 0.9438,
-        y: 0.5267,
+        y: 0.4033,
         w: 0.0306,
         h: 0.0489,
       },
     ],
   },
+  "my-projects-table-export": {
+    src: "/help-shots/my-projects-table-export.e15023a4.webp",
+    width: 2160,
+    height: 1350,
+    boxes: [
+      {
+        x: 0.1813,
+        y: 0.2722,
+        w: 0.0167,
+        h: 0.0267,
+      },
+      {
+        x: 0.8717,
+        y: 0.2067,
+        w: 0.0748,
+        h: 0.0489,
+      },
+    ],
+  },
   "my-referrals-form": {
-    src: "/help-shots/my-referrals-form.3fa23c1c.webp",
+    src: "/help-shots/my-referrals-form.e0dc710a.webp",
     width: 1776,
     height: 1002,
     boxes: [
@@ -3019,7 +3046,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-referrals-overview": {
-    src: "/help-shots/my-referrals-overview.94ea43e6.webp",
+    src: "/help-shots/my-referrals-overview.1c179e6e.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -3050,14 +3077,14 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-referrals-reward": {
-    src: "/help-shots/my-referrals-reward.d0a7a403.webp",
+    src: "/help-shots/my-referrals-reward.e51c752d.webp",
     width: 1800,
     height: 159,
     boxes: [
       {
-        x: 0.7711,
+        x: 0.7715,
         y: 0.3099,
-        w: 0.1459,
+        w: 0.1454,
         h: 0.3803,
       },
       {
@@ -3126,31 +3153,31 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "my-tasks-header": {
-    src: "/help-shots/my-tasks-header.61ec88fb.webp",
+    src: "/help-shots/my-tasks-header.6204c2e5.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
         x: 0.2051,
-        y: 0.3044,
+        y: 0.3889,
         w: 0.1389,
         h: 0.0444,
       },
       {
         x: 0.3796,
-        y: 0.3044,
+        y: 0.3889,
         w: 0.1056,
         h: 0.0444,
       },
       {
         x: 0.9264,
-        y: 0.3067,
+        y: 0.3911,
         w: 0.0306,
         h: 0.04,
       },
       {
         x: 0.9528,
-        y: 0.3067,
+        y: 0.3911,
         w: 0.0306,
         h: 0.04,
       },
@@ -3268,27 +3295,27 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
       },
     ],
   },
-  "my-tasks-whose": {
-    src: "/help-shots/my-tasks-whose.5e42d25f.webp",
+  "my-work-services": {
+    src: "/help-shots/my-work-services.0e94d566.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.7588,
-        y: 0.1022,
-        w: 0.1389,
-        h: 0.0489,
+        x: 0.2326,
+        y: 0.1989,
+        w: 0.1364,
+        h: 0.04,
       },
       {
-        x: 0.7623,
-        y: 0.2944,
-        w: 0.1333,
-        h: 0.0444,
+        x: 0.1694,
+        y: 0.4533,
+        w: 0.8167,
+        h: 0.0311,
       },
     ],
   },
   "notifications-delete": {
-    src: "/help-shots/notifications-delete.40d4ac69.webp",
+    src: "/help-shots/notifications-delete.bcc4ad26.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -3301,7 +3328,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "notifications-page": {
-    src: "/help-shots/notifications-page.3c70ca6f.webp",
+    src: "/help-shots/notifications-page.2a1ddb66.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -3326,7 +3353,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "notifications-reminders": {
-    src: "/help-shots/notifications-reminders.a16684b2.webp",
+    src: "/help-shots/notifications-reminders.abda1809.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -3540,26 +3567,26 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "payroll-directory": {
-    src: "/help-shots/payroll-directory.8f60340c.webp",
+    src: "/help-shots/payroll-directory.b1845345.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.1694,
-        y: 0.1944,
-        w: 0.1896,
-        h: 0.0489,
-      },
-      {
-        x: 0.4743,
+        x: 0.2819,
         y: 0.1944,
         w: 0.075,
         h: 0.0489,
       },
       {
-        x: 0.5521,
-        y: 0.1944,
-        w: 0.1097,
+        x: 0.1785,
+        y: 0.4667,
+        w: 0.0497,
+        h: 0.0489,
+      },
+      {
+        x: 0.2281,
+        y: 0.4667,
+        w: 0.2139,
         h: 0.0489,
       },
       {
@@ -3678,26 +3705,26 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "performance-admin-bulk-delete": {
-    src: "/help-shots/performance-admin-bulk-delete.f0f69919.webp",
+    src: "/help-shots/performance-admin-bulk-delete.07dd1a42.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
         x: 0.1813,
-        y: 0.4222,
+        y: 0.3322,
         w: 0.0167,
         h: 0.0267,
       },
       {
-        x: 0.8987,
-        y: 0.2711,
+        x: 0.296,
+        y: 0.2644,
         w: 0.0784,
         h: 0.0489,
       },
     ],
   },
   "performance-admin-evaluation": {
-    src: "/help-shots/performance-admin-evaluation.f8b3d417.webp",
+    src: "/help-shots/performance-admin-evaluation.c96a4a54.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -3722,7 +3749,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "performance-admin-generate": {
-    src: "/help-shots/performance-admin-generate.86723eee.webp",
+    src: "/help-shots/performance-admin-generate.a94a2b35.webp",
     width: 816,
     height: 333,
     boxes: [
@@ -3791,38 +3818,38 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "performance-admin-list": {
-    src: "/help-shots/performance-admin-list.29c84baf.webp",
+    src: "/help-shots/performance-admin-list.a6d65dea.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.1694,
-        y: 0.1944,
-        w: 0.2278,
+        x: 0.1785,
+        y: 0.2067,
+        w: 0.0497,
         h: 0.0489,
       },
       {
-        x: 0.3972,
-        y: 0.1944,
+        x: 0.2281,
+        y: 0.2067,
+        w: 0.2139,
+        h: 0.0489,
+      },
+      {
+        x: 0.442,
+        y: 0.2067,
         w: 0.1236,
         h: 0.0489,
       },
       {
-        x: 0.5208,
-        y: 0.1944,
-        w: 0.1097,
-        h: 0.0489,
-      },
-      {
         x: 0.884,
-        y: 0.3256,
+        y: 0.3222,
         w: 0.0542,
         h: 0.0489,
       },
     ],
   },
   "performance-admin-manager-review": {
-    src: "/help-shots/performance-admin-manager-review.97ba8bd8.webp",
+    src: "/help-shots/performance-admin-manager-review.c98ad025.webp",
     width: 1800,
     height: 345,
     boxes: [
@@ -3841,7 +3868,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "performance-admin-new-evaluation": {
-    src: "/help-shots/performance-admin-new-evaluation.00cc58b1.webp",
+    src: "/help-shots/performance-admin-new-evaluation.e1773877.webp",
     width: 1776,
     height: 771,
     boxes: [
@@ -3998,50 +4025,6 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
       },
     ],
   },
-  "progress-export": {
-    src: "/help-shots/progress-export.87864864.webp",
-    width: 1776,
-    height: 519,
-    boxes: [
-      {
-        x: 0.0313,
-        y: 0.6506,
-        w: 0.9375,
-        h: 0.0693,
-      },
-      {
-        x: 0.6834,
-        y: 0.7892,
-        w: 0.0843,
-        h: 0.1271,
-      },
-      {
-        x: 0.7677,
-        y: 0.7892,
-        w: 0.0841,
-        h: 0.1271,
-      },
-      {
-        x: 0.8518,
-        y: 0.7892,
-        w: 0.1169,
-        h: 0.1271,
-      },
-    ],
-  },
-  "progress-kpi-list": {
-    src: "/help-shots/progress-kpi-list.48da099a.webp",
-    width: 1776,
-    height: 1080,
-    boxes: [
-      {
-        x: 0.0313,
-        y: 0.1319,
-        w: 0.6875,
-        h: 0.0556,
-      },
-    ],
-  },
   "progress-kpis": {
     src: "/help-shots/progress-kpis.0d46e2e6.webp",
     width: 2160,
@@ -4085,33 +4068,8 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
       },
     ],
   },
-  "progress-manager-filters": {
-    src: "/help-shots/progress-manager-filters.05581a6a.webp",
-    width: 2160,
-    height: 1350,
-    boxes: [
-      {
-        x: 0.6014,
-        y: 0.1944,
-        w: 0.1375,
-        h: 0.0489,
-      },
-      {
-        x: 0.7389,
-        y: 0.1944,
-        w: 0.1097,
-        h: 0.0489,
-      },
-      {
-        x: 0.8486,
-        y: 0.1944,
-        w: 0.1375,
-        h: 0.0489,
-      },
-    ],
-  },
   "project-brand-ai": {
-    src: "/help-shots/project-brand-ai.bb86c2ac.webp",
+    src: "/help-shots/project-brand-ai.d4702f27.webp",
     width: 1776,
     height: 450,
     boxes: [
@@ -4124,77 +4082,71 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "project-brand-guidelines": {
-    src: "/help-shots/project-brand-guidelines.46bc5f37.webp",
+    src: "/help-shots/project-brand-guidelines.5e03276f.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.5563,
-        y: 0.5856,
+        x: 0.734,
+        y: 0.6778,
         w: 0.064,
         h: 0.0489,
       },
       {
-        x: 0.1813,
-        y: 0.68,
-        w: 0.3951,
+        x: 0.359,
+        y: 0.7722,
+        w: 0.3063,
         h: 0.0489,
       },
       {
-        x: 0.9043,
-        y: 0.4706,
-        w: 0.0672,
+        x: 0.9057,
+        y: 0.4172,
+        w: 0.0658,
         h: 0.0489,
       },
     ],
   },
   "project-brand-objectives": {
-    src: "/help-shots/project-brand-objectives.2e2e0ce4.webp",
+    src: "/help-shots/project-brand-objectives.bd5b9cd3.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.2577,
-        y: 0.3939,
-        w: 0.1198,
-        h: 0.04,
+        x: 0.1743,
+        y: 0.498,
+        w: 0.1625,
+        h: 0.0619,
       },
       {
-        x: 0.1813,
-        y: 0.8167,
+        x: 0.359,
+        y: 0.9444,
         w: 0.1084,
         h: 0.0489,
       },
     ],
   },
   "project-brand-tab": {
-    src: "/help-shots/project-brand-tab.9e2d52c4.webp",
+    src: "/help-shots/project-brand-tab.d37f7360.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
         x: 0.1694,
-        y: 0.3894,
-        w: 0.5496,
+        y: 0.4028,
+        w: 0.1722,
+        h: 0.3372,
+      },
+      {
+        x: 0.9095,
+        y: 0.4172,
+        w: 0.0621,
         h: 0.0489,
       },
       {
-        x: 0.9043,
-        y: 0.4706,
-        w: 0.0672,
-        h: 0.0489,
-      },
-      {
-        x: 0.1813,
-        y: 0.7928,
-        w: 0.7931,
-        h: 0.0489,
-      },
-      {
-        x: 0.8635,
-        y: 0.865,
-        w: 0.1017,
-        h: 0.0489,
+        x: 0.9098,
+        y: 0.4956,
+        w: 0.0645,
+        h: 0.0444,
       },
     ],
   },
@@ -4324,7 +4276,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "project-content-calendar-new": {
-    src: "/help-shots/project-content-calendar-new.ead16a81.webp",
+    src: "/help-shots/project-content-calendar-new.8628dd92.webp",
     width: 1776,
     height: 405,
     boxes: [
@@ -4349,33 +4301,33 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "project-content-calendar-overview": {
-    src: "/help-shots/project-content-calendar-overview.406b7b81.webp",
+    src: "/help-shots/project-content-calendar-overview.4b5204aa.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.1694,
-        y: 0.3894,
-        w: 0.1148,
+        x: 0.1785,
+        y: 0.415,
+        w: 0.1352,
         h: 0.0489,
       },
       {
-        x: 0.3051,
-        y: 0.3917,
-        w: 0.0952,
+        x: 0.3394,
+        y: 0.4161,
+        w: 0.1028,
+        h: 0.0467,
+      },
+      {
+        x: 0.7712,
+        y: 0.415,
+        w: 0.1095,
+        h: 0.0489,
+      },
+      {
+        x: 0.8868,
+        y: 0.4906,
+        w: 0.0903,
         h: 0.0444,
-      },
-      {
-        x: 0.4211,
-        y: 0.3894,
-        w: 0.0946,
-        h: 0.0489,
-      },
-      {
-        x: 0.9042,
-        y: 0.4528,
-        w: 0.0819,
-        h: 0.04,
       },
     ],
   },
@@ -4393,58 +4345,39 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "project-content-calendar-team-plan": {
-    src: "/help-shots/project-content-calendar-team-plan.a295b325.webp",
+    src: "/help-shots/project-content-calendar-team-plan.e7e4df61.webp",
     width: 1104,
     height: 1350,
     boxes: [],
   },
   "project-deliverables-board": {
-    src: "/help-shots/project-deliverables-board.1de360bd.webp",
+    src: "/help-shots/project-deliverables-board.6cf291e3.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
         x: 0.1694,
-        y: 0.3894,
+        y: 0.4028,
         w: 0.0797,
         h: 0.0489,
       },
       {
         x: 0.2492,
-        y: 0.3894,
+        y: 0.4028,
         w: 0.0977,
         h: 0.0489,
       },
       {
         x: 0.3469,
-        y: 0.3894,
+        y: 0.4028,
         w: 0.1169,
         h: 0.0489,
       },
       {
-        x: 0.9174,
-        y: 0.5117,
-        w: 0.0306,
-        h: 0.0489,
-      },
-    ],
-  },
-  "project-deliverables-export-csv": {
-    src: "/help-shots/project-deliverables-export-csv.5b665b6f.webp",
-    width: 384,
-    height: 212,
-    boxes: [
-      {
-        x: 0.0664,
-        y: 0.1202,
-        w: 0.8672,
-        h: 0.4081,
-      },
-      {
-        x: 0.0664,
-        y: 0.4717,
-        w: 0.8672,
-        h: 0.4081,
+        x: 0.1701,
+        y: 0.5744,
+        w: 0.8153,
+        h: 0.0767,
       },
     ],
   },
@@ -4505,184 +4438,21 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "project-deliverables-period": {
-    src: "/help-shots/project-deliverables-period.9faea92f.webp",
-    width: 2160,
-    height: 1350,
-    boxes: [
-      {
-        x: 0.1722,
-        y: 0.7414,
-        w: 0.075,
-        h: 0.04,
-      },
-      {
-        x: 0.5514,
-        y: 0.8605,
-        w: 0.0447,
-        h: 0.0267,
-      },
-    ],
-  },
-  "project-deliverables-plan": {
-    src: "/help-shots/project-deliverables-plan.7d688792.webp",
-    width: 1776,
-    height: 582,
-    boxes: [
-      {
-        x: 0.0346,
-        y: 0.3338,
-        w: 0.4654,
-        h: 0.1714,
-      },
-      {
-        x: 0.9085,
-        y: 0.8119,
-        w: 0.0602,
-        h: 0.1134,
-      },
-    ],
-  },
-  "project-deliverables-report": {
-    src: "/help-shots/project-deliverables-report.87864864.webp",
-    width: 1776,
-    height: 519,
-    boxes: [
-      {
-        x: 0.6834,
-        y: 0.7892,
-        w: 0.0843,
-        h: 0.1271,
-      },
-      {
-        x: 0.7677,
-        y: 0.7892,
-        w: 0.0841,
-        h: 0.1271,
-      },
-      {
-        x: 0.8518,
-        y: 0.7892,
-        w: 0.1169,
-        h: 0.1271,
-      },
-    ],
-  },
-  "project-deliverables-status-menu": {
-    src: "/help-shots/project-deliverables-status-menu.b2669c4c.webp",
-    width: 384,
-    height: 441,
-    boxes: [
-      {
-        x: 0.0664,
-        y: 0.5891,
-        w: 0.8672,
-        h: 0.1358,
-      },
-      {
-        x: 0.0664,
-        y: 0.6978,
-        w: 0.8672,
-        h: 0.1358,
-      },
-    ],
-  },
-  "project-goals-add": {
-    src: "/help-shots/project-goals-add.b9eaf240.webp",
-    width: 1776,
-    height: 626,
-    boxes: [
-      {
-        x: 0.0313,
-        y: 0.3126,
-        w: 0.9375,
-        h: 0.1054,
-      },
-      {
-        x: 0.0313,
-        y: 0.4862,
-        w: 0.9375,
-        h: 0.1054,
-      },
-      {
-        x: 0.8644,
-        y: 0.8251,
-        w: 0.1044,
-        h: 0.1054,
-      },
-    ],
-  },
-  "project-goals-board": {
-    src: "/help-shots/project-goals-board.d1744111.webp",
+    src: "/help-shots/project-deliverables-period.c16894a5.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
         x: 0.1694,
-        y: 0.3894,
-        w: 0.8167,
-        h: 0.1278,
-      },
-      {
-        x: 0.2116,
-        y: 0.5261,
-        w: 0.0756,
+        y: 0.7369,
+        w: 0.075,
         h: 0.0489,
       },
       {
-        x: 0.9003,
-        y: 0.5261,
-        w: 0.0858,
-        h: 0.0489,
-      },
-    ],
-  },
-  "project-goals-footer": {
-    src: "/help-shots/project-goals-footer.57efc83c.webp",
-    width: 1800,
-    height: 702,
-    boxes: [
-      {
-        x: 0.0275,
-        y: 0.8922,
-        w: 0.1045,
-        h: 0.0939,
-      },
-      {
-        x: 0.1286,
-        y: 0.8922,
-        w: 0.0795,
-        h: 0.0939,
-      },
-      {
-        x: 0.2048,
-        y: 0.8922,
-        w: 0.1093,
-        h: 0.0939,
-      },
-      {
-        x: 0.3108,
-        y: 0.8922,
-        w: 0.0891,
-        h: 0.0939,
-      },
-    ],
-  },
-  "project-goals-status": {
-    src: "/help-shots/project-goals-status.d1744111.webp",
-    width: 2160,
-    height: 1350,
-    boxes: [
-      {
-        x: 0.8299,
-        y: 0.7717,
-        w: 0.1056,
-        h: 0.0444,
-      },
-      {
-        x: 0.941,
-        y: 0.7717,
-        w: 0.0306,
-        h: 0.0489,
+        x: 0.5113,
+        y: 0.8669,
+        w: 0.0491,
+        h: 0.0311,
       },
     ],
   },
@@ -4731,25 +4501,25 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "project-insights-seo-meta": {
-    src: "/help-shots/project-insights-seo-meta.81652d4c.webp",
+    src: "/help-shots/project-insights-seo-meta.cd3efde3.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
         x: 0.2358,
-        y: 0.4517,
+        y: 0.465,
         w: 0.0409,
         h: 0.04,
       },
       {
         x: 0.3094,
-        y: 0.4472,
+        y: 0.4606,
         w: 0.0804,
         h: 0.0489,
       },
       {
         x: 0.8906,
-        y: 0.4472,
+        y: 0.4606,
         w: 0.0956,
         h: 0.0489,
       },
@@ -5036,74 +4806,6 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
       },
     ],
   },
-  "project-passwords-add": {
-    src: "/help-shots/project-passwords-add.2cdf8c2e.webp",
-    width: 1776,
-    height: 765,
-    boxes: [
-      {
-        x: 0.0313,
-        y: 0.2,
-        w: 0.9375,
-        h: 0.0863,
-      },
-      {
-        x: 0.0313,
-        y: 0.3451,
-        w: 0.4671,
-        h: 0.0863,
-      },
-      {
-        x: 0.5017,
-        y: 0.3451,
-        w: 0.4671,
-        h: 0.0863,
-      },
-      {
-        x: 0.0313,
-        y: 0.4902,
-        w: 0.9375,
-        h: 0.0863,
-      },
-      {
-        x: 0.9073,
-        y: 0.8569,
-        w: 0.0615,
-        h: 0.0863,
-      },
-    ],
-  },
-  "project-passwords-list": {
-    src: "/help-shots/project-passwords-list.9a0afd13.webp",
-    width: 2160,
-    height: 1350,
-    boxes: [
-      {
-        x: 0.1694,
-        y: 0.4828,
-        w: 0.2722,
-        h: 0.0489,
-      },
-      {
-        x: 0.3667,
-        y: 0.5839,
-        w: 0.0222,
-        h: 0.0356,
-      },
-      {
-        x: 0.284,
-        y: 0.6194,
-        w: 0.0306,
-        h: 0.0489,
-      },
-      {
-        x: 0.3146,
-        y: 0.6194,
-        w: 0.0306,
-        h: 0.0489,
-      },
-    ],
-  },
   "project-repository-list": {
     src: "/help-shots/project-repository-list.37826d9b.webp",
     width: 2160,
@@ -5161,46 +4863,21 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "project-repository-upload": {
-    src: "/help-shots/project-repository-upload.f54c0ec4.webp",
-    width: 368,
-    height: 215,
+    src: "/help-shots/project-repository-upload.bbf6cf14.webp",
+    width: 1800,
+    height: 845,
     boxes: [
       {
-        x: 0.0692,
-        y: 0.3776,
-        w: 0.8615,
-        h: 0.2797,
+        x: 0.01,
+        y: 0.0213,
+        w: 0.0981,
+        h: 0.0781,
       },
       {
-        x: 0.0692,
-        y: 0.6014,
-        w: 0.8615,
-        h: 0.2797,
-      },
-    ],
-  },
-  "project-requirements-list": {
-    src: "/help-shots/project-requirements-list.c3cdf2cf.webp",
-    width: 2160,
-    height: 1350,
-    boxes: [
-      {
-        x: 0.1701,
-        y: 0.3906,
-        w: 0.208,
-        h: 0.0878,
-      },
-      {
-        x: 0.575,
-        y: 0.3906,
-        w: 0.208,
-        h: 0.0878,
-      },
-      {
-        x: 0.8589,
-        y: 0.4883,
-        w: 0.1272,
-        h: 0.0489,
+        x: 0.1081,
+        y: 0.0213,
+        w: 0.1085,
+        h: 0.0781,
       },
     ],
   },
@@ -5235,216 +4912,6 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
       },
     ],
   },
-  "project-requirements-respond": {
-    src: "/help-shots/project-requirements-respond.c3cdf2cf.webp",
-    width: 2160,
-    height: 1350,
-    boxes: [
-      {
-        x: 0.1813,
-        y: 0.7939,
-        w: 0.0906,
-        h: 0.0489,
-      },
-      {
-        x: 0.2705,
-        y: 0.7939,
-        w: 0.109,
-        h: 0.0489,
-      },
-      {
-        x: 0.3781,
-        y: 0.7939,
-        w: 0.1055,
-        h: 0.0489,
-      },
-    ],
-  },
-  "project-tasks-detail": {
-    src: "/help-shots/project-tasks-detail.9268d667.webp",
-    width: 744,
-    height: 1350,
-    boxes: [
-      {
-        x: 0.1109,
-        y: 0.05,
-        w: 0.1254,
-        h: 0.0267,
-      },
-      {
-        x: 0.1109,
-        y: 0.3622,
-        w: 0.1011,
-        h: 0.0267,
-      },
-      {
-        x: 0.1109,
-        y: 0.6661,
-        w: 0.143,
-        h: 0.0267,
-      },
-      {
-        x: 0.0665,
-        y: 0.9075,
-        w: 0.9012,
-        h: 0.0925,
-      },
-    ],
-  },
-  "project-tasks-how-it-works": {
-    src: "/help-shots/project-tasks-how-it-works.52f120d4.webp",
-    width: 1776,
-    height: 455,
-    boxes: [],
-  },
-  "project-tasks-new": {
-    src: "/help-shots/project-tasks-new.66dbce9d.webp",
-    width: 1776,
-    height: 1329,
-    boxes: [
-      {
-        x: 0.0313,
-        y: 0.1151,
-        w: 0.9375,
-        h: 0.0497,
-      },
-      {
-        x: 0.0313,
-        y: 0.4199,
-        w: 0.9375,
-        h: 0.0497,
-      },
-      {
-        x: 0.0313,
-        y: 0.7291,
-        w: 0.9375,
-        h: 0.0497,
-      },
-      {
-        x: 0.9139,
-        y: 0.8341,
-        w: 0.0439,
-        h: 0.0361,
-      },
-      {
-        x: 0.8704,
-        y: 0.9176,
-        w: 0.0984,
-        h: 0.0497,
-      },
-    ],
-  },
-  "project-tasks-sheet": {
-    src: "/help-shots/project-tasks-sheet.63c9e7b3.webp",
-    width: 2160,
-    height: 1350,
-    boxes: [
-      {
-        x: 0.8542,
-        y: 0.4472,
-        w: 0.0306,
-        h: 0.0489,
-      },
-      {
-        x: 0.8819,
-        y: 0.4472,
-        w: 0.0764,
-        h: 0.0489,
-      },
-      {
-        x: 0.9556,
-        y: 0.4472,
-        w: 0.0306,
-        h: 0.0489,
-      },
-      {
-        x: 0.2813,
-        y: 0.5336,
-        w: 0.1167,
-        h: 0.0348,
-      },
-      {
-        x: 0.3924,
-        y: 0.5336,
-        w: 0.1167,
-        h: 0.0348,
-      },
-      {
-        x: 0.5035,
-        y: 0.5336,
-        w: 0.0611,
-        h: 0.0348,
-      },
-      {
-        x: 0.559,
-        y: 0.5336,
-        w: 0.1447,
-        h: 0.0348,
-      },
-    ],
-  },
-  "project-tasks-status-menu": {
-    src: "/help-shots/project-tasks-status-menu.302e8da5.webp",
-    width: 2160,
-    height: 1350,
-    boxes: [
-      {
-        x: 0.2919,
-        y: 0.6004,
-        w: 0.1097,
-        h: 0.04,
-      },
-      {
-        x: 0.2919,
-        y: 0.6726,
-        w: 0.1097,
-        h: 0.04,
-      },
-      {
-        x: 0.2919,
-        y: 0.7037,
-        w: 0.1097,
-        h: 0.04,
-      },
-    ],
-  },
-  "project-tasks-toolbar": {
-    src: "/help-shots/project-tasks-toolbar.63c9e7b3.webp",
-    width: 2160,
-    height: 1350,
-    boxes: [
-      {
-        x: 0.1694,
-        y: 0.3917,
-        w: 0.1552,
-        h: 0.0444,
-      },
-      {
-        x: 0.3275,
-        y: 0.3917,
-        w: 0.1723,
-        h: 0.0444,
-      },
-      {
-        x: 0.5026,
-        y: 0.3917,
-        w: 0.1364,
-        h: 0.0444,
-      },
-      {
-        x: 0.7663,
-        y: 0.3894,
-        w: 0.1286,
-        h: 0.0489,
-      },
-      {
-        x: 0.8977,
-        y: 0.3894,
-        w: 0.0884,
-        h: 0.0489,
-      },
-    ],
-  },
   "project-workspace-activity": {
     src: "/help-shots/project-workspace-activity.97c7ecd8.webp",
     width: 2160,
@@ -5464,127 +4931,83 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
       },
     ],
   },
-  "project-workspace-add-people": {
-    src: "/help-shots/project-workspace-add-people.f275b084.webp",
-    width: 1776,
-    height: 876,
-    boxes: [
-      {
-        x: 0.0313,
-        y: 0.1815,
-        w: 0.9375,
-        h: 0.0753,
-      },
-      {
-        x: 0.0321,
-        y: 0.2723,
-        w: 0.9358,
-        h: 0.1113,
-      },
-    ],
-  },
   "project-workspace-header": {
-    src: "/help-shots/project-workspace-header.c8a705c3.webp",
+    src: "/help-shots/project-workspace-header.5a5e84b5.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
         x: 0.6969,
-        y: 0.1567,
+        y: 0.1633,
         w: 0.0887,
         h: 0.0444,
       },
       {
         x: 0.7856,
-        y: 0.1567,
+        y: 0.1633,
         w: 0.0529,
         h: 0.0444,
       },
       {
         x: 0.9199,
-        y: 0.1544,
+        y: 0.1611,
         w: 0.0662,
         h: 0.0489,
       },
       {
         x: 0.1722,
-        y: 0.2917,
+        y: 0.305,
         w: 0.0823,
         h: 0.04,
       },
     ],
   },
-  "project-workspace-member-menu": {
-    src: "/help-shots/project-workspace-member-menu.1dde2378.webp",
-    width: 2160,
-    height: 1350,
-    boxes: [
-      {
-        x: 0.8451,
-        y: 0.6419,
-        w: 0.1255,
-        h: 0.0444,
-      },
-      {
-        x: 0.8451,
-        y: 0.6874,
-        w: 0.1255,
-        h: 0.0444,
-      },
-    ],
-  },
   "project-workspace-overview": {
-    src: "/help-shots/project-workspace-overview.40fc3418.webp",
+    src: "/help-shots/project-workspace-overview.1a86073c.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
         x: 0.184,
-        y: 0.5117,
+        y: 0.2539,
         w: 0.7875,
         h: 0.0256,
       },
       {
-        x: 0.4484,
-        y: 0.6139,
+        x: 0.7127,
+        y: 0.3561,
         w: 0.2588,
         h: 0.0267,
       },
       {
         x: 0.8882,
-        y: 0.7206,
+        y: 0.7672,
         w: 0.0834,
         h: 0.0489,
       },
     ],
   },
-  "project-workspace-teams": {
-    src: "/help-shots/project-workspace-teams.44e746a8.webp",
+  "project-workspace-services": {
+    src: "/help-shots/project-workspace-services.5a5e84b5.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.2693,
-        y: 0.5272,
-        w: 0.0604,
-        h: 0.0322,
+        x: 0.1889,
+        y: 0.8328,
+        w: 0.108,
+        h: 0.04,
       },
       {
-        x: 0.8725,
-        y: 0.4617,
-        w: 0.1018,
-        h: 0.0489,
-      },
-      {
-        x: 0.9438,
-        y: 0.5917,
-        w: 0.0306,
-        h: 0.0489,
+        x: 0.4556,
+        y: 0.9372,
+        w: 0.071,
+        h: 0.0267,
       },
     ],
   },
   "recruitment-application-panel": {
-    src: "/help-shots/recruitment-application-panel.5de31f9f.webp",
+    src: "/help-shots/recruitment-application-panel.5af98ee3.webp",
     width: 792,
     height: 1350,
     boxes: [
@@ -5615,38 +5038,38 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "recruitment-applications": {
-    src: "/help-shots/recruitment-applications.abfc05b8.webp",
+    src: "/help-shots/recruitment-applications.7eca6a00.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.1694,
-        y: 0.1944,
-        w: 0.5833,
+        x: 0.1785,
+        y: 0.2067,
+        w: 0.0497,
         h: 0.0489,
       },
       {
-        x: 0.7618,
-        y: 0.2033,
-        w: 0.0584,
-        h: 0.0311,
+        x: 0.2281,
+        y: 0.2067,
+        w: 0.2139,
+        h: 0.0489,
       },
       {
-        x: 0.8785,
-        y: 0.2033,
+        x: 0.4511,
+        y: 0.2156,
         w: 0.0453,
         h: 0.0311,
       },
       {
-        x: 0.8958,
-        y: 0.3256,
+        x: 0.926,
+        y: 0.3222,
         w: 0.0507,
         h: 0.0489,
       },
     ],
   },
   "recruitment-careers": {
-    src: "/help-shots/recruitment-careers.688c6e5c.webp",
+    src: "/help-shots/recruitment-careers.ff9cc154.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -5683,7 +5106,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "recruitment-careers-roles": {
-    src: "/help-shots/recruitment-careers-roles.3a9b3383.webp",
+    src: "/help-shots/recruitment-careers-roles.594d8a02.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -5708,7 +5131,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "recruitment-referrals": {
-    src: "/help-shots/recruitment-referrals.0e475998.webp",
+    src: "/help-shots/recruitment-referrals.08719649.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -5816,7 +5239,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "roles-permissions-create": {
-    src: "/help-shots/roles-permissions-create.25da202f.webp",
+    src: "/help-shots/roles-permissions-create.48909ad1.webp",
     width: 792,
     height: 1350,
     boxes: [
@@ -5835,7 +5258,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "roles-permissions-edit": {
-    src: "/help-shots/roles-permissions-edit.c91751ba.webp",
+    src: "/help-shots/roles-permissions-edit.02832832.webp",
     width: 792,
     height: 1350,
     boxes: [
@@ -5860,7 +5283,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "roles-permissions-list": {
-    src: "/help-shots/roles-permissions-list.02fe7a5a.webp",
+    src: "/help-shots/roles-permissions-list.8e67adf9.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -5872,14 +5295,14 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
       },
       {
         x: 0.9465,
-        y: 0.4622,
+        y: 0.5256,
         w: 0.0278,
         h: 0.0489,
       },
     ],
   },
   "roles-permissions-manage-dialog": {
-    src: "/help-shots/roles-permissions-manage-dialog.974cde90.webp",
+    src: "/help-shots/roles-permissions-manage-dialog.2da3de3f.webp",
     width: 1776,
     height: 672,
     boxes: [
@@ -5898,7 +5321,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "roles-permissions-profile-roles": {
-    src: "/help-shots/roles-permissions-profile-roles.783fb586.webp",
+    src: "/help-shots/roles-permissions-profile-roles.be7c12e8.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -6042,7 +5465,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "stock-register-overview": {
-    src: "/help-shots/stock-register-overview.80a877a1.webp",
+    src: "/help-shots/stock-register-overview.c8427491.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -6053,20 +5476,20 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
         h: 0.1533,
       },
       {
-        x: 0.1694,
-        y: 0.5233,
-        w: 0.2056,
+        x: 0.1785,
+        y: 0.5356,
+        w: 0.2139,
         h: 0.0489,
       },
       {
-        x: 0.375,
-        y: 0.5233,
+        x: 0.3924,
+        y: 0.5356,
         w: 0.1167,
         h: 0.0489,
       },
       {
-        x: 0.4917,
-        y: 0.5233,
+        x: 0.509,
+        y: 0.5356,
         w: 0.1132,
         h: 0.0489,
       },
@@ -6098,7 +5521,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "storage-add-dialog": {
-    src: "/help-shots/storage-add-dialog.f68682a6.webp",
+    src: "/help-shots/storage-add-dialog.deca5a2a.webp",
     width: 816,
     height: 834,
     boxes: [
@@ -6140,6 +5563,12 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
         h: 0.1144,
       },
     ],
+  },
+  "tools-images-background": {
+    src: "/help-shots/tools-images-background.5ab395d6.webp",
+    width: 2160,
+    height: 1350,
+    boxes: [],
   },
   "tools-images-colours": {
     src: "/help-shots/tools-images-colours.cc7bcc62.webp",
@@ -6288,26 +5717,13 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "waiting-on-you-list": {
-    src: "/help-shots/waiting-on-you-list.993c0733.webp",
+    src: "/help-shots/waiting-on-you-list.2584978f.webp",
     width: 2160,
     height: 1350,
-    boxes: [
-      {
-        x: 0.1785,
-        y: 0.2044,
-        w: 0.7986,
-        h: 0.0267,
-      },
-      {
-        x: 0.1785,
-        y: 0.3778,
-        w: 0.7986,
-        h: 0.0267,
-      },
-    ],
+    boxes: [null, null],
   },
   "waiting-on-you-mark-done": {
-    src: "/help-shots/waiting-on-you-mark-done.6674793c.webp",
+    src: "/help-shots/waiting-on-you-mark-done.1a45368a.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -6320,7 +5736,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "waiting-on-you-sign-off": {
-    src: "/help-shots/waiting-on-you-sign-off.f793c49b.webp",
+    src: "/help-shots/waiting-on-you-sign-off.9e812844.webp",
     width: 1776,
     height: 552,
     boxes: [
@@ -6390,7 +5806,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "work-from-home-apply-email": {
-    src: "/help-shots/work-from-home-apply-email.5039b17d.webp",
+    src: "/help-shots/work-from-home-apply-email.9ecf9752.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -6409,7 +5825,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "work-from-home-apply-form": {
-    src: "/help-shots/work-from-home-apply-form.63b68514.webp",
+    src: "/help-shots/work-from-home-apply-form.5072890e.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -6440,13 +5856,13 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "work-from-home-date-picker": {
-    src: "/help-shots/work-from-home-date-picker.eeed14b9.webp",
+    src: "/help-shots/work-from-home-date-picker.7d74890f.webp",
     width: 440,
     height: 488,
     boxes: [],
   },
   "work-from-home-history": {
-    src: "/help-shots/work-from-home-history.914410c5.webp",
+    src: "/help-shots/work-from-home-history.fdb8bf18.webp",
     width: 1797,
     height: 344,
     boxes: [
@@ -6459,7 +5875,7 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
     ],
   },
   "work-from-home-overview": {
-    src: "/help-shots/work-from-home-overview.8f1d275c.webp",
+    src: "/help-shots/work-from-home-overview.78808d9c.webp",
     width: 2160,
     height: 1350,
     boxes: [
@@ -6477,109 +5893,34 @@ export const HELP_SHOTS: Readonly<Record<string, HelpShotFile>> = {
       },
     ],
   },
-  "work-from-home-reject-dialog": {
-    src: "/help-shots/work-from-home-reject-dialog.4698737f.webp",
-    width: 816,
-    height: 417,
-    boxes: [
-      {
-        x: 0.068,
-        y: 0.3633,
-        w: 0.864,
-        h: 0.3165,
-      },
-      {
-        x: 0.7818,
-        y: 0.7086,
-        w: 0.1502,
-        h: 0.1583,
-      },
-    ],
-  },
-  "work-from-home-team-requests": {
-    src: "/help-shots/work-from-home-team-requests.300355ae.webp",
-    width: 2160,
-    height: 1350,
-    boxes: [
-      {
-        x: 0.7952,
-        y: 0.1067,
-        w: 0.0913,
-        h: 0.04,
-      },
-      {
-        x: 0.8144,
-        y: 0.3267,
-        w: 0.0865,
-        h: 0.0489,
-      },
-      {
-        x: 0.8981,
-        y: 0.3267,
-        w: 0.0762,
-        h: 0.0489,
-      },
-    ],
-  },
   "work-reports-own": {
-    src: "/help-shots/work-reports-own.7bc2e6e3.webp",
+    src: "/help-shots/work-reports-own.379770e2.webp",
     width: 2160,
     height: 1350,
     boxes: [
       {
-        x: 0.2657,
-        y: 0.3022,
-        w: 0.0306,
+        x: 0.7018,
+        y: 0.1022,
+        w: 0.0925,
         h: 0.0489,
       },
       {
-        x: 0.184,
-        y: 0.48,
-        w: 0.0975,
-        h: 0.0489,
+        x: 0.7313,
+        y: 0.2378,
+        w: 0.1764,
+        h: 0.0444,
       },
       {
-        x: 0.2815,
-        y: 0.48,
-        w: 0.0648,
-        h: 0.0489,
+        x: 0.7313,
+        y: 0.2733,
+        w: 0.1764,
+        h: 0.0444,
       },
       {
-        x: 0.3464,
-        y: 0.48,
-        w: 0.0706,
-        h: 0.0489,
-      },
-    ],
-  },
-  "work-reports-who": {
-    src: "/help-shots/work-reports-who.7d010465.webp",
-    width: 2160,
-    height: 1350,
-    boxes: [
-      {
-        x: 0.1868,
-        y: 0.3978,
-        w: 0.0591,
-        h: 0.04,
-      },
-      {
-        x: 0.2418,
-        y: 0.3978,
-        w: 0.0784,
-        h: 0.04,
-      },
-      {
-        x: 0.316,
-        y: 0.3978,
-        w: 0.0928,
-        h: 0.04,
-      },
-      {
-        x: 0.184,
-        y: 0.4667,
-        w: 0.5097,
-        h: 0.0489,
+        x: 0.7313,
+        y: 0.3089,
+        w: 0.1764,
+        h: 0.0444,
       },
     ],
   },

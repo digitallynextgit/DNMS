@@ -207,21 +207,34 @@ export const integrationsGuide: HelpGuide = {
         en: "Google Drive and Google Search Console",
         hi: "Google Drive और Google Search Console",
       },
+      // No screenshot: the Google cards are platform-wide and don't load in the demo workspace.
       intro: {
-        en: "These cards connect DNMS to Google using a service account - a special robot Google account that DNMS signs in as. Setting them up needs someone with access to your company's Google Cloud account.",
-        hi: "ये कार्ड DNMS को Google से एक service account के ज़रिए जोड़ते हैं - ये एक खास रोबोट Google अकाउंट होता है जिससे DNMS साइन इन करता है। इन्हें सेट करने के लिए किसी ऐसे व्यक्ति की ज़रूरत होगी जिसके पास कंपनी के Google Cloud अकाउंट का एक्सेस हो।",
+        en: "Project Repository files go to the company's Google account, connected once with Connect Google account. The SEO tools use a service account - a special robot Google account that DNMS signs in as. Setting these up needs someone with access to your company's Google Cloud account.",
+        hi: "प्रोजेक्ट की Repository फ़ाइलें कंपनी के Google अकाउंट में जाती हैं, जो एक बार Connect Google account से जोड़ा जाता है। SEO टूल्स एक service account इस्तेमाल करते हैं - ये एक खास रोबोट Google अकाउंट होता है जिससे DNMS साइन इन करता है। इन्हें सेट करने के लिए किसी ऐसे व्यक्ति की ज़रूरत होगी जिसके पास कंपनी के Google Cloud अकाउंट का एक्सेस हो।",
       },
       steps: [
         {
           text: {
-            en: "Google Drive: Shared Drive ID is the ID of the company Shared Drive that holds project files (you'll find it in the Drive's web address). Service account JSON is the service account's key file - paste the whole file on one line. It is stored encrypted.",
-            hi: "Google Drive: Shared Drive ID कंपनी की उस Shared Drive की ID है जिसमें प्रोजेक्ट फ़ाइलें रहती हैं (ये Drive के वेब एड्रेस में मिलती है)। Service account JSON उस service account की key फ़ाइल है - पूरी फ़ाइल एक ही लाइन में पेस्ट करें। ये encrypted (सुरक्षित तरीके से) सेव होती है।",
+            en: "Google Drive: first fill in the OAuth client ID and OAuth client secret from Google Cloud (Google Auth Platform → Clients). That client's redirect URI must be this site's address followed by /api/integrations/google-drive/callback.",
+            hi: "Google Drive: पहले Google Cloud (Google Auth Platform → Clients) से OAuth client ID और OAuth client secret भरें। उस client का redirect URI इस साइट का एड्रेस और उसके बाद /api/integrations/google-drive/callback होना चाहिए।",
           },
         },
         {
           text: {
-            en: "Google Search Console powers the SEO reports. Search Console service account JSON and GA4 service account JSON are optional - leave them blank to reuse the Google Drive account. PageSpeed Insights API key is needed for the Core Web Vitals (page speed) checks. IndexNow key is optional and asks search engines like Bing to re-check pages quickly.",
-            hi: "Google Search Console से SEO रिपोर्ट्स चलती हैं। Search Console service account JSON और GA4 service account JSON भरना ज़रूरी नहीं - खाली छोड़ेंगे तो Google Drive वाला अकाउंट ही इस्तेमाल होगा। Core Web Vitals (पेज स्पीड) की जाँच के लिए PageSpeed Insights API key चाहिए। IndexNow key ज़रूरी नहीं है - ये Bing जैसे सर्च इंजन से पेज जल्दी दोबारा चेक करवाने के लिए है।",
+            en: "Then, on the Google Drive account card, click Connect Google account. Sign in as the company's Google account (not your own) and tick the Drive box on Google's screen. You come back here with the account shown on the card.",
+            hi: "फिर Google Drive account कार्ड पर Connect Google account पर क्लिक करें। कंपनी के Google अकाउंट से साइन इन करें (अपने अकाउंट से नहीं) और Google की स्क्रीन पर Drive वाला बॉक्स टिक करें। आप वापस यहीं आ जाते हैं और कार्ड पर अकाउंट दिखने लगता है।",
+          },
+        },
+        {
+          text: {
+            en: "Reconnect signs in again (use it if the Storage page says Reconnect needed). Disconnect removes DNMS's access: files already in that Drive stop opening in DNMS until the same account is connected again. Nothing in Drive is deleted.",
+            hi: "Reconnect से दोबारा साइन इन होता है (जब Storage पेज पर Reconnect needed लिखा हो तब इसे इस्तेमाल करें)। Disconnect से DNMS का एक्सेस हट जाता है: उस Drive में पहले से रखी फ़ाइलें DNMS में तब तक नहीं खुलतीं जब तक वही अकाउंट दोबारा न जुड़े। Drive में कुछ भी डिलीट नहीं होता।",
+          },
+        },
+        {
+          text: {
+            en: "Google Search Console powers the SEO reports. Service account JSON is the SEO tools' service account key - paste the whole file on one line; it is stored encrypted. Search Console service account JSON and GA4 service account JSON are optional - leave them blank to reuse that one. PageSpeed Insights API key is needed for the Core Web Vitals (page speed) checks. IndexNow key is optional and asks search engines like Bing to re-check pages quickly.",
+            hi: "Google Search Console से SEO रिपोर्ट्स चलती हैं। Service account JSON, SEO टूल्स के service account की key है - पूरी फ़ाइल एक ही लाइन में पेस्ट करें; ये encrypted (सुरक्षित तरीके से) सेव होती है। Search Console service account JSON और GA4 service account JSON भरना ज़रूरी नहीं - खाली छोड़ेंगे तो वही अकाउंट इस्तेमाल होगा। Core Web Vitals (पेज स्पीड) की जाँच के लिए PageSpeed Insights API key चाहिए। IndexNow key ज़रूरी नहीं है - ये Bing जैसे सर्च इंजन से पेज जल्दी दोबारा चेक करवाने के लिए है।",
           },
         },
       ],

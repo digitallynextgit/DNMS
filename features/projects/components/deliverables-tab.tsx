@@ -14,7 +14,6 @@ import {
   FileText,
   ExternalLink,
   CalendarDays,
-  Eye,
   UserPlus,
   Lock,
   History,
@@ -52,11 +51,11 @@ import {
 } from "@/components/ui/select"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
-import { Pagination } from "@/components/shared/pagination"
 import { TabsBar } from "@/components/shared/tabs-bar"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
-import { Link } from "@/components/tenant-link"
-import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
+import { useTenantPath } from "@/components/tenant-link"
+import { useRouter } from "next/navigation"
+import { useRowSelection } from "@/hooks/use-row-selection"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DateField, toDateString } from "@/components/shared/date-field"
@@ -98,9 +97,6 @@ import {
 import { formatHours } from "../lib/format-hours"
 
 // Row buttons come from nextActions(status, actor) - the table the server uses - so none offers a refused move.
-
-/** Deliverables per page in the card view (the table pages itself); the items inside one are never paged. */
-const PERIODS_PER_PAGE = 20
 
 /** Mirrors OPEN_STATUSES - STUCK is owed too. */
 const OPEN_FILTER: DeliverableStatus[] = ["PLANNED", "IN_PROGRESS", "STUCK"]
@@ -766,7 +762,10 @@ function PeriodHeadline({ p }: { p: Period }) {
     // No wrapping, or auto-layout squeezes this column down to one icon's width.
     <span className="flex items-center gap-2 whitespace-nowrap">
       <CalendarDays className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-      <span className="font-semibold">{p.label}</span>
+      {/* Underlined while the row (a `group`) is hovered or focused: the whole row opens it. */}
+      <span className="font-semibold underline-offset-4 group-hover:underline group-focus-visible:underline">
+        {p.label}
+      </span>
       {p.overdue && <span className="text-destructive text-xs font-medium">overdue</span>}
     </span>
   )
@@ -1102,15 +1101,22 @@ function PeriodTable({
   pageKey,
   footerNote,
   hrefFor,
-  onDeletePeriod,
+  onDeletePeriods,
 }: {
   periods: Period[]
   /** The filter set; a new one returns the table to page 1. */
   pageKey: string
   footerNote?: React.ReactNode
   hrefFor: (p: Period) => string
-  onDeletePeriod?: (p: Period) => void
+  /** Managers only: also turns on the tick boxes, for deleting several at once. */
+  onDeletePeriods?: (p: Period[]) => void
 }) {
+  const router = useRouter()
+  const tenantPath = useTenantPath()
+  const selection = useRowSelection(periods.map((p) => p.key))
+  // "Logged without a plan" is not a deliverable that can be deleted.
+  const deletable = periods.filter((p) => selection.isSelected(p.key) && p.key !== UNPLANNED_KEY)
+
   const columns: DataTableColumn<Period>[] = [
     {
       header: "Deliverable",
@@ -1136,38 +1142,32 @@ function PeriodTable({
       sortValue: (p) => (p.planned > 0 ? p.made / p.planned : 0),
       cell: (p) => <PeriodProgress p={p} />,
     },
-    {
-      header: "Actions",
-      align: "right",
-      cell: (p) => (
-        <span className="inline-flex items-center gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            asChild
-            aria-label="Open deliverable"
-            title={`Open · ${p.rows.length} ${p.rows.length === 1 ? "item" : "items"}`}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <Link href={hrefFor(p)}>
-              <Eye className="h-4 w-4" />
-            </Link>
-          </Button>
-          {onDeletePeriod && p.key !== UNPLANNED_KEY && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Delete deliverable"
-              title="Delete this deliverable and every item under it"
-              onClick={() => onDeletePeriod(p)}
-              className="text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
-        </span>
-      ),
-    },
+    ...(onDeletePeriods
+      ? [
+          {
+            header: "",
+            align: "right" as const,
+            headClassName: "w-10",
+            cell: (p: Period) =>
+              p.key !== UNPLANNED_KEY ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Delete deliverable"
+                  title="Delete this deliverable and every item under it"
+                  onClick={(e) => {
+                    // The row opens the deliverable; this button must not.
+                    e.stopPropagation()
+                    onDeletePeriods([p])
+                  }}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              ) : null,
+          },
+        ]
+      : []),
   ]
 
   return (
@@ -1177,66 +1177,28 @@ function PeriodTable({
       columns={columns}
       rows={periods}
       rowKey={(p) => p.key}
+      onRowClick={(p) => router.push(tenantPath(hrefFor(p)))}
+      rowClassName={() => "group"}
       showSerial
       pageKey={pageKey}
       minWidth="min-w-[720px]"
       footerNote={footerNote}
+      selection={onDeletePeriods ? selection : undefined}
+      selectionActions={
+        onDeletePeriods && deletable.length > 0 ? (
+          <Button
+            variant="destructive"
+            className="h-8 gap-1.5 px-3 text-xs"
+            onClick={() => {
+              onDeletePeriods(deletable)
+              selection.clear()
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Delete {deletable.length}
+          </Button>
+        ) : null
+      }
     />
-  )
-}
-
-function PeriodCards({
-  periods,
-  hrefFor,
-  onDeletePeriod,
-}: {
-  periods: Period[]
-  hrefFor: (p: Period) => string
-  onDeletePeriod?: (p: Period) => void
-}) {
-  return (
-    <div className="divide-border/60 divide-y">
-      {periods.map((p) => {
-        return (
-          <section key={p.key}>
-            <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-              <Link href={hrefFor(p)} className="min-w-0 flex-1 hover:underline">
-                <PeriodHeadline p={p} />
-              </Link>
-              {p.teams.length > 0 && (
-                <span className="text-muted-foreground text-xs">{p.teams.join(", ")}</span>
-              )}
-              <PeriodProgress p={p} />
-              <DeliverableStatusPill status={p.status} />
-              <Button
-                variant="ghost"
-                size="icon"
-                asChild
-                aria-label="Open deliverable"
-                title={`Open · ${p.rows.length} ${p.rows.length === 1 ? "item" : "items"}`}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <Link href={hrefFor(p)}>
-                  <Eye className="h-4 w-4" />
-                </Link>
-              </Button>
-              {onDeletePeriod && p.key !== UNPLANNED_KEY && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Delete deliverable"
-                  title="Delete this deliverable and every item under it"
-                  onClick={() => onDeletePeriod(p)}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              )}
-            </div>
-          </section>
-        )
-      })}
-    </div>
   )
 }
 
@@ -1256,15 +1218,10 @@ export function DeliverablesTab({
 }) {
   // All time by default, so the board doesn't open empty.
   const [range, setRange] = React.useState<DateRangeValue>({ preset: "all", from: null, to: null })
-  const [pageState, setPageState] = React.useState<{ key: string; page: number }>({
-    key: "",
-    page: 1,
-  })
-  const [view, setView] = useViewMode("project-deliverables-view", "table")
   const [editingItem, setEditingItem] = React.useState<DeliverableRow | null>(null)
   const [logging, setLogging] = React.useState<DeliverableRow | null>(null)
   const [assigning, setAssigning] = React.useState<DeliverableRow | null>(null)
-  const [deletingPeriod, setDeletingPeriod] = React.useState<Period | null>(null)
+  const [deletingPeriods, setDeletingPeriods] = React.useState<Period[] | null>(null)
 
   const filters: DeliverableFilters = { from: range.from, to: range.to }
 
@@ -1376,15 +1333,8 @@ export function DeliverablesTab({
     [projectId],
   )
 
-  const totalPages = Math.max(1, Math.ceil(periods.length / PERIODS_PER_PAGE))
-  // Stored with the filters, so the page falls back to 1 when they change.
+  // Stored with the filters, so the table falls back to page 1 when they change.
   const pageKey = `${range.from ?? ""}|${range.to ?? ""}`
-  const page = pageState.key === pageKey ? Math.min(pageState.page, totalPages) : 1
-  const setPage = (p: number) => setPageState({ key: pageKey, page: p })
-  const pagedPeriods = React.useMemo(
-    () => periods.slice((page - 1) * PERIODS_PER_PAGE, page * PERIODS_PER_PAGE),
-    [periods, page],
-  )
 
   const filtersOn = Boolean(range.from)
   const truncatedNote = data?.truncated
@@ -1478,7 +1428,6 @@ export function DeliverablesTab({
                 <Plus className="h-3.5 w-3.5" /> Plan deliverable
               </Button>
             )}
-            <ViewToggle value={view} onChange={setView} className="ml-auto" />
           </div>
         </>
       )}
@@ -1500,7 +1449,7 @@ export function DeliverablesTab({
                   <Button
                     variant="outline"
                     className="text-destructive hover:text-destructive gap-1.5"
-                    onClick={() => setDeletingPeriod(focused)}
+                    onClick={() => setDeletingPeriods([focused])}
                     title="Delete this deliverable and every item under it"
                   >
                     <Trash2 className="h-3.5 w-3.5" /> Delete deliverable
@@ -1553,41 +1502,17 @@ export function DeliverablesTab({
         ))}
 
       {!periodKey &&
-        (periods.length > 0 && view === "table" ? (
+        (periods.length > 0 ? (
           <PeriodTable
             periods={periods}
             pageKey={pageKey}
             footerNote={truncatedNote}
             hrefFor={hrefFor}
-            onDeletePeriod={canManage ? setDeletingPeriod : undefined}
+            onDeletePeriods={canManage ? setDeletingPeriods : undefined}
           />
         ) : (
           <Card>
-            <CardContent className="p-0">
-              {periods.length === 0 ? (
-                emptyBoard
-              ) : (
-                <PeriodCards
-                  periods={pagedPeriods}
-                  hrefFor={hrefFor}
-                  onDeletePeriod={canManage ? setDeletingPeriod : undefined}
-                />
-              )}
-              <Pagination
-                page={page}
-                totalPages={totalPages}
-                total={periods.length}
-                onPageChange={setPage}
-                itemLabel="deliverable"
-                pageSize={PERIODS_PER_PAGE}
-                className="border-t px-4 py-2"
-              />
-              {truncatedNote && (
-                <p className="text-muted-foreground border-border/60 border-t px-4 py-2 text-[11px]">
-                  {truncatedNote}
-                </p>
-              )}
-            </CardContent>
+            <CardContent className="p-0">{emptyBoard}</CardContent>
           </Card>
         ))}
 
@@ -1630,21 +1555,30 @@ export function DeliverablesTab({
       )}
 
       <ConfirmDialog
-        open={Boolean(deletingPeriod)}
-        onOpenChange={(o) => !o && setDeletingPeriod(null)}
-        title={`Delete "${deletingPeriod?.label ?? ""}"?`}
+        open={Boolean(deletingPeriods?.length)}
+        onOpenChange={(o) => !o && setDeletingPeriods(null)}
+        title={
+          deletingPeriods?.length === 1
+            ? `Delete "${deletingPeriods[0]!.label}"?`
+            : `Delete ${deletingPeriods?.length ?? 0} deliverables?`
+        }
         description={
-          deletingPeriod
-            ? `Every item under it goes - ${deletingPeriod.rows.length} across ${deletingPeriod.teams.join(", ") || "no team"}. Files already attached stay on the Files tab.`
+          deletingPeriods?.length
+            ? deletingPeriods.length === 1
+              ? `Every item under it goes - ${deletingPeriods[0]!.rows.length} across ${deletingPeriods[0]!.teams.join(", ") || "no team"}. Files already attached stay on the Files tab.`
+              : `Every item under them goes - ${deletingPeriods.reduce((n, x) => n + x.rows.length, 0)} in all. Files already attached stay on the Files tab.`
             : ""
         }
-        confirmLabel="Delete deliverable"
+        confirmLabel={
+          deletingPeriods && deletingPeriods.length > 1
+            ? `Delete ${deletingPeriods.length} deliverables`
+            : "Delete deliverable"
+        }
         variant="destructive"
         onConfirm={() => {
-          const target = deletingPeriod
-          setDeletingPeriod(null)
-          if (!target) return
-          void Promise.all(target.rows.map((r) => m.remove.mutateAsync(r.id)))
+          const targets = deletingPeriods ?? []
+          setDeletingPeriods(null)
+          void Promise.all(targets.flatMap((t) => t.rows.map((r) => m.remove.mutateAsync(r.id))))
         }}
       />
 

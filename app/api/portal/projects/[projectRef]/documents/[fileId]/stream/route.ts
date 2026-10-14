@@ -26,6 +26,7 @@ export const GET = withClientSession(
       req.headers.get("range"),
       "PORTAL_DOC_STREAM",
       "private, max-age=3600",
+      new URL(req.url).searchParams.get("download") === "1" ? "attachment" : "inline",
     )
   },
 )

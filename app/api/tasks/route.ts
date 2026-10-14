@@ -8,6 +8,7 @@ import { createAuditLog } from "@/lib/audit"
 import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import { openFirstStatusPeriod } from "@/features/projects/server/task-status-periods"
 import { sortProjectTeams } from "@/features/projects/lib/project-teams"
+import { myWorkHref } from "@/features/projects/lib/project-href"
 import type { Session } from "next-auth"
 
 // What the caller manages: teams they run and everyone under them (team members + line reports). It drives
@@ -267,7 +268,7 @@ export const POST = withSession(async (req: NextRequest, _ctx: unknown, session:
           title: "New adhoc task",
           message: `${task.creator.firstName} assigned you: "${task.title}"`,
           type: "info",
-          link: "/projects/my-tasks",
+          link: myWorkHref(task),
         })
       }
     } catch (_e) {

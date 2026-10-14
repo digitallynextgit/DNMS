@@ -40,8 +40,8 @@ export const dashboardGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "The boxes at the top count your work and time. Due Today (1) and Overdue (2) are your open tasks, and In Progress shows tasks you have started. Present This Month (3) is your attendance, Leave Available adds up all your leave, and Pending Requests (4) is your leave and WFH requests still waiting for approval.",
-            hi: "ऊपर के बॉक्स आपके काम और समय की गिनती दिखाते हैं। Due Today (1) और Overdue (2) आपके खुले टास्क हैं, और In Progress वो टास्क हैं जो आपने शुरू कर रखे हैं। Present This Month (3) आपकी हाज़िरी है, Leave Available आपकी सारी छुट्टियों का जोड़ है, और Pending Requests (4) आपकी वो leave और WFH रिक्वेस्ट हैं जिनकी मंज़ूरी बाकी है।",
+            en: "The five boxes at the top: Due Today (1) and Overdue (2) are your open tasks. Present This Month (3) is your attendance. Leave Available adds up all your leave, and says how many of your leave and WFH requests are still waiting for approval. My Rating (4) is the score from your latest finished review, with a dot showing where it sits on the rating scale - click it to open My Performance.",
+            hi: "ऊपर के पाँच बॉक्स: Due Today (1) और Overdue (2) आपके खुले टास्क हैं। Present This Month (3) आपकी हाज़िरी है। Leave Available आपकी सारी छुट्टियों का जोड़ है, और ये भी बताता है कि आपकी कितनी leave और WFH रिक्वेस्ट की मंज़ूरी बाकी है। My Rating (4) आपके पिछले पूरे हुए review का स्कोर है, और एक बिंदु दिखाता है कि वो rating scale पर कहाँ है - My Performance खोलने के लिए उस पर क्लिक करें।",
           },
           shot: {
             id: "dashboard-employee-top",
@@ -51,21 +51,21 @@ export const dashboardGuide: HelpGuide = {
               { text: "Due Today", exact: true },
               { text: "Overdue", exact: true },
               { text: "Present This Month", exact: true },
-              { text: "Pending Requests", exact: true },
+              { text: "My Rating", exact: true },
               { role: "link", name: "Apply Leave" },
             ],
           },
         },
         {
           text: {
-            en: "The row of buttons below is a shortcut to My Tasks, Apply Leave (5), Apply WFH, My Attendance and My Payslips.",
-            hi: "नीचे वाली बटनों की लाइन से सीधे My Tasks, Apply Leave (5), Apply WFH, My Attendance और My Payslips पर जा सकते हैं।",
+            en: "The row of buttons below is a shortcut to My Work, Apply Leave (5), Apply WFH, My Attendance and My Payslips.",
+            hi: "नीचे वाली बटनों की लाइन से सीधे My Work, Apply Leave (5), Apply WFH, My Attendance और My Payslips पर जा सकते हैं।",
           },
         },
         {
           text: {
-            en: "Today's Work (1) lists the tasks due today. A task marked overdue is late, and running means you have started it. Click a task, or View all, to open My Tasks.",
-            hi: "Today's Work (1) में आज के ड्यू टास्क दिखते हैं। जिस टास्क पर overdue लिखा है वो लेट है, और running का मतलब है आपने उसे शुरू कर रखा है। टास्क पर या View all पर क्लिक करें, My Tasks खुल जाएगा।",
+            en: "Today's Work (1) lists the tasks due today. A task marked overdue is late, and running means you have started it. Click a task, or View all, to open My Work.",
+            hi: "Today's Work (1) में आज के ड्यू टास्क दिखते हैं। जिस टास्क पर overdue लिखा है वो लेट है, और running का मतलब है आपने उसे शुरू कर रखा है। टास्क पर या View all पर क्लिक करें, My Work खुल जाएगा।",
           },
           shot: {
             id: "dashboard-employee-work",
@@ -104,8 +104,8 @@ export const dashboardGuide: HelpGuide = {
         },
         {
           q: {
-            en: "I just applied for leave, but Pending Requests hasn't changed.",
-            hi: "मैंने अभी छुट्टी अप्लाई की, पर Pending Requests नहीं बदला।",
+            en: "I just applied for leave, but the pending count under Leave Available hasn't changed.",
+            hi: "मैंने अभी छुट्टी अप्लाई की, पर Leave Available के नीचे pending वाली गिनती नहीं बदली।",
           },
           a: {
             en: "The Dashboard refreshes every few minutes. Reload the page to see the latest numbers.",

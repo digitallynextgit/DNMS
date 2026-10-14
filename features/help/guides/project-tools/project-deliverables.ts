@@ -46,14 +46,14 @@ export const projectDeliverablesGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Open the project from My Projects and click the Deliverables tab. Each row is one deliverable. Planned is how many items were promised, and Delivered shows how many are made so far.",
-            hi: "My Projects से प्रोजेक्ट खोलें और Deliverables टैब पर क्लिक करें। हर लाइन एक deliverable है। Planned बताता है कितने आइटम का वादा हुआ, और Delivered बताता है अब तक कितने बन चुके हैं।",
+            en: "Open the project from Projects and click the Deliverables tab. Each row is one deliverable. Planned is how many items were promised, and Delivered shows how many are made so far.",
+            hi: "Projects से प्रोजेक्ट खोलें और Deliverables टैब पर क्लिक करें। हर लाइन एक deliverable है। Planned बताता है कितने आइटम का वादा हुआ, और Delivered बताता है अब तक कितने बन चुके हैं।",
           },
         },
         {
           text: {
-            en: "The date button (1) narrows the list to a period - it shows All time to start with. Export CSV (2) downloads a sheet. Plan deliverable (3) appears only for the Account Manager. Click the eye icon (4) to open a deliverable and see its items.",
-            hi: "तारीख वाला बटन (1) लिस्ट को किसी पीरियड तक सीमित करता है - शुरू में ये All time दिखाता है। Export CSV (2) से शीट डाउनलोड होती है। Plan deliverable (3) सिर्फ Account Manager को दिखता है। किसी deliverable के आइटम देखने के लिए आँख वाले आइकन (4) पर क्लिक करें।",
+            en: "The date button (1) narrows the list to a period - it shows All time to start with. Export CSV (2) downloads a sheet. Plan deliverable (3) appears only for the Account Manager. Click anywhere on a deliverable's row (4) to open it and see its items. The Account Manager can also tick rows to delete several at once.",
+            hi: "तारीख वाला बटन (1) लिस्ट को किसी पीरियड तक सीमित करता है - शुरू में ये All time दिखाता है। Export CSV (2) से शीट डाउनलोड होती है। Plan deliverable (3) सिर्फ Account Manager को दिखता है। किसी deliverable के आइटम देखने के लिए उसकी लाइन (4) पर कहीं भी क्लिक करें। Account Manager कई लाइनों पर टिक लगाकर उन्हें एक साथ डिलीट भी कर सकते हैं।",
           },
           shot: {
             id: "project-deliverables-board",
@@ -63,14 +63,9 @@ export const projectDeliverablesGuide: HelpGuide = {
               { role: "button", name: "All time" },
               { role: "button", name: "Export CSV" },
               { role: "button", name: "Plan deliverable" },
-              { role: "link", name: "Open deliverable" },
+              // The first deliverable's row (the whole row opens it).
+              { css: "tbody tr[role='button']" },
             ],
-          },
-        },
-        {
-          text: {
-            en: "Prefer cards? Use the Card view and Table view buttons on the right. Both show the same deliverables.",
-            hi: "कार्ड में देखना है? दाईं ओर Card view और Table view बटन इस्तेमाल करें। दोनों में वही deliverables दिखते हैं।",
           },
         },
       ],
@@ -141,15 +136,15 @@ export const projectDeliverablesGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Open a deliverable with the eye icon. The card at the top shows Overall progress and how far each team has got. Click a team there, or use the team tabs (1), to see that team's items.",
-            hi: "आँख वाले आइकन से deliverable खोलें। ऊपर वाला कार्ड Overall progress दिखाता है और ये भी कि हर टीम कितना कर चुकी है। किसी टीम के आइटम देखने के लिए वहाँ उस टीम पर क्लिक करें, या टीम वाले टैब (1) इस्तेमाल करें।",
+            en: "Click a deliverable's row to open it. The card at the top shows Overall progress and how far each team has got. Click a team there, or use the team tabs (1), to see that team's items.",
+            hi: "deliverable खोलने के लिए उसकी लाइन पर क्लिक करें। ऊपर वाला कार्ड Overall progress दिखाता है और ये भी कि हर टीम कितना कर चुकी है। किसी टीम के आइटम देखने के लिए वहाँ उस टीम पर क्लिक करें, या टीम वाले टैब (1) इस्तेमाल करें।",
           },
           shot: {
             id: "project-deliverables-period",
             as: "manager",
             path: BOARD,
             actions: [
-              { click: { role: "link", name: "Open deliverable" } },
+              { click: { css: "tbody tr[role='button']" } },
               { waitFor: { text: "Overall progress" } },
               { click: { role: "tab", name: "DESIGN" } },
             ],
@@ -193,7 +188,7 @@ export const projectDeliverablesGuide: HelpGuide = {
             as: "employee",
             path: BOARD,
             actions: [
-              { click: { role: "link", name: "Open deliverable" } },
+              { click: { css: "tbody tr[role='button']" } },
               { waitFor: { text: "Overall progress" } },
               { click: { role: "tab", name: "DESIGN" } },
             ],
@@ -216,7 +211,7 @@ export const projectDeliverablesGuide: HelpGuide = {
             as: "employee",
             path: BOARD,
             actions: [
-              { click: { role: "link", name: "Open deliverable" } },
+              { click: { css: "tbody tr[role='button']" } },
               { waitFor: { text: "Overall progress" } },
               { click: { role: "tab", name: "DESIGN" } },
               // Priya's own item, not the team's unassigned one above it.
@@ -280,7 +275,7 @@ export const projectDeliverablesGuide: HelpGuide = {
             as: "manager",
             path: BOARD,
             actions: [
-              { click: { role: "link", name: "Open deliverable" } },
+              { click: { css: "tbody tr[role='button']" } },
               { waitFor: { text: "Overall progress" } },
               { click: { role: "tab", name: "DESIGN" } },
               // A Made item, so Accepted is a real choice (the demo's "Website

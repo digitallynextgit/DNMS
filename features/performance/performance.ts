@@ -66,10 +66,15 @@ export interface PerformanceAction {
   tone: PerformanceTone
 }
 
+/** A 1 to 5 rating or a 0 to 100 score, as a 0 to 100 percentage. */
+export function scorePercent(score: number): number {
+  return score <= 5 ? score * 20 : score
+}
+
 /** The band an evaluation score falls into (accepts a 1 to 5 or 0 to 100 score). */
 export function performanceAction(score: number | null | undefined): PerformanceAction | null {
   if (score == null) return null
-  const pct = score <= 5 ? score * 20 : score
+  const pct = scorePercent(score)
   const band =
     PERFORMANCE_BANDS.find((b) => pct >= b.min) ?? PERFORMANCE_BANDS[PERFORMANCE_BANDS.length - 1]!
   return { band: band.range, rating: band.rating, action: band.action, tone: band.tone }
@@ -78,4 +83,21 @@ export function performanceAction(score: number | null | undefined): Performance
 /** The band that a percentage (0 to 100) falls into - for highlighting the scale. */
 export function bandForPercent(pct: number): PerformanceBand | null {
   return PERFORMANCE_BANDS.find((b) => pct >= b.min) ?? null
+}
+
+/** The bands from lowest to highest, the way a scale reads left to right. */
+export const BANDS_LOW_TO_HIGH: PerformanceBand[] = [...PERFORMANCE_BANDS].reverse()
+
+/**
+ * Where a 0 to 100 score sits (0 to 100) on a scale of equal-width bands. Equal widths, because
+ * the top bands are only 5 points wide yet are where the outcomes differ.
+ */
+export function scalePosition(pct: number): number {
+  const p = Math.min(100, Math.max(0, pct))
+  const n = BANDS_LOW_TO_HIGH.length
+  const fromTop = PERFORMANCE_BANDS.findIndex((b) => p >= b.min)
+  const i = n - 1 - (fromTop === -1 ? n - 1 : fromTop)
+  const lo = BANDS_LOW_TO_HIGH[i]!.min
+  const hi = BANDS_LOW_TO_HIGH[i + 1]?.min ?? 100
+  return ((i + (p - lo) / (hi - lo)) / n) * 100
 }

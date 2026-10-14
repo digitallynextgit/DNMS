@@ -15,11 +15,14 @@ import {
   Upload,
   Pencil,
   ClipboardCheck,
+  ClipboardList,
 } from "lucide-react"
 import { Link } from "@/components/tenant-link"
 import { EmployeeLeaveTab } from "@/features/employees"
 import { EmployeeSalaryTab } from "@/features/employees"
 import { EmployeeTaskAccess } from "@/features/employees"
+// Direct import, not the projects barrel, which would pull every project component into this bundle.
+import { EmployeeWorkView } from "@/features/projects/components/employee-work"
 import { DocumentList } from "@/features/documents"
 import { JoineeScorecard } from "@/features/joinee-scorecard"
 import { DocumentUploadDialog } from "@/features/documents"
@@ -230,6 +233,8 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
         <TabsBar
           items={[
             { value: "info", label: "Info", icon: Users },
+            // Their services, calendars and projects; the API limits it to HR/admin and their managers.
+            { value: "work", label: "Work", icon: ClipboardList },
             { value: "documents", label: "Documents", icon: FileText },
             { value: "leave", label: "Leave", icon: CalendarDays },
             { value: "salary", label: "Salary", icon: Wallet },
@@ -379,6 +384,10 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
             onOpenChange={setUploadOpen}
             employeeId={emp.id}
           />
+        </TabsContent>
+
+        <TabsContent value="work">
+          <EmployeeWorkView employeeId={emp.id} />
         </TabsContent>
 
         <TabsContent value="leave">

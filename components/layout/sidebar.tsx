@@ -125,9 +125,11 @@ interface SidebarNavItemProps {
   isCollapsed: boolean
   permissions: string[]
   roles: string[]
+  /** "employee", "project"...: the group's hue under Module Colours. */
+  group: string
 }
 
-function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavItemProps) {
+function SidebarNavItem({ item, isCollapsed, permissions, roles, group }: SidebarNavItemProps) {
   const pathname = useAppPathname()
   const [open, setOpen] = useState(
     () => item.children?.some((c) => pathname.startsWith(c.href)) ?? false,
@@ -146,6 +148,8 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
           <Tooltip>
             <TooltipTrigger asChild>
               <div
+                data-nav-group={group}
+                data-active={isActive || undefined}
                 className={cn(
                   "mx-auto flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm transition-colors",
                   isActive
@@ -153,7 +157,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
                     : "text-muted-foreground hover:text-foreground hover:bg-accent",
                 )}
               >
-                <item.icon className="h-4 w-4" />
+                <item.icon className="h-4 w-4" data-nav-icon="" />
               </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="text-xs font-medium">
@@ -168,6 +172,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
       <div>
         <button
           onClick={() => setOpen(!open)}
+          data-nav-group={group}
           className={cn(
             "flex h-8 w-full items-center gap-2.5 rounded-sm px-2.5 text-sm transition-colors",
             isActive
@@ -175,7 +180,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
               : "text-muted-foreground hover:text-foreground hover:bg-accent",
           )}
         >
-          <item.icon className="h-4 w-4 shrink-0" />
+          <item.icon className="h-4 w-4 shrink-0" data-nav-icon="" />
           <span className="flex-1 text-left">{item.label}</span>
           <ChevronDown
             className={cn(
@@ -192,6 +197,8 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
                 <Link
                   key={child.href}
                   href={child.href}
+                  data-nav-group={group}
+                  data-active={childActive || undefined}
                   className={cn(
                     "block rounded-sm px-2 py-1.5 text-[13px] transition-colors",
                     childActive
@@ -220,6 +227,8 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
           <TooltipTrigger asChild>
             <Link
               href={item.href!}
+              data-nav-group={group}
+              data-active={isActive || undefined}
               className={cn(
                 "relative mx-auto flex h-8 w-8 items-center justify-center rounded-sm transition-colors",
                 isActive
@@ -227,7 +236,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
                   : "text-muted-foreground hover:text-foreground hover:bg-accent",
               )}
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon className="h-4 w-4" data-nav-icon="" />
               {item.badge && <NavBadge badge={item.badge} collapsed />}
             </Link>
           </TooltipTrigger>
@@ -242,6 +251,8 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
   return (
     <Link
       href={item.href!}
+      data-nav-group={group}
+      data-active={isActive || undefined}
       className={cn(
         "flex h-8 items-center gap-2.5 rounded-sm px-2.5 text-sm transition-colors",
         isActive
@@ -249,7 +260,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
           : "text-muted-foreground hover:text-foreground hover:bg-accent",
       )}
     >
-      <item.icon className="h-4 w-4 shrink-0" />
+      <item.icon className="h-4 w-4 shrink-0" data-nav-icon="" />
       <span>{item.label}</span>
       {item.badge && <NavBadge badge={item.badge} collapsed={false} />}
     </Link>
@@ -275,6 +286,7 @@ function SidebarSection({
   first,
 }: SidebarSectionProps) {
   if (!items.some((item) => isItemVisible(item, permissions, roles))) return null
+  const group = label.toLowerCase()
 
   return (
     <>
@@ -282,7 +294,10 @@ function SidebarSection({
         ? !first && <div className="border-border mx-1 my-2 border-t" />
         : !first && <div aria-hidden className="h-2" />}
       {!isCollapsed && (
-        <p className="text-muted-foreground px-2.5 pb-1 text-[10px] font-medium tracking-widest uppercase">
+        <p
+          data-nav-group={group}
+          className="text-muted-foreground px-2.5 pb-1 text-[10px] font-medium tracking-widest uppercase"
+        >
           {label}
         </p>
       )}
@@ -293,6 +308,7 @@ function SidebarSection({
           isCollapsed={isCollapsed}
           permissions={permissions}
           roles={roles}
+          group={group}
         />
       ))}
     </>

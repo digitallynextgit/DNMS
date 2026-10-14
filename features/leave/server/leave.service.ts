@@ -158,6 +158,11 @@ function attachViewerRole<
   })
 }
 
+/** Where an approver reviews: the leave directory for the HR/admin queue, else My Leave's Requests tab. */
+function leaveReviewPath(envelope: LeaveMailEnvelope, approverId: string): string {
+  return envelope.queueIds.includes(approverId) ? "/leave/leave-directory" : "/leave?tab=requests"
+}
+
 export interface LeaveMailEnvelope {
   autoApprove: boolean
   /** The addressee of the letter: the applicant's manager when they have one. */
@@ -165,6 +170,8 @@ export interface LeaveMailEnvelope {
   /** The single HR mailbox (HR_EMAIL), or null when HR is already the addressee. */
   ccHr: string | null
   notifyIds: string[]
+  /** The HR/admin queue, who approve from the leave directory; a plain manager can't open it. */
+  queueIds: string[]
 }
 
 /** Who a leave request's mail goes to; shared by the sender and the apply-screen preview.
@@ -174,7 +181,7 @@ export async function resolveLeaveMailEnvelope(
   route: ApprovalRoute,
 ): Promise<LeaveMailEnvelope> {
   if (route.autoApprove) {
-    return { autoApprove: true, to: null, ccHr: null, notifyIds: [] }
+    return { autoApprove: true, to: null, ccHr: null, notifyIds: [], queueIds: [] }
   }
 
   const applicant = await db.employee.findUnique({
@@ -187,25 +194,32 @@ export async function resolveLeaveMailEnvelope(
   })
   const mgr = applicant?.manager?.isActive ? applicant.manager : null
 
-  // The role queue that makes the final call, never including the applicant.
+  // The role queue that makes the final call, never including the applicant. HR executives can
+  // finalise at the HR stage too (canFinalizeRequest), so they are told as well.
+  const queueRoles: string[] =
+    route.stage === "HR"
+      ? [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.HR_EMPLOYEE]
+      : [SYSTEM_ROLES.ADMIN]
   const queue = route.stage
     ? await db.employee.findMany({
         where: {
           isActive: true,
           id: { not: applicantId },
-          employeeRoles: {
-            some: {
-              role: {
-                name: route.stage === "HR" ? SYSTEM_ROLES.HR_MANAGER : SYSTEM_ROLES.ADMIN,
-              },
-            },
-          },
+          employeeRoles: { some: { role: { name: { in: queueRoles } } } },
         },
-        select: { id: true, firstName: true, lastName: true, email: true },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          employeeRoles: { select: { role: { select: { name: true } } } },
+        },
       })
     : []
+  // With no manager, the letter is addressed to an HR manager before an HR executive.
+  const lead = queue.find((q) => q.employeeRoles.some((r) => r.role.name === queueRoles[0]))
 
-  const pick = mgr ?? queue[0] ?? null
+  const pick = mgr ?? lead ?? queue[0] ?? null
   const to = pick
     ? {
         id: pick.id,
@@ -227,7 +241,7 @@ export async function resolveLeaveMailEnvelope(
     (id) => id !== applicantId,
   )
 
-  return { autoApprove: false, to, ccHr, notifyIds }
+  return { autoApprove: false, to, ccHr, notifyIds, queueIds: queue.map((q) => q.id) }
 }
 
 /** `<key@host>` using the app's own host, so every id we mint looks local. */
@@ -287,7 +301,7 @@ async function notifyApprovers(
         title: "Leave approval needed",
         message: `${detail} is awaiting your approval.`,
         type: "info",
-        link: "/leave/leave-directory",
+        link: leaveReviewPath(envelope, employeeId),
       })
     } catch {
       // Non-blocking - a notification must never fail the request.
@@ -324,7 +338,10 @@ async function notifyApprovers(
       reason: request.reason ?? null,
       bodyText: customBody,
       subjectText: customSubject,
-      reviewUrl: appUrl ? `${appUrl.replace(/\/$/, "")}/leave/leave-directory` : undefined,
+      reviewUrl:
+        appUrl && envelope.to
+          ? `${appUrl.replace(/\/$/, "")}${leaveReviewPath(envelope, envelope.to.id)}`
+          : undefined,
     })
     // Cc the applicant so the decision reply has a thread to land on in their mailbox.
     const cc = [envelope.ccHr, applicant?.email].filter(

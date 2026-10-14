@@ -7,7 +7,7 @@ import {
   suggestCompetitors,
   explainSeo,
 } from "@/features/seo/server/seo.ai.service"
-import { AiError, AiNotConfiguredError, isAiConfigured } from "@/lib/ai"
+import { AiError, AiNotConfiguredError, isAiConfigured, AI_NOT_CONFIGURED_MESSAGE } from "@/lib/ai"
 import type { Session } from "next-auth"
 
 // Suggestions only - nothing is saved here.
@@ -27,11 +27,8 @@ export const POST = withProjectManager(
     })
     if (!owned) return NextResponse.json({ error: "Site not found" }, { status: 404 })
 
-    if (!isAiConfigured())
-      return NextResponse.json(
-        { error: "AI is not configured. An admin needs to set MISTRAL_API_KEY." },
-        { status: 503 },
-      )
+    if (!(await isAiConfigured()))
+      return NextResponse.json({ error: AI_NOT_CONFIGURED_MESSAGE }, { status: 503 })
 
     const { task } = bodySchema.parse(await req.json())
 
@@ -44,7 +41,7 @@ export const POST = withProjectManager(
     } catch (err) {
       // AI being down must never look like a broken page.
       if (err instanceof AiNotConfiguredError)
-        return NextResponse.json({ error: "AI is not configured." }, { status: 503 })
+        return NextResponse.json({ error: AI_NOT_CONFIGURED_MESSAGE }, { status: 503 })
       if (err instanceof AiError)
         return NextResponse.json({ error: err.message }, { status: err.status ?? 502 })
       throw err

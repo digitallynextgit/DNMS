@@ -14,11 +14,18 @@ import {
   initials,
   personStyle,
 } from "./theme"
-import { dayLabel, formatHoursRound, formatHoursShort } from "../../lib/report-format"
+import {
+  dayLabel,
+  formatHoursRound,
+  formatHoursShort,
+  periodLine,
+  reportKind,
+  shortDate,
+} from "../../lib/report-format"
 import { round1 } from "../../lib/work-hours"
 import type { DayRow, OpenItem, PersonReport, WorkReport } from "../../types"
 
-// The work report as slides (same for .pptx and .pdf): title, at a glance, where the hours
+// The progress report as slides (same for .pptx and .pdf): title, at a glance, where the hours
 // went, impact, each person (summary + every working day), open items, appendix.
 
 const MX = 0.6
@@ -60,7 +67,7 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
   const footer = (c: Canvas, page: number, total: number, dark = false) => {
     const color = dark ? "8B90AA" : MUTED
     c.text(
-      `${r.title}  ·  ${r.period.label} work report`,
+      `${r.title}  ·  ${r.period.label} progress report`,
       { x: MX, y: 7.0, w: 8, h: 0.3 },
       { size: 9, color },
     )
@@ -137,7 +144,7 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
   slides.push((c, page, total) => {
     c.addSlide(INK)
     c.text(
-      "MONTH-END WORK REPORT",
+      reportKind(r.period).toUpperCase(),
       { x: MX + 0.1, y: 1.2, w: 8, h: 0.4 },
       { size: 14, bold: true, color: AMBER, charSpacing: 4 },
     )
@@ -188,10 +195,8 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
       }
     }
     const preparer = [r.preparedBy.name, r.preparedBy.designation].filter(Boolean).join(", ")
-    const fromDay = Number(r.period.from.slice(8))
-    const toDay = Number(r.period.to.slice(8))
     c.text(
-      `Period: ${fromDay} - ${toDay} ${r.period.label}${preparer ? `   ·   Prepared by ${preparer}` : ""}`,
+      `Period: ${periodLine(r.period)}${preparer ? `   ·   Prepared by ${preparer}` : ""}`,
       {
         x: MX + 0.1,
         y: 5.85,
@@ -463,7 +468,7 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
       })
     } else {
       c.text(
-        "No task time was recorded in DNMS for this month.",
+        "No task time was recorded in DNMS for this period.",
         { x: MX, y: 2.2, w: 6, h: 0.5 },
         { size: 14, color: MUTED },
       )
@@ -501,7 +506,7 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
       )
     } else {
       c.text(
-        "No completed or tracked tasks this month.",
+        "No completed or tracked tasks in this period.",
         { x: tx, y: 4.68, w: W - MX - tx, h: 0.4 },
         { size: 12, color: MUTED },
       )
@@ -619,7 +624,13 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
   for (const group of chunk(people, 3)) {
     slides.push((c, page, total) => {
       c.addSlide(WHITE)
-      header(c, "Looking ahead", `Open items carried into ${nextMonthLabel(r.period.month)}`)
+      header(
+        c,
+        "Looking ahead",
+        r.period.wholeMonth
+          ? `Open items carried into ${nextMonthLabel(r.period.month)}`
+          : `Open items still open after ${shortDate(r.period.to)}`,
+      )
       group.forEach((p, i) => {
         const x = MX + i * (cw + 0.3)
         const top = 1.55
@@ -640,7 +651,7 @@ export function renderSlides(c: Canvas, r: WorkReport): void {
             { size: 10, bold: true, color: WHITE, align: "center", valign: "middle" },
           )
           c.text(
-            "No open tasks due this month.",
+            "No open tasks due in this period.",
             { x: x + 0.3, y: y + 0.38, w: cw - 0.6, h: 0.5 },
             { size: 12.5, color: TEXT },
           )

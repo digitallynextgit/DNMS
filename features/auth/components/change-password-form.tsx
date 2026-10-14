@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { signIn, signOut, useSession } from "next-auth/react"
+import { getSession, signIn, signOut } from "next-auth/react"
 import { Eye, EyeOff } from "lucide-react"
 import { toast } from "sonner"
 
@@ -32,8 +32,8 @@ const schema = z
 
 type FormValues = z.infer<typeof schema>
 
-export function ChangePasswordForm() {
-  const { data: session } = useSession()
+/** `email` comes from the server page: the client session provider on auth pages starts empty. */
+export function ChangePasswordForm({ email }: { email?: string | null }) {
   const [showPassword, setShowPassword] = useState(false)
 
   const form = useForm<FormValues>({
@@ -53,14 +53,20 @@ export function ChangePasswordForm() {
       toast.error(e instanceof Error ? e.message : "Failed to update password")
       return
     }
-    // Re-sign-in to re-issue the JWT (update() races the cookie write), then hard-navigate so the
-    // proxy reads the fresh cookie.
-    const email = session?.user?.email
-    if (email) {
-      await signIn("credentials", { email, password: values.newPassword, redirect: false })
+    // The cookie still says "must change", so re-sign-in to re-issue the JWT (update() races the
+    // cookie write), then hard-navigate so the proxy reads the fresh cookie.
+    const who = email ?? (await getSession().catch(() => null))?.user?.email
+    const result = who
+      ? await signIn("credentials", { email: who, password: values.newPassword, redirect: false })
+      : null
+    if (result?.ok) {
+      toast.success("Password updated")
+      window.location.assign("/dashboard")
+      return
     }
-    toast.success("Password updated")
-    window.location.assign("/dashboard")
+    // The password is saved either way; a fresh sign-in is the sure way to a fresh session rather
+    // than bouncing them back to this page.
+    await signOut({ callbackUrl: "/login?passwordUpdated=1" })
   }
 
   return (

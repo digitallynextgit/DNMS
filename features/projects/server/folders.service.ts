@@ -6,8 +6,8 @@ import type { Session } from "next-auth"
 import { db } from "@/server/db"
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors"
 import {
+  activeDriveMode,
   createDriveFolder,
-  isDriveConfigured,
   listFolder,
   moveDriveFile,
   renameDriveFile,
@@ -23,6 +23,7 @@ export const FOLDER_SELECT = {
   parentId: true,
   name: true,
   driveFolderId: true,
+  driveMirrorId: true,
   createdById: true,
   createdAt: true,
   updatedAt: true,
@@ -30,6 +31,20 @@ export const FOLDER_SELECT = {
 } satisfies Prisma.ProjectFolderSelect
 
 export type FolderRow = Prisma.ProjectFolderGetPayload<{ select: typeof FOLDER_SELECT }>
+
+/** Each Drive has its own mirror column, so switching storage back finds the old mirrors intact. */
+export type MirrorField = "driveFolderId" | "driveMirrorId"
+
+/** Null when this company has no Drive. */
+export async function activeMirrorField(): Promise<MirrorField | null> {
+  const mode = await activeDriveMode()
+  if (!mode) return null
+  return mode === "account" ? "driveMirrorId" : "driveFolderId"
+}
+
+function mirrorData(field: MirrorField, value: string | null) {
+  return field === "driveMirrorId" ? { driveMirrorId: value } : { driveFolderId: value }
+}
 
 export async function listProjectFolders(projectId: string): Promise<FolderRow[]> {
   return db.projectFolder.findMany({
@@ -104,13 +119,14 @@ export async function ensureDriveMirror(
   projectId: string,
   folderId: string,
 ): Promise<string | null> {
-  if (!(await isDriveConfigured())) return null
+  const field = await activeMirrorField()
+  if (!field) return null
   const folder = await db.projectFolder.findFirst({
     where: { id: folderId, projectId },
-    select: { id: true, parentId: true, name: true, driveFolderId: true },
+    select: { id: true, parentId: true, name: true, driveFolderId: true, driveMirrorId: true },
   })
   if (!folder) throw new NotFoundError("Folder")
-  if (folder.driveFolderId) return folder.driveFolderId
+  if (folder[field]) return folder[field]
   try {
     let parentDriveId: string
     if (folder.parentId) {
@@ -121,10 +137,10 @@ export async function ensureDriveMirror(
     } else {
       parentDriveId = (await ensureProjectFolder(projectId)).id
     }
-    const created = await createDriveFolder(parentDriveId, folder.name)
+    const created = await createDriveFolder(parentDriveId, folder.name, { dnmsProject: projectId })
     await db.projectFolder.update({
       where: { id: folder.id },
-      data: { driveFolderId: created.id },
+      data: mirrorData(field, created.id),
     })
     return created.id
   } catch (error) {
@@ -145,8 +161,9 @@ export async function createFolder(
     data: { projectId, parentId: input.parentId, name, createdById: session.user.id },
     select: FOLDER_SELECT,
   })
-  const driveFolderId = await ensureDriveMirror(projectId, folder.id)
-  return { ...folder, driveFolderId }
+  const mirror = await ensureDriveMirror(projectId, folder.id)
+  const field = await activeMirrorField()
+  return field ? { ...folder, ...mirrorData(field, mirror) } : folder
 }
 
 export async function renameFolder(
@@ -165,8 +182,10 @@ export async function renameFolder(
     data: { name: trimmed },
     select: FOLDER_SELECT,
   })
-  if (folder.driveFolderId) {
-    await renameDriveFile(folder.driveFolderId, trimmed).catch((e) =>
+  // Both mirrors, so the old Drive stays readable by name until it is retired.
+  for (const mirror of [folder.driveFolderId, folder.driveMirrorId]) {
+    if (!mirror) continue
+    await renameDriveFile(mirror, trimmed).catch((e) =>
       console.error("[folders] Drive rename failed", folderId, e),
     )
   }
@@ -204,19 +223,20 @@ export async function moveFolder(
     data: { parentId },
     select: FOLDER_SELECT,
   })
-  if (folder.driveFolderId) {
+  const field = await activeMirrorField()
+  const mirror = field ? folder[field] : null
+  if (field && mirror) {
     try {
       const root = await ensureProjectFolder(projectId)
-      const from = folder.parentId
-        ? ((
-            await db.projectFolder.findUnique({
-              where: { id: folder.parentId },
-              select: { driveFolderId: true },
-            })
-          )?.driveFolderId ?? root.id)
-        : root.id
+      const parent = folder.parentId
+        ? await db.projectFolder.findUnique({
+            where: { id: folder.parentId },
+            select: { driveFolderId: true, driveMirrorId: true },
+          })
+        : null
+      const from = parent?.[field] ?? root.id
       const to = parentId ? ((await ensureDriveMirror(projectId, parentId)) ?? root.id) : root.id
-      if (from !== to) await moveDriveFile(folder.driveFolderId, from, to)
+      if (from !== to) await moveDriveFile(mirror, from, to)
     } catch (error) {
       console.error("[folders] Drive move failed", folderId, error)
     }
@@ -239,10 +259,12 @@ export async function deleteFolder(session: Session, projectId: string, folderId
       `"${folder.name}" still has ${inside} ${inside === 1 ? "item" : "items"} in it. Move or delete them first.`,
     )
   }
-  if (folder.driveFolderId) {
+  const field = await activeMirrorField()
+  const mirror = field ? folder[field] : null
+  if (mirror) {
     let driveItems: DriveFile[] = []
     try {
-      driveItems = await listFolder(folder.driveFolderId)
+      driveItems = await listFolder(mirror)
     } catch {
       // Mirror already gone in Drive - nothing to protect.
     }
@@ -251,7 +273,7 @@ export async function deleteFolder(session: Session, projectId: string, folderId
         `"${folder.name}" still has ${driveItems.length} ${driveItems.length === 1 ? "item" : "items"} in Google Drive. Move or delete them first.`,
       )
     }
-    await trashDriveFile(folder.driveFolderId).catch(() => {})
+    await trashDriveFile(mirror).catch(() => {})
   }
   await db.projectFolder.delete({ where: { id: folder.id } })
   return folder
@@ -268,14 +290,18 @@ export async function adoptDriveFolders(
   actorId: string,
 ): Promise<void> {
   const folders = driveChildren.filter((f) => f.isFolder)
-  if (folders.length === 0) return
+  const field = await activeMirrorField()
+  if (folders.length === 0 || !field) return
   const known = new Set(
     (
       await db.projectFolder.findMany({
-        where: { driveFolderId: { in: folders.map((f) => f.id) } },
-        select: { driveFolderId: true },
+        where:
+          field === "driveMirrorId"
+            ? { driveMirrorId: { in: folders.map((f) => f.id) } }
+            : { driveFolderId: { in: folders.map((f) => f.id) } },
+        select: { driveFolderId: true, driveMirrorId: true },
       })
-    ).map((f) => f.driveFolderId),
+    ).map((f) => f[field]),
   )
   for (const f of folders) {
     if (known.has(f.id)) continue
@@ -285,7 +311,7 @@ export async function adoptDriveFolders(
           projectId,
           parentId,
           name: f.name || "Untitled folder",
-          driveFolderId: f.id,
+          ...mirrorData(field, f.id),
           createdById: actorId,
         },
       })
@@ -297,5 +323,7 @@ export async function adoptDriveFolders(
 
 /** A mirror that was deleted in Drive is forgotten so it can be recreated on the next write. */
 export async function forgetDriveMirror(folderId: string): Promise<void> {
-  await db.projectFolder.update({ where: { id: folderId }, data: { driveFolderId: null } })
+  const field = await activeMirrorField()
+  if (!field) return
+  await db.projectFolder.update({ where: { id: folderId }, data: mirrorData(field, null) })
 }

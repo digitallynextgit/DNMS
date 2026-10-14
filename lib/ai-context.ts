@@ -3,6 +3,7 @@ import "server-only"
 import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
+import { getAwayDaysForMany } from "@/features/leave/server/day-status.queries"
 import type { Session } from "next-auth"
 
 // A bounded snapshot of what THIS user may see, for the AI assistant (the model never queries the DB).
@@ -229,6 +230,173 @@ export async function buildAiContext(session: Session): Promise<string> {
         `${e.manager ? ` | reviewer ${e.manager.firstName} ${e.manager.lastName}` : ""}`,
     )
   }
+  out.push("")
+
+  // Leave, WFH, holidays and attendance: what people ask about most. Other people's absences use
+  // the neutral away-day labels (never the leave type).
+  const year = now.getUTCFullYear()
+  const balances = await db.leaveBalance.findMany({
+    where: { employeeId: userId, year },
+    select: {
+      allocated: true,
+      carried: true,
+      used: true,
+      pending: true,
+      leaveType: { select: { name: true } },
+    },
+  })
+  out.push(`MY LEAVE BALANCES ${year} - type | total | used | pending | available:`)
+  if (balances.length === 0) out.push("- No leave balances allocated yet.")
+  for (const b of balances) {
+    const total = b.allocated + b.carried
+    out.push(
+      `- ${b.leaveType.name} | ${total} | ${b.used} | ${b.pending} | ${total - b.used - b.pending}`,
+    )
+  }
+  const myLeaves = await db.leaveRequest.findMany({
+    where: { employeeId: userId, startDate: { gte: new Date(Date.UTC(year, 0, 1)) } },
+    select: {
+      startDate: true,
+      endDate: true,
+      totalDays: true,
+      status: true,
+      leaveType: { select: { name: true } },
+    },
+    orderBy: { startDate: "desc" },
+    take: 10,
+  })
+  out.push(`MY LEAVE REQUESTS ${year} (latest ${myLeaves.length}) - dates | days | type | status:`)
+  if (myLeaves.length === 0) out.push("- None.")
+  for (const r of myLeaves) {
+    out.push(
+      `- ${fmt(r.startDate)} to ${fmt(r.endDate)} | ${r.totalDays} | ${r.leaveType.name} | ${r.status}`,
+    )
+  }
+  const myWfh = await db.wfhRequest.findMany({
+    where: { employeeId: userId },
+    select: { date: true, endDate: true, totalDays: true, status: true, isEmergency: true },
+    orderBy: { date: "desc" },
+    take: 5,
+  })
+  out.push(`MY WFH REQUESTS (latest ${myWfh.length}) - dates | days | status:`)
+  if (myWfh.length === 0) out.push("- None.")
+  for (const r of myWfh) {
+    out.push(
+      `- ${fmt(r.date)} to ${fmt(r.endDate)} | ${r.totalDays} | ${r.status}${r.isEmergency ? " (emergency)" : ""}`,
+    )
+  }
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const attendance = await db.attendanceLog.groupBy({
+    by: ["status"],
+    where: { employeeId: userId, date: { gte: monthStart } },
+    _count: { _all: true },
+  })
+  out.push(
+    `MY ATTENDANCE THIS MONTH: ${
+      attendance
+        .map((a) => `${a.status.toLowerCase().replace(/_/g, " ")} ${a._count._all}`)
+        .join(", ") || "no records yet"
+    }`,
+  )
+  out.push("")
+
+  // Approvals waiting on the asking user. HR (approve permission) sees the whole queue; a manager
+  // only what is routed to them.
+  const pendingLeave = await db.leaveRequest.findMany({
+    where: {
+      status: "PENDING",
+      ...(hasPermission(session, PERMISSIONS.LEAVE_APPROVE) ? {} : { currentApproverId: userId }),
+    },
+    select: {
+      startDate: true,
+      endDate: true,
+      totalDays: true,
+      leaveType: { select: { name: true } },
+      employee: { select: { firstName: true, lastName: true, employeeNo: true } },
+    },
+    orderBy: { startDate: "asc" },
+    take: MAX_ROWS,
+  })
+  const pendingWfh = await db.wfhRequest.findMany({
+    where: {
+      status: "PENDING",
+      ...(hasPermission(session, PERMISSIONS.WFH_APPROVE)
+        ? {}
+        : { employee: { managerId: userId } }),
+    },
+    select: {
+      date: true,
+      endDate: true,
+      totalDays: true,
+      isEmergency: true,
+      employee: { select: { firstName: true, lastName: true, employeeNo: true } },
+    },
+    orderBy: { date: "asc" },
+    take: MAX_ROWS,
+  })
+  out.push(
+    `PENDING APPROVALS WAITING ON THE ASKING USER (${pendingLeave.length + pendingWfh.length}):`,
+  )
+  if (pendingLeave.length + pendingWfh.length === 0) out.push("- None.")
+  for (const r of pendingLeave) {
+    out.push(
+      `- Leave: ${r.employee.firstName} ${r.employee.lastName} [${r.employee.employeeNo}] | ${fmt(r.startDate)} to ${fmt(r.endDate)} | ${r.totalDays} day(s) | ${r.leaveType.name}`,
+    )
+  }
+  for (const r of pendingWfh) {
+    out.push(
+      `- WFH: ${r.employee.firstName} ${r.employee.lastName} [${r.employee.employeeNo}] | ${fmt(r.date)} to ${fmt(r.endDate)} | ${r.totalDays} day(s)${r.isEmergency ? " | emergency" : ""}`,
+    )
+  }
+  out.push("")
+
+  const holidayEnd = new Date(todayStart)
+  holidayEnd.setUTCDate(holidayEnd.getUTCDate() + 90)
+  const holidays = await db.holiday.findMany({
+    where: { date: { gte: todayStart, lte: holidayEnd } },
+    select: { name: true, date: true, isOptional: true },
+    orderBy: { date: "asc" },
+  })
+  out.push(`UPCOMING HOLIDAYS (next 90 days, ${holidays.length}):`)
+  if (holidays.length === 0) out.push("- None.")
+  for (const h of holidays) {
+    out.push(`- ${fmt(h.date)} | ${h.name}${h.isOptional ? " (optional / floating)" : ""}`)
+  }
+  out.push("")
+
+  // Who is away this week: everyone the user may see, or just their own circle. Company-wide
+  // holidays are listed above, so per person only leave, half days and approved optional days.
+  const publicHolidays = new Set(holidays.filter((h) => !h.isOptional).map((h) => h.name))
+  const circle = canReadEmployees
+    ? await db.employee.findMany({
+        where: { isActive: true, status: "ACTIVE" },
+        select: { id: true, firstName: true, lastName: true },
+        take: 150,
+      })
+    : await db.employee.findMany({
+        where: {
+          isActive: true,
+          OR: [{ id: userId }, { managerId: userId }, { subordinates: { some: { id: userId } } }],
+        },
+        select: { id: true, firstName: true, lastName: true },
+      })
+  const away = await getAwayDaysForMany(
+    circle.map((e) => e.id),
+    todayStart.toISOString().slice(0, 10),
+    weekEnd.toISOString().slice(0, 10),
+  )
+  const awayLines = circle
+    .map((e) => {
+      const days = (away[e.id] ?? []).filter(
+        (d) => d.status !== "birthday" && !(d.status === "holiday" && publicHolidays.has(d.label)),
+      )
+      if (days.length === 0) return null
+      const who = e.id === userId ? "You" : `${e.firstName} ${e.lastName}`
+      return `- ${who}: ${days.map((d) => `${d.date} ${d.label}`).join(", ")}`
+    })
+    .filter((l): l is string => l !== null)
+  out.push(`AWAY THIS WEEK (${fmt(todayStart)} to ${fmt(weekEnd)}):`)
+  out.push(...(awayLines.length ? awayLines : ["- Nobody."]))
   out.push("")
 
   // Metadata only; the chat route pulls the text of the relevant ones.

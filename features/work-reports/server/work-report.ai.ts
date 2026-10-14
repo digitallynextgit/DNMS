@@ -6,7 +6,7 @@ import type { WorkReport } from "../types"
 // Optional AI polish of highlights and impact bullets, from the report's own titles and numbers
 // (never adding work). Any failure keeps the plain version.
 
-const SYSTEM = `You polish a month-end work report that goes to a manager and HR.
+const SYSTEM = `You polish a progress report that goes to a manager and HR.
 Rewrite rough task titles into short, plain-English bullets about what was done.
 Rules:
 - Use ONLY work named in the input. Never invent tasks, outcomes, numbers or names.
@@ -67,7 +67,7 @@ async function polishImpact(report: WorkReport): Promise<boolean> {
     system: SYSTEM,
     user: JSON.stringify({
       instruction:
-        "For each project, write 2-3 bullets on what the team delivered this month. Keep the first bullet's task count and hours exactly as given.",
+        "For each project, write 2-3 bullets on what the team delivered in this period. Keep the first bullet's task count and hours exactly as given.",
       reply_shape: { projects: [{ project: "string", bullets: ["string"] }] },
       projects: report.impact.map((c) => ({
         project: c.project,
@@ -102,7 +102,7 @@ async function polishImpact(report: WorkReport): Promise<boolean> {
 
 /** Rewrites highlights and impact bullets in place. Returns whether anything was polished. */
 export async function polishWorkReport(report: WorkReport): Promise<boolean> {
-  if (!isAiConfigured()) return false
+  if (!(await isAiConfigured())) return false
   const jobs: (() => Promise<boolean>)[] = [
     () => polishImpact(report),
     ...report.people.map((_, i) => () => polishPerson(report, i)),

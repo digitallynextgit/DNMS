@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withSession } from "@/server/api-handler"
-import { aiComplete, isAiConfigured, AiError } from "@/lib/ai"
+import { aiComplete, isAiConfigured, AiError, AI_NOT_CONFIGURED_MESSAGE } from "@/lib/ai"
 import type { Session } from "next-auth"
 
 export const runtime = "nodejs"
@@ -56,8 +56,8 @@ function sanitize(raw: unknown): Generated {
 }
 
 export const POST = withSession(async (req: NextRequest, _ctx: unknown, _session: Session) => {
-  if (!isAiConfigured()) {
-    return NextResponse.json({ error: "AI is not configured on the server" }, { status: 500 })
+  if (!(await isAiConfigured())) {
+    return NextResponse.json({ error: AI_NOT_CONFIGURED_MESSAGE }, { status: 500 })
   }
 
   let body: { title?: string; departmentName?: string; type?: string; location?: string }

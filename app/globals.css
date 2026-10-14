@@ -317,6 +317,194 @@
   }
 }
 
+/* Module Colours themes: [data-modules] on <html> (CustomThemeApplier, and theme-boot.js before
+   first paint). Each part of the app has its own hue: project tabs and their cards (data-mod),
+   sidebar groups (data-nav-group), and stat strip cells (data-stat-slot). 400s on dark, 600s on
+   light, so each reads against its surface. Status colours (done, overdue...) stay as they are. */
+[data-modules] {
+  --m-overview: #60a5fa;
+  --m-brand: #f472b6;
+  --m-goals: #34d399;
+  --m-calendar: #fbbf24;
+  --m-deliverables: #a78bfa;
+  --m-repository: #22d3ee;
+  --m-insights: #818cf8;
+  --m-seo: #a3e635;
+  --m-teams: #fb923c;
+  --m-tasks: #38bdf8;
+  --m-requirements: #facc15;
+  --m-messages: #2dd4bf;
+  --m-activity: #94a3b8;
+  --m-passwords: #fb7185;
+  --m-kickoff: #f59e0b;
+  --m-monitoring: #f87171;
+  --m-mailer: #e879f9;
+  --m-services: #c084fc;
+  --g-employee: #38bdf8;
+  --g-hrms: #fb7185;
+  --g-project: #a78bfa;
+  --g-admin: #fbbf24;
+  --g-company: #34d399;
+  --slot-1: #60a5fa;
+  --slot-2: #34d399;
+  --slot-3: #a78bfa;
+  --slot-4: #fbbf24;
+  --slot-5: #f472b6;
+  --slot-6: #22d3ee;
+}
+[data-modules]:not(.dark) {
+  --m-overview: #2563eb;
+  --m-brand: #db2777;
+  --m-goals: #059669;
+  --m-calendar: #d97706;
+  --m-deliverables: #7c3aed;
+  --m-repository: #0891b2;
+  --m-insights: #4f46e5;
+  --m-seo: #65a30d;
+  --m-teams: #ea580c;
+  --m-tasks: #0284c7;
+  --m-requirements: #ca8a04;
+  --m-messages: #0d9488;
+  --m-activity: #64748b;
+  --m-passwords: #e11d48;
+  --m-kickoff: #b45309;
+  --m-monitoring: #dc2626;
+  --m-mailer: #c026d3;
+  --m-services: #9333ea;
+  --g-employee: #0284c7;
+  --g-hrms: #e11d48;
+  --g-project: #7c3aed;
+  --g-admin: #d97706;
+  --g-company: #059669;
+  --slot-1: #2563eb;
+  --slot-2: #059669;
+  --slot-3: #7c3aed;
+  --slot-4: #d97706;
+  --slot-5: #db2777;
+  --slot-6: #0891b2;
+}
+[data-modules] [data-mod="overview"] {
+  --mod: var(--m-overview);
+}
+[data-modules] [data-mod="brand"] {
+  --mod: var(--m-brand);
+}
+[data-modules] [data-mod="goals"] {
+  --mod: var(--m-goals);
+}
+[data-modules] [data-mod="calendar"] {
+  --mod: var(--m-calendar);
+}
+[data-modules] [data-mod="deliverables"] {
+  --mod: var(--m-deliverables);
+}
+[data-modules] [data-mod="repository"] {
+  --mod: var(--m-repository);
+}
+[data-modules] [data-mod="insights"] {
+  --mod: var(--m-insights);
+}
+[data-modules] [data-mod="seo"] {
+  --mod: var(--m-seo);
+}
+[data-modules] [data-mod="teams"] {
+  --mod: var(--m-teams);
+}
+[data-modules] [data-mod="tasks"] {
+  --mod: var(--m-tasks);
+}
+[data-modules] [data-mod="requirements"] {
+  --mod: var(--m-requirements);
+}
+[data-modules] [data-mod="messages"] {
+  --mod: var(--m-messages);
+}
+[data-modules] [data-mod="activity"] {
+  --mod: var(--m-activity);
+}
+[data-modules] [data-mod="passwords"] {
+  --mod: var(--m-passwords);
+}
+[data-modules] [data-mod="kickoff"] {
+  --mod: var(--m-kickoff);
+}
+[data-modules] [data-mod="monitoring"] {
+  --mod: var(--m-monitoring);
+}
+[data-modules] [data-mod="mailer"] {
+  --mod: var(--m-mailer);
+}
+[data-modules] [data-mod="services"] {
+  --mod: var(--m-services);
+}
+[data-modules] [data-nav-group="employee"] {
+  --nav: var(--g-employee);
+}
+[data-modules] [data-nav-group="hrms"] {
+  --nav: var(--g-hrms);
+}
+[data-modules] [data-nav-group="project"] {
+  --nav: var(--g-project);
+}
+[data-modules] [data-nav-group="admin"] {
+  --nav: var(--g-admin);
+}
+[data-modules] [data-nav-group="company"] {
+  --nav: var(--g-company);
+}
+[data-modules] [data-stat-slot="0"] {
+  --slot: var(--slot-1);
+}
+[data-modules] [data-stat-slot="1"] {
+  --slot: var(--slot-2);
+}
+[data-modules] [data-stat-slot="2"] {
+  --slot: var(--slot-3);
+}
+[data-modules] [data-stat-slot="3"] {
+  --slot: var(--slot-4);
+}
+[data-modules] [data-stat-slot="4"] {
+  --slot: var(--slot-5);
+}
+[data-modules] [data-stat-slot="5"] {
+  --slot: var(--slot-6);
+}
+
+/* Project tabs: each icon in its hue; the open tab is tinted and underlined in its own hue. */
+[data-modules] [role="tab"][data-mod] svg {
+  color: var(--mod);
+}
+[data-modules] [role="tab"][data-mod][data-state="active"] {
+  background: color-mix(in srgb, var(--mod) 20%, transparent);
+  color: hsl(var(--foreground));
+  box-shadow: inset 0 -2px 0 var(--mod);
+}
+
+/* A module's card: its header icon takes the module's hue. */
+[data-modules] [data-mod] [data-mod-icon] {
+  color: var(--mod);
+}
+
+/* Sidebar and phone tab bar: icons in their group's hue, the open page tinted with it. */
+[data-modules] [data-nav-group] [data-nav-icon] {
+  color: var(--nav);
+}
+[data-modules] [data-nav-group][data-active] {
+  background-color: color-mix(in srgb, var(--nav) 16%, transparent);
+}
+/* Each group's title (EMPLOYEE, HRMS...) in the same hue as its icons. */
+[data-modules] p[data-nav-group] {
+  color: var(--nav);
+}
+
+/* Stat strips: each cell's number and icon in the next hue, so neighbouring figures read apart.
+   Cells with a status tone (success, warning, danger) keep it. */
+[data-modules] [data-stat-slot] [data-stat-value="default"],
+[data-modules] [data-stat-slot] [data-stat-icon] {
+  color: var(--slot);
+}
+
 /* Print / Save-as-PDF: show only the #print-area, drop app chrome, keep colors. */
 @media print {
   body * {

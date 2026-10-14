@@ -41,6 +41,8 @@ export const GET = withSession(
       }
 
       const where: Record<string, unknown> = { ...scope }
+      // ?mine=1: just the caller's own, e.g. for the dashboard card (reviewers see everyone's).
+      if (searchParams.get("mine") === "1") where.employeeId = session.user.id
       if (status) where.status = status
       if (period) where.periodLabel = period
       if (q)

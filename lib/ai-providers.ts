@@ -1,151 +1,209 @@
-// Which provider, model and key to try, in what order. Pure and env-driven; lib/ai.ts makes the calls.
+// The AI services DNMS can call, and the order it tries them in. Pure (no DB, no env), so the
+// admin page and the tests import it too; lib/ai-models.ts loads the rows, lib/ai.ts makes the calls.
 
 /** What a caller asks for: a capability, not a model name. */
 export type Tier = "fast" | "smart"
 
-export interface Provider {
-  id: string
-  /** OpenAI-compatible chat-completions endpoint. All of these speak it. */
-  url: string
-  /** Env names read for keys, in order (singular and plural both work). */
-  keyEnv: readonly string[]
-  /** Best first. Overridable per deployment - see `modelsFor`. */
-  models: Record<Tier, readonly string[]>
+export const AI_KIND_IDS = [
+  "gemini",
+  "anthropic",
+  "openai",
+  "mistral",
+  "groq",
+  "openrouter",
+  "cerebras",
+  "cloudflare",
+  "custom",
+] as const
+export type AiKind = (typeof AI_KIND_IDS)[number]
+
+export interface AiKindInfo {
+  label: string
+  /** Claude speaks its own API (through Anthropic's SDK); every other kind speaks OpenAI chat-completions. */
+  transport: "openai" | "anthropic"
+  /** Chat-completions URL. Custom providers bring their own. */
+  url: string | null
+  /** Suggested models for a new provider, best first. */
+  models: Record<Tier, string>
+  /** Where an admin gets a key. */
+  keysUrl: string | null
   headers?: Record<string, string>
+  /** OpenAI's newer models take max_completion_tokens and only their own temperature. */
+  tokenParam?: "max_tokens" | "max_completion_tokens"
+  noTemperature?: boolean
+  /** Not every service accepts response_format; those get JSON by instruction only. */
+  noJsonMode?: boolean
+  /** The URL is per account (Cloudflare): the admin gives an Account ID and it's stored in baseUrl. */
+  accountUrl?: (accountId: string) => string
+  /** Extra output tokens for models that reason first: the reasoning counts against the limit. */
+  thinkingRoom?: number
 }
 
-/** Declaration order is the default try order (override with AI_PROVIDER_ORDER). */
-export const PROVIDERS: readonly Provider[] = [
-  {
-    id: "mistral",
+export const AI_KINDS: Record<AiKind, AiKindInfo> = {
+  gemini: {
+    label: "Google Gemini",
+    transport: "openai",
+    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    models: { fast: "gemini-flash-lite-latest", smart: "gemini-flash-latest" },
+    keysUrl: "https://aistudio.google.com/apikey",
+    thinkingRoom: 4_000,
+  },
+  anthropic: {
+    label: "Anthropic Claude",
+    transport: "anthropic",
+    url: null,
+    models: { fast: "claude-haiku-4-5", smart: "claude-opus-5-5" },
+    keysUrl: "https://platform.claude.com/settings/keys",
+    noTemperature: true,
+    thinkingRoom: 8_000,
+  },
+  openai: {
+    label: "OpenAI",
+    transport: "openai",
+    url: "https://api.openai.com/v1/chat/completions",
+    models: { fast: "gpt-5-mini", smart: "gpt-5" },
+    keysUrl: "https://platform.openai.com/api-keys",
+    tokenParam: "max_completion_tokens",
+    noTemperature: true,
+    thinkingRoom: 4_000,
+  },
+  mistral: {
+    label: "Mistral",
+    transport: "openai",
     url: "https://api.mistral.ai/v1/chat/completions",
-    keyEnv: ["MISTRAL_API_KEY", "MISTRAL_API_KEYS"],
-    models: {
-      smart: ["mistral-medium-latest", "ministral-14b-latest", "ministral-8b-latest"],
-      fast: ["mistral-small-latest", "ministral-8b-latest", "ministral-3b-latest"],
-    },
+    models: { fast: "mistral-small-latest", smart: "mistral-medium-latest" },
+    keysUrl: "https://console.mistral.ai/api-keys",
   },
-  {
-    id: "groq",
+  groq: {
+    label: "Groq",
+    transport: "openai",
     url: "https://api.groq.com/openai/v1/chat/completions",
-    keyEnv: ["GROQ_API_KEY", "GROQ_API_KEYS"],
-    models: {
-      smart: ["openai/gpt-oss-120b", "llama-3.3-70b-versatile"],
-      fast: ["openai/gpt-oss-20b", "llama-3.1-8b-instant"],
-    },
+    models: { fast: "openai/gpt-oss-20b", smart: "openai/gpt-oss-120b" },
+    keysUrl: "https://console.groq.com/keys",
+    thinkingRoom: 2_000,
   },
-  {
-    id: "openrouter",
+  openrouter: {
+    label: "OpenRouter",
+    transport: "openai",
     url: "https://openrouter.ai/api/v1/chat/completions",
-    keyEnv: ["OPENROUTER_API_KEY", "OPENROUTER_API_KEYS"],
-    // The 550B is last: no better than the 8B in tests, ~10x slower and often overloaded.
-    // Excluded: thinkingmachines/inkling* (403, agentic only), nemotron-3.5-lightning (leaks its reasoning).
-    models: {
-      smart: [
-        "nex-agi/nex-n2.5-pro:free",
-        "nex-agi/nex-n2.5-mini:free",
-        "nvidia/nemotron-3-ultra-550b-a55b:free",
-      ],
-      fast: ["nex-agi/nex-n2.5-mini:free", "nex-agi/nex-n2.5-pro:free"],
-    },
-    // OpenRouter attributes usage to a site; neither header is required.
+    models: { fast: "nex-agi/nex-n2.5-mini:free", smart: "nex-agi/nex-n2.5-pro:free" },
+    keysUrl: "https://openrouter.ai/settings/keys",
+    // OpenRouter attributes usage to a site; not required.
     headers: { "X-Title": "DNMS" },
   },
-  {
-    id: "gemini",
-    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-    keyEnv: ["GEMINI_API_KEY", "GEMINI_API_KEYS", "GOOGLE_AI_API_KEY"],
-    models: {
-      smart: ["gemini-flash-latest"],
-      fast: ["gemini-flash-lite-latest"],
-    },
-  },
-  {
-    id: "cerebras",
+  cerebras: {
+    label: "Cerebras",
+    transport: "openai",
     url: "https://api.cerebras.ai/v1/chat/completions",
-    keyEnv: ["CEREBRAS_API_KEY", "CEREBRAS_API_KEYS"],
-    models: {
-      smart: ["llama-3.3-70b"],
-      fast: ["llama3.1-8b"],
-    },
+    models: { fast: "llama3.1-8b", smart: "llama-3.3-70b" },
+    keysUrl: "https://cloud.cerebras.ai",
   },
-]
-
-export type Env = Record<string, string | undefined>
-
-/** Split on commas and whitespace (keys get pasted in any shape), deduplicated. */
-export function readKeys(provider: Provider, env: Env): string[] {
-  const raw = provider.keyEnv.map((name) => env[name] ?? "").join(",")
-  const seen = new Set<string>()
-  for (const part of raw.split(/[,\s]+/)) {
-    const key = part.trim()
-    if (key) seen.add(key)
-  }
-  return [...seen]
+  cloudflare: {
+    label: "Cloudflare Workers AI",
+    transport: "openai",
+    url: null,
+    // Cloudflare retires models on a schedule; each tier keeps a backup. gpt-oss-20b answers in
+    // ~2s where llama-3.1-8b takes 4-5s, so it goes first.
+    models: {
+      fast: "@cf/openai/gpt-oss-20b, @cf/meta/llama-3.1-8b-instruct-fp8",
+      smart: "@cf/openai/gpt-oss-120b, @cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    },
+    keysUrl: "https://dash.cloudflare.com/?to=/:account/ai/workers-ai",
+    noJsonMode: true,
+    thinkingRoom: 2_000,
+    accountUrl: (accountId) =>
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`,
+  },
+  custom: {
+    label: "Other (OpenAI-compatible)",
+    transport: "openai",
+    url: null,
+    models: { fast: "", smart: "" },
+    keysUrl: null,
+  },
 }
 
-/** `AI_MODELS_<PROVIDER>_<TIER>` overrides the built-in list, so a retired model is fixed without a deploy. */
-export function modelsFor(provider: Provider, tier: Tier, env: Env): string[] {
-  const override = env[`AI_MODELS_${provider.id.toUpperCase()}_${tier.toUpperCase()}`]
-  if (override?.trim()) {
-    const list = override
-      .split(",")
-      .map((m) => m.trim())
-      .filter(Boolean)
-    if (list.length > 0) return list
-  }
-  return [...provider.models[tier]]
+export function isAiKind(v: unknown): v is AiKind {
+  return typeof v === "string" && (AI_KIND_IDS as readonly string[]).includes(v)
 }
 
-/** AI_PROVIDER_ORDER when set, else declaration order. Unknown names are ignored, not thrown. */
-export function providerOrder(env: Env): Provider[] {
-  const raw = env.AI_PROVIDER_ORDER?.trim()
-  if (!raw) return [...PROVIDERS]
-  const wanted = raw
-    .split(/[,\s]+/)
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean)
-  const named = wanted
-    .map((id) => PROVIDERS.find((p) => p.id === id))
-    .filter((p): p is Provider => Boolean(p))
-  const rest = PROVIDERS.filter((p) => !named.includes(p))
-  return [...named, ...rest]
+/** "a, b ,,c" -> ["a", "b", "c"]: a tier lists backup models, tried in order. */
+export function splitModels(list: string): string[] {
+  return [
+    ...new Set(
+      list
+        .split(",")
+        .map((m) => m.trim())
+        .filter(Boolean),
+    ),
+  ]
+}
+
+/** A provider as lib/ai-models.ts loads it, keys decrypted. */
+export interface ProviderRow {
+  id: string
+  kind: string
+  label: string
+  baseUrl: string | null
+  fastModels: string
+  smartModels: string
+  isDefault: boolean
+  isActive: boolean
+  position: number
+  keys: { id: string; secret: string; isActive: boolean; position: number }[]
 }
 
 export interface Candidate {
-  provider: string
-  url: string
+  providerId: string
+  keyId: string
+  kind: AiKind
+  transport: AiKindInfo["transport"]
+  /** Null for Claude, which goes through the SDK. */
+  url: string | null
   model: string
   key: string
   headers?: Record<string, string>
-  /** Names the key by position ("groq#2") so key material never reaches a log. */
+  /** "gemini#2:gemini-flash-latest" - names the key by position, so key material never reaches a log. */
   id: string
 }
 
-/** Provider, then model, then key: every key gets a turn at a model, because a 429 is per key. */
-export function buildCandidates(tier: Tier, env: Env): Candidate[] {
+/** The default provider first, then the rest by position: the order an AI task tries them in. */
+export function orderProviders<T extends Pick<ProviderRow, "isDefault" | "position">>(
+  rows: T[],
+): T[] {
+  return [...rows].sort(
+    (a, b) => Number(b.isDefault) - Number(a.isDefault) || a.position - b.position,
+  )
+}
+
+/**
+ * Provider, then model, then key: every key gets a turn at a model, because quotas are per key.
+ * Switched-off providers and keys, unknown kinds and custom providers without a URL are skipped.
+ */
+export function buildCandidates(rows: ProviderRow[], tier: Tier): Candidate[] {
   const out: Candidate[] = []
-  for (const provider of providerOrder(env)) {
-    const keys = readKeys(provider, env)
-    if (keys.length === 0) continue
-    for (const model of modelsFor(provider, tier, env)) {
-      keys.forEach((key, i) => {
+  for (const p of orderProviders(rows.filter((r) => r.isActive))) {
+    if (!isAiKind(p.kind)) continue
+    const info = AI_KINDS[p.kind]
+    // Custom and per-account (Cloudflare) providers keep their URL on the row.
+    const url = info.url ?? p.baseUrl
+    if (info.transport === "openai" && !url) continue
+    const keys = p.keys.filter((k) => k.isActive).sort((a, b) => a.position - b.position)
+    for (const model of splitModels(tier === "smart" ? p.smartModels : p.fastModels)) {
+      keys.forEach((k, i) => {
         out.push({
-          provider: provider.id,
-          url: provider.url,
+          providerId: p.id,
+          keyId: k.id,
+          kind: p.kind as AiKind,
+          transport: info.transport,
+          url,
           model,
-          key,
-          headers: provider.headers,
-          id: `${provider.id}#${i + 1}:${model}`,
+          key: k.secret,
+          headers: info.headers,
+          id: `${p.kind}#${i + 1}:${model}`,
         })
       })
     }
   }
   return out
-}
-
-export function configuredProviders(env: Env): { id: string; keys: number }[] {
-  return providerOrder(env)
-    .map((p) => ({ id: p.id, keys: readKeys(p, env).length }))
-    .filter((p) => p.keys > 0)
 }

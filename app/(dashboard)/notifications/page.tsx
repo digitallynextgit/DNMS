@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { CheckCircle, Info, AlertCircle, CheckCheck, Trash2, Settings2 } from "lucide-react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { format } from "date-fns"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -14,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/shared/pagination"
 import { TaskReminderSettings } from "@/features/notifications"
-import { cn, formatRelativeTime, truncate } from "@/lib/utils"
+import { cn, truncate } from "@/lib/utils"
 
 interface Notification {
   id: string
@@ -53,7 +54,7 @@ function NotificationRowSkeleton() {
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <Skeleton className="h-4 w-48" />
-          <Skeleton className="h-3 w-16 shrink-0" />
+          <Skeleton className="h-3 w-40 shrink-0" />
         </div>
         <Skeleton className="h-4 w-full max-w-md" />
       </div>
@@ -214,7 +215,7 @@ export default function NotificationsPage() {
                     {notification.title}
                   </p>
                   <span className="text-muted-foreground shrink-0 text-xs">
-                    {formatRelativeTime(notification.createdAt)}
+                    {format(new Date(notification.createdAt), "EEE, d MMM yyyy · h:mm a")}
                   </span>
                 </div>
                 <p className="text-muted-foreground mt-0.5 text-sm">

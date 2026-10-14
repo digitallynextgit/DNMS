@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import {
   Plus,
   History,
+  MoreHorizontal,
   Trash2,
   Upload,
   Search,
@@ -18,8 +19,14 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  Download,
+  Loader2,
 } from "lucide-react"
+import { toast } from "sonner"
 import { SheetImportDialog } from "./sheet-import-dialog"
+import { downloadCsv, toCsv } from "@/lib/export-csv"
+import { exportBookToXlsx, exportToXlsx } from "@/lib/export-xlsx"
+import { exportFileName, sheetTable } from "../lib/sheet-export"
 
 import { useMeasuredRowHeights } from "@/hooks/use-measured-row-heights"
 import { cn } from "@/lib/utils"
@@ -64,6 +71,7 @@ import {
 import {
   currentMonth,
   editionIndexForMonth,
+  formatMonthShort,
   monthISO,
   groupIntoSeries,
   parseMonth,
@@ -110,6 +118,9 @@ const TOTAL_ROWS = 1000
 const OVERSCAN = 8
 
 /** Types whose control IS the editor - Enter or a printable key must not try to "open" them. */
+// Leads a CSV so Excel reads it as UTF-8 (curly quotes, Hindi).
+const UTF8_BOM = String.fromCharCode(0xfeff)
+
 const LIVE_TYPES = new Set<SheetColumnType>(["SELECT", "PERSON", "CHECKBOX"])
 
 function fmtWhen(iso: string): string {
@@ -723,6 +734,17 @@ export function ProjectSheetSection({
     copyFrom: { workbookId: string; teamPlan: boolean } | null
   } | null>(null)
   const [newTabOpen, setNewTabOpen] = React.useState(false)
+  // Renamed in place: the tab turns into a text box (double-click, or ⋯ -> Rename tab).
+  const [renaming, setRenaming] = React.useState<{ id: string; draft: string } | null>(null)
+  // Escape must not save: removing the box can still fire its blur with the old draft.
+  const renameCancelled = React.useRef(false)
+  const startRename = (s: { id: string; name: string }) => {
+    renameCancelled.current = false
+    setRenaming({ id: s.id, draft: s.name })
+  }
+  // From the ⋯ menu: the open menu holds focus while the box appears, so it is focused on close.
+  const renameFromMenu = React.useRef(false)
+  const renameInput = React.useRef<HTMLInputElement>(null)
   const [newTabName, setNewTabName] = React.useState("")
   // `matchIdx` is unbounded and wrapped at use, so a new query needs no reset effect.
   const [search, setSearch] = React.useState("")
@@ -814,6 +836,43 @@ export function ProjectSheetSection({
     }
     return map
   }, [teams])
+
+  const [exporting, setExporting] = React.useState(false)
+  /** What the grid shows, as a file: one tab (CSV or Excel), or every tab in one Excel file. */
+  async function download(what: "tab-csv" | "tab-xlsx" | "all-xlsx") {
+    if (!workbook || !active) return
+    const personName = (id: string) => people.get(id)
+    const parts = [
+      workbook.name,
+      workbook.periodMonth ? formatMonthShort(workbook.periodMonth) : null,
+    ]
+    setExporting(true)
+    try {
+      if (what === "all-xlsx") {
+        const tabs = workbook.sheets.map((s) => sheetTable(s, personName))
+        await exportBookToXlsx(tabs, exportFileName(parts, "xlsx"))
+      } else {
+        const t = sheetTable(active, personName)
+        if (what === "tab-csv") {
+          downloadCsv(
+            `${UTF8_BOM}${toCsv(t.rows, t.header)}`,
+            exportFileName([...parts, active.name], "csv"),
+          )
+        } else {
+          await exportToXlsx(
+            t.header,
+            t.rows,
+            exportFileName([...parts, active.name], "xlsx"),
+            active.name,
+          )
+        }
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not create the file")
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // Windowing: only the visible band is in the DOM, sized from each row's MEASURED height (rows grow to fit text).
   const scrollerRef = React.useRef<HTMLDivElement>(null)
@@ -1075,7 +1134,11 @@ export function ProjectSheetSection({
 
   return (
     <div className="mt-4 space-y-3">
-      <div className="border-border flex flex-wrap items-center gap-1 border-b pb-2">
+      {/* 1. Which calendar and month, and this calendar's own settings. */}
+      <div
+        data-mod="calendar"
+        className="bg-card flex flex-wrap items-center gap-2 rounded-sm border px-3 py-2.5"
+      >
         <CalendarNamePicker
           series={series}
           activeName={activeSeries?.name ?? null}
@@ -1084,6 +1147,7 @@ export function ProjectSheetSection({
             pickSeries(name)
             setActiveId(null)
           }}
+          onNew={() => setNewSheetOpen(true)}
         />
         <CalendarMonthPicker
           series={activeSeries}
@@ -1093,81 +1157,68 @@ export function ProjectSheetSection({
           onSetMonth={() => setSetMonthOpen(true)}
           canCreate={canStaff}
         />
-        <Button variant="outline" className="gap-1.5 px-3" onClick={() => setNewSheetOpen(true)}>
-          <Plus className="h-3.5 w-3.5" /> New calendar
-        </Button>
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {workbook && (
-            <>
-              <WorkbookAssignee
-                projectId={projectId}
-                workbook={workbook}
-                canStaff={canStaff}
-                pending={m.assignWorkbook.isPending}
-                onAssign={(employeeId) =>
-                  m.assignWorkbook.mutate({ workbookId: workbook.id, employeeId })
-                }
-              />
-              {/* Managers only: this decides whether an outside party can read and write the sheet. */}
-              {canManage && (
-                <Button
-                  variant={workbook.isClientVisible ? "secondary" : "outline"}
-                  className="gap-1.5 px-3"
-                  disabled={m.shareWorkbook.isPending}
-                  title={
-                    workbook.isClientVisible
-                      ? "Shared with the client - they can fill cells and add rows. Click to withdraw."
-                      : "Share this calendar with the client so they can fill it in"
-                  }
-                  onClick={() =>
-                    m.shareWorkbook.mutate({
-                      workbookId: workbook.id,
-                      isClientVisible: !workbook.isClientVisible,
-                    })
-                  }
-                >
-                  {workbook.isClientVisible ? (
-                    <Eye className="h-3.5 w-3.5" />
-                  ) : (
-                    <EyeOff className="h-3.5 w-3.5" />
-                  )}
-                  {workbook.isClientVisible ? "Shared" : "Share"}
-                </Button>
-              )}
-              <span className="bg-border mx-1 h-4 w-px" aria-hidden />
-            </>
-          )}
-          <Button
-            variant="outline"
-            className="gap-1.5 px-3"
-            onClick={() => setColumnDialog({ column: null })}
-            disabled={!active}
-          >
-            <Plus className="h-3.5 w-3.5" /> Column
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-1.5 px-3"
-            onClick={() => setHistoryOpen(true)}
-            disabled={!active}
-          >
-            <History className="h-3.5 w-3.5" /> History
-          </Button>
-          {canManage && workbook && (
-            <Button
-              variant="ghost"
-              className="text-muted-foreground hover:text-destructive gap-1 px-2"
-              onClick={() =>
-                setConfirm({ kind: "workbook", id: workbook.id, label: workbook.name })
+        {workbook && (
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <WorkbookAssignee
+              projectId={projectId}
+              workbook={workbook}
+              canStaff={canStaff}
+              pending={m.assignWorkbook.isPending}
+              onAssign={(employeeId) =>
+                m.assignWorkbook.mutate({ workbookId: workbook.id, employeeId })
               }
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Delete sheet
-            </Button>
-          )}
-        </div>
+            />
+            {/* Managers only: this decides whether an outside party can read and write the sheet. */}
+            {canManage && (
+              <Button
+                variant={workbook.isClientVisible ? "secondary" : "outline"}
+                className="gap-1.5 px-3"
+                disabled={m.shareWorkbook.isPending}
+                title={
+                  workbook.isClientVisible
+                    ? "Shared with the client - they can fill cells and add rows. Click to withdraw."
+                    : "Share this calendar with the client so they can fill it in"
+                }
+                onClick={() =>
+                  m.shareWorkbook.mutate({
+                    workbookId: workbook.id,
+                    isClientVisible: !workbook.isClientVisible,
+                  })
+                }
+              >
+                {workbook.isClientVisible ? (
+                  <Eye className="h-3.5 w-3.5" />
+                ) : (
+                  <EyeOff className="h-3.5 w-3.5" />
+                )}
+                {workbook.isClientVisible ? "Shared" : "Share"}
+              </Button>
+            )}
+            {canManage && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="More calendar actions">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive gap-2"
+                    onSelect={() =>
+                      setConfirm({ kind: "workbook", id: workbook.id, label: workbook.name })
+                    }
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete this month&apos;s calendar
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        )}
       </div>
 
+      {/* 2. Who owes what this month. */}
       {workbook && (
         <TeamPlanStrip
           teams={workbook.teams}
@@ -1181,55 +1232,72 @@ export function ProjectSheetSection({
         />
       )}
 
-      <div className="border-border flex items-end gap-2 border-b">
+      {/* 3. The month's tabs, and the tools for the open tab. */}
+      <div className="border-border flex flex-wrap items-end gap-x-3 gap-y-1 border-b">
         <div className="no-scrollbar flex min-w-0 flex-1 items-end gap-1 overflow-x-auto">
-          {(sheets ?? []).map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setActiveId(s.id)}
-              className={cn(
-                "-mb-px h-9 shrink-0 border-b-2 px-3 text-sm whitespace-nowrap transition-colors",
-                s.id === active?.id
-                  ? "border-primary text-foreground font-semibold"
-                  : "text-muted-foreground hover:text-foreground border-transparent",
-              )}
+          {(sheets ?? []).map((s) =>
+            renaming?.id === s.id ? (
+              <Input
+                key={s.id}
+                ref={renameInput}
+                autoFocus
+                maxLength={60}
+                aria-label="Tab name"
+                value={renaming.draft}
+                onChange={(e) => setRenaming({ id: s.id, draft: e.target.value })}
+                onFocus={(e) => e.currentTarget.select()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur()
+                  if (e.key === "Escape") {
+                    renameCancelled.current = true
+                    setRenaming(null)
+                  }
+                }}
+                // Blur saves; Enter blurs.
+                onBlur={() => {
+                  const name = renaming.draft.trim()
+                  setRenaming(null)
+                  if (renameCancelled.current) {
+                    renameCancelled.current = false
+                    return
+                  }
+                  if (name && name !== s.name) m.renameSheet.mutate({ sheetId: s.id, name })
+                }}
+                className="mb-1 h-8 w-44 shrink-0 text-sm"
+              />
+            ) : (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setActiveId(s.id)}
+                onDoubleClick={() => startRename(s)}
+                title="Double-click to rename"
+                className={cn(
+                  "-mb-px h-9 shrink-0 border-b-2 px-3 text-sm whitespace-nowrap transition-colors",
+                  s.id === active?.id
+                    ? "border-primary text-foreground font-semibold"
+                    : "text-muted-foreground hover:text-foreground border-transparent",
+                )}
+              >
+                {s.name}
+              </button>
+            ),
+          )}
+          {workbook && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="mb-1 h-7 w-7 shrink-0"
+              onClick={() => setNewTabOpen(true)}
+              aria-label="New tab"
+              title="New tab"
             >
-              {s.name}
-            </button>
-          ))}
+              <Plus className="h-4 w-4" />
+            </Button>
+          )}
         </div>
-        <Button
-          variant="outline"
-          className="mb-1.5 h-8 shrink-0 gap-1.5 px-3 text-xs"
-          onClick={() => setNewTabOpen(true)}
-          disabled={!workbook}
-        >
-          <Plus className="h-3.5 w-3.5" /> New tab
-        </Button>
-        <Button
-          variant="outline"
-          className="mb-1.5 h-8 shrink-0 gap-1.5 px-3 text-xs"
-          onClick={() => {
-            setImportIntent("this-tab")
-            setImportOpen(true)
-          }}
-          disabled={!active}
-          title={active ? `Add rows to "${active.name}" from a file or a Google Sheet` : undefined}
-        >
-          <Upload className="h-3.5 w-3.5" /> Upload to this tab
-        </Button>
-        {canManage && active && (sheets?.length ?? 0) > 1 && (
-          <Button
-            variant="ghost"
-            className="text-muted-foreground hover:text-destructive mb-1.5 h-8 shrink-0 gap-1 px-2 text-xs"
-            onClick={() => setConfirm({ kind: "sheet", id: active.id, label: active.name })}
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Delete tab
-          </Button>
-        )}
 
-        <div className="mb-1.5 flex shrink-0 items-center gap-1">
+        <div className="mb-1.5 flex shrink-0 flex-wrap items-center gap-1.5">
           <div className="relative">
             <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
             <Input
@@ -1278,6 +1346,113 @@ export function ProjectSheetSection({
               </Button>
             </>
           )}
+          <Button
+            variant="outline"
+            className="h-8 gap-1.5 px-3 text-xs"
+            onClick={() => setColumnDialog({ column: null })}
+            disabled={!active}
+          >
+            <Plus className="h-3.5 w-3.5" /> Column
+          </Button>
+          <Button
+            variant="outline"
+            className="h-8 gap-1.5 px-3 text-xs"
+            onClick={() => {
+              setImportIntent("this-tab")
+              setImportOpen(true)
+            }}
+            disabled={!active}
+            title={
+              active ? `Add rows to "${active.name}" from a file or a Google Sheet` : undefined
+            }
+          >
+            <Upload className="h-3.5 w-3.5" /> Upload to this tab
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="h-8 gap-1.5 px-3 text-xs"
+                disabled={!active || exporting}
+              >
+                {exporting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
+                Download
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="text-muted-foreground truncate text-xs font-normal">
+                This tab{active ? ` · ${active.name}` : ""}
+              </DropdownMenuLabel>
+              <DropdownMenuItem className="gap-2" onSelect={() => void download("tab-xlsx")}>
+                <Table2 className="h-3.5 w-3.5" /> Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2" onSelect={() => void download("tab-csv")}>
+                <Table2 className="h-3.5 w-3.5" /> CSV (.csv)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+                Whole calendar · {sheets?.length ?? 0} {sheets?.length === 1 ? "tab" : "tabs"}
+              </DropdownMenuLabel>
+              <DropdownMenuItem className="gap-2" onSelect={() => void download("all-xlsx")}>
+                <Table2 className="h-3.5 w-3.5" /> Excel, every tab (.xlsx)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label="More tab actions"
+                disabled={!active}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              onCloseAutoFocus={(e) => {
+                if (renameFromMenu.current) {
+                  renameFromMenu.current = false
+                  e.preventDefault()
+                  renameInput.current?.focus()
+                }
+              }}
+            >
+              {active && (
+                <DropdownMenuItem
+                  className="gap-2"
+                  onSelect={() => {
+                    renameFromMenu.current = true
+                    startRename(active)
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Rename tab
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem className="gap-2" onSelect={() => setHistoryOpen(true)}>
+                <History className="h-3.5 w-3.5" /> History
+              </DropdownMenuItem>
+              {canManage && active && (sheets?.length ?? 0) > 1 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive gap-2"
+                    onSelect={() =>
+                      setConfirm({ kind: "sheet", id: active.id, label: active.name })
+                    }
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete tab
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withSession } from "@/server/api-handler"
-import { aiComplete, isAiConfigured, AiError, AI_MODEL_SMART } from "@/lib/ai"
+import {
+  aiComplete,
+  isAiConfigured,
+  AiError,
+  AI_MODEL_SMART,
+  AI_NOT_CONFIGURED_MESSAGE,
+} from "@/lib/ai"
 import { buildAiContext, listAccessibleDocuments, type AccessibleDoc } from "@/lib/ai-context"
 import { extractFileText, isExtractable } from "@/lib/file-text"
 import type { Session } from "next-auth"
 
 export const runtime = "nodejs"
 
-const SYSTEM_PROMPT = `You are the assistant inside DNMS, Digitally Next's internal management system. You answer questions about the company's projects, tasks, people and performance.
+const SYSTEM_PROMPT = `You are the assistant inside DNMS, Digitally Next's internal management system. You answer questions about the company's projects, tasks, people and performance, and about the asking user's leave balances and requests, work-from-home requests, attendance, pending approvals, holidays and who is away.
 
 ## Identity rules (critical - getting this wrong is a failure)
 - People are identified by their employee number in square brackets, e.g. "Diwakar Jha [145]". TWO DIFFERENT EMPLOYEES CAN SHARE THE SAME NAME - never treat a name alone as a match.
@@ -142,8 +148,8 @@ const MAX_HISTORY = 8
 // Stateless: answers from a permission-scoped snapshot of the caller's data, nothing is stored.
 export const POST = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
-    if (!isAiConfigured()) {
-      return NextResponse.json({ error: "AI is not configured on the server" }, { status: 503 })
+    if (!(await isAiConfigured())) {
+      return NextResponse.json({ error: AI_NOT_CONFIGURED_MESSAGE }, { status: 503 })
     }
 
     let body: { messages?: ChatMessage[] }

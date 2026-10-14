@@ -117,7 +117,14 @@ export function ChatView() {
   const qc = useQueryClient()
   // Notifications link to /chat?c=<id>.
   const params = useSearchParams()
-  const [activeId, setActiveId] = React.useState<string | null>(params.get("c"))
+  const linkedId = params.get("c")
+  const [activeId, setActiveId] = React.useState<string | null>(linkedId)
+  // A new link while already on /chat (a toast, a notification) switches the conversation.
+  const [appliedLink, setAppliedLink] = React.useState(linkedId)
+  if (linkedId !== appliedLink) {
+    setAppliedLink(linkedId)
+    if (linkedId) setActiveId(linkedId)
+  }
   const [picking, setPicking] = React.useState(false)
   const [search, setSearch] = React.useState("")
   const [jumpTarget, setJumpTarget] = React.useState<string | null>(null)

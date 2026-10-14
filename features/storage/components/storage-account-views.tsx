@@ -152,12 +152,12 @@ export function AccountCard({
         !a.isActive && "opacity-60",
       )}
     >
-      {/* Stretched link: a sibling overlay makes the whole card clickable; buttons sit above it (z-10). */}
+      {/* Stretched link: the overlay takes clicks anywhere; display-only parts let them through. */}
       <button
         type="button"
         onClick={() => onOpen(a)}
         aria-label={`Open ${a.label}`}
-        className="focus-visible:ring-ring absolute inset-0 rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+        className="focus-visible:ring-ring absolute inset-0 cursor-pointer rounded-sm focus-visible:ring-2 focus-visible:outline-none"
       />
 
       <div className="flex items-start justify-between gap-2">
@@ -199,11 +199,11 @@ export function AccountCard({
         </DropdownMenu>
       </div>
 
-      <div className="relative z-10 flex flex-wrap items-center gap-1">
+      <div className="pointer-events-none flex flex-wrap items-center gap-1">
         <AccountBadges account={a} />
       </div>
 
-      <div className="relative z-10">
+      <div className="pointer-events-none">
         <UsageBar accountId={a.id} />
       </div>
 

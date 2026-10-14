@@ -161,7 +161,7 @@ export const POST = withProjectAccess(
             title: "New reply",
             message: `${who} sent ${label.toLowerCase()} in "${parent.title}".`,
             type: "info",
-            link: `/projects/${projectId}?tab=messages`,
+            link: `/projects/${projectId}?tab=messages&thread=${messageId}&reply=${reply.id}`,
           })),
           { force: true },
         )

@@ -212,6 +212,70 @@ export const storageGuide: HelpGuide = {
           en: "Deleting a file that is In use also removes it from where it was used - for example, a document from someone's profile. Deleting can't be undone.",
           hi: "In use वाली फ़ाइल डिलीट करने पर वो उस जगह से भी हट जाती है जहाँ इस्तेमाल हो रही थी - जैसे किसी की प्रोफाइल से डॉक्युमेंट। डिलीट को वापस नहीं किया जा सकता।",
         },
+        {
+          en: "The Drive Backups tile holds the nightly copies of Repository files from Google Drive. They count as In use, so Clean up never deletes them.",
+          hi: "Drive Backups टाइल में Google Drive से हर रात ली गई Repository फ़ाइलों की कॉपी होती हैं। ये In use गिनी जाती हैं, इसलिए Clean up इन्हें कभी डिलीट नहीं करता।",
+        },
+      ],
+    },
+    {
+      id: "google-drive",
+      title: { en: "Google Drive (Repository files)", hi: "Google Drive (Repository की फ़ाइलें)" },
+      intro: {
+        en: "Project Repository files can live in the company's Google Drive account instead of Backblaze. Each project gets its own folder there, shared with the project's team on their work email, and a copy of every file goes to Backblaze each night.",
+        hi: "प्रोजेक्ट की Repository फ़ाइलें Backblaze की जगह कंपनी के Google Drive अकाउंट में रखी जा सकती हैं। वहाँ हर प्रोजेक्ट का अपना फ़ोल्डर होता है, जो प्रोजेक्ट की टीम के साथ उनकी work email पर शेयर होता है, और हर रात हर फ़ाइल की एक कॉपी Backblaze में जाती है।",
+      },
+      steps: [
+        {
+          text: {
+            en: "The Google Drive card shows the connected account, its plan (Free · 15 GB or a Google One plan) and how full it is: Drive, Gmail & Photos and Trash. A Repository badge means new Repository uploads go to Drive. The card also shows how many Repository files are in Drive and on Backblaze, and the last backup.",
+            hi: "Google Drive कार्ड पर जुड़ा हुआ अकाउंट, उसका प्लान (Free · 15 GB या कोई Google One प्लान) और कितनी जगह भरी है दिखता है: Drive, Gmail & Photos और Trash। Repository बैज का मतलब है कि नई Repository अपलोड Drive में जाती हैं। कार्ड पर ये भी दिखता है कि कितनी Repository फ़ाइलें Drive में हैं और कितनी Backblaze पर, और पिछला बैकअप कब हुआ।",
+          },
+        },
+        {
+          text: {
+            en: "Warnings appear on the card when space runs low. When usage passes 10 GB on the free plan, it suggests upgrading to Google One 100 GB (₹130 a month). Buy the plan from the Google account itself; the card picks it up on its own.",
+            hi: "जगह कम होने पर कार्ड पर चेतावनी दिखती है। फ्री प्लान पर 10 GB से ज़्यादा भरने पर ये Google One 100 GB (₹130 महीना) लेने का सुझाव देता है। प्लान Google अकाउंट से ही खरीदें; कार्ड उसे अपने आप दिखाने लगता है।",
+          },
+        },
+        {
+          text: {
+            en: "Click the card to open it. Under Repository uploads go to, choose Backblaze or Google Drive and confirm. Files already stored keep opening from wherever they are, so you can switch back at any time.",
+            hi: "कार्ड पर क्लिक करके उसे खोलें। Repository uploads go to में Backblaze या Google Drive चुनें और पक्का करें। पहले से रखी फ़ाइलें जहाँ हैं वहीं से खुलती रहती हैं, इसलिए आप कभी भी वापस बदल सकते हैं।",
+          },
+        },
+        {
+          text: {
+            en: "Files shows the DNMS folder in Drive, with one folder per project. Click a folder to go into it; each file has Open in Drive and Download buttons.",
+            hi: "Files में Drive का DNMS फ़ोल्डर दिखता है, जिसमें हर प्रोजेक्ट का एक फ़ोल्डर है। किसी फ़ोल्डर में जाने के लिए उस पर क्लिक करें; हर फ़ाइल पर Open in Drive और Download बटन हैं।",
+          },
+        },
+        {
+          text: {
+            en: "Move to Drive lists every project with its files still on Backblaze or in the old Shared Drive. Click Move on one project, or Move everything. Each file is copied to its project's Drive folder and checked byte for byte before DNMS switches to it. You can leave the page while it runs.",
+            hi: "Move to Drive में हर प्रोजेक्ट की लिस्ट है, साथ में उसकी वो फ़ाइलें जो अभी Backblaze या पुराने Shared Drive में हैं। किसी एक प्रोजेक्ट पर Move पर क्लिक करें, या Move everything पर। हर फ़ाइल उसके प्रोजेक्ट के Drive फ़ोल्डर में कॉपी होती है और DNMS उसे इस्तेमाल करने से पहले बाइट-बाइट मिलान करके जाँचता है। चलते समय आप पेज छोड़ सकते हैं।",
+          },
+        },
+        {
+          text: {
+            en: "Backup shows the nightly copy to Backblaze: it runs every night at 2 AM IST and copies new and changed files. Google Docs and Sheets are saved as Word and Excel files. Click Back up now to run it straight away.",
+            hi: "Backup में Backblaze पर रोज़ रात की कॉपी दिखती है: ये हर रात 2 बजे (IST) चलता है और नई व बदली हुई फ़ाइलें कॉपी करता है। Google Docs और Sheets, Word और Excel फ़ाइलों की तरह सेव होते हैं। तुरंत चलाने के लिए Back up now पर क्लिक करें।",
+          },
+        },
+      ],
+      tips: [
+        {
+          en: "After a move, the Backblaze copies stay where they are and count as the first backup, so nothing is uploaded twice.",
+          hi: "मूव के बाद Backblaze वाली कॉपी वहीं रहती हैं और पहला बैकअप गिनी जाती हैं, इसलिए कुछ भी दो बार अपलोड नहीं होता।",
+        },
+        {
+          en: "A file deleted from the Repository keeps its backup for 30 days, so a mistake can still be recovered.",
+          hi: "Repository से डिलीट की गई फ़ाइल का बैकअप 30 दिन तक रहता है, ताकि गलती हो जाए तो फ़ाइल वापस मिल सके।",
+        },
+        {
+          en: "If the card says Reconnect needed, open Admin → Integrations and click Reconnect, signing in as the same Google account.",
+          hi: "अगर कार्ड पर Reconnect needed लिखा है, तो Admin → Integrations खोलें और Reconnect पर क्लिक करें, और उसी Google अकाउंट से साइन इन करें।",
+        },
       ],
     },
   ],

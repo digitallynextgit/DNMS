@@ -106,11 +106,11 @@ export function GoalsOverviewCard({
   const hidden = summary.goals.length - shown.length
 
   return (
-    <Card>
+    <Card data-mod="goals">
       <CardContent className="space-y-4 p-5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Target className="text-muted-foreground h-4 w-4" />
+            <Target className="text-muted-foreground h-4 w-4" data-mod-icon="" />
             <h3 className="text-sm font-semibold">Goals</h3>
           </div>
           <Button variant="ghost" className="gap-1 px-2" onClick={onOpen}>

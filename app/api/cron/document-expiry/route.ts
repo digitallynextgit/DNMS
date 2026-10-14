@@ -28,7 +28,7 @@ export const GET = withCron("document-expiry", async () => {
         title: "Document expiring soon",
         message: `Your document "${doc.title}" expires on ${fmt(doc.expiresAt)}. Please renew it.`,
         type: "warning",
-        link: "/profile",
+        link: "/profile?tab=documents",
       })
       notified++
     }

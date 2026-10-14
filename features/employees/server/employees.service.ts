@@ -38,6 +38,10 @@ import { requireSession, requirePermission, getAuditMeta } from "@/server/action
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT, EMPLOYEE_LIST_SELECT } from "@/server/selects"
+import {
+  driveProjectIdsFor,
+  syncProjectsFolderAccessAsync,
+} from "@/features/projects/server/project-drive.service"
 
 type EmployeeFilters = {
   search?: string
@@ -568,6 +572,14 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
         )
       }
 
+      // Drive shares go to the work email, so a new address (or a status change) re-syncs them.
+      if (
+        (data.email !== undefined && employee.email !== before.email) ||
+        ("status" in updateData && updateData.status !== before.status)
+      ) {
+        syncProjectsFolderAccessAsync(await driveProjectIdsFor([id]))
+      }
+
       // Recompute this year's balances when accrual inputs change (best-effort).
       if (
         [
@@ -615,7 +627,8 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
                 fieldNames.length === 1 ? "was" : "were"
               } changed by HR. Please check it's correct.`,
               type: "info",
-              link: `/employees/${employeeSlug(employee.employeeNo, employee.firstName, employee.lastName)}`,
+              // Their own profile: /employees/* needs employee:read, which most people lack.
+              link: "/profile",
             },
           ])
         } catch (e) {
@@ -639,6 +652,8 @@ export async function deactivateEmployee(id: string): Promise<ActionResult<{ mes
     if (!existing) return fail("Employee not found")
     if (id === session.user.id) return fail("You can't deactivate your own account")
 
+    // Read before the seats go, so their projects' Drive folders stop sharing with them.
+    const driveProjects = await driveProjectIdsFor([id])
     await db.employee.update({ where: { id }, data: { isActive: false } })
     // Mirror onto the membership (login already checks employee.isActive).
     await setMembershipActive({ employeeId: id }, false)
@@ -649,6 +664,7 @@ export async function deactivateEmployee(id: string): Promise<ActionResult<{ mes
       db.projectTeam.updateMany({ where: { managerId: id }, data: { managerId: null } }),
       db.projectServiceOwner.deleteMany({ where: { employeeId: id } }),
     ])
+    syncProjectsFolderAccessAsync(driveProjects)
     const meta = await getAuditMeta()
     await createAuditLog(session, {
       action: "DEACTIVATE",
@@ -744,6 +760,7 @@ export async function bulkTerminateEmployees(
       where: { id: { in: targets } },
       data: { status: "TERMINATED", isActive: false, lastWorkingDate: new Date() },
     })
+    syncProjectsFolderAccessAsync(await driveProjectIdsFor(targets))
     await db.membership.updateMany({
       where: { employeeId: { in: targets } },
       data: { isActive: false },

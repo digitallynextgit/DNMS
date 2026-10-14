@@ -21,6 +21,8 @@ export interface ProjectFolder {
   parentId: string | null
   name: string
   driveFolderId: string | null
+  /** Mirror in the connected Google account's Drive (driveFolderId is the old Shared Drive's). */
+  driveMirrorId: string | null
   createdById: string
   createdAt: string
   updatedAt: string
@@ -53,7 +55,13 @@ export interface FolderListing {
   files: ProjectResource[]
   links: ProjectLink[]
   driveFiles: DriveFile[]
-  drive: { configured: boolean; folderLink: string | null; memberCount: number }
+  drive: {
+    configured: boolean
+    /** Uploads go to Google Drive (true) or Backblaze. */
+    onDrive: boolean
+    folderLink: string | null
+    memberCount: number
+  }
 }
 
 // Writes invalidate the whole family: moves/renames touch several folders; the listing is cheap.

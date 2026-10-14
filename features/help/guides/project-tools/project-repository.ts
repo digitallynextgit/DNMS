@@ -12,8 +12,8 @@ export const projectRepositoryGuide: HelpGuide = {
   href: "/projects/my-projects",
   title: { en: "Repository (project files)", hi: "रिपॉज़िटरी - प्रोजेक्ट फाइलें (Repository)" },
   summary: {
-    en: "Keep all of a project's files, folders and links in one place - stored in DNMS or in the project's Google Drive folder.",
-    hi: "प्रोजेक्ट की सारी फाइलें, फोल्डर और लिंक एक जगह रखें - DNMS में या प्रोजेक्ट के Google Drive फोल्डर में।",
+    en: "Keep all of a project's files, folders and links in one place. Files are stored in the project's Google Drive folder, shared with the project team.",
+    hi: "प्रोजेक्ट की सारी फाइलें, फोल्डर और लिंक एक जगह रखें। फाइलें प्रोजेक्ट के Google Drive फोल्डर में रहती हैं, जो प्रोजेक्ट की टीम के साथ शेयर होता है।",
   },
   keywords: [
     "repository",
@@ -39,8 +39,8 @@ export const projectRepositoryGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Open the project from My Projects and click the Repository tab. Folders come first, then files and links.",
-            hi: "My Projects से प्रोजेक्ट खोलें और Repository टैब पर क्लिक करें। पहले फोल्डर दिखते हैं, फिर फाइलें और लिंक।",
+            en: "Open the project from Projects and click the Repository tab. Folders come first, then files and links.",
+            hi: "Projects से प्रोजेक्ट खोलें और Repository टैब पर क्लिक करें। पहले फोल्डर दिखते हैं, फिर फाइलें और लिंक।",
           },
         },
         {
@@ -75,27 +75,25 @@ export const projectRepositoryGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Click Upload and pick where the file goes: Backblaze (B2) (1), the default, or Google Drive (2) if the project's Drive is connected. You can also drag files straight onto the page.",
-            hi: "Upload पर क्लिक करें और चुनें कि फाइल कहाँ जाएगी: Backblaze (B2) (1), जो डिफ़ॉल्ट है, या Google Drive (2) अगर प्रोजेक्ट का Drive जुड़ा है। आप फाइलें सीधे पेज पर खींचकर भी छोड़ सकते हैं।",
+            en: "Click Upload (1), or drag files straight onto the page. They go into the project's folder in the company's Google Drive, in the folder you have open.",
+            hi: "Upload (1) पर क्लिक करें, या फाइलें सीधे पेज पर खींचकर छोड़ें। वो कंपनी के Google Drive में प्रोजेक्ट के फोल्डर में जाती हैं, उसी फोल्डर में जो अभी खुला है।",
           },
           shot: {
             id: "project-repository-upload",
             as: "employee",
             path: REPOSITORY,
-            actions: [{ click: { role: "button", name: "Upload", exact: true } }],
             highlight: [
-              { role: "menuitem", name: "Backblaze (B2)" },
-              { role: "menuitem", name: "Google Drive" },
+              { role: "button", name: "Upload", exact: true },
+              { role: "button", name: "New", exact: true },
             ],
-            // The Repository tab itself (toolbar, path, filters, list) - the menu
-            // opens over it, and the Upload button stays in the picture.
+            // The Repository tab itself: toolbar, path, filters and list.
             crop: { css: 'div:has(> nav[aria-label="Folder"])' },
           },
         },
         {
           text: {
-            en: "Click New for a Folder or a Link. When Drive is connected, New can also make a Google Doc or a Google Sheet.",
-            hi: "Folder या Link के लिए New पर क्लिक करें। Drive जुड़ा हो तो New से Google Doc या Google Sheet भी बन सकती है।",
+            en: "Click New (2) for a Folder, a Link, a Google Doc or a Google Sheet. Docs and Sheets open in Google Drive, where everyone on the project team can edit them.",
+            hi: "Folder, Link, Google Doc या Google Sheet के लिए New (2) पर क्लिक करें। Docs और Sheets, Google Drive में खुलती हैं, जहाँ प्रोजेक्ट टीम का हर सदस्य उन्हें एडिट कर सकता है।",
           },
         },
         {
@@ -109,6 +107,14 @@ export const projectRepositoryGuide: HelpGuide = {
         {
           en: "One file can be up to 250 MB. Bigger files are skipped with a message.",
           hi: "एक फाइल 250 MB तक की हो सकती है। इससे बड़ी फाइलें मैसेज के साथ छोड़ दी जाती हैं।",
+        },
+        {
+          en: "The project's Account Manager and everyone on its teams can open its Drive folder with their work email (Open in Drive, top right). DNMS adds and removes people on its own as they join or leave a team or the company. Share files only through DNMS, never from Drive.",
+          hi: "प्रोजेक्ट का Account Manager और उसकी टीमों का हर सदस्य अपनी work email से उसका Drive फोल्डर खोल सकता है (ऊपर दाईं ओर Open in Drive)। लोग टीम या कंपनी में आते-जाते हैं तो DNMS अपने आप उन्हें जोड़ता और हटाता है। फाइलें सिर्फ DNMS से शेयर करें, Drive से कभी नहीं।",
+        },
+        {
+          en: "Until a company moves its Repository to Google Drive, Upload asks where each file goes: Backblaze (B2), the default, or Google Drive.",
+          hi: "जब तक कंपनी अपनी Repository को Google Drive पर न ले जाए, Upload हर फाइल के लिए पूछता है कि वो कहाँ जाए: Backblaze (B2), जो डिफ़ॉल्ट है, या Google Drive।",
         },
       ],
     },
@@ -156,8 +162,8 @@ export const projectRepositoryGuide: HelpGuide = {
           hi: "जो आपने खुद जोड़ा है उसका नाम बदल सकते हैं, उसे मूव और डिलीट कर सकते हैं। Account Manager या प्रोजेक्ट एडमिन सब कुछ बदल सकते हैं, और एक साथ कई आइटम डिलीट करना या Google Drive की फाइलें डिलीट करना सिर्फ वही कर सकते हैं।",
         },
         {
-          en: "A Backblaze file is deleted for good. A Google Drive file goes to the Drive trash and can be recovered there. A folder can be deleted only when it is empty.",
-          hi: "Backblaze की फाइल हमेशा के लिए डिलीट हो जाती है। Google Drive की फाइल Drive के ट्रैश में जाती है और वहाँ से वापस लाई जा सकती है। फोल्डर सिर्फ खाली होने पर ही डिलीट हो सकता है।",
+          en: "A Google Drive file goes to the Drive trash and can be recovered there for 30 days; a nightly backup also keeps a copy for 30 days. A file still on Backblaze is deleted for good. A folder can be deleted only when it is empty.",
+          hi: "Google Drive की फाइल Drive के ट्रैश में जाती है और 30 दिन तक वहाँ से वापस लाई जा सकती है; रात वाला बैकअप भी 30 दिन तक एक कॉपी रखता है। जो फाइल अभी Backblaze पर है वो हमेशा के लिए डिलीट हो जाती है। फोल्डर सिर्फ खाली होने पर ही डिलीट हो सकता है।",
         },
       ],
       faq: [

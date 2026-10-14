@@ -4,12 +4,14 @@
 
 import * as React from "react"
 
+import { DriveManager } from "@/features/drive"
 import { StorageManager } from "./storage-manager"
 import { StorageAccountGrid, useStorageAccounts, type StorageAccount } from "./storage-accounts"
 
 export function StoragePicker() {
   const { data, isPending, refetch } = useStorageAccounts()
   const [open, setOpen] = React.useState<StorageAccount | null>(null)
+  const [driveOpen, setDriveOpen] = React.useState(false)
 
   const accounts = React.useMemo(() => data ?? [], [data])
 
@@ -19,6 +21,8 @@ export function StoragePicker() {
     if (!fresh) setOpen(null)
     else if (fresh.label !== open.label || fresh.bucket !== open.bucket) setOpen(fresh)
   }
+
+  if (driveOpen) return <DriveManager onBack={() => setDriveOpen(false)} />
 
   if (open) {
     return (
@@ -39,6 +43,7 @@ export function StoragePicker() {
       accounts={accounts}
       isPending={isPending}
       onOpen={setOpen}
+      onOpenDrive={() => setDriveOpen(true)}
       onChanged={refetch}
     />
   )

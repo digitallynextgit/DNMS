@@ -1,7 +1,9 @@
 import "server-only"
 
 import { db } from "@/server/db"
+import { isDemoEmail } from "@/lib/demo"
 import { ensureProjectDriveFolder } from "@/lib/drive-media"
+import { connectedDriveAccount } from "@/lib/google-drive-oauth"
 import {
   listFolder,
   uploadToFolder,
@@ -19,20 +21,28 @@ import {
   type DriveFile,
 } from "@/lib/google-drive"
 
-/** The owner + every team member, by work email. */
+const PERSON = { select: { email: true, isActive: true, status: true } } as const
+// Leavers lose access the moment they are marked as gone, not when someone tidies the team.
+const GONE = new Set(["RESIGNED", "TERMINATED", "SUSPENDED"])
+
+/** The owner + every team member who still works here, by work email. */
 async function projectMemberEmails(projectId: string): Promise<string[]> {
   const project = await db.project.findUnique({
     where: { id: projectId },
     select: {
-      owner: { select: { email: true } },
-      teams: { select: { members: { select: { employee: { select: { email: true } } } } } },
+      owner: PERSON,
+      teams: { select: { members: { select: { employee: PERSON } } } },
     },
   })
   if (!project) return []
+  const people = [project.owner, ...project.teams.flatMap((t) => t.members.map((m) => m.employee))]
   const emails = new Set<string>()
-  if (project.owner?.email) emails.add(project.owner.email.toLowerCase())
-  for (const t of project.teams)
-    for (const m of t.members) if (m.employee?.email) emails.add(m.employee.email.toLowerCase())
+  for (const p of people) {
+    if (!p?.email || !p.isActive || GONE.has(p.status)) continue
+    // Demo-company addresses aren't real Google accounts; Drive would reject the share.
+    if (isDemoEmail(p.email)) continue
+    emails.add(p.email.toLowerCase())
+  }
   return [...emails]
 }
 
@@ -46,6 +56,9 @@ export async function syncProjectFolderAccess(
   const folder = await ensureProjectFolder(projectId)
   const wanted = new Set(await projectMemberEmails(projectId))
   const current = await listPermissions(folder.id)
+  // The connected account owns everything already; sharing with itself is an error.
+  const self = (await connectedDriveAccount())?.email.toLowerCase()
+  if (self) wanted.delete(self)
 
   let granted = 0
   let revoked = 0
@@ -56,6 +69,7 @@ export async function syncProjectFolderAccess(
     if (p.role === "owner") continue
     const email = p.email.toLowerCase()
     if (email.endsWith(".gserviceaccount.com")) continue // the robot itself
+    if (email === self) continue
     if (!wanted.has(email)) {
       await revokeAccess(folder.id, p.id).catch(() => {})
       revoked++
@@ -82,6 +96,34 @@ export function syncProjectFolderAccessAsync(projectId: string): void {
       if (ok) return syncProjectFolderAccess(projectId)
     })
     .catch((e) => console.error("[drive] access sync failed for project", projectId, e))
+}
+
+/** Projects whose Drive folder shares someone. Read it BEFORE an exit removes them from teams. */
+export async function driveProjectIdsFor(employeeIds: string[]): Promise<string[]> {
+  if (employeeIds.length === 0) return []
+  const projects = await db.project.findMany({
+    where: {
+      OR: [
+        { ownerId: { in: employeeIds } },
+        { teams: { some: { members: { some: { employeeId: { in: employeeIds } } } } } },
+      ],
+    },
+    select: { id: true },
+  })
+  return projects.map((p) => p.id)
+}
+
+/** After someone leaves or changes email. Fire-and-forget, like syncProjectFolderAccessAsync. */
+export function syncProjectsFolderAccessAsync(projectIds: string[]): void {
+  if (projectIds.length === 0) return
+  void (async () => {
+    if (!(await isDriveConfigured())) return
+    for (const id of projectIds) {
+      await syncProjectFolderAccess(id).catch((e) =>
+        console.error("[drive] access sync failed for project", id, e),
+      )
+    }
+  })()
 }
 
 export interface ProjectDriveData {
@@ -129,9 +171,10 @@ export async function uploadProjectFile(
   mimeType: string,
   body: Buffer,
   appFolderId: string | null = null,
+  tags: Record<string, string> = {},
 ): Promise<DriveFile> {
   const target = await driveTargetFor(projectId, appFolderId)
-  return uploadToFolder(target, name, mimeType, body)
+  return uploadToFolder(target, name, mimeType, body, { dnmsProject: projectId, ...tags })
 }
 
 export async function createProjectDoc(
@@ -141,7 +184,7 @@ export async function createProjectDoc(
   appFolderId: string | null = null,
 ): Promise<DriveFile> {
   const target = await driveTargetFor(projectId, appFolderId)
-  return createGoogleFile(target, name, kind)
+  return createGoogleFile(target, name, kind, { dnmsProject: projectId })
 }
 
 /**

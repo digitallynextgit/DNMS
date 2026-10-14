@@ -47,6 +47,8 @@ export interface ProjectListItem {
     employee: { id: string; firstName: string; lastName: string; profilePhoto: string | null }
   }[]
   _count: { tasks: number }
+  /** Kickoff must-haves progress; only sent to people who can manage the project. */
+  kickoff?: { done: number; total: number } | null
 }
 
 export interface EmployeeSnippet {
@@ -244,6 +246,10 @@ export interface ProjectResource {
   isClientVisible?: boolean
   /** Where a shared file stands in the client's review. */
   reviewStatus?: "IN_REVIEW" | "APPROVED" | "CHANGES_REQUESTED" | null
+  /** Set when the bytes live in Google Drive rather than Backblaze. */
+  driveFileId?: string | null
+  /** Drive's own viewer, for team members (others get a request-access page). */
+  driveWebViewLink?: string | null
 }
 
 // `enabled: false` skips the fetch when the list is rendered conditionally.

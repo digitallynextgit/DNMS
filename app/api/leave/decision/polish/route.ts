@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withSession } from "@/server/api-handler"
-import { aiComplete, isAiConfigured, AiError } from "@/lib/ai"
+import { aiComplete, isAiConfigured, AiError, AI_NOT_CONFIGURED_MESSAGE } from "@/lib/ai"
 import type { Session } from "next-auth"
 
 export const runtime = "nodejs"
@@ -33,8 +33,8 @@ interface Variant {
 
 export const POST = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
-    if (!isAiConfigured()) {
-      return NextResponse.json({ error: "AI is not configured on the server" }, { status: 503 })
+    if (!(await isAiConfigured())) {
+      return NextResponse.json({ error: AI_NOT_CONFIGURED_MESSAGE }, { status: 503 })
     }
 
     let body: { message?: string; approved?: boolean }

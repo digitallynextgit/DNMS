@@ -5,13 +5,13 @@ import { requireClientModule } from "@/server/client-guard"
 import { recordActivity } from "@/lib/activity"
 import { createNotifications } from "@/lib/notifications"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
-import { getObjectKey, uploadFile, getSignedUrl, deleteFile, isB2Configured } from "@/lib/storage"
+import { getSignedUrl, deleteFile, isB2Configured } from "@/lib/storage"
+import { deleteVideoAsset, VideoUploadError, shareUrlFor } from "@/lib/drive-media"
 import {
-  uploadVideoAsset,
-  deleteVideoAsset,
-  VideoUploadError,
-  shareUrlFor,
-} from "@/lib/drive-media"
+  removeRepositoryObject,
+  storeRepositoryFile,
+  type StoredObject,
+} from "@/features/projects/server/repository-files"
 import { isVideoUpload, isAllowedDocument } from "@/lib/upload-rules"
 import { syncMadeCount, attachmentCount } from "@/lib/deliverable-counts"
 import { MAX_FILE_SIZE } from "@/lib/constants"
@@ -79,6 +79,11 @@ const PORTAL_ITEM_SELECT = {
 
 /** A DATE column as "yyyy-MM-dd": the browser date helpers append their own time part. */
 const asDay = (d: Date | null): string | null => (d ? d.toISOString().slice(0, 10) : null)
+
+/** The project's page for one planned period (or the unplanned bucket), as the team sees it. */
+function periodHref(slug: string, start: string | null, end: string | null): string {
+  return `/projects/${slug}/deliverables/${start && end ? `${start}_${end}` : "unplanned"}`
+}
 
 /** The plan for one project: every item, and whether planning is possible yet. */
 export async function listClientPlan(projectRef: string): Promise<ActionResult<unknown>> {
@@ -239,7 +244,7 @@ export async function createClientPlanLines(
             created === 1 ? "" : "s"
           } on ${grant.projectName}.`,
           type: "info" as const,
-          link: `/projects/${slug}`,
+          link: periodHref(slug, input.periodStart, input.periodEnd),
         })),
       )
     }
@@ -287,10 +292,10 @@ export async function getClientPlanAssetUrl(
     // Same answer for another project's id, an unshared file, or a non-plan asset.
     if (!file) return fail("File not found", undefined, 404)
 
-    // Drive video goes through our authenticated stream route - the client has no Drive access.
+    // Drive files go through our authenticated stream route - the client has no Drive access.
     let url: string
     if (file.driveFileId) {
-      url = `/api/portal/projects/${projectRef}/plan/assets/${file.id}/stream`
+      url = `/api/portal/projects/${projectRef}/plan/assets/${file.id}/stream${opts.download ? "?download=1" : ""}`
     } else {
       if (!isB2Configured()) return fail("File storage is not configured", undefined, 503)
       // CHECK constraint: no objectKey means Drive-hosted, handled above.
@@ -324,6 +329,8 @@ async function findItem(projectId: string, deliverableId: string) {
       quantity: true,
       loggedById: true,
       loggedByClientId: true,
+      periodStart: true,
+      periodEnd: true,
       _count: { select: { files: { where: { isClientVisible: true } } } },
     },
   })
@@ -534,41 +541,9 @@ export async function uploadClientPlanFile(
     const id = crypto.randomUUID()
     const fileName = file.name.slice(0, 200)
 
-    // Video goes to Drive: too big for the cap below, and meant to be shareable.
+    // Video is too big for the cap below, and is shared on upload (revocable per file).
     const video = isVideoUpload(file)
-
-    let stored: {
-      objectKey: string | null
-      driveFileId: string | null
-      driveWebViewLink: string | null
-      isPublicLink: boolean
-      shareToken: string | null
-      sharedPubliclyAt: Date | null
-      mimeType: string
-    }
-    let undoUpload: () => Promise<void>
-
-    if (video) {
-      let uploaded
-      try {
-        uploaded = await uploadVideoAsset(grant.projectId, file)
-      } catch (e) {
-        // Size / not-configured are the user's to fix, so a message rather than a 500.
-        if (e instanceof VideoUploadError) return fail(e.message, undefined, e.status)
-        throw e
-      }
-      stored = {
-        objectKey: null,
-        driveFileId: uploaded.driveFileId,
-        driveWebViewLink: uploaded.webViewLink,
-        // Shared on upload; revocable per file.
-        isPublicLink: true,
-        shareToken: uploaded.shareToken,
-        sharedPubliclyAt: new Date(),
-        mimeType: uploaded.mimeType,
-      }
-      undoUpload = () => deleteVideoAsset(uploaded.driveFileId)
-    } else {
+    if (!video) {
       if (!isB2Configured()) return fail("File storage is not configured", undefined, 503)
       if (file.size > MAX_FILE_SIZE) {
         return fail(
@@ -581,18 +556,21 @@ export async function uploadClientPlanFile(
       if (!isAllowedDocument(file)) {
         return fail("That file type is not accepted", undefined, 415)
       }
-      const objectKey = getObjectKey(`project-resources/${grant.projectId}`, file.name, id)
-      await uploadFile(objectKey, Buffer.from(await file.arrayBuffer()), file.type)
-      stored = {
-        objectKey,
-        driveFileId: null,
-        driveWebViewLink: null,
-        isPublicLink: false,
-        shareToken: null,
-        sharedPubliclyAt: null,
-        mimeType: file.type || "application/octet-stream",
-      }
-      undoUpload = () => deleteFile(objectKey)
+    }
+
+    let stored: StoredObject
+    try {
+      stored = await storeRepositoryFile({
+        id,
+        projectId: grant.projectId,
+        folderId: null,
+        file,
+        b2Prefix: `project-resources/${grant.projectId}`,
+      })
+    } catch (e) {
+      // Size / not-configured are the user's to fix, so a message rather than a 500.
+      if (e instanceof VideoUploadError) return fail(e.message, undefined, e.status)
+      throw e
     }
 
     try {
@@ -604,6 +582,7 @@ export async function uploadClientPlanFile(
           category: "ASSETS",
           fileName,
           fileSize: file.size,
+          mimeType: file.type || (video ? "video/mp4" : "application/octet-stream"),
           ...stored,
           // The client is the uploader; the CHECK constraint allows only one of the two.
           uploadedById: null,
@@ -616,7 +595,7 @@ export async function uploadClientPlanFile(
       })
     } catch (e) {
       // Don't leave an orphaned object (or a published video nobody can un-publish).
-      await undoUpload().catch(() => {})
+      await removeRepositoryObject(stored).catch(() => {})
       throw e
     }
 
@@ -642,7 +621,7 @@ export async function uploadClientPlanFile(
       projectId: grant.projectId,
       changes: {
         fileSize: file.size,
-        storage: video ? "drive" : "b2",
+        storage: stored.driveFileId ? "drive" : "b2",
         public: stored.isPublicLink,
       },
     })
@@ -737,7 +716,7 @@ export async function setClientPlanStatus(
               `${DELIVERABLE_STATUS_LABELS[to].toLowerCase()} on ${grant.projectName}.` +
               (reason ? ` Reason: ${reason}` : ""),
             type: notice.type,
-            link: `/projects/${slug}`,
+            link: periodHref(slug, asDay(item.periodStart), asDay(item.periodEnd)),
           })),
         )
       }

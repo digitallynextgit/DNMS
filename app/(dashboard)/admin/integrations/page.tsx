@@ -11,7 +11,7 @@ export default function IntegrationsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Integrations"
-        description="Email (SMTP), HR inbox and branding. Saved values are used immediately."
+        description="Email (SMTP), HR inbox, branding and Google. Saved values are used immediately."
       />
       {isLoading || !data ? (
         <div className="space-y-6">

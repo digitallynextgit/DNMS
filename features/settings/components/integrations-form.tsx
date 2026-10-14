@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { CheckCircle2, Info, Pencil, XCircle } from "lucide-react"
+import { DriveConnectCard } from "@/features/drive"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -26,6 +27,8 @@ const GROUP_IMPACT: Record<string, string> = {
     "Required. The guaranteed fallback mailer - whenever the Default or HR mailer isn't configured, mail is sent through this one. It must always stay fully configured.",
   "HR mailer":
     "This is the SMTP server used for HR emails. An incorrect value will stop HR emails from being delivered.",
+  "Google Drive":
+    "The OAuth client lets DNMS reach the company's Google account, where Repository files are stored. A wrong value stops Repository files opening until it is put right.",
 }
 
 export function IntegrationsForm({ settings }: { settings: SettingValue[] }) {
@@ -33,12 +36,15 @@ export function IntegrationsForm({ settings }: { settings: SettingValue[] }) {
   return (
     <div className="space-y-6">
       {SETTING_GROUPS.map((group) => (
-        <SettingsGroupCard
-          key={group}
-          group={group}
-          fields={SETTING_FIELDS.filter((f) => f.group === group)}
-          byKey={byKey}
-        />
+        <Fragment key={group}>
+          {/* The account sits above its keys: connecting is the step people come here for. */}
+          {group === "Google Drive" && <DriveConnectCard />}
+          <SettingsGroupCard
+            group={group}
+            fields={SETTING_FIELDS.filter((f) => f.group === group)}
+            byKey={byKey}
+          />
+        </Fragment>
       ))}
     </div>
   )

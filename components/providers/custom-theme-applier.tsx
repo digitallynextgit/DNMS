@@ -24,6 +24,10 @@ export function CustomThemeApplier() {
       root.style.removeProperty("--mc-2")
     }
 
+    // [data-modules] gives each part of the app its own hue (globals.css).
+    if (theme?.modules) root.dataset.modules = "true"
+    else delete root.dataset.modules
+
     if (!theme) {
       for (const key of PALETTE_KEYS) {
         root.style.removeProperty(`--${key}`)

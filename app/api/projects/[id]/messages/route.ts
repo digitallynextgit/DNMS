@@ -195,7 +195,7 @@ export const POST = withProjectAccess(
             title: "You were mentioned",
             message: `${author.firstName} ${author.lastName} mentioned you in "${title}".`,
             type: "info",
-            link: `/projects/${projectId}?tab=messages`,
+            link: `/projects/${projectId}?tab=messages&thread=${message.id}`,
           })),
           { force: true },
         )

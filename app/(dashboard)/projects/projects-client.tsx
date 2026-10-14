@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { Link } from "@/components/tenant-link"
 import { useQuery } from "@tanstack/react-query"
-import { Plus, FolderKanban, Eye, Pencil } from "lucide-react"
+import { Plus, FolderKanban, Eye, Pencil, Rocket } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
@@ -67,6 +67,8 @@ interface Project {
     employee: { id: string; firstName: string; lastName: string; profilePhoto: string | null }
   }[]
   _count: { tasks: number; teams?: number; resources?: number }
+  /** Kickoff must-haves progress; only sent to people who can manage the project. */
+  kickoff?: { done: number; total: number } | null
 }
 
 const ALL_SERVICES = "__all__"
@@ -160,14 +162,46 @@ export function ProjectsClient() {
       header: "Project",
       sortValue: (p) => p.name,
       cell: (p) => (
-        <div className="flex items-center gap-2">
-          <ProjectLogo src={p.logo} name={p.name} className="h-7 w-7" />
+        // Fixed line heights (20 + 16px) so the logo can match the two lines exactly.
+        <div className="flex items-center gap-2.5">
+          <ProjectLogo src={p.logo} name={p.name} className="h-9 w-9" />
           <div className="min-w-0">
-            <Link href={projectHref(p)} className="block font-medium hover:underline">
-              {p.name}
-            </Link>
-            <span className="text-muted-foreground font-mono text-[11px]">{p.code}</span>
+            <div className="flex items-center gap-1.5 leading-5">
+              <Link href={projectHref(p)} className="font-medium hover:underline">
+                {p.name}
+              </Link>
+              {p.kickoff && p.kickoff.done < p.kickoff.total && (
+                <Link
+                  href={`${projectHref(p)}?tab=kickoff`}
+                  title="Pre-campaign must-haves still open"
+                  className="inline-flex items-center gap-0.5 rounded-sm bg-amber-500/15 px-1.5 text-[10px] font-medium text-amber-700 hover:bg-amber-500/25 dark:text-amber-300"
+                >
+                  <Rocket className="h-2.5 w-2.5" />
+                  {p.kickoff.done}/{p.kickoff.total}
+                </Link>
+              )}
+            </div>
+            <span className="text-muted-foreground block font-mono text-[11px] leading-4">
+              {p.code}
+            </span>
           </div>
+        </div>
+      ),
+    },
+    {
+      header: "Account Manager",
+      sortValue: (p) => `${p.owner.firstName} ${p.owner.lastName}`.trim(),
+      cell: (p) => (
+        <div className="flex items-center gap-1.5">
+          <AvatarDisplay
+            src={p.owner.profilePhoto}
+            firstName={p.owner.firstName}
+            lastName={p.owner.lastName}
+            size="xs"
+          />
+          <span className="text-xs">
+            {p.owner.firstName} {p.owner.lastName}
+          </span>
         </div>
       ),
     },
@@ -227,23 +261,6 @@ export function ProjectsClient() {
               labelMap={PROJECT_STAGE_LABELS}
             />
           )}
-        </div>
-      ),
-    },
-    {
-      header: "Account Manager",
-      sortValue: (p) => `${p.owner.firstName} ${p.owner.lastName}`.trim(),
-      cell: (p) => (
-        <div className="flex items-center gap-1.5">
-          <AvatarDisplay
-            src={p.owner.profilePhoto}
-            firstName={p.owner.firstName}
-            lastName={p.owner.lastName}
-            size="xs"
-          />
-          <span className="text-xs">
-            {p.owner.firstName} {p.owner.lastName}
-          </span>
         </div>
       ),
     },

@@ -3,10 +3,11 @@ import "server-only"
 import type { Prisma } from "@prisma/client"
 
 import { db } from "@/server/db"
-import { isDriveConfigured, listFolder, type DriveFile } from "@/lib/google-drive"
+import { driveFolderUrl, isDriveNotFound, listFolder, type DriveFile } from "@/lib/google-drive"
 import { ensureProjectFolder, syncProjectFolderAccess } from "./project-drive.service"
 import {
   FOLDER_SELECT,
+  activeMirrorField,
   adoptDriveFolders,
   folderPath,
   forgetDriveMirror,
@@ -30,18 +31,15 @@ export interface FolderListing {
   folders: (FolderRow & { itemCount: number })[]
   files: ResourceRow[]
   links: LinkRow[]
-  /** Drive files (never folders - those are adopted into `folders`) in this folder's mirror. */
+  /** Drive files with no row of ours (Docs, Sheets) in this folder's mirror. Never folders. */
   driveFiles: DriveFile[]
   drive: {
     configured: boolean
+    /** Uploads go to Google Drive (true) or Backblaze. */
+    onDrive: boolean
     folderLink: string | null
     memberCount: number
   }
-}
-
-function isNotFound(error: unknown): boolean {
-  const e = error as { code?: number | string; status?: number; response?: { status?: number } }
-  return e?.code === 404 || e?.status === 404 || e?.response?.status === 404
 }
 
 /**
@@ -56,18 +54,19 @@ export async function getFolderListing(
   const folder = folderId ? await getFolder(projectId, folderId) : null
   const path = await folderPath(projectId, folderId)
 
-  let driveFiles: DriveFile[] = []
-  const drive = { configured: false, folderLink: null as string | null, memberCount: 0 }
+  let driveItems: DriveFile[] = []
+  const field = await activeMirrorField()
+  const drive = {
+    configured: field !== null,
+    onDrive: field === "driveMirrorId",
+    folderLink: null as string | null,
+    memberCount: 0,
+  }
 
-  if (await isDriveConfigured()) {
-    drive.configured = true
+  if (field) {
     const root = await ensureProjectFolder(projectId)
-    const mirrorId = folder ? folder.driveFolderId : root.id
-    drive.folderLink = folder
-      ? mirrorId
-        ? `https://drive.google.com/drive/folders/${mirrorId}`
-        : null
-      : root.webViewLink
+    const mirrorId = folder ? folder[field] : root.id
+    drive.folderLink = folder ? (mirrorId ? driveFolderUrl(mirrorId) : null) : root.webViewLink
     if (mirrorId) {
       try {
         // Access sync is per project, so it only rides along with the root read.
@@ -76,11 +75,11 @@ export async function getFolderListing(
           folder ? Promise.resolve(null) : syncProjectFolderAccess(projectId).catch(() => null),
         ])
         await adoptDriveFolders(projectId, folder?.id ?? null, items, actorId)
-        driveFiles = items.filter((f) => !f.isFolder)
+        driveItems = items.filter((f) => !f.isFolder)
         drive.memberCount = sync?.members ?? 0
       } catch (error) {
         // The mirror was deleted in Drive: forget it so the next write recreates it.
-        if (folder && isNotFound(error)) {
+        if (folder && isDriveNotFound(error)) {
           await forgetDriveMirror(folder.id)
           drive.folderLink = null
         } else {
@@ -135,18 +134,32 @@ export async function getFolderListing(
     for (const r of byFile) add(r.folderId, r._count._all)
     for (const r of byLink) add(r.folderId, r._count._all)
     for (const r of byChild) add(r.parentId, r._count._all)
-    if (drive.configured) {
+    if (field) {
       // One Drive call per mirrored sub-folder, capped so a big project can't hit the Drive quota.
-      const mirrored = folders.filter((f) => f.driveFolderId).slice(0, 30)
+      const mirrored = folders.filter((f) => f[field]).slice(0, 30)
+      const tracked = new Set(
+        (
+          await db.projectResource.findMany({
+            where: { folderId: { in: mirrored.map((f) => f.id) }, driveFileId: { not: null } },
+            select: { driveFileId: true },
+          })
+        ).map((r) => r.driveFileId),
+      )
       await Promise.all(
         mirrored.map((f) =>
-          listFolder(f.driveFolderId!)
-            .then((items) => add(f.id, items.filter((i) => !i.isFolder).length))
+          listFolder(f[field]!)
+            .then((items) =>
+              add(f.id, items.filter((i) => !i.isFolder && !tracked.has(i.id)).length),
+            )
             .catch(() => {}),
         ),
       )
     }
   }
+
+  // Uploads are rows of ours already; only Drive-only items (Docs, Sheets) list from Drive.
+  const tracked = new Set(files.map((f) => f.driveFileId).filter(Boolean))
+  const driveFiles = driveItems.filter((f) => !tracked.has(f.id))
 
   return {
     folder: folder ? { id: folder.id, name: folder.name, parentId: folder.parentId } : null,

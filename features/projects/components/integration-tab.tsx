@@ -27,7 +27,7 @@ import {
   fetchMetaCredentials,
 } from "../hooks/use-integration"
 
-/** The connections manager, opened from Insights. */
+/** The connections manager, opened from Analytics. */
 export function IntegrationDialog({
   projectId,
   canManage,
@@ -241,7 +241,7 @@ function MetaConnectionCard({
                   connect.mutate(form, {
                     onSuccess: () => {
                       setEditing(false)
-                      // Pull the first batch so the Insights tab isn't empty.
+                      // Pull the first batch so the Analytics tab isn't empty.
                       sync.mutate(undefined)
                     },
                   })

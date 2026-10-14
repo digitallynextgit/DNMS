@@ -57,6 +57,8 @@ export function listing(items: string[]): string {
 export interface LoadWorkReportInput {
   employeeIds: string[]
   period: ReportPeriod
+  /** Only these projects' tasks and deliverables; empty or omitted = every project. */
+  projectIds?: string[]
   requesterId: string
   now?: Date
 }
@@ -64,6 +66,7 @@ export interface LoadWorkReportInput {
 export async function loadWorkReport(input: LoadWorkReportInput): Promise<WorkReport> {
   const now = input.now ?? new Date()
   const { period, employeeIds: ids } = input
+  const onlyProjects = input.projectIds?.length ? { projectId: { in: input.projectIds } } : {}
   // Instants bounding the IST month, for timestamp columns...
   const rangeStart = istInstant(period.from, 0)
   const rangeEnd = new Date(istInstant(period.to, 0).getTime() + MS_PER_DAY)
@@ -148,6 +151,7 @@ export async function loadWorkReport(input: LoadWorkReportInput): Promise<WorkRe
       where: {
         assigneeId: { in: ids },
         approvalStatus: { not: "REJECTED" },
+        ...onlyProjects,
         OR: [
           {
             statusPeriods: {
@@ -175,11 +179,12 @@ export async function loadWorkReport(input: LoadWorkReportInput): Promise<WorkRe
         },
       },
     }),
-    db.project.findMany({ select: { name: true, code: true } }),
+    db.project.findMany({ select: { id: true, name: true, code: true } }),
     db.projectDeliverable.findMany({
       where: {
         employeeId: { in: ids },
         status: { in: [...MADE_STATUSES] },
+        ...onlyProjects,
         completedOn: { gte: fromDate, lte: toDate },
       },
       select: { type: true, quantity: true, project: { select: { name: true } } },
@@ -447,12 +452,19 @@ export async function loadWorkReport(input: LoadWorkReportInput): Promise<WorkRe
   })
 
   const departments = Array.from(new Set(people.map((p) => p.department).filter(Boolean)))
-  const title =
+  const who =
     people.length === 1
       ? people[0]!.name
       : departments.length === 1
         ? `${departments[0]} Team`
         : "Team report"
+  // A report cut down to some projects says so, so it isn't read as the whole picture.
+  const picked = input.projectIds?.length
+    ? projects.filter((p) => input.projectIds!.includes(p.id)).map((p) => p.name)
+    : []
+  const title = picked.length
+    ? `${who} · ${picked.length <= 2 ? picked.join(", ") : `${picked.length} projects`}`
+    : who
 
   const holidayNames = new Map(fixedByDay)
   for (const f of floating) holidayNames.set(dateKey(f.holiday.date), f.holiday.name)

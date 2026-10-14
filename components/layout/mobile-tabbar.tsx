@@ -13,14 +13,16 @@ interface Tab {
   /** Extra prefixes that should light this tab up. */
   match?: string[]
   badge?: "unread-chat"
+  /** The sidebar group it belongs to, for its hue under Module Colours. */
+  group?: string
 }
 
 /** The five phone tabs; everything else is under "More". Below md this replaces the sidebar. */
 const TABS: Tab[] = [
-  { label: "Home", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Attendance", href: "/attendance/me", icon: Clock },
-  { label: "Tasks", href: "/projects/my-tasks", icon: ListChecks },
-  { label: "Chat", href: "/chat", icon: MessageSquare, badge: "unread-chat" },
+  { label: "Home", href: "/dashboard", icon: LayoutDashboard, group: "employee" },
+  { label: "Attendance", href: "/attendance/me", icon: Clock, group: "employee" },
+  { label: "Work", href: "/projects/my-work", icon: ListChecks, group: "project" },
+  { label: "Chat", href: "/chat", icon: MessageSquare, badge: "unread-chat", group: "company" },
   { label: "More", href: "/more", icon: LayoutGrid },
 ]
 
@@ -56,13 +58,14 @@ export function MobileTabbar() {
             key={tab.href}
             href={tab.href}
             aria-current={active ? "page" : undefined}
+            data-nav-group={tab.group}
             className={cn(
               "flex flex-1 flex-col items-center justify-center gap-1 rounded-sm py-1.5 transition-colors",
               active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
             <span className="relative">
-              <tab.icon className="h-5.5 w-5.5" strokeWidth={active ? 2.25 : 2} />
+              <tab.icon className="h-5.5 w-5.5" strokeWidth={active ? 2.25 : 2} data-nav-icon="" />
               {tab.badge === "unread-chat" && <ChatBadge />}
             </span>
             <span

@@ -46,12 +46,15 @@ export function StatStrip({ items, loading = false, className }: StatStripProps)
     <Card className={className}>
       <CardContent className="p-0">
         <div className={cn("divide-border grid divide-x divide-y sm:divide-y-0", columns)}>
-          {items.map((item) => {
+          {items.map((item, i) => {
             const Icon = item.icon
             return (
-              <div key={item.label} className="min-w-0 px-4 py-3">
+              // data-stat-slot: Module Colours gives each cell the next hue, so neighbours read apart.
+              <div key={item.label} className="min-w-0 px-4 py-3" data-stat-slot={i % 6}>
                 <div className="flex min-w-0 items-center gap-1.5">
-                  {Icon && <Icon className="text-muted-foreground h-3 w-3 shrink-0" />}
+                  {Icon && (
+                    <Icon className="text-muted-foreground h-3 w-3 shrink-0" data-stat-icon="" />
+                  )}
                   {/* min-w-0 + truncate: the uppercase label overflowed a 2-up cell at 320px. */}
                   <p className="text-muted-foreground min-w-0 truncate text-[10px] font-medium tracking-widest uppercase">
                     {item.label}
@@ -62,6 +65,7 @@ export function StatStrip({ items, loading = false, className }: StatStripProps)
                 ) : (
                   <p className="mt-1 flex items-baseline gap-1">
                     <span
+                      data-stat-value={item.tone ?? "default"}
                       className={cn(
                         "tabular-nums",
                         item.isText ? "text-sm font-medium" : "text-xl font-bold",

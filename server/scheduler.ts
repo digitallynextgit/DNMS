@@ -32,6 +32,10 @@ const WORK_DIGEST_FIRST_RUN_DELAY_MS = 120_000
 const WORK_DIGEST_WEEKDAY = 1
 const WORK_DIGEST_EARLIEST_HOUR = 8
 
+// Hourly, like the other daily jobs; the run itself decides whether 2 AM IST has passed today.
+const DRIVE_BACKUP_INTERVAL_MS = 60 * 60_000
+const DRIVE_BACKUP_FIRST_RUN_DELAY_MS = 150_000
+
 const FIRST_RUN_DELAY_MS = 15_000
 
 // On globalThis so dev hot-reload doesn't start duplicate intervals.
@@ -48,6 +52,8 @@ const globalForScheduler = globalThis as unknown as {
   seoRunning?: boolean
   workDigestTimer?: NodeJS.Timeout
   workDigestRunning?: boolean
+  driveBackupTimer?: NodeJS.Timeout
+  driveBackupRunning?: boolean
 }
 
 export function startTaskReminderScheduler(): void {
@@ -316,5 +322,48 @@ async function workDigestTick(): Promise<void> {
     console.error("[scheduler] work digest failed:", err)
   } finally {
     globalForScheduler.workDigestRunning = false
+  }
+}
+
+/**
+ * Nightly copy of the Repository's Drive files to Backblaze (2 AM IST). Production only: a dev
+ * machine shares the database, and the per-day claim would let it take the night's run.
+ */
+export function startDriveBackupScheduler(): void {
+  if (globalForScheduler.driveBackupTimer) return
+  if (process.env.DISABLE_INLINE_SCHEDULER === "1") {
+    console.log("[scheduler] drive backup disabled (DISABLE_INLINE_SCHEDULER=1)")
+    return
+  }
+  if (process.env.NODE_ENV !== "production") return
+
+  const timer = setInterval(driveBackupTick, DRIVE_BACKUP_INTERVAL_MS)
+  timer.unref?.()
+  globalForScheduler.driveBackupTimer = timer
+
+  const first = setTimeout(driveBackupTick, DRIVE_BACKUP_FIRST_RUN_DELAY_MS)
+  first.unref?.()
+
+  console.log("[scheduler] drive backup started (hourly check, daily from 02:00 IST)")
+}
+
+async function driveBackupTick(): Promise<void> {
+  if (globalForScheduler.driveBackupRunning) return
+  globalForScheduler.driveBackupRunning = true
+  try {
+    await forEachTenant("drive-backup", async () => {
+      const { runScheduledDriveBackup } =
+        await import("@/features/drive/server/drive-backup.service")
+      const r = await runScheduledDriveBackup()
+      if (r && !r.skipped) {
+        console.log(
+          `[scheduler] drive backup: ${r.checked} checked, ${r.copied} copied, ${r.failed} failed`,
+        )
+      }
+    })
+  } catch (err) {
+    console.error("[scheduler] drive backup failed:", err)
+  } finally {
+    globalForScheduler.driveBackupRunning = false
   }
 }

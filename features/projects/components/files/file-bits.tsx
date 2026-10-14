@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { TONE } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { DOC_TAG_LABEL, DOC_TAG_STYLE, type DocTag } from "../../lib/doc-tag"
-import type { FileType, Person, UnifiedFile } from "../../lib/file-row"
+import { storageOf, type FileType, type Person, type UnifiedFile } from "../../lib/file-row"
 
 /** Labels are `TYPE_LABEL` in ../lib/file-row.ts. */
 export const TYPE_META: Record<FileType, { icon: React.ElementType; tint: string }> = {
@@ -87,7 +87,7 @@ export function StorageCell({ f }: { f: UnifiedFile }) {
   }
   return (
     <StatusBadge
-      status={f.source === "b2" ? "B2" : "DRIVE"}
+      status={storageOf(f) === "b2" ? "B2" : "DRIVE"}
       colorMap={SOURCE_COLORS}
       labelMap={SOURCE_LABELS}
       size="xs"

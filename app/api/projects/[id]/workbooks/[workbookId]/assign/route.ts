@@ -14,6 +14,7 @@ import {
 import { notifyOwnerAssigned } from "@/features/projects/server/owner-notifications"
 import { currentPlanMonth } from "@/features/projects/lib/calendar-months"
 import { logActivity } from "@/features/projects/server/activity"
+import { isAdmin_Session } from "@/lib/audit"
 import { db } from "@/server/db"
 
 // Separate from PATCH /workbooks/[workbookId] (open to all members): who owns a sheet follows the
@@ -94,6 +95,7 @@ export const POST = withTeamStaffing(
         projectId: projectId!,
         employeeId,
         actorId: session.user.id,
+        silentActor: isAdmin_Session(session),
         service,
         calendar: { id: workbookId!, name: workbook.name },
       }).catch((e) => console.error("[SHEET_OWNER_NOTIFY]", e))

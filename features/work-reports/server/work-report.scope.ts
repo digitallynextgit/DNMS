@@ -93,6 +93,6 @@ export async function describeWorkReportScope(
     role: scope.role,
     people,
     defaultMonth: previousMonth(new Date()),
-    aiAvailable: isAiConfigured(),
+    aiAvailable: await isAiConfigured(),
   }
 }

@@ -10,6 +10,10 @@ import { ok, fail, runAction, serialize, type ActionResult } from "@/server/acti
 import { PERMISSIONS } from "@/lib/constants"
 import { wrapEmail, detailRow } from "@/lib/email-layout"
 import { toDateOnly } from "@/lib/dates"
+import {
+  driveProjectIdsFor,
+  syncProjectsFolderAccessAsync,
+} from "@/features/projects/server/project-drive.service"
 import { canComplete, type ChecklistItemState } from "../lib/checklist-rules"
 
 // Completing an EXIT issues relieving and closes the account, hence its own file.
@@ -71,6 +75,8 @@ export async function completeExitChecklist(instanceId: string): Promise<ActionR
 
     const employee = instance.employee
     const now = new Date()
+    // Read before the seats go, so their projects' Drive folders stop sharing with them.
+    const driveProjects = await driveProjectIdsFor([employee.id])
 
     const [, , seats, teamsRun] = await db.$transaction([
       db.checklistInstance.update({
@@ -86,6 +92,8 @@ export async function completeExitChecklist(instanceId: string): Promise<ActionR
       db.projectServiceOwner.deleteMany({ where: { employeeId: employee.id } }),
     ])
 
+    syncProjectsFolderAccessAsync(driveProjects)
+
     // Outside the transaction: membership lives in the platform identity tables.
     try {
       await setMembershipActive({ employeeId: employee.id }, false)
@@ -99,7 +107,6 @@ export async function completeExitChecklist(instanceId: string): Promise<ActionR
       message:
         "Your clearance is complete and your relieving has been processed. Your account access has now ended.",
       type: "info",
-      link: "/profile",
     })
 
     // Relieving confirmation, best-effort - the sign-off itself has happened.

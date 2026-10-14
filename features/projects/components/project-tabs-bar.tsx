@@ -1,7 +1,8 @@
 "use client"
 
 // Tabs that don't fit spill onto a second strip. A hidden one-line row (at the active, widest weight)
-// measures true tab widths; a ResizeObserver recomputes the split.
+// measures true tab widths; a ResizeObserver recomputes the split. The bar sticks to the top while
+// the page scrolls, and publishes its height as --project-tabs-h for anything sticky below it.
 
 import * as React from "react"
 import { TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -63,6 +64,8 @@ export function ProjectTabsBar({ items }: { items: ProjectTabItem[] }) {
       }
       // Never leave strip one empty, even on an absurdly narrow viewport.
       setSplitAt(Math.max(1, fits))
+      // One strip or two: sticky panels inside the tabs (e.g. Brand's step list) sit below it.
+      container.parentElement?.style.setProperty("--project-tabs-h", `${container.offsetHeight}px`)
     }
 
     recalc()
@@ -78,7 +81,8 @@ export function ProjectTabsBar({ items }: { items: ProjectTabItem[] }) {
   const renderTrigger = (item: ProjectTabItem) => {
     const Icon = item.icon
     return (
-      <TabsTrigger key={item.value} value={item.value}>
+      // data-mod: the tab's hue under Module Colours (globals.css).
+      <TabsTrigger key={item.value} value={item.value} data-mod={item.value}>
         <Icon />
         {item.label}
         {!!item.badge && item.badge > 0 && (
@@ -89,7 +93,12 @@ export function ProjectTabsBar({ items }: { items: ProjectTabItem[] }) {
   }
 
   return (
-    <div ref={containerRef} className="relative w-full space-y-1">
+    // -top-4 cancels main's py-4 (sticky honours the scroller's padding), so it sits flush under the
+    // top bar; the solid padded background hides content scrolling underneath.
+    <div
+      ref={containerRef}
+      className="bg-background sticky -top-4 z-20 -my-2 w-full space-y-1 py-2"
+    >
       {/* Hidden yardstick. Plain spans, not TabsTriggers: duplicates would register duplicate values with Radix. */}
       <div
         ref={measureRef}

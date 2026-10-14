@@ -13,7 +13,7 @@ export default function NotificationsLoading() {
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <Skeleton className="bg-muted h-4 w-48 animate-pulse" />
-                <Skeleton className="bg-muted h-3 w-16 shrink-0 animate-pulse" />
+                <Skeleton className="bg-muted h-3 w-40 shrink-0 animate-pulse" />
               </div>
               <Skeleton className="bg-muted h-4 w-full max-w-md animate-pulse" />
             </div>

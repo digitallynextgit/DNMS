@@ -18,6 +18,8 @@
     }
 
     var root = document.documentElement
+    // Mirrors the default theme (DEFAULT_THEME_ID in lib/themes.ts); lib/themes.test.ts checks it.
+    var DEFAULT_THEME = {"mode":"dark","modules":true,"cssVars":{"background":"216 28% 7%","foreground":"210 30% 92%","card":"215 25% 11%","card-foreground":"210 30% 92%","popover":"215 25% 11%","popover-foreground":"210 30% 92%","primary":"217 91% 60%","primary-foreground":"0 0% 100%","secondary":"215 22% 15%","secondary-foreground":"210 30% 92%","muted":"215 22% 15%","muted-foreground":"215 15% 62%","accent":"215 22% 18%","accent-foreground":"210 30% 92%","destructive":"0 75% 60%","destructive-foreground":"0 0% 100%","success":"142 60% 45%","success-foreground":"0 0% 100%","warning":"38 90% 55%","warning-foreground":"0 0% 10%","border":"215 20% 21%","input":"215 20% 24%","ring":"217 91% 60%"}}
 
     if (onMarketing) {
       // Pin dark but leave the saved palette in storage for the dashboard.
@@ -34,10 +36,13 @@
     }
 
     var raw = localStorage.getItem("dnms-theme-palette")
-    if (!raw) return
-    var parsed = JSON.parse(raw)
+    var parsed = raw ? JSON.parse(raw) : null
     var state = parsed && parsed.state
-    if (!state || !state.cssVars) return
+    // Never chosen, or "no palette" saved before Module Colours became the default (store v3).
+    if (!state || (!state.paletteId && (parsed.version || 0) < 3)) state = DEFAULT_THEME
+    if (state.modules) root.setAttribute("data-modules", "true")
+    else root.removeAttribute("data-modules")
+    if (!state.cssVars) return
     if (state.mode === "dark" || state.mode === "light") {
       root.classList.remove(state.mode === "dark" ? "light" : "dark")
       root.classList.add(state.mode)

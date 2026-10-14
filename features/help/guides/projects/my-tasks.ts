@@ -5,11 +5,11 @@ export const myTasksGuide: HelpGuide = {
   slug: "my-tasks",
   group: "projects",
   icon: ListChecks,
-  href: "/projects/my-tasks",
-  title: { en: "My Tasks", hi: "मेरे टास्क (My Tasks)" },
+  href: "/projects/my-work",
+  title: { en: "My Work", hi: "मेरा काम (My Work)" },
   summary: {
-    en: "Plan your week across all your clients, update your tasks as you work, and export them. Managers can open a team member's tasks too.",
-    hi: "अपने सभी क्लाइंट्स का हफ़्ता प्लान करें, काम करते हुए tasks अपडेट करें, और उन्हें export करें। मैनेजर अपनी टीम के किसी व्यक्ति के tasks भी देख सकते हैं।",
+    en: "Your tasks across all your clients, plus the services and calendars you own and the calendar work you owe. Managers can open a team member's work too.",
+    hi: "सारे क्लाइंट्स के आपके tasks, साथ में जिन services और कैलेंडर्स के आप owner हैं और कैलेंडर का जो काम आपको करना है। मैनेजर अपनी टीम के किसी व्यक्ति का काम भी देख सकते हैं।",
   },
   keywords: [
     "tasks",
@@ -23,6 +23,10 @@ export const myTasksGuide: HelpGuide = {
     "excel",
     "csv",
     "new task",
+    "my work",
+    "services",
+    "owner",
+    "calendar work",
     "टास्क",
     "मेरे काम",
     "हफ़्ते का प्लान",
@@ -31,16 +35,16 @@ export const myTasksGuide: HelpGuide = {
   sections: [
     {
       id: "overview",
-      title: { en: "What My Tasks shows", hi: "My Tasks में क्या दिखता है" },
+      title: { en: "What My Work shows", hi: "My Work में क्या दिखता है" },
       intro: {
-        en: "My Tasks is your own work across every project, in one place. It opens on the weekly sheet - the same plan-and-actual sheet the team uses in Excel.",
-        hi: "My Tasks में सारे प्रोजेक्ट्स का आपका काम एक ही जगह दिखता है। ये हफ़्ते की शीट पर खुलता है - वही plan और actual वाली शीट जो टीम Excel में इस्तेमाल करती है।",
+        en: "My Work is your own work across every project, in one place. It opens on the weekly sheet - the same plan-and-actual sheet the team uses in Excel.",
+        hi: "My Work में सारे प्रोजेक्ट्स का आपका काम एक ही जगह दिखता है। ये हफ़्ते की शीट पर खुलता है - वही plan और actual वाली शीट जो टीम Excel में इस्तेमाल करती है।",
       },
       steps: [
         {
           text: {
-            en: "Click My Tasks in the sidebar. The strip at the top counts your Total tasks, how many are Done and how many are Overdue.",
-            hi: "साइडबार में My Tasks पर क्लिक करें। ऊपर की पट्टी में आपके Total tasks, कितने Done हैं और कितने Overdue हैं, ये गिनती होती है।",
+            en: "Click My Work in the sidebar. It opens on the Tasks tab; the strip at the top counts your Total tasks, how many are Done and how many are Overdue. The Services & calendars tab is covered below.",
+            hi: "साइडबार में My Work पर क्लिक करें। ये Tasks टैब पर खुलता है; ऊपर की पट्टी में आपके Total tasks, कितने Done हैं और कितने Overdue हैं, ये गिनती होती है। Services & calendars टैब के बारे में नीचे बताया गया है।",
           },
         },
         {
@@ -51,7 +55,7 @@ export const myTasksGuide: HelpGuide = {
           shot: {
             id: "my-tasks-header",
             as: "employee",
-            path: "/projects/my-tasks",
+            path: "/projects/my-work",
             highlight: [
               // The dropdown right after each caption, not the caption alone.
               { css: 'span:text-is("Project:") + button' },
@@ -78,7 +82,7 @@ export const myTasksGuide: HelpGuide = {
           shot: {
             id: "my-tasks-sheet",
             as: "employee",
-            path: "/projects/my-tasks",
+            path: "/projects/my-work",
             highlight: [
               { text: "Client", exact: true },
               { text: "ADHOC", exact: true },
@@ -100,7 +104,7 @@ export const myTasksGuide: HelpGuide = {
           shot: {
             id: "my-tasks-sheet-totals",
             as: "employee",
-            path: "/projects/my-tasks",
+            path: "/projects/my-work",
             // Week total is past the right edge; pointing at it scrolls the sheet sideways.
             actions: [{ hover: { text: "Week total", exact: true } }],
             highlight: [
@@ -177,7 +181,7 @@ export const myTasksGuide: HelpGuide = {
           shot: {
             id: "my-tasks-status-menu",
             as: "employee",
-            path: "/projects/my-tasks",
+            path: "/projects/my-work",
             // The number button itself: a role+name lookup also hits the Plan cell around it.
             actions: [
               { click: { css: 'button[aria-label^="Status of task"]' } },
@@ -198,8 +202,8 @@ export const myTasksGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Put a task In Progress when you start and move it on when you stop. The time it spends In Progress is your spent time - it shows under Hrs and in your Work report.",
-            hi: "काम शुरू करते ही task को In Progress करें और रुकते ही आगे बढ़ा दें। जितना समय वो In Progress में रहता है, वही आपका लगा समय है - ये Hrs में और आपकी Work report में दिखता है।",
+            en: "Put a task In Progress when you start and move it on when you stop. The time it spends In Progress is your spent time - it shows under Hrs and in your Progress report.",
+            hi: "काम शुरू करते ही task को In Progress करें और रुकते ही आगे बढ़ा दें। जितना समय वो In Progress में रहता है, वही आपका लगा समय है - ये Hrs में और आपकी Progress report में दिखता है।",
           },
         },
       ],
@@ -228,7 +232,7 @@ export const myTasksGuide: HelpGuide = {
           shot: {
             id: "my-tasks-cards",
             as: "employee",
-            path: "/projects/my-tasks",
+            path: "/projects/my-work",
             actions: [{ click: { role: "tab", name: "Card view" } }],
             // Only today's group: a full-window picture would land on old, closed days.
             highlight: [
@@ -263,7 +267,7 @@ export const myTasksGuide: HelpGuide = {
           shot: {
             id: "my-tasks-cards-date",
             as: "employee",
-            path: "/projects/my-tasks",
+            path: "/projects/my-work",
             actions: [{ click: { role: "tab", name: "Card view" } }],
             highlight: [{ role: "button", name: "All dates" }],
             // The filter bar - Due: and its date button only show in Card view.
@@ -284,7 +288,7 @@ export const myTasksGuide: HelpGuide = {
           shot: {
             id: "my-tasks-new",
             as: "employee",
-            path: "/projects/my-tasks",
+            path: "/projects/my-work",
             actions: [{ click: { role: "button", name: "New Task" } }],
             // The whole dropdowns (Radix triggers are role=combobox buttons), not the placeholder text.
             highlight: [
@@ -322,7 +326,7 @@ export const myTasksGuide: HelpGuide = {
           shot: {
             id: "my-tasks-export",
             as: "employee",
-            path: "/projects/my-tasks",
+            path: "/projects/my-work",
             actions: [{ click: { role: "button", name: "Export" } }],
             highlight: [
               { role: "menuitem", name: "Excel" },
@@ -351,14 +355,14 @@ export const myTasksGuide: HelpGuide = {
           shot: {
             id: "my-tasks-whose",
             as: "manager",
-            path: "/projects/my-tasks",
+            path: "/projects/my-work",
             actions: [
-              { click: { role: "combobox", name: "Whose tasks" } },
+              { click: { role: "combobox", name: "Whose work" } },
               { waitFor: { role: "option", name: "Priya Sharma" } },
             ],
             highlight: [
               // By css: while the list is open, Radix hides the rest of the page from role lookups.
-              { css: 'button[aria-label="Whose tasks"]' },
+              { css: 'button[aria-label="Whose work"]' },
               { role: "option", name: "Priya Sharma" },
             ],
           },
@@ -374,6 +378,53 @@ export const myTasksGuide: HelpGuide = {
         {
           en: "People who have left are listed separately under Archived · no longer with us, so their old tasks can still be read. You can't add new tasks for them.",
           hi: "जो लोग कंपनी छोड़ चुके हैं, वो Archived · no longer with us में अलग दिखते हैं, ताकि उनके पुराने tasks पढ़े जा सकें। उनके लिए नया task नहीं जोड़ सकते।",
+        },
+      ],
+    },
+    {
+      id: "services",
+      title: { en: "Your services and calendars", hi: "आपकी services और कैलेंडर्स" },
+      intro: {
+        en: "The Services & calendars tab shows what you are responsible for on projects, month by month.",
+        hi: "Services & calendars टैब में दिखता है कि प्रोजेक्ट्स पर आप किस चीज़ के लिए ज़िम्मेदार हैं, महीने के हिसाब से।",
+      },
+      steps: [
+        {
+          text: {
+            en: "Click the Services & calendars tab (1). Use the arrows next to the month to see another month. The strip counts your projects, the services you own, that month's calendars and what is due this week.",
+            hi: "Services & calendars टैब (1) पर क्लिक करें। दूसरा महीना देखने के लिए महीने के पास वाले तीर इस्तेमाल करें। पट्टी में आपके प्रोजेक्ट्स, जिन services के आप owner हैं, उस महीने के कैलेंडर्स और इस हफ़्ते ड्यू काम की गिनती होती है।",
+          },
+          shot: {
+            id: "my-work-services",
+            as: "manager",
+            path: "/projects/my-work?tab=services",
+            highlight: [
+              { role: "tab", name: "Services & calendars" },
+              { text: "Services you own", exact: true },
+            ],
+          },
+        },
+        {
+          text: {
+            en: "Services you own (2) lists each service you answer for, with its calendar for the month - click it to open the calendar - how many teams are done, what has been delivered so far, and the next due date.",
+            hi: "Services you own (2) में हर वो service दिखती है जिसके लिए आप ज़िम्मेदार हैं, उस महीने के कैलेंडर के साथ - कैलेंडर खोलने के लिए उस पर क्लिक करें - कितनी टीमों का काम पूरा हुआ, अब तक क्या deliver हुआ, और अगली ड्यू डेट।",
+          },
+        },
+        {
+          text: {
+            en: "Calendar work lists the calendar team plans you are named in: the team, its status, what you have handed in against what was promised, and when it is due. Your projects lists every project you are on, its Account Manager, and your teams - manager marks the teams you lead.",
+            hi: "Calendar work में वो कैलेंडर टीम प्लान दिखते हैं जिनमें आपका नाम है: टीम, उसका status, जितना वादा था उसके मुकाबले आपने कितना जमा किया, और कब तक करना है। Your projects में हर वो प्रोजेक्ट दिखता है जिसमें आप हैं, उसका Account Manager, और आपकी टीमें - manager उन टीमों पर लिखा होता है जिन्हें आप लीड करते हैं।",
+          },
+        },
+      ],
+      tips: [
+        {
+          en: "The same view is on your dashboard (My Work card) and, for HR and managers, on an employee's profile under Work.",
+          hi: "यही जानकारी आपके डैशबोर्ड (My Work कार्ड) पर भी है, और HR व मैनेजर्स के लिए किसी कर्मचारी की प्रोफ़ाइल में Work टैब में।",
+        },
+        {
+          en: "Managers: pick someone in the Whose work box at the top and this tab shows their services and calendars.",
+          hi: "मैनेजर: ऊपर Whose work बॉक्स में किसी को चुनें, तो ये टैब उनकी services और कैलेंडर्स दिखाता है।",
         },
       ],
     },

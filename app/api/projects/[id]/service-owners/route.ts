@@ -7,7 +7,7 @@ import {
   setServiceOwner,
 } from "@/features/projects/server/project-service-owners"
 import { notifyOwnerAssigned } from "@/features/projects/server/owner-notifications"
-import { createAuditLog } from "@/lib/audit"
+import { createAuditLog, isAdmin_Session } from "@/lib/audit"
 import type { Session } from "next-auth"
 
 // Body: { service: "SEO", employeeId: "<id>" | null } - null clears the owner. Returns every owner.
@@ -35,6 +35,7 @@ export const PUT = withProjectManager(
           projectId,
           employeeId,
           actorId: session.user.id,
+          silentActor: isAdmin_Session(session),
           service,
         }).catch((e) => console.error("[SERVICE_OWNER_NOTIFY]", e))
       }

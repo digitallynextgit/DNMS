@@ -9,6 +9,7 @@ import { SessionBridge } from "@/components/providers/session-bridge"
 import { FollowUpConflictDialog } from "@/components/providers/follow-up-conflict-dialog"
 import { AiAssistant } from "@/components/shared/ai-assistant"
 import { AccountDeactivated } from "@/features/auth"
+import { BirthdayCelebration } from "@/features/celebrations"
 import { TenantProvider } from "@/components/tenant-link"
 import { currentTenantSlugOrFounding, tenantScopedSession } from "@/server/tenant-request"
 
@@ -30,7 +31,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // deactivated mid-session (e.g. an approved resignation).
   const account = await db.employee.findUnique({
     where: { id: session.user.id },
-    select: { isActive: true },
+    select: { isActive: true, firstName: true, dateOfBirth: true },
   })
   if (!account || !account.isActive) {
     return <AccountDeactivated />
@@ -56,6 +57,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <MobileTabbar />
           </div>
           <AiAssistant />
+          <BirthdayCelebration
+            viewer={{
+              id: session.user.id,
+              email: session.user.email,
+              roles: session.user.roles,
+              firstName: account.firstName,
+              dateOfBirth: account.dateOfBirth,
+            }}
+          />
         </div>
       </TenantProvider>
     </SessionBridge>

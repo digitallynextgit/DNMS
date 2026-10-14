@@ -150,7 +150,7 @@ export const PUT = withWorkbookTeamContribute(
               team.quantity > 0 ? `${team.quantity} to deliver` : "your team's plan"
             }${team.dueOn ? `, due ${team.dueOn}` : ""}.`,
             type: "info" as const,
-            link: `/projects/${projectId}?tab=calendar`,
+            link: `/projects/${projectId}?tab=calendar&calendar=${workbookId}`,
           })),
         )
       }

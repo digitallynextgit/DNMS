@@ -41,8 +41,8 @@ export const projectMailerGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Open the project from My Projects and click the Mailer tab. Campaigns (1), Templates (2), Recipients (3) and Accounts (4) are along the top.",
-            hi: "My Projects से प्रोजेक्ट खोलें और Mailer टैब पर क्लिक करें। ऊपर Campaigns (1), Templates (2), Recipients (3) और Accounts (4) हैं।",
+            en: "Open the project from Projects and click the Mailer tab. Campaigns (1), Templates (2), Recipients (3) and Accounts (4) are along the top.",
+            hi: "Projects से प्रोजेक्ट खोलें और Mailer टैब पर क्लिक करें। ऊपर Campaigns (1), Templates (2), Recipients (3) और Accounts (4) हैं।",
           },
           shot: {
             id: "project-mailer-tabs",

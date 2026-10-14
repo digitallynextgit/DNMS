@@ -77,12 +77,18 @@ export async function createNotification(
   }
 }
 
-/** Notifies the requester's manager and all active HR approvers of a new leave/WFH request. */
+/**
+ * Notifies the requester's manager and all active HR approvers of a new request.
+ * `hrRoles` are the roles that may decide it (HR managers and admins unless given);
+ * `hrLink` is where they approve (a company-wide queue); the manager gets `link`.
+ */
 export async function notifyApprovers(opts: {
   requesterId: string
   title: string
   message: string
   link?: string
+  hrLink?: string
+  hrRoles?: string[]
 }): Promise<void> {
   try {
     const [requester, hrApprovers] = await Promise.all([
@@ -93,15 +99,17 @@ export async function notifyApprovers(opts: {
       db.employee.findMany({
         where: {
           isActive: true,
-          employeeRoles: { some: { role: { name: { in: ["hr_manager", "admin"] } } } },
+          employeeRoles: {
+            some: { role: { name: { in: opts.hrRoles ?? ["hr_manager", "admin"] } } },
+          },
         },
         select: { id: true },
       }),
     ])
 
-    const recipientIds = new Set<string>()
+    const hrIds = new Set(hrApprovers.map((a) => a.id))
+    const recipientIds = new Set<string>(hrIds)
     if (requester?.managerId) recipientIds.add(requester.managerId)
-    for (const a of hrApprovers) recipientIds.add(a.id)
     recipientIds.delete(opts.requesterId)
 
     // One batched insert, instead of an INSERT plus a push lookup per approver.
@@ -112,7 +120,7 @@ export async function notifyApprovers(opts: {
           title: opts.title,
           message: opts.message,
           type: "info" as const,
-          link: opts.link,
+          link: hrIds.has(employeeId) ? (opts.hrLink ?? opts.link) : opts.link,
         })),
       )
     }

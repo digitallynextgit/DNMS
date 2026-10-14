@@ -165,31 +165,39 @@ export const SETTING_FIELDS: SettingField[] = [
   { key: "SMTP_HR_USER", label: "Username", type: "text", group: "HR mailer" },
   { key: "SMTP_HR_PASS", label: "Password", type: "password", group: "HR mailer", secret: true },
 
-  // Stored here because the local key FILE is gitignored and never deployed.
   {
-    key: "GOOGLE_DRIVE_SHARED_DRIVE_ID",
-    label: "Shared Drive ID",
+    key: "GOOGLE_DRIVE_CLIENT_ID",
+    label: "OAuth client ID",
     type: "text",
     group: "Google Drive",
-    placeholder: "0ALcE76yNtuFUUk9PVA",
-    help: "The company Shared Drive that holds project files (the id in its Drive URL).",
+    placeholder: "1234567890-abc.apps.googleusercontent.com",
+    help: "Google Cloud -> Google Auth Platform -> Clients -> the DNMS Drive web client. Its redirect URI must be this site's address + /api/integrations/google-drive/callback.",
   },
+  {
+    key: "GOOGLE_DRIVE_CLIENT_SECRET",
+    label: "OAuth client secret",
+    type: "password",
+    group: "Google Drive",
+    secret: true,
+    help: "From the same client. Stored encrypted.",
+  },
+  // The key name is historical (the retired Shared Drive used it); today only the SEO tab does.
+  // Stored here because the local key FILE is gitignored and never deployed.
   {
     key: "GOOGLE_DRIVE_CREDENTIALS",
     label: "Service account JSON",
     type: "password",
-    group: "Google Drive",
+    group: "Google Search Console",
     secret: true,
-    help: "Paste the whole service-account key JSON on ONE line (minified). Stored encrypted.",
+    help: "The SEO tab's Google service account, for Search Console and GA4 unless the two fields below are set. Paste the whole key JSON on ONE line (minified). Stored encrypted.",
   },
-
   {
     key: "GSC_CREDENTIALS",
     label: "Search Console service account JSON",
     type: "password",
     group: "Google Search Console",
     secret: true,
-    help: "Optional. Leave blank to reuse the Google Drive service account. Set it only if Search Console is in a different Cloud project. Paste the key JSON on ONE line (minified). Whichever account is used must (a) have the Search Console API enabled on ITS Cloud project and (b) be added as a user on each property.",
+    help: "Optional. Leave blank to reuse the service account above. Set it only if Search Console is in a different Cloud project. Paste the key JSON on ONE line (minified). Whichever account is used must (a) have the Search Console API enabled on ITS Cloud project and (b) be added as a user on each property.",
   },
   {
     key: "GA4_CREDENTIALS",
@@ -197,7 +205,7 @@ export const SETTING_FIELDS: SettingField[] = [
     type: "password",
     group: "Google Search Console",
     secret: true,
-    help: "Optional. Leave blank to reuse the Google Drive service account. Needs the 'Google Analytics Data API' enabled on its Cloud project, and the account added under GA4 -> Admin -> Property access management (Viewer).",
+    help: "Optional. Leave blank to reuse the service account above. Needs the 'Google Analytics Data API' enabled on its Cloud project, and the account added under GA4 -> Admin -> Property access management (Viewer).",
   },
   {
     key: "GOOGLE_PSI_API_KEY",

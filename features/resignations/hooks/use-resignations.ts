@@ -13,6 +13,7 @@ export interface MyResignation {
   reviewedAt: string | null
   createdAt: string
   reviewer: { id: string; firstName: string; lastName: string } | null
+  employee: { lastWorkingDate: string | null }
 }
 
 export interface ReviewableResignation {

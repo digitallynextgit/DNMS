@@ -135,6 +135,7 @@ const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
   [/^\/admin\/email-templates(\/|$)/, "email_template:read"],
   [/^\/admin\/project-settings(\/|$)/, "project:write"],
   [/^\/admin\/storage(\/|$)/, "settings:write"],
+  [/^\/admin\/ai-models(\/|$)/, "settings:write"],
   [
     /^\/admin(\/|$)/,
     ["role:read", "audit:read", "email_template:read", "project:write", "settings:write"],

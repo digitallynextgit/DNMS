@@ -36,8 +36,8 @@ export const projectWorkspaceGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "On My Projects, click a project to open it. The top of the page shows its logo, name, short name (like DN) and code, and the client it is for.",
-            hi: "My Projects पर किसी प्रोजेक्ट पर क्लिक करके उसे खोलें। पेज के ऊपर उसका लोगो, नाम, short name (जैसे DN), कोड और क्लाइंट का नाम दिखता है।",
+            en: "On Projects, click a project to open it. The top of the page shows its logo, its name and the client it is for, with its short name (like DN) and code underneath. Below that is the project description - if it is longer than two lines, click Read more to see all of it.",
+            hi: "Projects पर किसी प्रोजेक्ट पर क्लिक करके उसे खोलें। पेज के ऊपर उसका लोगो, नाम और क्लाइंट का नाम दिखता है, और उनके नीचे short name (जैसे DN) और कोड। उसके नीचे प्रोजेक्ट का description है - अगर वो दो लाइन से लंबा हो, तो पूरा पढ़ने के लिए Read more पर क्लिक करें।",
           },
         },
         {
@@ -97,8 +97,8 @@ export const projectWorkspaceGuide: HelpGuide = {
         },
         {
           text: {
-            en: "The card below shows who the Account Manager (1) is, the project Code and Short name, the Onboarding Date (2) - the day the client came on board - and the Services we provide on the project.",
-            hi: "नीचे के कार्ड में दिखता है कि Account Manager (1) कौन है, प्रोजेक्ट का Code और Short name, Onboarding Date (2) - जिस दिन क्लाइंट जुड़ा - और हम प्रोजेक्ट पर कौन-सी Services देते हैं।",
+            en: "The first card shows who the Account Manager (1) is, the project Code and Short name, and the Onboarding Date (2) - the day the client came on board. The Services card below it has a tile for each service we provide on the project.",
+            hi: "पहले कार्ड में दिखता है कि Account Manager (1) कौन है, प्रोजेक्ट का Code और Short name, और Onboarding Date (2) - जिस दिन क्लाइंट जुड़ा। उसके नीचे Services कार्ड में प्रोजेक्ट पर दी जाने वाली हर service का अलग टाइल है।",
           },
           shot: {
             id: "project-workspace-overview",
@@ -119,8 +119,8 @@ export const projectWorkspaceGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Under Services, each service we provide on the project has an owner - the person who answers for it. The Account Manager and project admins pick the owner in the box next to the service (1). Only people on the project's teams are listed, so add someone to a team first. A service nobody owns yet says No owner yet (2).",
-            hi: "Services में, प्रोजेक्ट पर हम जो भी service देते हैं उसका एक owner होता है - वो व्यक्ति जो उस service के लिए ज़िम्मेदार है। Account Manager और प्रोजेक्ट एडमिन service के आगे वाले बॉक्स (1) में owner चुनते हैं। उसमें सिर्फ़ प्रोजेक्ट की टीमों के लोग दिखते हैं, इसलिए पहले व्यक्ति को किसी टीम में जोड़ें। जिस service का अभी कोई owner नहीं, उस पर No owner yet (2) लिखा होता है।",
+            en: "Under Services, each service we provide on the project has an owner - the person who answers for it. The Account Manager and project admins click the owner's name on the tile (1) to pick someone else. Only people on the project's teams are listed, so add someone to a team first. A service nobody owns yet says Assign an owner (2) - or No owner, if you can't change it. The month on the right of the tile opens that service's calendar, and Open calendars goes to the Calendars tab.",
+            hi: "Services में, प्रोजेक्ट पर हम जो भी service देते हैं उसका एक owner होता है - वो व्यक्ति जो उस service के लिए ज़िम्मेदार है। Account Manager और प्रोजेक्ट एडमिन टाइल पर owner के नाम (1) पर क्लिक करके किसी और को चुनते हैं। उसमें सिर्फ़ प्रोजेक्ट की टीमों के लोग दिखते हैं, इसलिए पहले व्यक्ति को किसी टीम में जोड़ें। जिस service का अभी कोई owner नहीं, उस पर Assign an owner (2) लिखा होता है - या No owner, अगर आप इसे बदल नहीं सकते। टाइल पर दाईं ओर का महीना उस service का कैलेंडर खोलता है, और Open calendars से Calendars टैब खुलता है।",
           },
           shot: {
             id: "project-workspace-services",
@@ -128,14 +128,14 @@ export const projectWorkspaceGuide: HelpGuide = {
             path: "/projects/sunmeadow-organics-launch",
             highlight: [
               { role: "combobox", name: "Owner of Social Media" },
-              { text: "No owner yet", exact: true },
+              { text: "Assign an owner", exact: true },
             ],
           },
         },
         {
           text: {
-            en: "The new owner gets a notification. If an owner leaves the project's teams, their service goes back to No owner yet.",
-            hi: "नए owner को notification मिलता है। अगर owner प्रोजेक्ट की टीमों से हट जाए, तो उसकी service फिर से No owner yet हो जाती है।",
+            en: "The new owner gets a notification. If an owner leaves the project's teams, their service goes back to having no owner.",
+            hi: "नए owner को notification मिलता है। अगर owner प्रोजेक्ट की टीमों से हट जाए, तो उसकी service का फिर से कोई owner नहीं रहता।",
           },
         },
       ],

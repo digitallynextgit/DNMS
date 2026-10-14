@@ -549,7 +549,7 @@ function whyNotDone(r: Row, today: Date): string {
 }
 
 async function takeaways(block: string): Promise<string[] | null> {
-  if (!isAiConfigured()) return null
+  if (!(await isAiConfigured())) return null
   try {
     const text = await aiComplete<string>({
       system: `You are a delivery analyst preparing speaker notes for a manager presenting a deliverables report. You are given real numbers; invent nothing.

@@ -203,7 +203,7 @@ export const POST = withProjectAccess(
             title: mentionedIds.includes(employeeId) ? "You were mentioned" : "New reply",
             message: `${who} replied to "${parent.title}".`,
             type: "info",
-            link: `/projects/${projectId}?tab=messages`,
+            link: `/projects/${projectId}?tab=messages&thread=${messageId}&reply=${reply.id}`,
           })),
           { force: true },
         )

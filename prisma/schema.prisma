@@ -639,6 +639,7 @@ model Employee {
   checklistsCompleted ChecklistInstance[]     @relation("ChecklistCompletedBy")
   checklistItems      ChecklistInstanceItem[] @relation("ChecklistItemAssignee")
   checklistItemsDone  ChecklistInstanceItem[] @relation("ChecklistItemDoneBy")
+  kickoffItemsDone    ProjectKickoffItem[]    @relation("KickoffDoneBy")
 
   joineeScorecard       JoineeScorecard?  @relation("JoineeScorecardEmployee")
   joineeScorecardsSpoc  JoineeScorecard[] @relation("JoineeScorecardHrSpoc")
@@ -1609,6 +1610,7 @@ model Project {
   metaCampaigns   MetaCampaign[]
   seoProperties   SeoProperty[]
   requirements    ProjectRequirement[]
+  kickoffItems    ProjectKickoffItem[]
 
   mailers        ProjectMailer[]
   emailTemplates ProjectEmailTemplate[]
@@ -2202,7 +2204,10 @@ model ProjectFolder {
   projectId     String   @map("project_id")
   parentId      String?  @map("parent_id")
   name          String   @map("name")
+  /// Mirror in the old service-account Shared Drive.
   driveFolderId String?  @unique @map("drive_folder_id")
+  /// Mirror in the connected Google account's Drive. Kept apart so switching storage back loses nothing.
+  driveMirrorId String?  @unique @map("drive_mirror_id")
   createdById   String   @map("created_by_id")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -2399,6 +2404,52 @@ model DigestRun {
 
   @@unique([tenantId, kind, periodStart])
   @@map("digest_runs")
+}
+
+/// The latest Backblaze copy of one Repository file in Google Drive. Kept 30 days after the Drive
+/// file is deleted, so a mistaken delete can still be recovered.
+model DriveBackup {
+  tenantId         String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id               String    @id @default(uuid()) @map("id")
+  driveFileId      String    @unique @map("drive_file_id")
+  projectId        String?   @map("project_id")
+  /// Set for uploads (a ProjectResource row); null for Docs and Sheets made in Drive.
+  resourceId       String?   @map("resource_id")
+  name             String    @map("name")
+  mimeType         String    @map("mime_type")
+  size             BigInt    @map("size")
+  /// For a file moved from Backblaze this is its original object, so nothing is uploaded twice.
+  b2Key            String    @unique @map("b2_key")
+  /// Drive's modifiedTime when copied; a newer one means the file changed.
+  sourceModifiedAt DateTime  @map("source_modified_at")
+  backedUpAt       DateTime  @map("backed_up_at")
+  deletedAt        DateTime? @map("deleted_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([projectId])
+  @@map("drive_backups")
+}
+
+/// One nightly backup per company per IST day; the unique key stops two servers running it twice.
+model DriveBackupRun {
+  tenantId    String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String    @id @default(uuid()) @map("id")
+  runDate     DateTime  @map("run_date") @db.Date
+  /// RUNNING | DONE | FAILED
+  status      String    @default("RUNNING") @map("status")
+  /// Files whose Drive copy was compared.
+  checked     Int       @default(0) @map("checked")
+  copied      Int       @default(0) @map("copied")
+  bytesCopied BigInt    @default(0) @map("bytes_copied")
+  failed      Int       @default(0) @map("failed")
+  error       String?   @map("error")
+  startedAt   DateTime  @default(now()) @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+
+  @@unique([tenantId, runDate])
+  @@map("drive_backup_runs")
 }
 
 enum TaskApprovalStatus {
@@ -2621,6 +2672,31 @@ model ProjectRequirement {
   @@index([raisedById])
   @@index([tenantId])
   @@map("project_requirements")
+}
+
+// Pre-campaign "must-haves" for the Account Manager: one row per template item (lib/kickoff-template.ts),
+// created on first read so older projects get the list too. Only the AM and project admins see it.
+model ProjectKickoffItem {
+  tenantId     String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id           String    @id @default(uuid()) @map("id")
+  projectId    String    @map("project_id")
+  key          String    @map("key")
+  section      String    @map("section")
+  text         String    @map("text")
+  displayOrder Int       @default(0) @map("display_order")
+  isDone       Boolean   @default(false) @map("is_done")
+  doneAt       DateTime? @map("done_at")
+  doneById     String?   @map("done_by_id")
+  note         String?   @map("note") @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  doneBy  Employee? @relation("KickoffDoneBy", fields: [doneById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, key])
+  @@index([tenantId])
+  @@map("project_kickoff_items")
 }
 
 model ProjectActivity {
@@ -4295,6 +4371,51 @@ model StorageAccount {
 
   @@index([isDefault])
   @@map("storage_accounts")
+}
+
+/// An AI service DNMS may call (Admin -> AI Models). Platform-wide, like StorageAccount. Every AI task
+/// tries the default provider first, then the rest by position; within one, its keys in order.
+model AiProvider {
+  id         String   @id @default(uuid()) @map("id")
+  /// gemini | anthropic | openai | mistral | groq | openrouter | cerebras | custom (lib/ai-providers.ts)
+  kind       String   @map("kind")
+  label      String   @map("label")
+  /// Custom (OpenAI-compatible) providers only: the full chat-completions URL.
+  baseUrl    String?  @map("base_url")
+  /// Comma-separated, tried in order: quick jobs (polishing a sentence) and bigger ones (reports).
+  fastModels  String  @map("fast_models")
+  smartModels String  @map("smart_models")
+  isDefault  Boolean  @default(false) @map("is_default")
+  isActive   Boolean  @default(true) @map("is_active")
+  position   Int      @default(0) @map("position")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  keys AiProviderKey[]
+
+  @@map("ai_providers")
+}
+
+/// One API key of an AiProvider. Encrypted at rest and never sent to the browser.
+model AiProviderKey {
+  id          String    @id @default(uuid()) @map("id")
+  providerId  String    @map("provider_id")
+  label       String?   @map("label")
+  secret      String    @map("secret")
+  /// Shown in place of the key, so admins can tell keys apart.
+  last4       String    @map("last4")
+  isActive    Boolean   @default(true) @map("is_active")
+  position    Int       @default(0) @map("position")
+  /// The last outcome, so a dead or spent key shows up before anyone relies on it.
+  lastUsedAt  DateTime? @map("last_used_at")
+  lastError   String?   @map("last_error")
+  lastErrorAt DateTime? @map("last_error_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  provider AiProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@map("ai_provider_keys")
 }
 
 /// Whether an attachment renders as a picture, a voice note, or a file card.

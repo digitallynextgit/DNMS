@@ -5,9 +5,12 @@ import {
   dayLabel,
   daysOf,
   parseReportMonth,
+  parseReportRange,
+  periodLine,
   previousMonth,
   projectNamedIn,
   reportFilename,
+  reportKind,
   shiftMonth,
 } from "./report-format"
 
@@ -18,6 +21,7 @@ describe("parseReportMonth", () => {
       from: "2026-09-01",
       to: "2026-09-30",
       label: "September 2026",
+      wholeMonth: true,
     })
   })
   it("knows February in a leap year", () => {
@@ -26,6 +30,49 @@ describe("parseReportMonth", () => {
   it("rejects anything that is not YYYY-MM", () => {
     expect(parseReportMonth("2026-13")).toBeNull()
     expect(parseReportMonth("2026-9")).toBeNull()
+  })
+})
+
+describe("parseReportRange", () => {
+  it("labels a week, a cross-month span and a single day", () => {
+    expect(parseReportRange("2026-10-05", "2026-10-11")).toEqual({
+      month: "2026-10",
+      from: "2026-10-05",
+      to: "2026-10-11",
+      label: "5–11 Oct 2026",
+      wholeMonth: false,
+    })
+    expect(parseReportRange("2026-09-28", "2026-10-04")?.label).toBe("28 Sep – 4 Oct 2026")
+    expect(parseReportRange("2026-12-28", "2027-01-03")?.label).toBe("28 Dec 2026 – 3 Jan 2027")
+    expect(parseReportRange("2026-10-09", "2026-10-09")?.label).toBe("9 Oct 2026")
+  })
+  it("reads an exact month as that month", () => {
+    expect(parseReportRange("2026-09-01", "2026-09-30")).toEqual(parseReportMonth("2026-09"))
+  })
+  it("rejects reversed, unreal or overlong ranges", () => {
+    expect(parseReportRange("2026-10-11", "2026-10-05")).toBeNull()
+    expect(parseReportRange("2026-02-30", "2026-03-02")).toBeNull()
+    expect(parseReportRange("2026-01-01", "2026-06-30")).toBeNull()
+  })
+  it("keeps the dash out of the filename", () => {
+    expect(reportFilename("5–11 Oct 2026", "Priya Sharma", "pdf")).toBe(
+      "Progress-Report-5-11-Oct-2026-Priya-Sharma.pdf",
+    )
+  })
+})
+
+describe("reportKind and periodLine", () => {
+  it("names a week, a month and anything else", () => {
+    expect(reportKind(parseReportRange("2026-10-12", "2026-10-18")!)).toBe("Weekly progress report")
+    expect(reportKind(parseReportMonth("2026-09")!)).toBe("Monthly progress report")
+    expect(reportKind(parseReportRange("2026-10-01", "2026-10-12")!)).toBe("Progress report")
+  })
+  it("states the dates once, with the day count", () => {
+    expect(periodLine(parseReportRange("2026-10-12", "2026-10-18")!)).toBe(
+      "12–18 Oct 2026 (7 days)",
+    )
+    expect(periodLine(parseReportMonth("2026-09")!)).toBe("1–30 September 2026 (30 days)")
+    expect(periodLine(parseReportRange("2026-10-09", "2026-10-09")!)).toBe("9 Oct 2026 (1 day)")
   })
 })
 
@@ -78,7 +125,7 @@ describe("projectNamedIn", () => {
 describe("reportFilename", () => {
   it("is ASCII and dash-separated", () => {
     expect(reportFilename("September 2026", "Diwakar Jha", "pptx")).toBe(
-      "Work-Report-September-2026-Diwakar-Jha.pptx",
+      "Progress-Report-September-2026-Diwakar-Jha.pptx",
     )
   })
 })

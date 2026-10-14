@@ -11,7 +11,7 @@ import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 // a unique digest_runs row per (kind, period): a second run loses the insert and sends nothing.
 
 const MANAGER_LINK = "/projects/progress"
-const MEMBER_LINK = "/projects/my-tasks"
+const MEMBER_LINK = "/projects/my-work"
 
 const DIGEST_KIND = "weekly-work"
 
@@ -301,6 +301,9 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
   })
 
   const periodLabel = `${formatDay(periodStart)} - ${formatDay(addDays(periodEnd, -1))}`
+  // Both pages open on the week the digest is about, not on this week.
+  const managerLink = `${MANAGER_LINK}?from=${iso(periodStart)}&to=${iso(addDays(periodEnd, -1))}`
+  const memberLink = `${MEMBER_LINK}?week=${iso(periodStart)}`
   const notifications: Array<{
     employeeId: string
     title: string
@@ -322,7 +325,7 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
     })).filter((b) => b.lines.length > 0)
     if (buckets.length === 0) continue
 
-    const link = managerIds.has(recipient.id) ? MANAGER_LINK : MEMBER_LINK
+    const link = managerIds.has(recipient.id) ? managerLink : memberLink
     const total = buckets.reduce((sum, b) => sum + b.lines.length, 0)
     const summary = buckets.map((b) => `${b.lines.length} ${b.short}`).join(" · ")
 

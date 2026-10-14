@@ -7,7 +7,7 @@ export const myProjectsGuide: HelpGuide = {
   group: "projects",
   icon: FolderKanban,
   href: "/projects/my-projects",
-  title: { en: "My Projects", hi: "मेरे प्रोजेक्ट्स (My Projects)" },
+  title: { en: "Projects", hi: "प्रोजेक्ट्स (Projects)" },
   summary: {
     en: "See every client project you work on, open one, and - if you manage projects - create or edit them.",
     hi: "जिन क्लाइंट प्रोजेक्ट्स पर आप काम करते हैं वो सब देखें, किसी को खोलें, और अगर आप प्रोजेक्ट्स संभालते हैं तो नए बनाएँ या बदलें।",
@@ -37,14 +37,14 @@ export const myProjectsGuide: HelpGuide = {
       id: "list",
       title: { en: "See your projects", hi: "अपने प्रोजेक्ट्स देखें" },
       intro: {
-        en: "My Projects lists every project you are on a team of, plus any project where you are the Account Manager. Admins who manage projects see every project in the company.",
-        hi: "My Projects में वो सारे प्रोजेक्ट्स दिखते हैं जिनकी किसी टीम में आप हैं, और वो भी जिनके आप Account Manager हैं। जो एडमिन प्रोजेक्ट्स संभालते हैं, उन्हें कंपनी के सारे प्रोजेक्ट्स दिखते हैं।",
+        en: "Projects lists every project you are on a team of, plus any project where you are the Account Manager. Admins who manage projects see every project in the company.",
+        hi: "Projects में वो सारे प्रोजेक्ट्स दिखते हैं जिनकी किसी टीम में आप हैं, और वो भी जिनके आप Account Manager हैं। जो एडमिन प्रोजेक्ट्स संभालते हैं, उन्हें कंपनी के सारे प्रोजेक्ट्स दिखते हैं।",
       },
       steps: [
         {
           text: {
-            en: "Click My Projects in the sidebar. Your projects are listed in one table, newest first, with columns for Project (the name, with its DN code underneath), Short name, Client, Services, Status / Phase, Account Manager, Tasks and Employees.",
-            hi: "साइडबार में My Projects पर क्लिक करें। आपके प्रोजेक्ट्स एक ही टेबल में दिखते हैं, सबसे नए सबसे ऊपर - Project (नाम, और उसके नीचे DN कोड), Short name, Client, Services, Status / Phase, Account Manager, Tasks और Employees के कॉलम के साथ।",
+            en: "Click Projects in the sidebar. Your projects are listed in one table, newest first, with columns for Project (the name, with its DN code underneath), Short name, Client, Services, Status / Phase, Account Manager, Tasks and Employees.",
+            hi: "साइडबार में Projects पर क्लिक करें। आपके प्रोजेक्ट्स एक ही टेबल में दिखते हैं, सबसे नए सबसे ऊपर - Project (नाम, और उसके नीचे DN कोड), Short name, Client, Services, Status / Phase, Account Manager, Tasks और Employees के कॉलम के साथ।",
           },
         },
         {
@@ -190,8 +190,8 @@ export const myProjectsGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "On My Projects, click New Project at the top right.",
-            hi: "My Projects पेज पर ऊपर दाईं ओर New Project पर क्लिक करें।",
+            en: "On Projects, click New Project at the top right.",
+            hi: "Projects पेज पर ऊपर दाईं ओर New Project पर क्लिक करें।",
           },
         },
         {
