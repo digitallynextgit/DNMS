@@ -42,11 +42,10 @@ import {
   ACTIVE_STATUS_LABELS,
   PERMISSIONS,
   PROBATION_BADGE,
-  TONE,
 } from "@/lib/constants"
 
 // "intern" is the same directory restricted to employmentType INTERN, with "Add Intern" opening
-// the employee form preset to Intern.
+// the employee form preset to Intern. The employee directory leaves interns out.
 export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employee" | "intern" }) {
   const isIntern = kind === "intern"
   const noun = isIntern ? "intern" : "employee"
@@ -125,6 +124,7 @@ export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employe
     departmentId: departmentId || undefined,
     status: status || undefined,
     employmentType: isIntern ? "INTERN" : undefined,
+    excludeEmploymentType: isIntern ? undefined : "INTERN",
     page,
     limit: 10,
   })
@@ -242,10 +242,6 @@ export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employe
               label="Probation"
               colorMap={{ Probation: PROBATION_BADGE }}
             />
-          )}
-          {/* Interns are listed here too; the tag tells them apart (the Intern Directory is only them). */}
-          {!isIntern && emp.employmentType === "INTERN" && (
-            <StatusBadge status="Intern" label="Intern" colorMap={{ Intern: TONE.blue }} />
           )}
         </div>
       ),

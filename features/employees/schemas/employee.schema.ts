@@ -99,6 +99,8 @@ export const employeeFilterSchema = z.object({
     .enum(["ACTIVE", "INACTIVE", "ON_LEAVE", "SUSPENDED", "RESIGNED", "TERMINATED"])
     .optional(),
   employmentType: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"]).optional(),
+  // The Employee Directory leaves interns out (they have the Intern Directory).
+  excludeEmploymentType: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"]).optional(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
 })

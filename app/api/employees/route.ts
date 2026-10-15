@@ -8,6 +8,7 @@ type EmployeeFilters = {
   designationId?: string
   status?: string
   employmentType?: string
+  excludeEmploymentType?: string
   page?: number
   limit?: number
 }
@@ -20,6 +21,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const designationId = sp.get("designationId")
   const status = sp.get("status")
   const employmentType = sp.get("employmentType")
+  const excludeEmploymentType = sp.get("excludeEmploymentType")
   const page = sp.get("page")
   const limit = sp.get("limit")
   if (search) filters.search = search
@@ -27,6 +29,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (designationId) filters.designationId = designationId
   if (status) filters.status = status
   if (employmentType) filters.employmentType = employmentType
+  if (excludeEmploymentType) filters.excludeEmploymentType = excludeEmploymentType
   if (page) filters.page = Number(page)
   if (limit) filters.limit = Number(limit)
   return respond(await getEmployees(filters))

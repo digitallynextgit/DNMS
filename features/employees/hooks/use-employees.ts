@@ -86,6 +86,7 @@ export interface EmployeeFilters {
   designationId?: string
   status?: string
   employmentType?: string
+  excludeEmploymentType?: string
   page?: number
   limit?: number
 }
@@ -109,6 +110,7 @@ async function fetchEmployees(
   if (filters.designationId) qs.set("designationId", filters.designationId)
   if (filters.status) qs.set("status", filters.status)
   if (filters.employmentType) qs.set("employmentType", filters.employmentType)
+  if (filters.excludeEmploymentType) qs.set("excludeEmploymentType", filters.excludeEmploymentType)
   if (filters.page !== undefined) qs.set("page", String(filters.page))
   if (filters.limit !== undefined) qs.set("limit", String(filters.limit))
   const query = qs.toString()

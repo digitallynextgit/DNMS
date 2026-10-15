@@ -151,7 +151,7 @@ export const PEOPLE_COMPANY: DescriptionMap = {
     summary:
       "HR employee directory with full records (contact, personal details, department, designation, status, probation). Needs employee:read; people without it should use dnms_search_people, GET /api/employees/org-chart or GET /api/employees/[id]/card.",
     query:
-      "search: partial name, work email or employee code; departmentId (includes its sub-departments); designationId; status: ACTIVE|INACTIVE (login enabled / deactivated) or ON_LEAVE|SUSPENDED|RESIGNED|TERMINATED; employmentType: FULL_TIME|PART_TIME|CONTRACT|INTERN (INTERN = the Intern Directory); page, limit (default 20, max 100)",
+      "search: partial name, work email or employee code; departmentId (includes its sub-departments); designationId; status: ACTIVE|INACTIVE (login enabled / deactivated) or ON_LEAVE|SUSPENDED|RESIGNED|TERMINATED; employmentType: FULL_TIME|PART_TIME|CONTRACT|INTERN (INTERN = the Intern Directory); excludeEmploymentType: same values, leaves that type out (the Employee Directory uses INTERN); page, limit (default 20, max 100)",
     keywords: [
       "employee list",
       "staff directory",

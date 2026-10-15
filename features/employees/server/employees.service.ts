@@ -50,6 +50,7 @@ type EmployeeFilters = {
   designationId?: string
   status?: string
   employmentType?: string
+  excludeEmploymentType?: string
   page?: number
   limit?: number
 }
@@ -96,12 +97,14 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
       designationId: filters.designationId || undefined,
       status: filters.status || undefined,
       employmentType: filters.employmentType || undefined,
+      excludeEmploymentType: filters.excludeEmploymentType || undefined,
       page: filters.page ?? 1,
       limit: filters.limit ?? 20,
     })
     if (!parsed.success) return fail("Invalid query parameters", parsed.error.flatten().fieldErrors)
 
-    const { search, departmentId, designationId, status, employmentType } = parsed.data
+    const { search, departmentId, designationId, status, employmentType, excludeEmploymentType } =
+      parsed.data
     const { page, limit, skip, take } = resolvePagination(parsed.data, 20)
 
     const where: Record<string, unknown> = {}
@@ -120,6 +123,7 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
     }
     if (designationId) where.designationId = designationId
     if (employmentType) where.employmentType = employmentType
+    else if (excludeEmploymentType) where.employmentType = { not: excludeEmploymentType }
     // Active/Inactive follow isActive (deactivation leaves status ACTIVE).
     if (status === "ACTIVE") where.isActive = true
     else if (status === "INACTIVE") where.isActive = false

@@ -33,6 +33,8 @@ export default async function EmployeeDirectoryPage({
     search,
     departmentId: departmentId || undefined,
     status: status || undefined,
+    // Interns are listed in the Intern Directory instead.
+    excludeEmploymentType: "INTERN",
     page,
     limit: 10,
   }
