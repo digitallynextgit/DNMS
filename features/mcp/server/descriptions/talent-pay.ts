@@ -327,6 +327,17 @@ export const TALENT_PAY: DescriptionMap = {
     body: "{ <criterionKey>: whole number 1-5 (5 Excellent, 4 Good, 3 Average, 2 Needs Improvement, 1 Unsatisfactory) or null to clear } - keys come from GET /api/joinee-scorecards/criteria (built-in: mgrJobRole, mgrCommunication, mgrLearning, hrDiscipline, hrCulture, hrLearning); send only the scores to change",
     keywords: ["score new joinee", "daily joinee rating", "joinee day score"],
   },
+  "GET /api/joinee-scorecards/criteria": {
+    summary:
+      "The company's joinee-scorecard criteria (the columns the manager and HR score each day), hidden ones included, with the key to use when scoring. Built-in six until HR edits them.",
+    keywords: ["scorecard criteria", "scorecard columns", "what is scored"],
+  },
+  "PUT /api/joinee-scorecards/criteria": {
+    summary:
+      "Replace the joinee-scorecard criteria list: rename, reorder, hide or add columns, company-wide. Needs onboarding:write. Rows left out are hidden, never deleted; each side (MANAGER, HR) keeps at least one visible criterion.",
+    body: "{ items: Array<{ key?: string | null (null = new), side: 'MANAGER' | 'HR', label: string, isActive?: boolean }> } in display order",
+    keywords: ["edit scorecard criteria", "add scorecard column", "rename scorecard criterion"],
+  },
   "PATCH /api/payroll/records/[id]": {
     summary:
       "Move a payroll record (payslip) to its next stage DRAFT > PROCESSING > APPROVED > PAID, add notes, or (while DRAFT) set overtime and other deductions, which recalculates gross and net pay. Needs payroll:process. [id] from GET /api/payroll/records.",

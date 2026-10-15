@@ -59,9 +59,30 @@ model User {
 
   memberships    Membership[]
   passwordResets PasswordReset[]
+  webSessions    WebSession[]
 
   @@index([isActive])
   @@map("users")
+}
+
+// One row per browser sign-in, so a person can see where they are signed in and sign a device out.
+// The JWT carries the row id (sid); a revoked row ends that token on its next server-side check.
+// Platform-wide like `users`: a person is one person in every company.
+model WebSession {
+  id         String    @id @default(uuid()) @map("id")
+  userId     String    @map("user_id")
+  // The employee profile signed in as; null for client-portal accounts.
+  employeeId String?   @map("employee_id")
+  ip         String?   @map("ip")
+  userAgent  String?   @map("user_agent")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at")
+  revokedAt  DateTime? @map("revoked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("web_sessions")
 }
 
 enum MembershipKind {

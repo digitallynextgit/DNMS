@@ -24,6 +24,7 @@ export const EXCLUDED_API_PATHS: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/api\/admin\/ai-models(\/|$)/, "AI provider keys (superadmin)"],
   [/^\/api\/integrations(\/|$)/, "connecting platform integrations (superadmin)"],
   [/^\/api\/celebrations(\/|$)/, "birthday-surprise photos"],
+  [/^\/api\/profile\/sessions(\/|$)/, "signed-in devices (manage them in Profile -> Security)"],
   [/^\/api\/clients\/\[id\]\/contacts\/\[contactId\]\/password$/, "client portal passwords"],
 ]
 

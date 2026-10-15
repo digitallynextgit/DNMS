@@ -38,6 +38,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { ProfileSelfActions } from "@/features/employees"
+import { PairPhoneClient, SignedInDevices } from "@/features/auth"
 import { ResignationNotice } from "@/features/resignations"
 import { TaskReminderSettings } from "@/features/notifications"
 import { DocumentList } from "@/features/documents"
@@ -618,6 +619,11 @@ export default function ProfilePage() {
               />
             </CardContent>
           </Card>
+
+          <SignedInDevices />
+
+          {/* Mobile-app pairing: a one-time code typed into the phone instead of a password. */}
+          <PairPhoneClient embedded />
         </TabsContent>
 
         {/* Same preference record as /notifications, so they can't disagree. */}

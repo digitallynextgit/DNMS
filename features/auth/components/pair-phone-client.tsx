@@ -55,7 +55,8 @@ function mmss(totalSeconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`
 }
 
-export function PairPhoneClient() {
+/** `embedded`: inside the profile's Security tab, so no page header and the card fills its column. */
+export function PairPhoneClient({ embedded = false }: { embedded?: boolean } = {}) {
   const [code, setCode] = useState<string | null>(null)
   const [secondsLeft, setSecondsLeft] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -107,13 +108,21 @@ export function PairPhoneClient() {
   const expired = code !== null && secondsLeft <= 0
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title="Pair Your Phone"
-        description="Sign in to the DNMS mobile app using this browser - no password needed. Useful if you sign in to DNMS with Google and have never set a DNMS password."
-      />
+    <div className={embedded ? undefined : "space-y-8"}>
+      {!embedded && (
+        <PageHeader
+          title="Pair Your Phone"
+          description="Sign in to the DNMS mobile app using this browser - no password needed. Useful if you sign in to DNMS with Google and have never set a DNMS password."
+        />
+      )}
 
-      <section className="bg-card max-w-xl space-y-5 rounded-lg border p-5">
+      <section
+        className={
+          embedded
+            ? "bg-card space-y-5 rounded-lg border p-5"
+            : "bg-card max-w-xl space-y-5 rounded-lg border p-5"
+        }
+      >
         <div className="flex items-center gap-2">
           <Smartphone className="text-primary size-5" />
           <h2 className="font-semibold">Your pairing code</h2>

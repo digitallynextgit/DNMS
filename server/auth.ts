@@ -21,6 +21,23 @@ import type { NextAuthConfig } from "next-auth"
 
 /** How long a token may go without re-checking that the membership still exists. */
 const MEMBERSHIP_RECHECK_MS = 15 * 60 * 1000
+/** How often a token confirms its web_sessions row is still live: "log out that device" lands within this. */
+const SESSION_RECHECK_MS = 60 * 1000
+
+/** The signing-in browser's address and user agent, for the devices list. Null outside a request. */
+async function requestMeta(): Promise<{ ip: string | null; userAgent: string | null }> {
+  try {
+    const { headers } = await import("next/headers")
+    const h = await headers()
+    const forwarded = h.get("x-forwarded-for")?.split(",")[0]?.trim()
+    return {
+      ip: forwarded || h.get("x-real-ip") || null,
+      userAgent: h.get("user-agent")?.slice(0, 500) ?? null,
+    }
+  } catch {
+    return { ip: null, userAgent: null }
+  }
+}
 
 /** An employee's roles and flat permission scopes. Also used by the AI connector on every call. */
 export async function getUserWithPermissions(employeeId: string) {
@@ -284,6 +301,26 @@ export const authOptions: NextAuthConfig = {
         // The only place authAt is written.
         token.authAt = now
         token.checkedAt = now
+        // Register the sign-in, so it shows under "signed-in devices" and can be signed out.
+        // Bookkeeping: a failure must never block the login.
+        if (!onEdge) {
+          try {
+            const meta = await requestMeta()
+            const row = await db.webSession.create({
+              data: {
+                userId: user.userId,
+                employeeId: user.kind === "client" ? null : (user.id ?? null),
+                ip: meta.ip,
+                userAgent: meta.userAgent,
+              },
+              select: { id: true },
+            })
+            token.sid = row.id
+            token.sidCheckedAt = now
+          } catch (e) {
+            console.error("[auth] web session registry failed", e)
+          }
+        }
         return token
       }
 
@@ -306,6 +343,23 @@ export const authOptions: NextAuthConfig = {
         token.membershipId = existing.id
         token.userId = existing.userId
         // checkedAt stays unset, so the re-check below runs immediately.
+      }
+
+      // A device signed out from the profile page ends here: the row is gone or revoked.
+      if (
+        !onEdge &&
+        typeof token.sid === "string" &&
+        now - ((token.sidCheckedAt as number | undefined) ?? 0) > SESSION_RECHECK_MS
+      ) {
+        const live = await db.webSession.findUnique({
+          where: { id: token.sid },
+          select: { revokedAt: true },
+        })
+        if (!live || live.revokedAt) return null
+        await db.webSession
+          .update({ where: { id: token.sid }, data: { lastSeenAt: new Date() } })
+          .catch(() => {})
+        token.sidCheckedAt = now
       }
 
       // The re-check is what makes revocation (roles, deactivation) take effect within 15 minutes.
@@ -351,12 +405,27 @@ export const authOptions: NextAuthConfig = {
         session.user.roles = kind === "client" ? [] : ((token.roles as string[]) ?? [])
         session.user.permissions = kind === "client" ? [] : ((token.permissions as string[]) ?? [])
         session.user.mustChangePassword = (token.mustChangePassword as boolean) ?? false
+        session.user.sessionId = (token.sid as string | undefined) ?? null
       }
       return session
     },
   },
 
   events: {
+    // Signing out retires the device row, so it leaves the "signed-in devices" list at once.
+    async signOut(message) {
+      const sid = "token" in message ? message.token?.sid : undefined
+      if (typeof sid !== "string") return
+      try {
+        await db.webSession.updateMany({
+          where: { id: sid, revokedAt: null },
+          data: { revokedAt: new Date() },
+        })
+      } catch {
+        // Non-critical.
+      }
+    },
+
     // Bookkeeping only: a failure here must never block the login.
     async signIn({ user }) {
       if (!user?.id) return

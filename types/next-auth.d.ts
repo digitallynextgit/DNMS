@@ -29,6 +29,9 @@ declare module "next-auth" {
       /** Always empty for clients. */
       permissions: string[]
       mustChangePassword: boolean
+      /** This browser sign-in's `web_sessions` row; null for tokens issued before the registry,
+       *  absent on synthetic sessions (connector, mobile). */
+      sessionId?: string | null
     } & DefaultSession["user"]
   }
 
@@ -63,5 +66,8 @@ declare module "next-auth/jwt" {
     checkedAt: number
     /** Epoch ms of the sign-in that proved the password. Never refreshed. */
     authAt: number
+    /** The `web_sessions` row for this sign-in, and when it was last confirmed live. */
+    sid?: string
+    sidCheckedAt?: number
   }
 }

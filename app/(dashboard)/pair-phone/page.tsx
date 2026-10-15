@@ -1,11 +1,7 @@
-import type { Metadata } from "next"
-import { PairPhoneClient } from "@/features/auth"
+import { redirect } from "next/navigation"
+import { tenantPath } from "@/server/tenant-request"
 
-export const metadata: Metadata = { title: "Pair Your Phone" }
-
-// Open to all staff, like /ai-connections: the code this mints is only ever for its own caller, so
-// there is nothing here one person could aim at another. Authed by (dashboard)/layout.tsx; the API
-// route behind it re-authenticates on its own, because it sits under the public /api/mobile prefix.
-export default function PairPhonePage() {
-  return <PairPhoneClient />
+// Pairing lives on the profile's Security tab now; old links and help pages still land there.
+export default async function PairPhonePage() {
+  redirect(await tenantPath("/profile?tab=security"))
 }
