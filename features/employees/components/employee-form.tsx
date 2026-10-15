@@ -259,6 +259,8 @@ async function fetchEmployeeDocs(employeeId: string): Promise<{ data: ExistingDo
 interface EmployeeFormProps {
   mode: "create" | "edit"
   employeeId?: string
+  /** Create only: the Intern Directory's "Add Intern" opens the form preset to INTERN. */
+  defaultEmploymentType?: FormData["employmentType"]
 }
 
 function StepIndicator({ steps, currentStep }: { steps: typeof STEPS; currentStep: number }) {
@@ -362,7 +364,7 @@ function ReviewRow({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
+export function EmployeeForm({ mode, employeeId, defaultEmploymentType }: EmployeeFormProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [currentStep, setCurrentStep] = useState(1)
@@ -490,7 +492,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
     defaultValues: {
       gender: "",
       nationality: "Indian",
-      employmentType: "FULL_TIME",
+      employmentType: defaultEmploymentType ?? "FULL_TIME",
       onProbation: true,
       probationMonths: "6",
       sameAsCurrent: false,
@@ -531,16 +533,21 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
     onProbation: watchedValues.onProbation ?? true,
     probationMonths: watchedValues.probationMonths ? Number(watchedValues.probationMonths) : 6,
     dateOfJoining: watchedValues.dateOfJoining || null,
+    probationEndDate: watchedValues.probationEndDate || null,
   })
-  const probationHint = !watchedValues.dateOfJoining
-    ? "Set a date of joining first"
-    : probationPreview.endDate
-      ? `${formatDate(probationPreview.endDate.toISOString())}${
-          probationPreview.onProbation
-            ? ` · ${probationPreview.daysRemaining} day(s) left`
-            : " · completed"
-        }`
-      : "-"
+  const probationLeft = probationPreview.onProbation
+    ? `${probationPreview.daysRemaining} day(s) left`
+    : "completed"
+  // An explicit end date (e.g. an extension) wins; blank falls back to joining + period.
+  const probationHint = watchedValues.probationEndDate
+    ? `Set by HR · ${probationLeft}. Clear it to use date of joining + period.`
+    : !watchedValues.dateOfJoining
+      ? "Blank = date of joining + period. Set a date of joining first."
+      : probationPreview.endDate
+        ? `Blank = date of joining + period: ${formatDate(
+            probationPreview.endDate.toISOString(),
+          )} · ${probationLeft}`
+        : "-"
 
   useEffect(() => {
     if (mode === "edit" && employeeData?.data) {
@@ -725,7 +732,8 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         managerId: data.managerId || undefined,
         employmentType: data.employmentType,
         dateOfJoining: data.dateOfJoining || undefined,
-        probationEndDate: data.probationEndDate || undefined,
+        // "" clears an extension on edit (undefined would leave the stored date in place).
+        probationEndDate: data.probationEndDate || "",
         onProbation: data.onProbation ?? true,
         probationMonths: data.probationMonths ? Number(data.probationMonths) : undefined,
         workLocation: data.workLocation || undefined,
@@ -1011,9 +1019,27 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                     </FormField>
 
                     <FormField label="Probation Ends">
-                      <div className="border-input bg-background text-muted-foreground flex h-10 items-center rounded-sm border px-3 text-sm">
-                        {probationHint}
+                      <div className="flex items-center gap-2">
+                        <DateField
+                          value={watchedValues.probationEndDate ?? ""}
+                          onChange={(v) => setValue("probationEndDate", v)}
+                          placeholder="Date of joining + period"
+                          startMonth={new Date(2000, 0)}
+                          endMonth={new Date(new Date().getFullYear() + 2, 11)}
+                          className="flex-1"
+                        />
+                        {watchedValues.probationEndDate && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="shrink-0"
+                            onClick={() => setValue("probationEndDate", "")}
+                          >
+                            Clear
+                          </Button>
+                        )}
                       </div>
+                      <p className="text-muted-foreground text-xs">{probationHint}</p>
                     </FormField>
                   </div>
                 )}

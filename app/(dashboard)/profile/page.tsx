@@ -157,7 +157,7 @@ export default function ProfilePage() {
   const emp = data.data
   const hasGmail = Boolean((emp as { hasGmailAppPassword?: boolean }).hasGmailAppPassword)
   const fullName = `${emp.firstName} ${emp.lastName}`
-  // Probation end is derived (dateOfJoining + probationMonths); the DB column is unused.
+  // Probation end: the explicit probationEndDate if HR set one, else joining + probationMonths.
   const probation = getProbationStatus(emp)
 
   const ca = (emp.currentAddress ?? {}) as Record<string, string>

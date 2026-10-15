@@ -42,9 +42,17 @@ import {
   ACTIVE_STATUS_LABELS,
   PERMISSIONS,
   PROBATION_BADGE,
+  TONE,
 } from "@/lib/constants"
 
-export function EmployeeDirectoryClient() {
+// "intern" is the same directory restricted to employmentType INTERN, with "Add Intern" opening
+// the employee form preset to Intern.
+export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employee" | "intern" }) {
+  const isIntern = kind === "intern"
+  const noun = isIntern ? "intern" : "employee"
+  const Noun = isIntern ? "Intern" : "Employee"
+  const addHref = isIntern ? "/employees/new?type=intern" : "/employees/new"
+
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
@@ -116,6 +124,7 @@ export function EmployeeDirectoryClient() {
     search: debouncedSearch,
     departmentId: departmentId || undefined,
     status: status || undefined,
+    employmentType: isIntern ? "INTERN" : undefined,
     page,
     limit: 10,
   })
@@ -153,7 +162,7 @@ export function EmployeeDirectoryClient() {
           body: JSON.stringify({ ids: selectedIds }),
         },
       )
-      toast.success(`Terminated ${body.data.data.count ?? count} employees`)
+      toast.success(`Terminated ${body.data.data.count ?? count} ${noun}s`)
       queryClient.invalidateQueries({ queryKey: ["employees"] })
       clear()
       setBulkDeleteOpen(false)
@@ -166,7 +175,7 @@ export function EmployeeDirectoryClient() {
 
   const columns: DataTableColumn<EmployeeListItem>[] = [
     {
-      header: "Employee",
+      header: Noun,
       skeleton: <EmployeeCellSkeleton />,
       exportValue: (emp) => `${emp.firstName} ${emp.lastName}`,
       cell: (emp) => (
@@ -233,6 +242,10 @@ export function EmployeeDirectoryClient() {
               label="Probation"
               colorMap={{ Probation: PROBATION_BADGE }}
             />
+          )}
+          {/* Interns are listed here too; the tag tells them apart (the Intern Directory is only them). */}
+          {!isIntern && emp.employmentType === "INTERN" && (
+            <StatusBadge status="Intern" label="Intern" colorMap={{ Intern: TONE.blue }} />
           )}
         </div>
       ),
@@ -334,20 +347,20 @@ export function EmployeeDirectoryClient() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Employees"
+        title={isIntern ? "Interns" : "Employees"}
         description={
           pagination
-            ? `${pagination.total} employee${pagination.total !== 1 ? "s" : ""} total`
-            : "Employee directory"
+            ? `${pagination.total} ${noun}${pagination.total !== 1 ? "s" : ""} total`
+            : `${Noun} directory`
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <ViewToggle value={viewMode} onChange={setViewMode} />
             {can(PERMISSIONS.EMPLOYEE_WRITE) && (
               <Button asChild>
-                <Link href="/employees/new" className="flex items-center gap-2">
+                <Link href={addHref} className="flex items-center gap-2">
                   <Plus className="h-4 w-4" />
-                  Add Employee
+                  Add {Noun}
                 </Link>
               </Button>
             )}
@@ -362,10 +375,10 @@ export function EmployeeDirectoryClient() {
       {/* "Add First Employee" only when there's genuinely no one - not for an empty search result. */}
       {!isLoading && employees.length === 0 && viewMode === "card" && (
         <EmptyState
-          title={search ? "No employees match your search." : "No employees found."}
+          title={search ? `No ${noun}s match your search.` : `No ${noun}s found.`}
           action={
             !search && can(PERMISSIONS.EMPLOYEE_WRITE)
-              ? { label: "Add First Employee", href: "/employees/new" }
+              ? { label: `Add First ${Noun}`, href: addHref }
               : undefined
           }
         />
@@ -387,9 +400,9 @@ export function EmployeeDirectoryClient() {
 
       {viewMode === "table" && (
         <DataTable
-          tableId="employees"
-          exportName="employees"
-          itemLabel="employee"
+          tableId={isIntern ? "interns" : "employees"}
+          exportName={isIntern ? "interns" : "employees"}
+          itemLabel={noun}
           columns={columns}
           rows={employees}
           rowKey={(emp) => emp.id}
@@ -409,7 +422,7 @@ export function EmployeeDirectoryClient() {
             ) : undefined
           }
           toolbar={filters}
-          empty={search ? "No employees match your search." : "No employees found."}
+          empty={search ? `No ${noun}s match your search.` : `No ${noun}s found.`}
           loading={isLoading}
           skeletonRows={10}
           mobileCard={(emp) => (
@@ -451,7 +464,7 @@ export function EmployeeDirectoryClient() {
                   totalPages: pagination.totalPages,
                   total: pagination.total,
                   onPageChange: setPage,
-                  itemLabel: "employee",
+                  itemLabel: noun,
                   pageSize: pagination.limit,
                 }
               : undefined
@@ -466,7 +479,7 @@ export function EmployeeDirectoryClient() {
           totalPages={pagination.totalPages}
           total={pagination.total}
           onPageChange={setPage}
-          itemLabel="employee"
+          itemLabel={noun}
           pageSize={pagination.limit}
         />
       )}
@@ -485,8 +498,8 @@ export function EmployeeDirectoryClient() {
       <ConfirmDialog
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
-        title={`Terminate ${count} employees?`}
-        description="Each selected employee will be marked as terminated and deactivated. You can reverse this individually from their profile. Your own account, if selected, will be skipped."
+        title={`Terminate ${count} ${noun}s?`}
+        description={`Each selected ${noun} will be marked as terminated and deactivated. You can reverse this individually from their profile. Your own account, if selected, will be skipped.`}
         confirmLabel={bulkBusy ? "Terminating..." : "Terminate"}
         variant="destructive"
         onConfirm={confirmBulkDelete}

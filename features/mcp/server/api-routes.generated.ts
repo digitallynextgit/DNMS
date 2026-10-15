@@ -1505,7 +1505,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         guard: "withErrorHandler",
         doc: "HR employee directory with full records (contact, personal details, department, designation, status, probation). Needs employee:read; people without it should use dnms_search_people, GET /api/employees/org-chart or GET /api/employees/[id]/card.",
         queryHelp:
-          "search: partial name, work email or employee code; departmentId (includes its sub-departments); designationId; status: ACTIVE|INACTIVE (login enabled / deactivated) or ON_LEAVE|SUSPENDED|RESIGNED|TERMINATED; employmentType: accepted but currently NOT applied; page, limit (default 20, max 100)",
+          "search: partial name, work email or employee code; departmentId (includes its sub-departments); designationId; status: ACTIVE|INACTIVE (login enabled / deactivated) or ON_LEAVE|SUSPENDED|RESIGNED|TERMINATED; employmentType: FULL_TIME|PART_TIME|CONTRACT|INTERN (INTERN = the Intern Directory); page, limit (default 20, max 100)",
         keywords: [
           "employee list",
           "staff directory",

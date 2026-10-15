@@ -6,6 +6,7 @@ import { SYSTEM_ROLES } from "@/lib/constants"
 import { requireAnyRole } from "@/server/action-guard"
 import { createAuditLog } from "@/lib/audit"
 import { ok, runAction, serialize, type ActionResult } from "@/server/action-result"
+import { getProbationEndDate } from "@/features/employees/probation"
 
 // Entitlement comes from LeavePolicy (employmentType -> leaveType -> daysPerYear), else
 // LeaveType.maxDaysPerYear. `allocated` = the annual cap (HR overrides stick); `accrued` = what is
@@ -23,18 +24,15 @@ type EmployeeAccrualInfo = {
   employmentType: string
   dateOfJoining: Date | null
   confirmationDate: Date | null
+  probationEndDate: Date | null
   probationMonths: number
 }
 
-/** Probation end: the confirmation date if confirmed early, else joining + probationMonths. */
+/** Probation end: the confirmation date if confirmed early, else the explicit end HR set, else
+ *  joining + probationMonths (same rule as isOnProbation). */
 function probationCompletion(emp: EmployeeAccrualInfo): Date | null {
   if (emp.confirmationDate) return emp.confirmationDate
-  if (emp.dateOfJoining) {
-    const d = new Date(emp.dateOfJoining)
-    d.setMonth(d.getMonth() + (emp.probationMonths || 6))
-    return d
-  }
-  return null
+  return getProbationEndDate(emp)
 }
 
 /** When leave starts accruing for an employee (no accrual during probation). */
@@ -166,6 +164,7 @@ export async function allocateFromPolicy(
         employmentType: true,
         dateOfJoining: true,
         confirmationDate: true,
+        probationEndDate: true,
         probationMonths: true,
         gender: true,
       },
@@ -280,6 +279,7 @@ export async function recomputeAccrued(
         employmentType: true,
         dateOfJoining: true,
         confirmationDate: true,
+        probationEndDate: true,
         probationMonths: true,
         gender: true,
       },
@@ -335,6 +335,7 @@ export async function runMonthlyAccrual(
       employmentType: true,
       dateOfJoining: true,
       confirmationDate: true,
+      probationEndDate: true,
       probationMonths: true,
       gender: true,
     },
@@ -357,6 +358,7 @@ export async function rolloverYear(
         employmentType: true,
         dateOfJoining: true,
         confirmationDate: true,
+        probationEndDate: true,
         probationMonths: true,
         gender: true,
       },
@@ -399,6 +401,7 @@ export async function resyncLeaveBalances(year?: number): Promise<ActionResult<u
           employmentType: true,
           dateOfJoining: true,
           confirmationDate: true,
+          probationEndDate: true,
           probationMonths: true,
           gender: true,
         },

@@ -884,6 +884,7 @@ export async function applyLeave(body: {
           onProbation: true,
           probationMonths: true,
           dateOfJoining: true,
+          probationEndDate: true,
           confirmationDate: true,
           gender: true,
         },

@@ -6,7 +6,13 @@ import { getSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 
-export default async function NewEmployeePage() {
+type SearchParams = Record<string, string | string[] | undefined>
+
+export default async function NewEmployeePage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}) {
   const session = await getSession()
 
   if (!session) {
@@ -17,16 +23,21 @@ export default async function NewEmployeePage() {
     redirect(await tenantPath("/employees/employee-directory"))
   }
 
+  // ?type=intern comes from the Intern Directory: same form, preset to Intern.
+  const sp = await searchParams
+  const type = Array.isArray(sp.type) ? sp.type[0] : sp.type
+  const isIntern = type === "intern"
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Add Employee"
-        description="Create a new employee profile"
-        backHref="/employees/employee-directory"
-        backLabel="Back to Employees"
+        title={isIntern ? "Add Intern" : "Add Employee"}
+        description={isIntern ? "Create a new intern profile" : "Create a new employee profile"}
+        backHref={isIntern ? "/employees/intern-directory" : "/employees/employee-directory"}
+        backLabel={isIntern ? "Back to Interns" : "Back to Employees"}
       />
 
-      <EmployeeForm mode="create" />
+      <EmployeeForm mode="create" defaultEmploymentType={isIntern ? "INTERN" : undefined} />
     </div>
   )
 }

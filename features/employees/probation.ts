@@ -1,4 +1,5 @@
-// Probation rules (pure, client-safe). On probation = onProbation AND today < joining +
+// Probation rules (pure, client-safe). On probation = onProbation AND today < probation end.
+// The end is probationEndDate when HR set one (an extension / explicit date), else joining +
 // probationMonths. During probation all leave is blocked and WFH needs Manager + HR approval;
 // Earned Leave unlocks 6 months after probation ends.
 
@@ -11,10 +12,14 @@ export interface ProbationInput {
   onProbation?: boolean | null
   probationMonths?: number | null
   dateOfJoining?: Date | string | null
+  /** Explicit end set by HR; wins over dateOfJoining + probationMonths. */
+  probationEndDate?: Date | string | null
 }
 
-/** The date probation ends: dateOfJoining + probationMonths. Null if no joining date. */
+/** The date probation ends: the explicit probationEndDate, else dateOfJoining + probationMonths.
+ *  Null if neither is known. */
 export function getProbationEndDate(emp: ProbationInput): Date | null {
+  if (emp.probationEndDate) return new Date(emp.probationEndDate)
   if (!emp.dateOfJoining) return null
   const months = emp.probationMonths ?? DEFAULT_PROBATION_MONTHS
   const end = new Date(emp.dateOfJoining)

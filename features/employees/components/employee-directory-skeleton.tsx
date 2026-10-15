@@ -62,11 +62,12 @@ const NO_SELECTION = {
 }
 
 /** The directory page while the route loads, at its real layout. */
-export function EmployeeDirectorySkeleton() {
+export function EmployeeDirectorySkeleton({ kind = "employee" }: { kind?: "employee" | "intern" }) {
+  const isIntern = kind === "intern"
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Employees"
+        title={isIntern ? "Interns" : "Employees"}
         description={<Skeleton className="h-4 w-36" />}
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -78,7 +79,7 @@ export function EmployeeDirectorySkeleton() {
 
       {/* Same tableId, so the columns someone hid stay hidden here too. */}
       <DataTable
-        tableId="employees"
+        tableId={isIntern ? "interns" : "employees"}
         toolbar={
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
             <Skeleton className="h-9 max-w-sm min-w-[200px] flex-1" />

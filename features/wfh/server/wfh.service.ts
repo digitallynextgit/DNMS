@@ -27,6 +27,7 @@ interface TierInput {
   onProbation?: boolean | null
   probationMonths?: number | null
   dateOfJoining?: Date | null
+  probationEndDate?: Date | null
   confirmationDate?: Date | null
 }
 
@@ -293,6 +294,7 @@ export async function getWfhEligibility(): Promise<ActionResult<unknown>> {
         onProbation: true,
         probationMonths: true,
         dateOfJoining: true,
+        probationEndDate: true,
         confirmationDate: true,
       },
     })
@@ -454,6 +456,7 @@ export async function applyWfh(body: {
         onProbation: true,
         probationMonths: true,
         dateOfJoining: true,
+        probationEndDate: true,
         confirmationDate: true,
       },
     })
