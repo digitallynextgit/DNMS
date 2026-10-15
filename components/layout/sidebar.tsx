@@ -120,6 +120,22 @@ function NavBadge({
   return <NotificationCountBadge collapsed={collapsed} />
 }
 
+/** Identifies an expandable group across sections (labels repeat between sections). */
+function groupKey(section: string, item: NavItem): string {
+  return `${section}:${item.label}`
+}
+
+/** The group holding the current page, if any. */
+function activeGroupKey(sections: Array<{ label: string; items: NavItem[] }>, pathname: string) {
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (item.children?.some((c) => pathname.startsWith(c.href)))
+        return groupKey(section.label.toLowerCase(), item)
+    }
+  }
+  return null
+}
+
 interface SidebarNavItemProps {
   item: NavItem
   isCollapsed: boolean
@@ -127,13 +143,21 @@ interface SidebarNavItemProps {
   roles: string[]
   /** "employee", "project"...: the group's hue under Module Colours. */
   group: string
+  /** The one expanded group (accordion); toggling another closes this one. */
+  openKey: string | null
+  onToggle: (key: string) => void
 }
 
-function SidebarNavItem({ item, isCollapsed, permissions, roles, group }: SidebarNavItemProps) {
+function SidebarNavItem({
+  item,
+  isCollapsed,
+  permissions,
+  roles,
+  group,
+  openKey,
+  onToggle,
+}: SidebarNavItemProps) {
   const pathname = useAppPathname()
-  const [open, setOpen] = useState(
-    () => item.children?.some((c) => pathname.startsWith(c.href)) ?? false,
-  )
 
   if (!canAccess(item, permissions, roles)) return null
 
@@ -141,6 +165,8 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles, group }: Sideba
     const visibleChildren = item.children.filter((c) => canAccess(c, permissions, roles))
     if (visibleChildren.length === 0) return null
     const isActive = visibleChildren.some((c) => pathname.startsWith(c.href))
+    const key = groupKey(group, item)
+    const open = openKey === key
 
     if (isCollapsed) {
       return (
@@ -171,7 +197,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles, group }: Sideba
     return (
       <div>
         <button
-          onClick={() => setOpen(!open)}
+          onClick={() => onToggle(key)}
           data-nav-group={group}
           className={cn(
             "flex h-8 w-full items-center gap-2.5 rounded-sm px-2.5 text-sm transition-colors",
@@ -274,6 +300,8 @@ interface SidebarSectionProps {
   permissions: string[]
   roles: string[]
   first?: boolean
+  openKey: string | null
+  onToggle: (key: string) => void
 }
 
 // When collapsed, the label becomes a thin divider (except for the first section).
@@ -284,6 +312,8 @@ function SidebarSection({
   permissions,
   roles,
   first,
+  openKey,
+  onToggle,
 }: SidebarSectionProps) {
   if (!items.some((item) => isItemVisible(item, permissions, roles))) return null
   const group = label.toLowerCase()
@@ -309,6 +339,8 @@ function SidebarSection({
           permissions={permissions}
           roles={roles}
           group={group}
+          openKey={openKey}
+          onToggle={onToggle}
         />
       ))}
     </>
@@ -319,6 +351,22 @@ export function Sidebar({ session }: { session: Session }) {
   const { isCollapsed, toggle } = useSidebarStore()
   const permissions = session.user.permissions
   const roles = session.user.roles
+  const pathname = useAppPathname()
+
+  const sections = [
+    { label: "Employee", items: EMPLOYEE_ITEMS, first: true },
+    { label: "HRMS", items: HRMS_ITEMS },
+    { label: "Project", items: projectItems(permissions.includes(PERMISSIONS.PROJECT_WRITE)) },
+    { label: "Admin", items: ADMIN_ITEMS },
+    { label: "Company", items: COMPANY_ITEMS },
+  ]
+
+  // One group expanded at a time. The current page's group is open by default; a click elsewhere
+  // (toggle) only lasts until the next navigation, so opening a page in another group closes it.
+  const activeKey = activeGroupKey(sections, pathname)
+  const [choice, setChoice] = useState<{ key: string | null; pathname: string } | null>(null)
+  const openKey = choice && choice.pathname === pathname ? choice.key : activeKey
+  const toggleGroup = (key: string) => setChoice({ key: openKey === key ? null : key, pathname })
 
   // Ctrl+B (Windows/Linux) and Cmd+B (macOS) toggle the sidebar.
   useEffect(() => {
@@ -372,42 +420,19 @@ export function Sidebar({ session }: { session: Session }) {
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
-        <SidebarSection
-          label="Employee"
-          items={EMPLOYEE_ITEMS}
-          isCollapsed={isCollapsed}
-          permissions={permissions}
-          roles={roles}
-          first
-        />
-        <SidebarSection
-          label="HRMS"
-          items={HRMS_ITEMS}
-          isCollapsed={isCollapsed}
-          permissions={permissions}
-          roles={roles}
-        />
-        <SidebarSection
-          label="Project"
-          items={projectItems(permissions.includes(PERMISSIONS.PROJECT_WRITE))}
-          isCollapsed={isCollapsed}
-          permissions={permissions}
-          roles={roles}
-        />
-        <SidebarSection
-          label="Admin"
-          items={ADMIN_ITEMS}
-          isCollapsed={isCollapsed}
-          permissions={permissions}
-          roles={roles}
-        />
-        <SidebarSection
-          label="Company"
-          items={COMPANY_ITEMS}
-          isCollapsed={isCollapsed}
-          permissions={permissions}
-          roles={roles}
-        />
+        {sections.map((section) => (
+          <SidebarSection
+            key={section.label}
+            label={section.label}
+            items={section.items}
+            isCollapsed={isCollapsed}
+            permissions={permissions}
+            roles={roles}
+            first={section.first}
+            openKey={openKey}
+            onToggle={toggleGroup}
+          />
+        ))}
       </nav>
     </aside>
   )
