@@ -240,8 +240,9 @@ export function useUpdateEmployee() {
       mutationFn: updateEmployee,
       invalidate: [["employees"]],
       success: "Employee updated successfully",
-      onSuccess: (_data, variables) => {
-        qc.invalidateQueries({ queryKey: ["employee", variables.id] })
+      // Prefix match: the profile page caches under the URL slug, the dialogs pass the id.
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: ["employee"] })
       },
       onError: (error) => {
         toast.error(error.message || "Failed to update employee")

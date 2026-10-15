@@ -63,9 +63,10 @@ export function ManageRolesDialog({
       return res.json()
     },
     onSuccess: async () => {
-      // Refetch, not just invalidate, so the role badges update without a reload.
+      // The profile page caches under the URL slug, not the id, so invalidate every employee
+      // query (prefix match) and wait for the refetch: the role badges update without a reload.
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["employee", employeeId], refetchType: "all" }),
+        queryClient.invalidateQueries({ queryKey: ["employee"], refetchType: "all" }),
         // The directory shows role chips too.
         queryClient.invalidateQueries({ queryKey: ["employees"] }),
       ])
