@@ -90,6 +90,31 @@ export async function listAnnouncements(
   })
 }
 
+/** Tells every active employee but the author about a newly published announcement: an in-app
+ *  notification plus web and mobile push. Never throws (createNotifications swallows failures). */
+async function notifyEveryone(
+  announcement: { title: string; body: string; priority: string },
+  authorId: string,
+): Promise<void> {
+  const recipients = await db.employee.findMany({
+    where: { isActive: true, id: { not: authorId }, ...VISIBLE_EMPLOYEE_FILTER },
+    select: { id: true },
+  })
+  if (recipients.length === 0) return
+
+  const preview = announcement.body.replace(/\s+/g, " ").trim()
+  const { createNotifications } = await import("@/lib/notifications")
+  await createNotifications(
+    recipients.map((r) => ({
+      employeeId: r.id,
+      title: `New announcement: ${announcement.title}`,
+      message: preview.length > 160 ? `${preview.slice(0, 157)}...` : preview,
+      type: announcement.priority === "HIGH" ? ("warning" as const) : ("info" as const),
+      link: "/announcements",
+    })),
+  )
+}
+
 export async function createAnnouncement(
   body: AnnouncementInput,
   session: Session,
@@ -115,6 +140,8 @@ export async function createAnnouncement(
       entityId: row.id,
       changes: { title: input.title, category: input.category, priority: input.priority },
     })
+    // Drafts stay quiet until they are published.
+    if (input.isPublished) await notifyEveryone(input, session.user.id)
     return ok(serialize({ data: row }))
   })
 }
@@ -126,7 +153,10 @@ export async function updateAnnouncement(
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const input = announcementSchema.parse(body)
-    const existing = await db.announcement.findUnique({ where: { id }, select: { id: true } })
+    const existing = await db.announcement.findUnique({
+      where: { id },
+      select: { id: true, isPublished: true },
+    })
     if (!existing) return fail("Announcement not found", undefined, 404)
 
     const row = await db.announcement.update({
@@ -148,6 +178,8 @@ export async function updateAnnouncement(
       entityId: id,
       changes: { title: input.title, category: input.category, priority: input.priority },
     })
+    // A draft being published is the moment people hear about it; plain edits don't re-notify.
+    if (!existing.isPublished && input.isPublished) await notifyEveryone(input, session.user.id)
     return ok(serialize({ data: row }))
   })
 }

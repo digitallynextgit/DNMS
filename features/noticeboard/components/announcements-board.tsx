@@ -370,7 +370,11 @@ function ComposeDialog({
           <label className="flex items-center gap-2">
             <Switch checked={isPublished} onCheckedChange={setIsPublished} />
             <span className="text-muted-foreground text-xs">
-              {isPublished ? "Visible to everyone" : "Saved as a draft - only you can see it"}
+              {!isPublished
+                ? "Saved as a draft - only you can see it"
+                : announcement?.isPublished
+                  ? "Visible to everyone"
+                  : "Visible to everyone, and everyone gets a notification"}
             </span>
           </label>
         </div>
