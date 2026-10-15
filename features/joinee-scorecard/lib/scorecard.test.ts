@@ -81,3 +81,27 @@ describe("helpers", () => {
     expect(formatScore(null)).toBe("-")
   })
 })
+
+describe("custom criteria", () => {
+  it("averages whatever criteria the company has, by key", () => {
+    const criteria = [
+      { key: "mgrJobRole", side: "MANAGER" as const, label: "Role" },
+      { key: "custom.client-handling", side: "MANAGER" as const, label: "Client handling" },
+      { key: "hrDiscipline", side: "HR" as const, label: "Discipline" },
+    ]
+    const d = dayAverages(
+      { mgrJobRole: 4, "custom.client-handling": 2, hrDiscipline: 5, hrCulture: 1 },
+      criteria,
+    )
+    // hrCulture is not a criterion any more, so it is ignored.
+    expect(d).toEqual({ manager: 3, hr: 5, overall: 4 })
+    expect(
+      scorecardSummary([{ mgrJobRole: 4 }, { "custom.client-handling": 2 }], criteria),
+    ).toMatchObject({
+      manager: 3,
+      hr: null,
+      overall: 3,
+      scoredDays: 2,
+    })
+  })
+})

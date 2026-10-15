@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ClipboardCheck, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { ClipboardCheck, MoreHorizontal, Pencil, Settings2, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -21,7 +21,6 @@ import { TONE } from "@/lib/constants"
 import { cn, formatDate } from "@/lib/utils"
 import {
   RECOMMENDATIONS,
-  SCORECARD_CRITERIA,
   SCORECARD_DAYS,
   SCORING_GUIDE,
   dayAverages,
@@ -29,7 +28,7 @@ import {
   ratingFor,
   scorecardSummary,
   type Recommendation,
-  type ScoreKey,
+  type ScorecardCriterion,
 } from "../lib/scorecard"
 import {
   useDeleteScorecard,
@@ -39,6 +38,7 @@ import {
   useUpdateScorecard,
 } from "../hooks/use-scorecard"
 import type { Scorecard } from "../types"
+import { CriteriaDialog } from "./criteria-dialog"
 
 // One component everywhere: HR edits it (onboarding:write), the employee sees it read-only.
 
@@ -73,9 +73,6 @@ function localTodayKey() {
   ).padStart(2, "0")}`
 }
 
-const MANAGER = SCORECARD_CRITERIA.filter((c) => c.side === "MANAGER")
-const HR = SCORECARD_CRITERIA.filter((c) => c.side === "HR")
-
 export function JoineeScorecard({ employeeId }: { employeeId: string }) {
   const { data, isLoading, isError, error, refetch, isFetching } = useScorecard(employeeId)
 
@@ -95,7 +92,15 @@ export function JoineeScorecard({ employeeId }: { employeeId: string }) {
     )
   }
   if (!data.scorecard) return <NotStarted employeeId={employeeId} canEdit={data.canEdit} />
-  return <ScorecardBody employeeId={employeeId} card={data.scorecard} canEdit={data.canEdit} />
+  return (
+    <ScorecardBody
+      employeeId={employeeId}
+      card={data.scorecard}
+      criteria={data.criteria}
+      canEdit={data.canEdit}
+      canEditCriteria={data.canEditCriteria}
+    />
+  )
 }
 
 function NotStarted({ employeeId, canEdit }: { employeeId: string; canEdit: boolean }) {
@@ -125,11 +130,15 @@ function NotStarted({ employeeId, canEdit }: { employeeId: string; canEdit: bool
 function ScorecardBody({
   employeeId,
   card,
+  criteria,
   canEdit,
+  canEditCriteria,
 }: {
   employeeId: string
   card: Scorecard
+  criteria: ScorecardCriterion[]
   canEdit: boolean
+  canEditCriteria: boolean
 }) {
   const update = useUpdateScorecard(employeeId, card.id)
   const remove = useDeleteScorecard(employeeId, card.id)
@@ -137,8 +146,17 @@ function ScorecardBody({
   const [spocOpen, setSpocOpen] = useState(false)
   const [spocId, setSpocId] = useState<string | undefined>(card.hrSpocId ?? undefined)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [criteriaOpen, setCriteriaOpen] = useState(false)
 
-  const summary = scorecardSummary(card.days)
+  const MANAGER = criteria.filter((c) => c.side === "MANAGER")
+  const HR = criteria.filter((c) => c.side === "HR")
+  const COLS = [...MANAGER, ...HR]
+  // A left border opens each group of columns.
+  const groupStart = (i: number) => i === 0 || i === MANAGER.length
+  const summary = scorecardSummary(
+    card.days.map((d) => d.scores),
+    criteria,
+  )
   const first = card.days[0]?.date
   const last = card.days.at(-1)?.date
   const today = localTodayKey()
@@ -153,6 +171,17 @@ function ScorecardBody({
               {summary.scoredDays} of {card.days.length} days scored
             </p>
           </div>
+          {canEditCriteria && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-muted-foreground"
+              onClick={() => setCriteriaOpen(true)}
+            >
+              <Settings2 className="mr-1.5 h-4 w-4" />
+              Edit criteria
+            </Button>
+          )}
           {canEdit && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -220,10 +249,16 @@ function ScorecardBody({
                 <th rowSpan={2} className="w-28 px-2 py-2 text-left font-medium">
                   Date
                 </th>
-                <th colSpan={3} className="border-l px-2 pt-2 pb-1 text-center font-semibold">
+                <th
+                  colSpan={MANAGER.length}
+                  className="border-l px-2 pt-2 pb-1 text-center font-semibold"
+                >
                   Manager
                 </th>
-                <th colSpan={3} className="border-l px-2 pt-2 pb-1 text-center font-semibold">
+                <th
+                  colSpan={HR.length}
+                  className="border-l px-2 pt-2 pb-1 text-center font-semibold"
+                >
                   HR
                 </th>
                 <th colSpan={3} className="border-l px-2 pt-2 pb-1 text-center font-semibold">
@@ -231,10 +266,10 @@ function ScorecardBody({
                 </th>
               </tr>
               <tr className="bg-muted/40 text-muted-foreground border-b text-[11px] leading-tight">
-                {[...MANAGER, ...HR].map((c, i) => (
+                {COLS.map((c, i) => (
                   <th
                     key={c.key}
-                    className={cn("px-2 pb-2 text-center font-medium", i % 3 === 0 && "border-l")}
+                    className={cn("px-2 pb-2 text-center font-medium", groupStart(i) && "border-l")}
                   >
                     {c.label}
                   </th>
@@ -246,7 +281,7 @@ function ScorecardBody({
             </thead>
             <tbody className="divide-y">
               {card.days.map((day) => {
-                const avg = dayAverages(day)
+                const avg = dayAverages(day.scores, criteria)
                 const isToday = day.date.slice(0, 10) === today
                 return (
                   <tr key={day.dayNumber} className={cn(isToday && "bg-primary/5")}>
@@ -261,19 +296,19 @@ function ScorecardBody({
                     <td className="text-muted-foreground px-2 py-1.5 whitespace-nowrap">
                       {dayLabel(day.date)}
                     </td>
-                    {[...MANAGER, ...HR].map((c, i) => (
+                    {COLS.map((c, i) => (
                       <td
                         key={c.key}
-                        className={cn("px-2 py-1.5 text-center", i % 3 === 0 && "border-l")}
+                        className={cn("px-2 py-1.5 text-center", groupStart(i) && "border-l")}
                       >
                         <ScoreCell
-                          value={day[c.key]}
+                          value={day.scores[c.key] ?? null}
                           label={`Day ${day.dayNumber} - ${c.side === "HR" ? "HR" : "Manager"}: ${c.label}`}
                           editable={canEdit}
                           onChange={(value) =>
                             setScore.mutate({
                               dayNumber: day.dayNumber,
-                              field: c.key as ScoreKey,
+                              field: c.key,
                               value,
                             })
                           }
@@ -418,6 +453,8 @@ function ScorecardBody({
           />
         </div>
       </FormDialog>
+
+      <CriteriaDialog open={criteriaOpen} onOpenChange={setCriteriaOpen} />
 
       <ConfirmDialog
         open={confirmDelete}

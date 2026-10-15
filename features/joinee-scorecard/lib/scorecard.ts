@@ -5,22 +5,44 @@ export const SCORECARD_DAYS = 15
 
 export type ScorecardSide = "MANAGER" | "HR"
 
-/** The six scores on a day, in sheet order: three by the manager, three by HR. */
-export const SCORECARD_CRITERIA = [
+export interface ScorecardCriterion {
+  key: string
+  side: ScorecardSide
+  label: string
+}
+
+/** The built-in six, in sheet order: three by the manager, three by HR. HR can rename, reorder,
+ *  hide or add to them per company (joinee_scorecard_criteria). */
+export const SCORECARD_CRITERIA: readonly ScorecardCriterion[] = [
   { key: "mgrJobRole", side: "MANAGER", label: "Understanding of Job Role" },
   { key: "mgrCommunication", side: "MANAGER", label: "Communication & Ownership" },
   { key: "mgrLearning", side: "MANAGER", label: "Learning / Collaboration Skills" },
   { key: "hrDiscipline", side: "HR", label: "Discipline & Attendance" },
   { key: "hrCulture", side: "HR", label: "Culture & Collaboration" },
   { key: "hrLearning", side: "HR", label: "Learning / Adaptability" },
+]
+
+/** The built-in six live in their own day columns; anything HR adds goes in the day's JSON. */
+export const LEGACY_SCORE_KEYS = [
+  "mgrJobRole",
+  "mgrCommunication",
+  "mgrLearning",
+  "hrDiscipline",
+  "hrCulture",
+  "hrLearning",
 ] as const
+export type LegacyScoreKey = (typeof LEGACY_SCORE_KEYS)[number]
 
-export type ScoreKey = (typeof SCORECARD_CRITERIA)[number]["key"]
+export function isLegacyScoreKey(key: string): key is LegacyScoreKey {
+  return (LEGACY_SCORE_KEYS as readonly string[]).includes(key)
+}
 
-export const SCORE_KEYS = SCORECARD_CRITERIA.map((c) => c.key) as ScoreKey[]
+export const SCORE_KEYS: string[] = SCORECARD_CRITERIA.map((c) => c.key)
 
-/** One day's scores; null = not given yet. */
-export type DayScores = Record<ScoreKey, number | null>
+export type ScoreKey = string
+
+/** One day's scores by criterion key; null = not given yet. */
+export type DayScores = Record<string, number | null>
 
 export const SCORING_GUIDE = [
   { score: 5, label: "Excellent", description: "Consistently exceeds expectations" },
@@ -46,6 +68,21 @@ export function isScore(v: unknown): v is number {
   return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 5
 }
 
+export function isScorecardSide(v: unknown): v is ScorecardSide {
+  return v === "MANAGER" || v === "HR"
+}
+
+/** "custom.client-handling" from "Client handling"; the caller makes it unique. */
+export function criterionKeyFor(label: string): string {
+  const slug =
+    label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "criterion"
+  return `custom.${slug}`
+}
+
 /** Mean of the values that are there; null when none are. */
 function mean(values: Array<number | null | undefined>): number | null {
   const present = values.filter((v): v is number => typeof v === "number")
@@ -53,18 +90,24 @@ function mean(values: Array<number | null | undefined>): number | null {
   return present.reduce((a, b) => a + b, 0) / present.length
 }
 
-const keysFor = (side: ScorecardSide) =>
-  SCORECARD_CRITERIA.filter((c) => c.side === side).map((c) => c.key)
+export const criteriaFor = (criteria: readonly ScorecardCriterion[], side: ScorecardSide) =>
+  criteria.filter((c) => c.side === side)
 
 /** A side's average uses whatever scores it has; overall = mean of the side averages (equal weight). */
-export function dayAverages(day: DayScores) {
-  const manager = mean(keysFor("MANAGER").map((k) => day[k]))
-  const hr = mean(keysFor("HR").map((k) => day[k]))
+export function dayAverages(
+  day: DayScores,
+  criteria: readonly ScorecardCriterion[] = SCORECARD_CRITERIA,
+) {
+  const manager = mean(criteriaFor(criteria, "MANAGER").map((c) => day[c.key]))
+  const hr = mean(criteriaFor(criteria, "HR").map((c) => day[c.key]))
   return { manager, hr, overall: mean([manager, hr]) }
 }
 
-export function scorecardSummary(days: DayScores[]) {
-  const daily = days.map(dayAverages)
+export function scorecardSummary(
+  days: DayScores[],
+  criteria: readonly ScorecardCriterion[] = SCORECARD_CRITERIA,
+) {
+  const daily = days.map((d) => dayAverages(d, criteria))
   const manager = mean(daily.map((d) => d.manager))
   const hr = mean(daily.map((d) => d.hr))
   const overall = mean([manager, hr])

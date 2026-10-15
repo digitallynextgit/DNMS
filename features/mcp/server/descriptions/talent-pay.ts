@@ -324,7 +324,7 @@ export const TALENT_PAY: DescriptionMap = {
   "PATCH /api/joinee-scorecards/[id]/days/[day]": {
     summary:
       "Enter or clear one day's 1-5 scores on a new joinee's 15-day scorecard. Needs onboarding:write (a manager without it cannot score). [id] is the scorecard id; [day] is the day number 1-15.",
-    body: "{ mgrJobRole?, mgrCommunication?, mgrLearning?, hrDiscipline?, hrCulture?, hrLearning?: whole number 1-5 (5 Excellent, 4 Good, 3 Average, 2 Needs Improvement, 1 Unsatisfactory) or null to clear } - send only the scores to change",
+    body: "{ <criterionKey>: whole number 1-5 (5 Excellent, 4 Good, 3 Average, 2 Needs Improvement, 1 Unsatisfactory) or null to clear } - keys come from GET /api/joinee-scorecards/criteria (built-in: mgrJobRole, mgrCommunication, mgrLearning, hrDiscipline, hrCulture, hrLearning); send only the scores to change",
     keywords: ["score new joinee", "daily joinee rating", "joinee day score"],
   },
   "PATCH /api/payroll/records/[id]": {

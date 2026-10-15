@@ -1283,6 +1283,8 @@ model JoineeScorecardDay {
   hrDiscipline     Int? @map("hr_discipline")
   hrCulture        Int? @map("hr_culture")
   hrLearning       Int? @map("hr_learning")
+  // Scores for criteria HR added (joinee_scorecard_criteria): { [key]: 1-5 }. The six above keep their columns.
+  scores           Json? @map("scores")
 
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -1291,6 +1293,25 @@ model JoineeScorecardDay {
   @@unique([scorecardId, dayNumber])
   @@index([tenantId])
   @@map("joinee_scorecard_days")
+}
+
+// The company's scorecard criteria, once HR edits them (until then the built-in six from
+// lib/scorecard.ts apply). Rows are hidden, never deleted, so old scores keep their meaning.
+model JoineeScorecardCriterion {
+  tenantId     String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id           String   @id @default(uuid()) @map("id")
+  key          String   @map("key")
+  // MANAGER | HR
+  side         String   @map("side")
+  label        String   @map("label")
+  displayOrder Int      @default(0) @map("display_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+  @@map("joinee_scorecard_criteria")
 }
 
 model ChecklistInstanceItem {
