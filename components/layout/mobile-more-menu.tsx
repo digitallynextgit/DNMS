@@ -136,7 +136,6 @@ export function MobileMoreMenu({ session }: { session: Session }) {
   const { id, firstName, lastName, email, profilePhoto: sessionPhoto } = session.user
   const permissions = session.user.permissions
   const roles = session.user.roles
-  const isAdmin_ = roles.includes("admin_")
 
   const { data: liveEmployee } = useEmployee(id)
   const employee = liveEmployee?.data
@@ -191,9 +190,7 @@ export function MobileMoreMenu({ session }: { session: Session }) {
         <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0" />
       </Link>
 
-      {!isAdmin_ && (
-        <Group title="Me" items={EMPLOYEE_ITEMS} permissions={permissions} roles={roles} />
-      )}
+      <Group title="Me" items={EMPLOYEE_ITEMS} permissions={permissions} roles={roles} />
       <Group
         title="Work"
         items={projectItems(permissions.includes(PERMISSIONS.PROJECT_WRITE))}

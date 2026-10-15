@@ -319,8 +319,6 @@ export function Sidebar({ session }: { session: Session }) {
   const { isCollapsed, toggle } = useSidebarStore()
   const permissions = session.user.permissions
   const roles = session.user.roles
-  // admin_ is not an employee, so it gets no "My ..." section.
-  const isAdmin_ = roles.includes("admin_")
 
   // Ctrl+B (Windows/Linux) and Cmd+B (macOS) toggle the sidebar.
   useEffect(() => {
@@ -374,23 +372,20 @@ export function Sidebar({ session }: { session: Session }) {
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
-        {!isAdmin_ && (
-          <SidebarSection
-            label="Employee"
-            items={EMPLOYEE_ITEMS}
-            isCollapsed={isCollapsed}
-            permissions={permissions}
-            roles={roles}
-            first
-          />
-        )}
+        <SidebarSection
+          label="Employee"
+          items={EMPLOYEE_ITEMS}
+          isCollapsed={isCollapsed}
+          permissions={permissions}
+          roles={roles}
+          first
+        />
         <SidebarSection
           label="HRMS"
           items={HRMS_ITEMS}
           isCollapsed={isCollapsed}
           permissions={permissions}
           roles={roles}
-          first={isAdmin_}
         />
         <SidebarSection
           label="Project"
