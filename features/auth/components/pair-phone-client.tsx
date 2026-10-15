@@ -5,6 +5,13 @@ import { RefreshCw, Smartphone, TriangleAlert } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { apiFetch } from "@/lib/api-fetch"
 
 // -----------------------------------------------------------------------------
@@ -65,6 +72,7 @@ export function PairPhoneClient({ embedded = false }: { embedded?: boolean } = {
   // The deadline the ticker reads, in a ref so the interval below can be started
   // once and never re-created when the code changes.
   const deadlineRef = useRef(0)
+  const [aboutOpen, setAboutOpen] = useState(false)
 
   const mint = useCallback(async () => {
     setBusy(true)
@@ -123,9 +131,18 @@ export function PairPhoneClient({ embedded = false }: { embedded?: boolean } = {
             : "bg-card max-w-xl space-y-5 rounded-lg border p-5"
         }
       >
-        <div className="flex items-center gap-2">
-          <Smartphone className="text-primary size-5" />
-          <h2 className="font-semibold">Your pairing code</h2>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Smartphone className="text-primary size-5" />
+            <h2 className="font-semibold">Your pairing code</h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAboutOpen(true)}
+            className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4"
+          >
+            What pairing does
+          </button>
         </div>
 
         {code === null ? (
@@ -178,18 +195,26 @@ export function PairPhoneClient({ embedded = false }: { embedded?: boolean } = {
         )}
       </section>
 
-      <section className="text-muted-foreground max-w-xl space-y-2 text-sm">
-        <h2 className="text-foreground font-semibold">What pairing does</h2>
-        <p>
-          The app gets its own sign-in for this device with exactly your DNMS permissions - nothing
-          more. It does not copy this browser&apos;s session, and your password is never involved.
-        </p>
-        <p>
-          Treat the code like a password for the five minutes it is alive: anyone who types it into
-          a DNMS app signs in as you. Never send it in a message, and never read it out to someone
-          who asked you for it.
-        </p>
-      </section>
+      <Dialog open={aboutOpen} onOpenChange={setAboutOpen}>
+        <DialogContent className="rounded-sm sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>What pairing does</DialogTitle>
+            <DialogDescription className="sr-only">How the pairing code works</DialogDescription>
+          </DialogHeader>
+          <div className="text-muted-foreground space-y-3 text-sm">
+            <p>
+              The app gets its own sign-in for this device with exactly your DNMS permissions -
+              nothing more. It does not copy this browser&apos;s session, and your password is never
+              involved.
+            </p>
+            <p>
+              Treat the code like a password for the five minutes it is alive: anyone who types it
+              into a DNMS app signs in as you. Never send it in a message, and never read it out to
+              someone who asked you for it.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

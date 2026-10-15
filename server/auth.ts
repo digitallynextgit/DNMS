@@ -345,6 +345,41 @@ export const authOptions: NextAuthConfig = {
         // checkedAt stays unset, so the re-check below runs immediately.
       }
 
+      // A token issued before the device registry adopts a row, so it shows under "signed-in
+      // devices" without a fresh login. Matched on address + browser, because this runs again on
+      // every server render until a route handler (the session fetch) writes the cookie back.
+      if (!onEdge && !token.sid && typeof token.userId === "string") {
+        try {
+          const meta = await requestMeta()
+          const since = new Date(now - 60 * 60 * 1000)
+          const existing = await db.webSession.findFirst({
+            where: {
+              userId: token.userId,
+              revokedAt: null,
+              ip: meta.ip,
+              userAgent: meta.userAgent,
+              lastSeenAt: { gte: since },
+            },
+            select: { id: true },
+          })
+          const row =
+            existing ??
+            (await db.webSession.create({
+              data: {
+                userId: token.userId,
+                employeeId: token.kind === "client" ? null : (token.id as string),
+                ip: meta.ip,
+                userAgent: meta.userAgent,
+              },
+              select: { id: true },
+            }))
+          token.sid = row.id
+          token.sidCheckedAt = now
+        } catch (e) {
+          console.error("[auth] adopting a session into the registry failed", e)
+        }
+      }
+
       // A device signed out from the profile page ends here: the row is gone or revoked.
       if (
         !onEdge &&
