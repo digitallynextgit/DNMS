@@ -5,8 +5,8 @@ import { EMPLOYEE_SUMMARY_SELECT, VISIBLE_EMPLOYEE_FILTER } from "@/server/selec
 
 // Shared by the API routes and the dashboard page prefetch, so both return identical payloads.
 
-/** Org-wide HR stats (route is gated by dashboard:read). */
-export async function getDashboardStats() {
+/** Org-wide HR stats (route is gated by dashboard:read); the notification count is the viewer's own. */
+export async function getDashboardStats(viewerId: string) {
   const now = new Date()
   const thirtyDaysAgo = new Date(now)
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
@@ -46,8 +46,9 @@ export async function getDashboardStats() {
 
     db.document.count(),
 
+    // The card links to the viewer's own inbox, so it counts that, not everyone's.
     db.notification.count({
-      where: { isRead: false },
+      where: { employeeId: viewerId, isRead: false },
     }),
 
     db.employee.findMany({

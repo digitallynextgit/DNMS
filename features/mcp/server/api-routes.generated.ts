@@ -1820,8 +1820,17 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
   {
     path: "/api/joinee-scorecards/criteria",
     methods: {
-      GET: { guard: "withErrorHandler" },
-      PUT: { body: "{ items?: unknown }", guard: "withErrorHandler" },
+      GET: {
+        guard: "withErrorHandler",
+        doc: "The company's joinee-scorecard criteria (the columns the manager and HR score each day), hidden ones included, with the key to use when scoring. Built-in six until HR edits them.",
+        keywords: ["scorecard criteria", "scorecard columns", "what is scored"],
+      },
+      PUT: {
+        body: "{ items: Array<{ key?: string | null (null = new), side: 'MANAGER' | 'HR', label: string, isActive?: boolean }> } in display order",
+        guard: "withErrorHandler",
+        doc: "Replace the joinee-scorecard criteria list: rename, reorder, hide or add columns, company-wide. Needs onboarding:write. Rows left out are hidden, never deleted; each side (MANAGER, HR) keeps at least one visible criterion.",
+        keywords: ["edit scorecard criteria", "add scorecard column", "rename scorecard criterion"],
+      },
     },
     load: () => import("@/app/api/joinee-scorecards/criteria/route"),
   },

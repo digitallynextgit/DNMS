@@ -25,7 +25,10 @@ export default async function DashboardPage() {
             queryKey: ["dashboard-stats"],
             // `normalize()` in the API layer adds `success: true` alongside the
             // handler's own keys, and the client's queryFn caches the whole body.
-            queryFn: async () => ({ success: true, ...serialize(await getDashboardStats()) }),
+            queryFn: async () => ({
+              success: true,
+              ...serialize(await getDashboardStats(session.user.id)),
+            }),
           })
         }
       } else {
