@@ -26,10 +26,10 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/announcements/[id]",
     methods: {
       PATCH: {
-        body: "{ title: string 3-200 (required), body: string 3-20000 (required), category: string (required), priority?: LOW|NORMAL|HIGH, isPublished?: boolean, expiresAt?: YYYY-MM-DD or '' for none, notify?: boolean (re-notify everyone about this edit; default false) }",
+        body: "{ title: string 3-200 (required), body: string 3-20000 (required), category: string (required), priority?: LOW|NORMAL|HIGH, isPublished?: boolean, expiresAt?: YYYY-MM-DD or '' for none, notify?: boolean (default true: everyone is notified of the edit; false = quiet edit, e.g. a typo fix) }",
         permissions: ["announcement:write"],
         guard: "withAuth",
-        doc: "Edit a noticeboard announcement (text, category, priority, publish/unpublish, expiry). Needs announcement:write. id from GET /api/announcements. Note: This is a FULL replace: always resend title, body and category, plus the current priority, isPublished and expiresAt - omitted ones reset to NORMAL, published, and no expiry. SIDE EFFECT: publishing a draft notifies every active employee (in-app + push); editing a published one does so only with notify: true.",
+        doc: "Edit a noticeboard announcement (text, category, priority, publish/unpublish, expiry). Needs announcement:write. id from GET /api/announcements. Note: This is a FULL replace: always resend title, body and category, plus the current priority, isPublished and expiresAt - omitted ones reset to NORMAL, published, and no expiry. SIDE EFFECT: publishing a draft notifies every active employee (in-app + push); editing a published one does too unless notify: false.",
         keywords: ["edit announcement", "unpublish notice", "update noticeboard post"],
       },
       DELETE: {

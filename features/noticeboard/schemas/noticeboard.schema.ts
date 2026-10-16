@@ -8,7 +8,7 @@ export const announcementSchema = z.object({
   isPublished: z.boolean().default(true),
   /** Empty string = no expiry, which is what a blank date field sends. */
   expiresAt: z.string().trim().optional().or(z.literal("")),
-  /** Edit only: re-notify everyone about a change to an already-published announcement. */
+  /** Edit only: false saves a change to a published announcement without re-notifying everyone. */
   notify: z.boolean().optional(),
 })
 export type AnnouncementInput = z.infer<typeof announcementSchema>

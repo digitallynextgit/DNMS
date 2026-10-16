@@ -182,10 +182,11 @@ export async function updateAnnouncement(
       entityId: id,
       changes: { title: input.title, category: input.category, priority: input.priority },
     })
-    // Publishing a draft always notifies; an edit to a live one does when the editor leaves
-    // "Notify everyone" on (off for typo fixes).
+    // Publishing a draft always notifies. An edit to a live one does too unless the editor chose
+    // "save quietly" (notify: false); a missing flag notifies, so a tab still running pre-deploy
+    // code doesn't silently skip it.
     if (input.isPublished && !existing.isPublished) await notifyEveryone(input, session.user.id)
-    else if (input.isPublished && input.notify)
+    else if (input.isPublished && input.notify !== false)
       await notifyEveryone(input, session.user.id, "updated")
     return ok(serialize({ data: row }))
   })
