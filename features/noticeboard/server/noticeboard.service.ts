@@ -90,11 +90,12 @@ export async function listAnnouncements(
   })
 }
 
-/** Tells every active employee but the author about a newly published announcement: an in-app
+/** Tells every active employee but the author about a published announcement: an in-app
  *  notification plus web and mobile push. Never throws (createNotifications swallows failures). */
 async function notifyEveryone(
   announcement: { title: string; body: string; priority: string },
   authorId: string,
+  kind: "new" | "updated" = "new",
 ): Promise<void> {
   const recipients = await db.employee.findMany({
     where: { isActive: true, id: { not: authorId }, ...VISIBLE_EMPLOYEE_FILTER },
@@ -104,14 +105,17 @@ async function notifyEveryone(
 
   const preview = announcement.body.replace(/\s+/g, " ").trim()
   const { createNotifications } = await import("@/lib/notifications")
+  // force: an announcement is addressed to everyone, so it goes out even when the poster is the
+  // silent admin_ account (which otherwise suppresses every notification it triggers).
   await createNotifications(
     recipients.map((r) => ({
       employeeId: r.id,
-      title: `New announcement: ${announcement.title}`,
+      title: `${kind === "new" ? "New" : "Updated"} announcement: ${announcement.title}`,
       message: preview.length > 160 ? `${preview.slice(0, 157)}...` : preview,
       type: announcement.priority === "HIGH" ? ("warning" as const) : ("info" as const),
       link: "/announcements",
     })),
+    { force: true },
   )
 }
 
@@ -178,8 +182,11 @@ export async function updateAnnouncement(
       entityId: id,
       changes: { title: input.title, category: input.category, priority: input.priority },
     })
-    // A draft being published is the moment people hear about it; plain edits don't re-notify.
-    if (!existing.isPublished && input.isPublished) await notifyEveryone(input, session.user.id)
+    // Publishing a draft always notifies; an edit to a live one does when the editor leaves
+    // "Notify everyone" on (off for typo fixes).
+    if (input.isPublished && !existing.isPublished) await notifyEveryone(input, session.user.id)
+    else if (input.isPublished && input.notify)
+      await notifyEveryone(input, session.user.id, "updated")
     return ok(serialize({ data: row }))
   })
 }

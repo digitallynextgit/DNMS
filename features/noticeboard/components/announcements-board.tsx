@@ -264,6 +264,9 @@ function ComposeDialog({
   const [expiresAt, setExpiresAt] = React.useState(
     announcement?.expiresAt ? announcement.expiresAt.slice(0, 10) : "",
   )
+  // Editing a live announcement: re-notify everyone unless switched off (e.g. a typo fix).
+  const [notify, setNotify] = React.useState(true)
+  const editingLive = editing && announcement.isPublished && isPublished
 
   const options = [...new Set([...SUGGESTED_CATEGORIES, ...categories])]
 
@@ -272,7 +275,15 @@ function ComposeDialog({
       apiFetch(editing ? `/api/announcements/${announcement.id}` : "/api/announcements", {
         method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, body, category, priority, isPublished, expiresAt }),
+        body: JSON.stringify({
+          title,
+          body,
+          category,
+          priority,
+          isPublished,
+          expiresAt,
+          notify: editingLive && notify,
+        }),
       }),
     onSuccess: () => {
       toast.success(editing ? "Announcement updated" : "Announcement posted")
@@ -377,6 +388,17 @@ function ComposeDialog({
                   : "Visible to everyone, and everyone gets a notification"}
             </span>
           </label>
+
+          {editingLive && (
+            <label className="flex items-center gap-2">
+              <Switch checked={notify} onCheckedChange={setNotify} />
+              <span className="text-muted-foreground text-xs">
+                {notify
+                  ? "Notify everyone about this update"
+                  : "Save quietly - no notification (for small fixes)"}
+              </span>
+            </label>
+          )}
         </div>
 
         <DialogFooter className="gap-2">

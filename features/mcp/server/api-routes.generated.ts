@@ -26,10 +26,10 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/announcements/[id]",
     methods: {
       PATCH: {
-        body: "{ title: string 3-200 (required), body: string 3-20000 (required), category: string (required), priority?: LOW|NORMAL|HIGH, isPublished?: boolean, expiresAt?: YYYY-MM-DD or '' for none }",
+        body: "{ title: string 3-200 (required), body: string 3-20000 (required), category: string (required), priority?: LOW|NORMAL|HIGH, isPublished?: boolean, expiresAt?: YYYY-MM-DD or '' for none, notify?: boolean (re-notify everyone about this edit; default false) }",
         permissions: ["announcement:write"],
         guard: "withAuth",
-        doc: "Edit a noticeboard announcement (text, category, priority, publish/unpublish, expiry). Needs announcement:write. id from GET /api/announcements. Note: This is a FULL replace: always resend title, body and category, plus the current priority, isPublished and expiresAt - omitted ones reset to NORMAL, published, and no expiry.",
+        doc: "Edit a noticeboard announcement (text, category, priority, publish/unpublish, expiry). Needs announcement:write. id from GET /api/announcements. Note: This is a FULL replace: always resend title, body and category, plus the current priority, isPublished and expiresAt - omitted ones reset to NORMAL, published, and no expiry. SIDE EFFECT: publishing a draft notifies every active employee (in-app + push); editing a published one does so only with notify: true.",
         keywords: ["edit announcement", "unpublish notice", "update noticeboard post"],
       },
       DELETE: {
@@ -57,7 +57,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         body: "{ title: string 3-200 (required), body: string 3-20000 (required), category: string (required; e.g. Information, Holiday Notification, Policy Update, Event, Celebration, IT / System), priority?: LOW|NORMAL|HIGH (default NORMAL), isPublished?: boolean (default true; false = draft), expiresAt?: YYYY-MM-DD }",
         permissions: ["announcement:write"],
         guard: "withAuth",
-        doc: "Post a new company announcement on the noticeboard for all employees. Needs announcement:write. Note: Visible to every employee immediately when published. No email or push is sent.",
+        doc: "Post a new company announcement on the noticeboard for all employees. Needs announcement:write. Note: Visible to every employee immediately when published. SIDE EFFECT: a published post sends every active employee but the author an in-app notification and push (no email). Drafts send nothing.",
         keywords: ["post announcement", "publish notice", "company announcement", "noticeboard"],
       },
     },
