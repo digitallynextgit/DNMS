@@ -30,3 +30,12 @@ export function computeAttendanceStatus(
   if (input.workHours < fullDayHours) return $Enums.AttendanceStatus.HALF_DAY
   return $Enums.AttendanceStatus.PRESENT
 }
+
+// "On duty" = out of the office on official work, marked by HR. The day is stored as PRESENT (so
+// payroll, summaries and the dashboard count it as a worked day) with this source tag and a
+// pinned status, so the device sync never turns it into an absence.
+export const ON_DUTY_SOURCE = "on_duty"
+
+export function isOnDuty(log: { source?: string | null } | null | undefined): boolean {
+  return log?.source === ON_DUTY_SOURCE
+}

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-fetch"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { FormDialog } from "@/components/shared/form-dialog"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -16,6 +17,7 @@ import {
 } from "@/features/attendance/hooks/use-attendance"
 import type { AttendanceLog } from "@/features/attendance/hooks/use-attendance"
 import { EmployeeCombobox } from "@/features/employees/components/employee-combobox"
+import { isOnDuty } from "@/features/attendance/attendance"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
@@ -93,6 +95,8 @@ export function ManualAttendanceDialog({
   const [checkIn, setCheckIn] = useState("")
   const [checkOut, setCheckOut] = useState("")
   const [notes, setNotes] = useState("")
+  // Out of the office on official work: saved as a present day; punch times become optional.
+  const [onDuty, setOnDuty] = useState(false)
 
   const createLog = useCreateAttendanceLog()
   const updateLog = useUpdateAttendanceLog()
@@ -113,12 +117,14 @@ export function ManualAttendanceDialog({
       setCheckIn(toLocalTime(editLog.checkIn))
       setCheckOut(toLocalTime(editLog.checkOut))
       setNotes(editLog.notes ?? "")
+      setOnDuty(isOnDuty(editLog))
     } else {
       setEmployeeId("")
       setDate(format(new Date(), "yyyy-MM-dd"))
       setCheckIn("")
       setCheckOut("")
       setNotes("")
+      setOnDuty(false)
     }
   }
 
@@ -141,21 +147,25 @@ export function ManualAttendanceDialog({
     setCheckIn(toLocalTime(dayLog?.checkIn ?? null))
     setCheckOut(toLocalTime(dayLog?.checkOut ?? null))
     setNotes(dayLog?.notes ?? "")
+    setOnDuty(isOnDuty(dayLog))
   }, [dayLog, employeeId, date, isEdit, open])
 
-  const status = previewStatus(checkIn, checkOut)
+  const punchStatus = previewStatus(checkIn, checkOut)
+  // Bad times still block the save, on duty or not.
+  const status = onDuty && punchStatus?.status !== "INVALID" ? { status: "ON_DUTY" } : punchStatus
   const hours = workHoursPreview(checkIn, checkOut)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     try {
-      // No explicit status - the server derives it from the punch times.
+      // No explicit status - the server derives it from the punch times (or marks it on duty).
       const payload: Record<string, unknown> = {
         employeeId,
         date,
         notes: notes || null,
         checkIn: buildDatetime(date, checkIn),
         checkOut: buildDatetime(date, checkOut),
+        onDuty,
       }
 
       if (isEdit && editLog) {
@@ -176,7 +186,12 @@ export function ManualAttendanceDialog({
       title="Correct Punch"
       isEdit={isEdit}
       isPending={isPending}
-      submitDisabled={(!isEdit && !employeeId) || !date || (!checkIn && !checkOut)}
+      submitDisabled={
+        (!isEdit && !employeeId) ||
+        !date ||
+        (!onDuty && !checkIn && !checkOut) ||
+        punchStatus?.status === "INVALID"
+      }
       submitLabel={isEdit ? "Save Changes" : "Apply"}
       onSubmit={handleSubmit}
       contentClassName="sm:max-w-[480px]"
@@ -197,6 +212,17 @@ export function ManualAttendanceDialog({
         <Label required>Date</Label>
         <DateField value={date} onChange={setDate} endMonth={new Date()} modal />
       </div>
+
+      <label className="border-border bg-muted/30 flex cursor-pointer items-start justify-between gap-4 rounded-sm border p-3">
+        <div className="space-y-0.5">
+          <p className="text-sm font-medium">On official duty</p>
+          <p className="text-muted-foreground text-xs">
+            Out of the office for work (client visit, event, shoot). Counts as present; punch times
+            are optional.
+          </p>
+        </div>
+        <Switch checked={onDuty} onCheckedChange={setOnDuty} />
+      </label>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -224,10 +250,10 @@ export function ManualAttendanceDialog({
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="notes">Notes</Label>
+        <Label htmlFor="notes">{onDuty ? "Purpose / where" : "Notes"}</Label>
         <Textarea
           id="notes"
-          placeholder="Optional notes..."
+          placeholder={onDuty ? "e.g. Client meeting at the Gurugram office" : "Optional notes..."}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}

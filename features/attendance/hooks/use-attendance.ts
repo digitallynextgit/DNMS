@@ -24,6 +24,8 @@ export interface AttendanceLog {
   workHours: number | null
   status: string
   isManual: boolean
+  /** "device" | "manual" | "on_duty" (out of office on official work) | null. */
+  source: string | null
   notes: string | null
   createdAt: string
   updatedAt: string
@@ -104,6 +106,7 @@ interface PaginatedResponse<T> {
 
 export type CalendarDayStatus =
   | "PRESENT"
+  | "ON_DUTY"
   | "HALF_DAY"
   | "MISSING_PUNCH"
   | "WEEKEND"
@@ -292,9 +295,10 @@ export interface AttendanceDirectoryRow {
   checkIn: string | null
   checkOut: string | null
   workHours: number | null
-  status: "PRESENT" | "HALF_DAY" | "MISSING_PUNCH" | "ABSENT"
-  /** Range aggregates. */
+  status: "PRESENT" | "ON_DUTY" | "HALF_DAY" | "MISSING_PUNCH" | "ABSENT"
+  /** Range aggregates. presentDays includes on-duty days. */
   presentDays: number
+  onDutyDays: number
   halfDays: number
   missingDays: number
   absentDays: number

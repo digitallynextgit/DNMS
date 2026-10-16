@@ -2,6 +2,7 @@ import "server-only"
 
 import { db } from "@/server/db"
 import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
+import { isOnDuty } from "@/features/attendance/attendance"
 
 /** Public homepage attendance row: display name, check-in time and status only. */
 export interface AttendanceSnapshotRow {
@@ -57,6 +58,7 @@ export async function getPublicAttendanceSnapshot(limit = 7): Promise<Attendance
     where: { date: latest.date, employee: activeEmployee },
     select: {
       status: true,
+      source: true,
       checkIn: true,
       employee: { select: { firstName: true, lastName: true } },
     },
@@ -75,7 +77,7 @@ export async function getPublicAttendanceSnapshot(limit = 7): Promise<Attendance
   const rows: AttendanceSnapshotRow[] = logs.map((log) => ({
     name: displayName(log.employee.firstName, log.employee.lastName),
     time: log.checkIn ? timeFmt.format(log.checkIn) : "-",
-    status: STATUS_LABEL[log.status] ?? log.status,
+    status: isOnDuty(log) ? "On duty" : (STATUS_LABEL[log.status] ?? log.status),
   }))
 
   // Stored `date` is a UTC-midnight calendar date, so format its parts in UTC.

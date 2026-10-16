@@ -374,6 +374,7 @@ export const TONE = {
   orange: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
   red: "bg-red-500/10 text-red-600 dark:text-red-400",
   purple: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+  cyan: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400",
   neutral: "bg-muted text-muted-foreground",
 } as const
 
@@ -436,6 +437,7 @@ export const ATTENDANCE_STATUS_LABELS: Record<string, string> = {
   HOLIDAY: "Holiday",
   WEEKEND: "Weekend",
   MISSING_PUNCH: "Missing punch",
+  ON_DUTY: "On duty",
 }
 
 export const ACTIVE_STATUS_LABELS: Record<string, string> = {
@@ -452,6 +454,7 @@ export const ATTENDANCE_STATUS_COLORS: Record<string, string> = {
   HOLIDAY: TONE.purple,
   WEEKEND: TONE.neutral,
   MISSING_PUNCH: TONE.purple,
+  ON_DUTY: TONE.cyan,
 }
 
 export const ACTIVE_STATUS_COLORS: Record<string, string> = {

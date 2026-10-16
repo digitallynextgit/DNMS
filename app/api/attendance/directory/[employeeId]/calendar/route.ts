@@ -3,6 +3,7 @@ import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
 import { workingDaysBetween } from "@/lib/dates"
+import { isOnDuty } from "@/features/attendance/attendance"
 import type { Session } from "next-auth"
 
 const SINGLE_PUNCH_SPLIT_IST_HOUR = 14
@@ -37,7 +38,15 @@ export const GET = withAuth(
       const [logs, fixedHolidays, floatingSelections, leaves, wfh] = await Promise.all([
         db.attendanceLog.findMany({
           where: { employeeId, date: { gte: monthStart, lte: monthEnd } },
-          select: { date: true, status: true, checkIn: true, checkOut: true, workHours: true },
+          select: {
+            date: true,
+            status: true,
+            source: true,
+            notes: true,
+            checkIn: true,
+            checkOut: true,
+            workHours: true,
+          },
         }),
         db.holiday.findMany({
           where: { date: { gte: monthStart, lte: monthEnd }, isOptional: false },
@@ -129,6 +138,7 @@ export const GET = withAuth(
 
         let status:
           | "PRESENT"
+          | "ON_DUTY"
           | "HALF_DAY"
           | "MISSING_PUNCH"
           | "WEEKEND"
@@ -142,7 +152,14 @@ export const GET = withAuth(
         let checkOut: string | null = null
         let workHours: number | null = null
 
-        if (hasIn && hasOut) {
+        if (isOnDuty(log)) {
+          // Out of office on official work (HR-marked): a worked day, punches or not.
+          status = "ON_DUTY"
+          label = log!.notes?.trim() || "On official duty"
+          checkIn = log!.checkIn?.toISOString() ?? null
+          checkOut = log!.checkOut?.toISOString() ?? null
+          workHours = log!.workHours ?? null
+        } else if (hasIn && hasOut) {
           status = isHalf ? "HALF_DAY" : "PRESENT"
           checkIn = log!.checkIn!.toISOString()
           checkOut = log!.checkOut!.toISOString()

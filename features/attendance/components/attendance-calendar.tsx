@@ -18,6 +18,7 @@ import type { CalendarDay, CalendarDayStatus } from "@/features/attendance/hooks
 // table doesn't.
 const STATUS_LABEL: Record<CalendarDayStatus, string> = {
   PRESENT: "Present",
+  ON_DUTY: "On duty",
   HALF_DAY: "Half day",
   MISSING_PUNCH: "Missing punch",
   LEAVE: "Leave",
@@ -30,6 +31,7 @@ const STATUS_LABEL: Record<CalendarDayStatus, string> = {
 
 const STATUS_TONE: Record<CalendarDayStatus, string> = {
   PRESENT: "bg-green-500/10 text-green-600 dark:text-green-400",
+  ON_DUTY: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400",
   HALF_DAY: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
   MISSING_PUNCH: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
   LEAVE: "bg-red-500/10 text-red-600 dark:text-red-400",
@@ -42,12 +44,14 @@ const STATUS_TONE: Record<CalendarDayStatus, string> = {
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
-// Status → cell fill. Office colour key: present=green, half=orange, leave=red,
+// Status → cell fill. Office colour key: present=green, on duty=cyan, half=orange, leave=red,
 // WFH=yellow, single-punch=purple, holiday=blue, weekend=grey.
 function cellStyle(status: CalendarDayStatus): string {
   switch (status) {
     case "PRESENT":
       return "bg-green-100 text-green-900 ring-1 ring-green-200 dark:bg-green-950/40 dark:text-green-200 dark:ring-green-900/50"
+    case "ON_DUTY":
+      return "bg-cyan-100 text-cyan-900 ring-1 ring-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-200 dark:ring-cyan-900/50"
     case "HALF_DAY":
       return "bg-orange-100 text-orange-900 ring-1 ring-orange-200 dark:bg-orange-950/40 dark:text-orange-200 dark:ring-orange-900/50"
     case "MISSING_PUNCH":
@@ -78,6 +82,7 @@ function fmtTime(t: string | null): string {
 
 const LEGEND: CalendarLegendItem[] = [
   { swatch: "bg-green-100 dark:bg-green-950/40", label: "Present" },
+  { swatch: "bg-cyan-100 dark:bg-cyan-950/40", label: "On duty" },
   { swatch: "bg-orange-100 dark:bg-orange-950/40", label: "Half day" },
   { swatch: "bg-purple-100 dark:bg-purple-950/40", label: "Missing punch" },
   { swatch: "bg-red-100 dark:bg-red-950/40", label: "Leave" },
@@ -87,11 +92,19 @@ const LEGEND: CalendarLegendItem[] = [
 ]
 
 function DayCell({ d, onSelect }: { d: CalendarDay; onSelect: (d: CalendarDay) => void }) {
+  // An on-duty day shows its punches when it has them, else its purpose.
+  const onDutyWithPunch = d.status === "ON_DUTY" && !!(d.checkIn || d.checkOut)
   const showTimes =
-    d.status === "PRESENT" || d.status === "HALF_DAY" || d.status === "MISSING_PUNCH"
-  const showHours = (d.status === "PRESENT" || d.status === "HALF_DAY") && d.workHours != null
+    d.status === "PRESENT" ||
+    d.status === "HALF_DAY" ||
+    d.status === "MISSING_PUNCH" ||
+    onDutyWithPunch
+  const showHours =
+    (d.status === "PRESENT" || d.status === "HALF_DAY" || d.status === "ON_DUTY") &&
+    d.workHours != null
   const showLabel =
-    d.label && (d.status === "HOLIDAY" || d.status === "LEAVE" || d.status === "WFH")
+    d.label &&
+    (d.status === "HOLIDAY" || d.status === "LEAVE" || d.status === "WFH" || d.status === "ON_DUTY")
   return (
     // Phone cells (~33px) only fit the day number + status colour; punch detail returns at sm
     // (and is in the title tooltip).
@@ -114,6 +127,9 @@ function DayCell({ d, onSelect }: { d: CalendarDay; onSelect: (d: CalendarDay) =
         )}
         {d.status === "MISSING_PUNCH" && (
           <span className="hidden text-[9px] font-semibold sm:inline">Missing punch</span>
+        )}
+        {d.status === "ON_DUTY" && !showHours && (
+          <span className="hidden text-[9px] font-semibold sm:inline">On duty</span>
         )}
       </div>
       {showTimes ? (
@@ -171,7 +187,8 @@ function DayDetailDialog({ day, onClose }: { day: CalendarDay | null; onClose: (
             {/* Punch detail only for days that had (or should have had) punches. */}
             {(day.status === "PRESENT" ||
               day.status === "HALF_DAY" ||
-              day.status === "MISSING_PUNCH") && (
+              day.status === "MISSING_PUNCH" ||
+              (day.status === "ON_DUTY" && !!(day.checkIn || day.checkOut))) && (
               <dl className="divide-border divide-y">
                 {rows.map(([label, value]) => (
                   <div key={label} className="flex items-center justify-between gap-3 py-2">
@@ -180,6 +197,12 @@ function DayDetailDialog({ day, onClose }: { day: CalendarDay | null; onClose: (
                   </div>
                 ))}
               </dl>
+            )}
+
+            {day.status === "ON_DUTY" && (
+              <p className="text-muted-foreground text-xs">
+                Out of the office on official work, marked by HR. Counts as a present day.
+              </p>
             )}
 
             {day.status === "MISSING_PUNCH" && (

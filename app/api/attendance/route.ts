@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
-import { computeAttendanceStatus } from "@/features/attendance/attendance"
+import { computeAttendanceStatus, ON_DUTY_SOURCE } from "@/features/attendance/attendance"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
@@ -67,7 +67,10 @@ export const POST = withAuth(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const body = await req.json()
-      const { employeeId, date, checkIn, checkOut, status, notes } = body
+      const { employeeId, date, checkIn, checkOut, notes } = body
+      // On duty (out of office on official work) is a worked day: PRESENT, pinned, tagged.
+      const onDuty = body.onDuty === true
+      const status = onDuty ? "PRESENT" : body.status
 
       if (!employeeId || !date) {
         return NextResponse.json({ error: "employeeId and date are required" }, { status: 400 })
@@ -88,6 +91,14 @@ export const POST = withAuth(
         if (checkOutMs > checkInMs) {
           workHours = Math.round(((checkOutMs - checkInMs) / (1000 * 60 * 60)) * 100) / 100
         }
+      }
+
+      // Unticking "on duty" turns the day back into an ordinary punch-derived one.
+      if (body.onDuty === false) {
+        await db.attendanceLog.updateMany({
+          where: { employeeId, date: dateObj, source: ON_DUTY_SOURCE },
+          data: { source: "manual" },
+        })
       }
 
       // No explicit status: derive it from hours worked (no late-mark yet).
@@ -114,6 +125,7 @@ export const POST = withAuth(
           checkInManual: !!checkIn,
           checkOutManual: !!checkOut,
           statusManual: status !== undefined,
+          ...(onDuty ? { source: ON_DUTY_SOURCE } : {}),
           notes: notes ?? null,
         },
         update: {
@@ -125,6 +137,7 @@ export const POST = withAuth(
           checkInManual: !!checkIn,
           checkOutManual: !!checkOut,
           statusManual: status !== undefined,
+          ...(onDuty ? { source: ON_DUTY_SOURCE } : {}),
           notes: notes ?? null,
         },
         include: {

@@ -45,7 +45,8 @@ export default function MyAttendancePage() {
     } else setMonth((m) => m + 1)
   }
 
-  const presentDays = days.filter((d) => d.status === "PRESENT").length
+  // On-duty days (out on official work) are worked days.
+  const presentDays = days.filter((d) => d.status === "PRESENT" || d.status === "ON_DUTY").length
   const missingPunchDays = days.filter((d) => d.status === "MISSING_PUNCH").length
   const halfDays = days.filter((d) => d.status === "HALF_DAY").length
   const worked = days.filter((d) => d.workHours != null && d.workHours > 0)

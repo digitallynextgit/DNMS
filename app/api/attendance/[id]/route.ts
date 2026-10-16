@@ -3,7 +3,7 @@ import { db } from "@/server/db"
 import { withAuth, withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
-import { computeAttendanceStatus } from "@/features/attendance/attendance"
+import { computeAttendanceStatus, ON_DUTY_SOURCE } from "@/features/attendance/attendance"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
 
@@ -124,6 +124,28 @@ export const PATCH = withAuth(
       if (pinsAnything) {
         updateData.isManual = true
         updateData.source = "manual"
+      }
+
+      // On duty: a worked day (PRESENT), status pinned, tagged so it reads "On duty".
+      if (body.onDuty === true) {
+        updateData.status = "PRESENT"
+        updateData.statusManual = true
+        updateData.isManual = true
+        updateData.source = ON_DUTY_SOURCE
+      } else if (body.onDuty === false && existing.source === ON_DUTY_SOURCE) {
+        // Back to an ordinary day: the status follows the punches again unless HR pins one.
+        if (body.status === undefined) {
+          updateData.status = computeAttendanceStatus({
+            checkIn: resolvedCheckIn,
+            workHours: resolvedWorkHours,
+          })
+          updateData.statusManual = false
+        }
+        updateData.source = "manual"
+      } else if (existing.source === ON_DUTY_SOURCE && body.status === undefined) {
+        // Editing times on an on-duty day keeps it on duty.
+        updateData.status = "PRESENT"
+        updateData.source = ON_DUTY_SOURCE
       }
 
       const updated = await db.attendanceLog.update({

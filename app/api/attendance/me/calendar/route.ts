@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { workingDaysBetween } from "@/lib/dates"
+import { isOnDuty } from "@/features/attendance/attendance"
 import type { Session } from "next-auth"
 
 // One status per day from logs, holidays, leave, WFH and weekends. Deliberately no "absent" state.
@@ -39,7 +40,15 @@ export const GET = withSession(
       const [logs, fixedHolidays, floatingSelections, leaves, wfh] = await Promise.all([
         db.attendanceLog.findMany({
           where: { employeeId, date: { gte: monthStart, lte: monthEnd } },
-          select: { date: true, status: true, checkIn: true, checkOut: true, workHours: true },
+          select: {
+            date: true,
+            status: true,
+            source: true,
+            notes: true,
+            checkIn: true,
+            checkOut: true,
+            workHours: true,
+          },
         }),
         // Floating holidays count only once the employee availed them and HR approved.
         db.holiday.findMany({
@@ -133,6 +142,7 @@ export const GET = withSession(
 
         let status:
           | "PRESENT"
+          | "ON_DUTY"
           | "HALF_DAY"
           | "MISSING_PUNCH"
           | "WEEKEND"
@@ -146,7 +156,14 @@ export const GET = withSession(
         let checkOut: string | null = null
         let workHours: number | null = null
 
-        if (hasIn && hasOut) {
+        if (isOnDuty(log)) {
+          // Out of office on official work (HR-marked): a worked day, punches or not.
+          status = "ON_DUTY"
+          label = log!.notes?.trim() || "On official duty"
+          checkIn = log!.checkIn?.toISOString() ?? null
+          checkOut = log!.checkOut?.toISOString() ?? null
+          workHours = log!.workHours ?? null
+        } else if (hasIn && hasOut) {
           status = isHalf ? "HALF_DAY" : "PRESENT"
           checkIn = log!.checkIn!.toISOString()
           checkOut = log!.checkOut!.toISOString()

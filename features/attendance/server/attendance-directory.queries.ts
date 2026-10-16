@@ -3,6 +3,7 @@ import "server-only"
 import { db } from "@/server/db"
 import { VISIBLE_EMPLOYEE_FILTER, EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { ok, fail, type ActionResult } from "@/server/action-result"
+import { isOnDuty } from "@/features/attendance/attendance"
 
 // Per-employee attendance roster for a date range (default today): a single day carries punches,
 // a range carries day counts + average hours. Shared by the API route and the page prefetch so
@@ -11,10 +12,13 @@ import { ok, fail, type ActionResult } from "@/server/action-result"
 type LogRow = {
   employeeId: string
   status: string
+  source: string | null
   checkIn: Date | null
   checkOut: Date | null
   workHours: number | null
 }
+
+type DayStatus = "PRESENT" | "ON_DUTY" | "HALF_DAY" | "MISSING_PUNCH" | "ABSENT"
 
 export interface AttendanceDirectoryRow {
   employeeId: string
@@ -26,8 +30,10 @@ export interface AttendanceDirectoryRow {
   checkIn: string | null
   checkOut: string | null
   workHours: number | null
-  status: "PRESENT" | "HALF_DAY" | "MISSING_PUNCH" | "ABSENT"
+  status: DayStatus
+  /** Includes on-duty days (they are worked days). */
   presentDays: number
+  onDutyDays: number
   halfDays: number
   missingDays: number
   absentDays: number
@@ -51,9 +57,10 @@ export function attendanceDirectoryToday(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-// Did the employee actually attend? present = both punches, half = half day,
-// missing = a lone punch / incomplete record.
-function classify(l: LogRow): "present" | "half" | "missing" {
+// Did the employee actually attend? duty = out on official work (HR-marked, counts as present),
+// present = both punches, half = half day, missing = a lone punch / incomplete record.
+function classify(l: LogRow): "duty" | "present" | "half" | "missing" {
+  if (isOnDuty(l)) return "duty"
   if (l.status === "HALF_DAY") return "half"
   if (l.checkIn && l.checkOut) return "present"
   return "missing"
@@ -90,6 +97,7 @@ export async function getAttendanceDirectory(
       select: {
         employeeId: true,
         status: true,
+        source: true,
         checkIn: true,
         checkOut: true,
         workHours: true,
@@ -118,6 +126,7 @@ export async function getAttendanceDirectory(
   const rows = employees.map((e) => {
     const empLogs = logsByEmp.get(e.id) ?? []
     let presentDays = 0
+    let onDutyDays = 0
     let halfDays = 0
     let missingDays = 0
     let totalHours = 0
@@ -125,7 +134,10 @@ export async function getAttendanceDirectory(
     for (const l of empLogs) {
       const c = classify(l)
       if (c === "present") presentDays++
-      else if (c === "half") halfDays++
+      else if (c === "duty") {
+        presentDays++
+        onDutyDays++
+      } else if (c === "half") halfDays++
       else missingDays++
       if (l.workHours != null) {
         totalHours += l.workHours
@@ -138,18 +150,25 @@ export async function getAttendanceDirectory(
     let checkIn: string | null = null
     let checkOut: string | null = null
     let workHours: number | null = null
-    let status: "PRESENT" | "HALF_DAY" | "MISSING_PUNCH" | "ABSENT" = "ABSENT"
+    let status: DayStatus = "ABSENT"
     if (isSingleDay && empLogs[0]) {
       const l = empLogs[0]
       checkIn = l.checkIn ? l.checkIn.toISOString() : null
       checkOut = l.checkOut ? l.checkOut.toISOString() : null
       workHours = l.workHours
       const c = classify(l)
-      status = c === "present" ? "PRESENT" : c === "half" ? "HALF_DAY" : "MISSING_PUNCH"
+      status =
+        c === "duty"
+          ? "ON_DUTY"
+          : c === "present"
+            ? "PRESENT"
+            : c === "half"
+              ? "HALF_DAY"
+              : "MISSING_PUNCH"
     }
 
     const came = isSingleDay
-      ? status === "PRESENT" || status === "MISSING_PUNCH"
+      ? status === "PRESENT" || status === "ON_DUTY" || status === "MISSING_PUNCH"
       : presentDays > 0 || missingDays > 0
     const onHalf = isSingleDay ? status === "HALF_DAY" : halfDays > 0
     if (came) present++
@@ -168,6 +187,7 @@ export async function getAttendanceDirectory(
       workHours,
       status,
       presentDays,
+      onDutyDays,
       halfDays,
       missingDays,
       absentDays,
