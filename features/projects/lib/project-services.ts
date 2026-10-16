@@ -7,7 +7,7 @@ export const PROJECT_SERVICES = [
     code: "SMO",
     label: "SMO",
     name: "Social Media",
-    calendar: { name: "Social Media Calendar", tabs: ["Instagram", "LinkedIn", "YouTube", "X"] },
+    calendar: { name: "Social Media Calendar", tabs: ["Meta", "LinkedIn", "YouTube", "X"] },
   },
   {
     code: "SEO",

@@ -143,8 +143,8 @@ export const projectContentCalendarGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Already have this tab's content in Excel or Google Sheets - say the Instagram plan? Open that tab and click Upload to this tab (1). Choose the file (or paste a Google Sheet link and click Fetch), pick which of its tabs to use - a tab named like this one is picked for you - and match its columns to this tab's. The rows are added below anything already in the tab.",
-            hi: "क्या इस टैब का कंटेंट पहले से Excel या Google Sheets में है - जैसे Instagram का प्लान? वो टैब खोलें और Upload to this tab (1) पर क्लिक करें। फाइल चुनें (या Google Sheet का लिंक पेस्ट करके Fetch पर क्लिक करें), उसका कौन-सा टैब लेना है चुनें - इस टैब जैसे नाम वाला टैब अपने आप चुना जाता है - और उसके कॉलम इस टैब के कॉलम से मिलाएँ। रो टैब में पहले से मौजूद रो के नीचे जुड़ जाते हैं।",
+            en: "Already have this tab's content in Excel or Google Sheets - say the Meta plan? Open that tab and click Upload to this tab (1). Choose the file (or paste a Google Sheet link and click Fetch), pick which of its tabs to use - a tab named like this one is picked for you - and match its columns to this tab's. The rows are added below anything already in the tab.",
+            hi: "क्या इस टैब का कंटेंट पहले से Excel या Google Sheets में है - जैसे Meta का प्लान? वो टैब खोलें और Upload to this tab (1) पर क्लिक करें। फाइल चुनें (या Google Sheet का लिंक पेस्ट करके Fetch पर क्लिक करें), उसका कौन-सा टैब लेना है चुनें - इस टैब जैसे नाम वाला टैब अपने आप चुना जाता है - और उसके कॉलम इस टैब के कॉलम से मिलाएँ। रो टैब में पहले से मौजूद रो के नीचे जुड़ जाते हैं।",
           },
           shot: {
             id: "project-content-calendar-upload-tab",

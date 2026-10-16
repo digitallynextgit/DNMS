@@ -29,7 +29,7 @@ describe("project services", () => {
     ])
     const calendars = PROJECT_SERVICES.map((s) => s.calendar.name)
     expect(new Set(calendars).size).toBe(calendars.length)
-    expect(serviceInfo("SMO")?.calendar.tabs).toEqual(["Instagram", "LinkedIn", "YouTube", "X"])
+    expect(serviceInfo("SMO")?.calendar.tabs).toEqual(["Meta", "LinkedIn", "YouTube", "X"])
   })
 
   it("keeps known codes once, in catalogue order", () => {

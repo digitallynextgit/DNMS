@@ -362,7 +362,7 @@ function Body({
     }
     setSourceName(name)
     setTabs(nextTabs)
-    // Into this tab: start on the file tab named like it ("Instagram" finds "Instagram - Oct").
+    // Into this tab: start on the file tab named like it ("Meta" finds "Meta - Oct").
     const named =
       intent === "this-tab" && sheet
         ? nextTabs.findIndex((t) => normalise(t.name).includes(normalise(sheet.name)))
