@@ -21,9 +21,11 @@ import {
   EyeOff,
   Download,
   Loader2,
+  Plug,
 } from "lucide-react"
 import { toast } from "sonner"
 import { SheetImportDialog } from "./sheet-import-dialog"
+import { SheetApiDialog } from "./sheet-api-dialog"
 import { downloadCsv, toCsv } from "@/lib/export-csv"
 import { exportBookToXlsx, exportToXlsx } from "@/lib/export-xlsx"
 import { UTF8_BOM, exportFileName, sheetTable } from "../lib/sheet-export"
@@ -741,6 +743,10 @@ export function ProjectSheetSection({
     null,
   )
   const [historyOpen, setHistoryOpen] = React.useState(false)
+  const [apiOpen, setApiOpen] = React.useState(false)
+  // A tab's API secret: the project's managers and this calendar's owners (same rule as the server).
+  const canApi =
+    canManage || (!!me && (workbook?.assignedTo?.id === me || workbook?.secondaryOwner?.id === me))
   const [importOpen, setImportOpen] = React.useState(false)
   const [importIntent, setImportIntent] = React.useState<
     "new-tab" | "new-sheet" | "this-tab" | undefined
@@ -1479,6 +1485,11 @@ export function ProjectSheetSection({
               <DropdownMenuItem className="gap-2" onSelect={() => setHistoryOpen(true)}>
                 <History className="h-3.5 w-3.5" /> History
               </DropdownMenuItem>
+              {canApi && active && (
+                <DropdownMenuItem className="gap-2" onSelect={() => setApiOpen(true)}>
+                  <Plug className="h-3.5 w-3.5" /> API access
+                </DropdownMenuItem>
+              )}
               {canManage && active && (sheets?.length ?? 0) > 1 && (
                 <>
                   <DropdownMenuSeparator />
@@ -1936,6 +1947,15 @@ export function ProjectSheetSection({
         onOpenChange={setHistoryOpen}
         projectId={projectId}
         sheet={active}
+      />
+
+      <SheetApiDialog
+        open={apiOpen}
+        onOpenChange={setApiOpen}
+        projectId={projectId}
+        sheetId={active?.id ?? null}
+        tabName={active?.name ?? ""}
+        columns={active?.columns.map((c) => c.name) ?? []}
       />
 
       <ConfirmDialog

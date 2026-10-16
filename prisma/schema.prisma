@@ -1656,6 +1656,7 @@ model Project {
   contentCalendar         ContentCalendarEntry[]
   sheets                  ProjectSheet[]
   workbooks               ProjectWorkbook[]
+  sheetIntakes            ProjectSheetIntake[]
   integration             ProjectIntegration?
   metaCampaigns           MetaCampaign[]
   seoProperties           SeoProperty[]
@@ -1941,6 +1942,52 @@ model ProjectWorkbook {
   @@index([projectId, service])
   @@index([tenantId])
   @@map("project_workbooks")
+}
+
+/// An API for one calendar tab: an outside system (e.g. a website form) POSTs rows to it with its
+/// secret. Keyed by the calendar's NAME and the tab's NAME, not their ids, so one link keeps working
+/// as the months roll over: each row lands in the edition of its own month (started if missing).
+model ProjectSheetIntake {
+  tenantId     String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id           String    @id @default(uuid()) @map("id")
+  projectId    String    @map("project_id")
+  workbookName String    @map("workbook_name")
+  tabName      String    @map("tab_name")
+  /// SHA-256 of the secret, checked on every request.
+  secretHash   String    @map("secret_hash")
+  /// The secret itself, encrypted, so the calendar's managers can copy it again from the tab.
+  secretEnc    String    @map("secret_enc")
+  createdById  String?   @map("created_by_id")
+  rowsReceived Int       @default(0) @map("rows_received")
+  lastUsedAt   DateTime? @map("last_used_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  project     Project                        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  submissions ProjectSheetIntakeSubmission[]
+
+  @@unique([projectId, workbookName, tabName])
+  @@index([tenantId])
+  @@map("project_sheet_intakes")
+}
+
+/// One accepted row with the sender's submissionId, so a retried send doesn't add it twice.
+model ProjectSheetIntakeSubmission {
+  tenantId   String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id         String   @id @default(uuid()) @map("id")
+  intakeId   String   @map("intake_id")
+  externalId String   @map("external_id")
+  /// Where the row went; null while it is being written.
+  sheetId    String?  @map("sheet_id")
+  rowId      String?  @map("row_id")
+  month      String?  @map("month")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  intake ProjectSheetIntake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+
+  @@unique([intakeId, externalId])
+  @@index([tenantId])
+  @@map("project_sheet_intake_submissions")
 }
 
 /// Where a team's month stands (same words as tasks and deliverables).

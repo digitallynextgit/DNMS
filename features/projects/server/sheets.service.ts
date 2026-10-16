@@ -605,6 +605,11 @@ export async function renameWorkbook(workbookId: string, name: string): Promise<
     where: { projectId: current.projectId, name: current.name },
     data: { name: title },
   })
+  // Tab APIs find their calendar by name, so they follow the rename.
+  await db.projectSheetIntake.updateMany({
+    where: { projectId: current.projectId, workbookName: current.name },
+    data: { workbookName: title },
+  })
 
   const full = await db.projectWorkbook.findUniqueOrThrow({
     where: { id: workbookId },
@@ -758,10 +763,28 @@ export async function renameSheet(
 ): Promise<ProjectSheet> {
   const current = await db.projectSheet.findUniqueOrThrow({
     where: { id: sheetId },
-    select: { name: true, description: true },
+    select: {
+      name: true,
+      description: true,
+      projectId: true,
+      workbook: { select: { name: true } },
+    },
   })
   const title = input.name?.trim()
   if (input.name !== undefined && !title) throw new Error("A sheet needs a name")
+  if (title && title !== current.name) {
+    // The tab's API finds it by name, so it follows the rename - unless that name has its own.
+    const where = { projectId: current.projectId, workbookName: current.workbook.name }
+    const clash = await db.projectSheetIntake.findFirst({
+      where: { ...where, tabName: title },
+      select: { id: true },
+    })
+    if (!clash)
+      await db.projectSheetIntake.updateMany({
+        where: { ...where, tabName: current.name },
+        data: { tabName: title },
+      })
+  }
 
   const sheet = await db.projectSheet.update({
     where: { id: sheetId },
@@ -1069,6 +1092,87 @@ export async function importRows(
   for (const r of created)
     await record(sheetId, actorId, "ROW_ADDED", { rowId: r.id, label: "Imported" })
   return { imported: data.length, firstPosition }
+}
+
+/** A tab's untouched default column: a bare letter (A, B, ... AA) that no row has a value in. */
+const DEFAULT_COLUMN_NAME = /^[A-Z]{1,2}$/
+
+const columnKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ")
+
+// One append at a time per tab (in this process), so two rows arriving together get distinct
+// positions - positions are not unique in the database.
+const appendQueues = new Map<string, Promise<unknown>>()
+
+/**
+ * Append one row given values keyed by column NAME (the tab API). A name with no column takes the
+ * first unused default letter column (renamed to it), else a new text column at the end - so a
+ * fresh tab ends up with the sender's field names as its headers.
+ */
+export async function appendRowByColumnName(
+  sheetId: string,
+  values: [name: string, value: unknown][],
+  label: string,
+): Promise<{ rowId: string; position: number }> {
+  const run = async () => {
+    const [columns, rows] = await Promise.all([
+      db.projectSheetColumn.findMany({ where: { sheetId }, orderBy: { position: "asc" } }),
+      db.projectSheetRow.findMany({ where: { sheetId }, select: { position: true, cells: true } }),
+    ])
+    const used = new Set(rows.flatMap((r) => Object.keys(asCells(r.cells))))
+    const byName = new Map(columns.map((c) => [columnKey(c.name), c]))
+    const free = columns.filter((c) => DEFAULT_COLUMN_NAME.test(c.name) && !used.has(c.id))
+    let nextPosition = (columns.at(-1)?.position ?? -1) + 1
+
+    const cells: Record<string, CellValue> = {}
+    for (const [name, raw] of values) {
+      const title = name.trim().slice(0, 100)
+      if (!title) continue
+      let column = byName.get(columnKey(title))
+      if (!column) {
+        const claim = free.shift()
+        if (claim) {
+          column = await db.projectSheetColumn.update({
+            where: { id: claim.id },
+            data: { name: title },
+          })
+          await record(sheetId, null, "COLUMN_UPDATED", {
+            columnId: column.id,
+            label: title,
+            before: { name: claim.name },
+            after: { name: title },
+          })
+        } else {
+          column = await db.projectSheetColumn.create({
+            data: { sheetId, name: title, type: "TEXT", position: nextPosition++ },
+          })
+          await record(sheetId, null, "COLUMN_ADDED", {
+            columnId: column.id,
+            label: title,
+            after: { name: title, type: "TEXT" },
+          })
+        }
+        byName.set(columnKey(title), column)
+      }
+      const value = normalizeCell(column.type as SheetColumnType, raw)
+      if (value !== null) cells[column.id] = value
+    }
+
+    const position = rows.reduce((max, r) => Math.max(max, r.position), -1) + 1
+    const row = await db.projectSheetRow.create({
+      data: { sheetId, position, cells: cells as Prisma.InputJsonValue },
+    })
+    await record(sheetId, null, "ROW_ADDED", { rowId: row.id, label })
+    return { rowId: row.id, position }
+  }
+
+  const previous = appendQueues.get(sheetId) ?? Promise.resolve()
+  const next = previous.catch(() => undefined).then(run)
+  appendQueues.set(sheetId, next)
+  try {
+    return await next
+  } finally {
+    if (appendQueues.get(sheetId) === next) appendQueues.delete(sheetId)
+  }
 }
 
 /** Manager-only. The row's values go into the history before it goes. */

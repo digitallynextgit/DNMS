@@ -53,6 +53,40 @@ export function useSheetHistory(projectId: string, sheetId: string | null) {
   })
 }
 
+/** A calendar tab's API link and secret (null until created). */
+export interface SheetIntake {
+  id: string
+  url: string
+  secret: string
+  workbookName: string
+  tabName: string
+  rowsReceived: number
+  lastUsedAt: string | null
+}
+
+export function useSheetIntake(projectId: string, sheetId: string | null) {
+  return useQuery({
+    queryKey: ["project-sheet-intake", projectId, sheetId],
+    queryFn: () =>
+      apiFetch<{ data: SheetIntake | null }>(`/api/projects/${projectId}/sheets/${sheetId}/api`),
+    enabled: Boolean(projectId && sheetId),
+    select: (r) => r.data,
+  })
+}
+
+/** Create the tab's API, or replace its secret. */
+export function useIssueSheetIntake(projectId: string, sheetId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ data: SheetIntake }>(`/api/projects/${projectId}/sheets/${sheetId}/api`, {
+        method: "POST",
+      }),
+    onSuccess: (r) => qc.setQueryData(["project-sheet-intake", projectId, sheetId], r),
+    onError: (e: Error) => toast.error(e.message || "Could not create the API"),
+  })
+}
+
 const json = { "Content-Type": "application/json" }
 
 export function useSheetMutations(projectId: string) {

@@ -14,6 +14,7 @@ export const EXCLUDED_API_PATHS: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/api\/mobile(\/|$)/, "the mobile app API"],
   [/^\/api\/password(\/|$)/, "changing or resetting passwords"],
   [/^\/api\/attendance\/hook(\/|$)/, "the biometric terminal push hook"],
+  [/^\/api\/projects\/[^/]+\/sheets\/[^/]+\/api$/, "a calendar tab's API secret"],
   [/^\/api\/ai(\/|$)/, "the in-app assistant"],
   [/\/stream$/, "live event streams"],
   [/^\/api\/notifications\/push(\/|$)/, "browser push subscriptions"],
