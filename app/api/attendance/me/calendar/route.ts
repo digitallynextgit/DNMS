@@ -159,7 +159,7 @@ export const GET = withSession(
         if (isOnDuty(log)) {
           // Out of office on official work (HR-marked): a worked day, punches or not.
           status = "ON_DUTY"
-          label = log!.notes?.trim() || "On official duty"
+          label = log!.notes?.trim() || "Out of office"
           checkIn = log!.checkIn?.toISOString() ?? null
           checkOut = log!.checkOut?.toISOString() ?? null
           workHours = log!.workHours ?? null

@@ -274,7 +274,7 @@ export const TIME_LEAVE: DescriptionMap = {
   "PATCH /api/attendance/[id]": {
     summary:
       "Correct one attendance log (regularise a missed punch or wrong status). Only the fields sent change and they are pinned so the device sync will not overwrite them. Needs attendance:write. id from GET /api/attendance.",
-    body: "{ checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30 (null clears), checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: stored as PRESENT, shown as 'On duty'; false = back to an ordinary day), notes?: string (for on duty: the purpose / where) }",
+    body: "{ checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30 (null clears), checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: stored as PRESENT, shown as 'Out of office'; false = back to an ordinary day), notes?: string (for on duty: the purpose / where) }",
     keywords: [
       "regularize attendance",
       "fix missing punch",
@@ -330,13 +330,14 @@ export const TIME_LEAVE: DescriptionMap = {
   "POST /api/attendance": {
     summary:
       "Add or overwrite an employee's attendance for one day by hand (manual entry). Upserts on employee + date. Needs attendance:write. For changing one field of an existing day use PATCH /api/attendance/[id].",
-    body: "{ employeeId (required), date: YYYY-MM-DD (required), checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30, checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: a present day shown as 'On duty', times optional), notes?: string (for on duty: the purpose / where) }",
+    body: "{ employeeId (required), date: YYYY-MM-DD (required), checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30, checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: a present day shown as 'Out of office', times optional), notes?: string (for on duty: the purpose / where) }",
     keywords: [
       "add attendance",
       "manual attendance",
       "mark attendance",
       "mark present",
       "enter punch",
+      "out of office",
       "on duty",
       "official duty",
       "out of office for work",

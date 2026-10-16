@@ -18,7 +18,7 @@ import type { CalendarDay, CalendarDayStatus } from "@/features/attendance/hooks
 // table doesn't.
 const STATUS_LABEL: Record<CalendarDayStatus, string> = {
   PRESENT: "Present",
-  ON_DUTY: "On duty",
+  ON_DUTY: "Out of office",
   HALF_DAY: "Half day",
   MISSING_PUNCH: "Missing punch",
   LEAVE: "Leave",
@@ -44,7 +44,7 @@ const STATUS_TONE: Record<CalendarDayStatus, string> = {
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
-// Status → cell fill. Office colour key: present=green, on duty=cyan, half=orange, leave=red,
+// Status → cell fill. Office colour key: present=green, out of office=cyan, half=orange, leave=red,
 // WFH=yellow, single-punch=purple, holiday=blue, weekend=grey.
 function cellStyle(status: CalendarDayStatus): string {
   switch (status) {
@@ -82,7 +82,7 @@ function fmtTime(t: string | null): string {
 
 const LEGEND: CalendarLegendItem[] = [
   { swatch: "bg-green-100 dark:bg-green-950/40", label: "Present" },
-  { swatch: "bg-cyan-100 dark:bg-cyan-950/40", label: "On duty" },
+  { swatch: "bg-cyan-100 dark:bg-cyan-950/40", label: "Out of office" },
   { swatch: "bg-orange-100 dark:bg-orange-950/40", label: "Half day" },
   { swatch: "bg-purple-100 dark:bg-purple-950/40", label: "Missing punch" },
   { swatch: "bg-red-100 dark:bg-red-950/40", label: "Leave" },
@@ -129,7 +129,7 @@ function DayCell({ d, onSelect }: { d: CalendarDay; onSelect: (d: CalendarDay) =
           <span className="hidden text-[9px] font-semibold sm:inline">Missing punch</span>
         )}
         {d.status === "ON_DUTY" && !showHours && (
-          <span className="hidden text-[9px] font-semibold sm:inline">On duty</span>
+          <span className="hidden text-[9px] font-semibold sm:inline">Out of office</span>
         )}
       </div>
       {showTimes ? (

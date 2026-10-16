@@ -215,7 +215,7 @@ export function ManualAttendanceDialog({
 
       <label className="border-border bg-muted/30 flex cursor-pointer items-start justify-between gap-4 rounded-sm border p-3">
         <div className="space-y-0.5">
-          <p className="text-sm font-medium">On official duty</p>
+          <p className="text-sm font-medium">Out of office</p>
           <p className="text-muted-foreground text-xs">
             Out of the office for work (client visit, event, shoot). Counts as present; punch times
             are optional.

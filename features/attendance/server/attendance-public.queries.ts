@@ -77,7 +77,7 @@ export async function getPublicAttendanceSnapshot(limit = 7): Promise<Attendance
   const rows: AttendanceSnapshotRow[] = logs.map((log) => ({
     name: displayName(log.employee.firstName, log.employee.lastName),
     time: log.checkIn ? timeFmt.format(log.checkIn) : "-",
-    status: isOnDuty(log) ? "On duty" : (STATUS_LABEL[log.status] ?? log.status),
+    status: isOnDuty(log) ? "Out of office" : (STATUS_LABEL[log.status] ?? log.status),
   }))
 
   // Stored `date` is a UTC-midnight calendar date, so format its parts in UTC.

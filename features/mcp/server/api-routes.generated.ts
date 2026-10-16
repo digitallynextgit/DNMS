@@ -73,7 +73,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         keywords: ["attendance record", "attendance entry details"],
       },
       PATCH: {
-        body: "{ checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30 (null clears), checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: stored as PRESENT, shown as 'On duty'; false = back to an ordinary day), notes?: string (for on duty: the purpose / where) }",
+        body: "{ checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30 (null clears), checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: stored as PRESENT, shown as 'Out of office'; false = back to an ordinary day), notes?: string (for on duty: the purpose / where) }",
         permissions: ["attendance:write"],
         guard: "withAuth",
         doc: "Correct one attendance log (regularise a missed punch or wrong status). Only the fields sent change and they are pinned so the device sync will not overwrite them. Needs attendance:write. id from GET /api/attendance. Note: Work hours are recomputed; if times change without a status, status is re-derived from hours (<4h ABSENT, <8h HALF_DAY).",
@@ -416,7 +416,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         ],
       },
       POST: {
-        body: "{ employeeId (required), date: YYYY-MM-DD (required), checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30, checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: a present day shown as 'On duty', times optional), notes?: string (for on duty: the purpose / where) }",
+        body: "{ employeeId (required), date: YYYY-MM-DD (required), checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30, checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: a present day shown as 'Out of office', times optional), notes?: string (for on duty: the purpose / where) }",
         permissions: ["attendance:write"],
         guard: "withAuth",
         doc: "Add or overwrite an employee's attendance for one day by hand (manual entry). Upserts on employee + date. Needs attendance:write. For changing one field of an existing day use PATCH /api/attendance/[id]. Note: If a row exists for that day it is fully replaced - omitted checkIn/checkOut/notes become empty. Without status it is derived from hours worked.",
@@ -426,6 +426,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
           "mark attendance",
           "mark present",
           "enter punch",
+          "out of office",
           "on duty",
           "official duty",
           "out of office for work",

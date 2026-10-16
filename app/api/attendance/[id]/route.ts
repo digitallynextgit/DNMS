@@ -126,7 +126,7 @@ export const PATCH = withAuth(
         updateData.source = "manual"
       }
 
-      // On duty: a worked day (PRESENT), status pinned, tagged so it reads "On duty".
+      // On duty: a worked day (PRESENT), status pinned, tagged so it reads "Out of office".
       if (body.onDuty === true) {
         updateData.status = "PRESENT"
         updateData.statusManual = true

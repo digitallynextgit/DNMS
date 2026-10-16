@@ -31,7 +31,7 @@ export function computeAttendanceStatus(
   return $Enums.AttendanceStatus.PRESENT
 }
 
-// "On duty" = out of the office on official work, marked by HR. The day is stored as PRESENT (so
+// On duty (shown as "Out of office") = away from the office on official work, marked by HR. The day is stored as PRESENT (so
 // payroll, summaries and the dashboard count it as a worked day) with this source tag and a
 // pinned status, so the device sync never turns it into an absence.
 export const ON_DUTY_SOURCE = "on_duty"

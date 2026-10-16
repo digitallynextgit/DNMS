@@ -156,7 +156,7 @@ export function AttendanceDirectoryClient() {
         },
         {
           // Already included in Present; shown so HR can see who was out on official work.
-          header: "On Duty",
+          header: "Out of Office",
           align: "right",
           className: "tabular-nums",
           sortValue: (r) => r.onDutyDays,
@@ -189,7 +189,7 @@ export function AttendanceDirectoryClient() {
     <div className="space-y-6">
       <PageHeader
         title="Attendance Directory"
-        description="Who's in today - one row per employee. Correct punch times or mark someone on official duty here."
+        description="Who's in today - one row per employee. Correct punch times or mark someone out of office here."
         actions={
           canWrite ? (
             <Button className="gap-2" onClick={() => setCorrectOpen(true)}>

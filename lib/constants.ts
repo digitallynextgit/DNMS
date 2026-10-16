@@ -445,7 +445,7 @@ export const ATTENDANCE_STATUS_LABELS: Record<string, string> = {
   HOLIDAY: "Holiday",
   WEEKEND: "Weekend",
   MISSING_PUNCH: "Missing punch",
-  ON_DUTY: "On duty",
+  ON_DUTY: "Out of office",
 }
 
 export const ACTIVE_STATUS_LABELS: Record<string, string> = {
