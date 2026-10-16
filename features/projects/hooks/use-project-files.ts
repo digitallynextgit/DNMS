@@ -86,6 +86,31 @@ export function useProjectFiles(projectId: string, folderId: string | null) {
   })
 }
 
+/** The whole Repository searched at once; each hit carries the folder it lives in. */
+export interface RepositorySearch {
+  folders: ProjectFolderRow[]
+  files: ProjectResource[]
+  links: ProjectLink[]
+  driveFiles: DriveFile[]
+  /** Keyed "<source>-<id>" (folder, b2, link, drive). path "" = the top level. */
+  locations: Record<string, { folderId: string | null; path: string }>
+}
+
+/** Under the files family, so every write that refreshes a folder refreshes the results too. */
+export function useRepositorySearch(projectId: string, query: string) {
+  const q = query.trim()
+  return useQuery({
+    queryKey: [...filesKey(projectId), "search", q],
+    queryFn: () =>
+      apiFetch<{ data: RepositorySearch }>(
+        `/api/projects/${projectId}/files?search=${encodeURIComponent(q)}`,
+      ).then((r) => r.data),
+    enabled: q.length >= 2,
+    placeholderData: keepPreviousData,
+    staleTime: 15_000,
+  })
+}
+
 /** Every folder in the project, flat - the "Move to..." picker builds the tree. */
 export function useProjectFolders(projectId: string, opts?: { enabled?: boolean }) {
   return useQuery({

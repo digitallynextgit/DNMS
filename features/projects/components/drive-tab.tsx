@@ -96,9 +96,11 @@ import {
   useDeleteDriveFile,
   useSyncDriveAccess,
 } from "../hooks/use-project-drive"
+import { useDebounce } from "@/hooks/use-debounce"
 import {
   useProjectFiles,
   useProjectFolders,
+  useRepositorySearch,
   useCreateFolder,
   useUpdateFolder,
   useDeleteFolder,
@@ -255,6 +257,11 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const [moveProgress, setMoveProgress] = useState<{ done: number; total: number } | null>(null)
 
   const [search, setSearch] = useState("")
+  // Typing searches the whole Repository (every folder), not just the one that is open.
+  const searchText = useDebounce(search, 300).trim()
+  const searching = searchText.length >= 2
+  const found = useRepositorySearch(projectId, searching ? searchText : "")
+  const results = searching ? found.data : undefined
   const [sourceFilter, setSourceFilter] = useState<"all" | "b2" | "drive" | "link">("all")
   const [typeFilter, setTypeFilter] = useState<"all" | FileType>("all")
   const [tagFilter, setTagFilter] = useState<"all" | DocTag>("all")
@@ -276,8 +283,17 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const currentFolderName = data?.folder?.name ?? null
 
   const allRows = useMemo<UnifiedFile[]>(() => {
-    if (!data) return []
-    const folders: UnifiedFile[] = data.folders.map((f: ProjectFolderRow) => ({
+    // While searching, the rows are hits from anywhere in the Repository, each with its folder.
+    const src = results ?? data
+    if (!src) return []
+    const where = (key: string) =>
+      results
+        ? {
+            location: results.locations[key]?.path ?? "",
+            locationFolderId: results.locations[key]?.folderId ?? null,
+          }
+        : {}
+    const folders: UnifiedFile[] = src.folders.map((f: ProjectFolderRow) => ({
       id: f.id,
       source: "folder",
       name: f.name,
@@ -291,8 +307,9 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       ownerId: f.createdById,
       itemCount: f.itemCount,
       driveFolderId: f.driveMirrorId ?? f.driveFolderId,
+      ...where(`folder-${f.id}`),
     }))
-    const b2: UnifiedFile[] = data.files.map((r: ProjectResource) => ({
+    const b2: UnifiedFile[] = src.files.map((r: ProjectResource) => ({
       id: r.id,
       source: "b2",
       name: r.fileName,
@@ -316,8 +333,9 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
             webViewLink: r.driveWebViewLink ?? null,
           })
         : null,
+      ...where(`b2-${r.id}`),
     }))
-    const drive: UnifiedFile[] = data.driveFiles.map((f: DriveFile) => ({
+    const drive: UnifiedFile[] = src.driveFiles.map((f: DriveFile) => ({
       id: f.id,
       source: "drive",
       name: f.name,
@@ -341,8 +359,9 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         ? { name: f.modifiedBy, photo: null, initials: f.modifiedBy[0]! }
         : null,
       ownerId: null,
+      ...where(`drive-${f.id}`),
     }))
-    const links: UnifiedFile[] = data.links.map((l: ProjectLink) => ({
+    const links: UnifiedFile[] = src.links.map((l: ProjectLink) => ({
       id: l.id,
       source: "link",
       name: l.title,
@@ -356,9 +375,10 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       addedBy: person(l.createdBy),
       ownerId: l.createdById,
       description: l.description,
+      ...where(`link-${l.id}`),
     }))
     return [...folders, ...b2, ...drive, ...links]
-  }, [data])
+  }, [data, results])
 
   const q = search.trim().toLowerCase()
   const rows = useMemo(() => {
@@ -410,9 +430,10 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   )
   const thumbs = useThumbnails(projectId, paged, view === "card")
 
-  /** Clears the selection so picked rows don't ride along into the next folder. */
+  /** Clears the selection (and a search) so picked rows don't ride along into the next folder. */
   const goToFolder = (id: string | null) => {
     selection.clear()
+    setSearch("")
     setFolderParam(id)
   }
 
@@ -857,6 +878,11 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
               )}
               Open
             </DropdownMenuItem>
+            {f.location !== undefined && (
+              <DropdownMenuItem onClick={() => goToFolder(f.locationFolderId ?? null)}>
+                <FolderInput className="mr-2 h-4 w-4" /> Show in folder
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => void copyLink(f)}>
               <Copy className="mr-2 h-4 w-4" /> Copy link
             </DropdownMenuItem>
@@ -1207,7 +1233,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder={`Search in ${folderLabel}...`}
+          placeholder="Search the whole repository..."
           className="max-w-xs"
         />
         <Select value={tagFilter} onValueChange={(v) => setTagFilter(v as typeof tagFilter)}>
@@ -1298,7 +1324,9 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         </BulkActionBar>
       )}
 
-      {allRows.length === 0 ? (
+      {searching && !results ? (
+        <ListSkeleton rows={4} height="h-14" className="mt-2" />
+      ) : allRows.length === 0 && !searching ? (
         <EmptyState
           compact
           icon={FolderOpen}

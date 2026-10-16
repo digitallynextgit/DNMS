@@ -363,6 +363,32 @@ export async function listFolder(folderId: string): Promise<DriveFile[]> {
   return (res.data.files ?? []).map(toFile)
 }
 
+/**
+ * Files (not folders) directly in any of `folderIds` whose name contains `text`. Drive has no
+ * recursive search, so the caller passes every folder of the tree; they go in batches because
+ * Drive caps a query's length.
+ */
+export async function searchFolders(folderIds: string[], text: string): Promise<DriveFile[]> {
+  if (folderIds.length === 0 || !text.trim()) return []
+  const ctx = await activeCtx()
+  const needle = text.trim().replace(/\\/g, "\\\\").replace(/'/g, "\\'")
+  const out: DriveFile[] = []
+  for (let i = 0; i < folderIds.length; i += 20) {
+    const parents = folderIds
+      .slice(i, i + 20)
+      .map((id) => `'${id}' in parents`)
+      .join(" or ")
+    const res = await ctx.drive.files.list({
+      ...listScope(ctx),
+      q: `(${parents}) and name contains '${needle}' and mimeType != '${DRIVE_FOLDER_MIME}' and trashed=false`,
+      fields: `files(${FILE_FIELDS})`,
+      pageSize: 200,
+    })
+    out.push(...(res.data.files ?? []).map(toFile))
+  }
+  return out
+}
+
 export async function uploadToFolder(
   folderId: string,
   name: string,

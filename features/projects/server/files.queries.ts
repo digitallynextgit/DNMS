@@ -3,7 +3,13 @@ import "server-only"
 import type { Prisma } from "@prisma/client"
 
 import { db } from "@/server/db"
-import { driveFolderUrl, isDriveNotFound, listFolder, type DriveFile } from "@/lib/google-drive"
+import {
+  driveFolderUrl,
+  isDriveNotFound,
+  listFolder,
+  searchFolders,
+  type DriveFile,
+} from "@/lib/google-drive"
 import { ensureProjectFolder, syncProjectFolderAccess } from "./project-drive.service"
 import {
   FOLDER_SELECT,
@@ -39,6 +45,143 @@ export interface FolderListing {
     onDrive: boolean
     folderLink: string | null
     memberCount: number
+  }
+}
+
+export interface RepositorySearch {
+  folders: (FolderRow & { itemCount: number })[]
+  files: ResourceRow[]
+  links: LinkRow[]
+  driveFiles: DriveFile[]
+  /** Where each hit lives, keyed "<source>-<id>" (folder, b2, link, drive): its folder and path. */
+  locations: Record<string, { folderId: string | null; path: string }>
+}
+
+const SEARCH_LIMIT = 300
+
+/**
+ * The whole Repository searched at once - every folder, file and link by name (files and links
+ * also by description, links by address), plus Drive-made Docs/Sheets by name - each with where
+ * it lives, so a hit deep in the tree is found from anywhere.
+ */
+export async function searchRepository(
+  projectId: string,
+  query: string,
+): Promise<RepositorySearch> {
+  const text = query.trim()
+  const empty: RepositorySearch = {
+    folders: [],
+    files: [],
+    links: [],
+    driveFiles: [],
+    locations: {},
+  }
+  if (text.length < 2) return empty
+  const has = { contains: text, mode: "insensitive" as const }
+
+  const field = await activeMirrorField()
+  const [tree, folders, files, links] = await Promise.all([
+    db.projectFolder.findMany({
+      where: { projectId },
+      select: { id: true, name: true, parentId: true, driveFolderId: true, driveMirrorId: true },
+    }),
+    db.projectFolder.findMany({
+      where: { projectId, name: has },
+      select: FOLDER_SELECT,
+      orderBy: { name: "asc" },
+      take: SEARCH_LIMIT,
+    }),
+    db.projectResource.findMany({
+      where: { projectId, OR: [{ fileName: has }, { description: has }] },
+      include: RESOURCE_INCLUDE,
+      orderBy: { createdAt: "desc" },
+      take: SEARCH_LIMIT,
+    }),
+    db.projectLink.findMany({
+      where: { projectId, OR: [{ title: has }, { url: has }, { description: has }] },
+      select: LINK_SELECT,
+      orderBy: { createdAt: "desc" },
+      take: SEARCH_LIMIT,
+    }),
+  ])
+
+  const byId = new Map(tree.map((f) => [f.id, f]))
+  const pathOf = (folderId: string | null) => {
+    const names: string[] = []
+    let cur = folderId ? byId.get(folderId) : undefined
+    for (let depth = 0; cur && depth < 50; depth++) {
+      names.unshift(cur.name)
+      cur = cur.parentId ? byId.get(cur.parentId) : undefined
+    }
+    return names.join(" / ")
+  }
+  const locations: RepositorySearch["locations"] = {}
+  const at = (key: string, folderId: string | null) => {
+    locations[key] = { folderId, path: pathOf(folderId) }
+  }
+  for (const f of folders) at(`folder-${f.id}`, f.parentId)
+  for (const f of files) at(`b2-${f.id}`, f.folderId)
+  for (const l of links) at(`link-${l.id}`, l.folderId)
+
+  // Drive-made Docs/Sheets have no row of ours: search their names in every mirrored folder.
+  let driveFiles: DriveFile[] = []
+  if (field) {
+    try {
+      const root = await ensureProjectFolder(projectId)
+      const appFolderOf = new Map<string, string | null>([[root.id, null]])
+      for (const f of tree) if (f[field]) appFolderOf.set(f[field]!, f.id)
+      const tracked = new Set(
+        (
+          await db.projectResource.findMany({
+            where: { projectId, driveFileId: { not: null } },
+            select: { driveFileId: true },
+          })
+        ).map((r) => r.driveFileId),
+      )
+      driveFiles = (await searchFolders([...appFolderOf.keys()], text)).filter(
+        (f) => !tracked.has(f.id),
+      )
+      for (const f of driveFiles) at(`drive-${f.id}`, appFolderOf.get(f.parentId ?? "") ?? null)
+    } catch (error) {
+      console.error("[files] Drive search failed", projectId, error)
+    }
+  }
+
+  // Same counts the folder cards show elsewhere (files, links, sub-folders).
+  const ids = folders.map((f) => f.id)
+  const counts = new Map<string, number>()
+  if (ids.length > 0) {
+    const [byFile, byLink, byChild] = await Promise.all([
+      db.projectResource.groupBy({
+        by: ["folderId"],
+        where: { folderId: { in: ids } },
+        _count: { _all: true },
+      }),
+      db.projectLink.groupBy({
+        by: ["folderId"],
+        where: { folderId: { in: ids } },
+        _count: { _all: true },
+      }),
+      db.projectFolder.groupBy({
+        by: ["parentId"],
+        where: { parentId: { in: ids } },
+        _count: { _all: true },
+      }),
+    ])
+    const add = (id: string | null, n: number) => {
+      if (id) counts.set(id, (counts.get(id) ?? 0) + n)
+    }
+    for (const r of byFile) add(r.folderId, r._count._all)
+    for (const r of byLink) add(r.folderId, r._count._all)
+    for (const r of byChild) add(r.parentId, r._count._all)
+  }
+
+  return {
+    folders: folders.map((f) => ({ ...f, itemCount: counts.get(f.id) ?? 0 })),
+    files,
+    links,
+    driveFiles,
+    locations,
   }
 }
 

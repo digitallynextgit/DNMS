@@ -37,6 +37,9 @@ export interface UnifiedFile {
   thumbnailLink?: string | null
   /** Uploads (source "b2") only: where the bytes live. Uploads go to Drive once the Repository moves there. */
   storedIn?: "b2" | "drive"
+  /** Search results only: the folder path it lives in ("" = the top level) and that folder's id. */
+  location?: string
+  locationFolderId?: string | null
 }
 
 /** Where an item's bytes live, for the Storage badge and filter. */
@@ -143,7 +146,9 @@ export function driveOpenUrl(f: {
 
 /** The one-line summary under a name, in both the table and the cards. */
 export function subtitleOf(f: UnifiedFile): string {
-  if (f.source === "folder") return `${f.itemCount ?? 0} ${f.itemCount === 1 ? "item" : "items"}`
-  if (f.source === "link") return hostOf(f.url ?? "")
-  return `${TYPE_LABEL[f.type]}${f.size ? ` · ${fmtBytes(f.size)}` : ""}`
+  const where = f.location === undefined ? "" : ` · in ${f.location || "Repository"}`
+  if (f.source === "folder")
+    return `${f.itemCount ?? 0} ${f.itemCount === 1 ? "item" : "items"}${where}`
+  if (f.source === "link") return `${hostOf(f.url ?? "")}${where}`
+  return `${TYPE_LABEL[f.type]}${f.size ? ` · ${fmtBytes(f.size)}` : ""}${where}`
 }
