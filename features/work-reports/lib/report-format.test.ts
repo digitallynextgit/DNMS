@@ -12,7 +12,23 @@ import {
   reportFilename,
   reportKind,
   shiftMonth,
+  workingDayCount,
 } from "./report-format"
+
+describe("workingDayCount", () => {
+  it("counts a half-day leave as half a day and a full-day leave as none", () => {
+    // Diwakar, 12-16 Oct: Mon, Tue (half-day CL), Wed leave, Thu, Fri.
+    expect(
+      workingDayCount([
+        { kind: "work", halfDayLeave: false },
+        { kind: "work", halfDayLeave: true },
+        { kind: "leave", halfDayLeave: false },
+        { kind: "work", halfDayLeave: false },
+        { kind: "idle", halfDayLeave: false },
+      ]),
+    ).toBe(3.5)
+  })
+})
 
 describe("parseReportMonth", () => {
   it("covers the whole calendar month", () => {

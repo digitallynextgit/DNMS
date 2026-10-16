@@ -1,7 +1,8 @@
 // Hours per task per IST working day, from the task clock's IN_PROGRESS periods (loggedHours has
 // no day attached). Periods are clipped to the day's attendance window (09:30-19:30 IST without a
 // usable punch); a clock left running past its start day counts on that day only, capped at the
-// estimate; parallel tasks split the time. Non-working days are skipped (the caller picks them).
+// estimate, while one still running today counts up to now; parallel tasks split the time.
+// Non-working days are skipped (the caller picks them).
 
 export const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000
 const MS_PER_HOUR = 3_600_000
@@ -109,7 +110,9 @@ export function computeTaskHours(input: TaskHoursInput): TaskHoursResult {
     const window = input.windows.get(day) ?? defaultWindow(day)
 
     let end = p.endedAt ?? input.now
-    const forgotten = p.endedAt === null || istDayKey(p.endedAt) !== day
+    // Running since this morning isn't forgotten yet: count it up to now, not to its estimate.
+    const runningToday = p.endedAt === null && istDayKey(input.now) === day
+    const forgotten = !runningToday && (p.endedAt === null || istDayKey(p.endedAt) !== day)
     if (forgotten) {
       let capEnd = window.end
       const estimate = input.estimates.get(p.taskId)

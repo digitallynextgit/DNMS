@@ -124,6 +124,11 @@ export function periodLine(period: ReportPeriod): string {
   return `${span} (${n} ${n === 1 ? "day" : "days"})`
 }
 
+/** Days worked in a report: a half-day leave counts as half a day, a full-day leave not at all. */
+export function workingDayCount(days: { kind: string; halfDayLeave: boolean }[]): number {
+  return days.reduce((n, d) => n + (d.kind === "leave" ? 0 : d.halfDayLeave ? 0.5 : 1), 0)
+}
+
 export function isWeekendKey(day: string): boolean {
   const dow = new Date(`${day}T00:00:00Z`).getUTCDay()
   return dow === 0 || dow === 6

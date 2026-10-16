@@ -16,6 +16,7 @@ import {
   daysOf,
   isWeekendKey,
   projectNamedIn,
+  workingDayCount,
   type ReportPeriod,
 } from "../lib/report-format"
 import type {
@@ -386,7 +387,7 @@ export async function loadWorkReport(input: LoadWorkReportInput): Promise<WorkRe
       department: emp.department?.name ?? null,
       totalHours,
       projectHours: ranked,
-      workingDays: days.filter((d) => d.kind !== "leave").length,
+      workingDays: workingDayCount(days),
       wfhDays: wfhDays.size,
       leaveDays: Array.from(leaveByDay, ([date, l]) => ({
         date,

@@ -123,6 +123,17 @@ describe("computeTaskHours", () => {
     expect(r.capped[0]?.leftRunningHours).toBeGreaterThan(300)
   })
 
+  it("counts a clock still running today up to now, not its whole estimate", () => {
+    // Mridul, 16 Oct: started 12:11 with a 6 h estimate; at 16:33 it has run 4.37 h.
+    const r = run([{ taskId: "a", startedAt: ist("2026-10-16", "12:11"), endedAt: null }], {
+      estimates: { a: 6 },
+      workingDays: ["2026-10-16"],
+      now: ist("2026-10-16", "16:33"),
+    })
+    expect(hours(r, "2026-10-16", "a")).toBe(4.37)
+    expect(r.capped).toEqual([])
+  })
+
   it("splits overlapping clocks so the day never exceeds the time present", () => {
     const r = run([
       { taskId: "a", startedAt: ist("2026-09-15", "10:00"), endedAt: ist("2026-09-15", "14:00") },
