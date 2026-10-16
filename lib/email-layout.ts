@@ -1,7 +1,7 @@
 // Shared branded email layout. Table-based with inline styles: Gmail/Outlook strip <style> blocks.
 
 import { getConfigSync } from "@/server/app-config"
-import { cleanLeaveTypeForLetter } from "@/lib/utils"
+import { cleanLeaveTypeForLetter, leaveLengthLabel } from "@/lib/utils"
 
 export const BRAND_NAME = "Digitally Next"
 
@@ -594,7 +594,7 @@ export function renderLeaveRequestEmail(input: {
   const start = formatEmailDate(startDate) ?? startDate
   const end = formatEmailDate(endDate) ?? endDate
   const dates = start === end ? start : `${start} to ${end}`
-  const dayLabel = `${totalDays} day${totalDays === 1 ? "" : "s"}`
+  const dayLabel = leaveLengthLabel(totalDays)
   const type = cleanLeaveTypeForLetter(leaveType)
   const subject = subjectText?.trim() || `Leave application - ${applicantName} - ${dates}`
 
@@ -724,7 +724,7 @@ export function renderLeaveDecisionLetter(input: {
   const start = formatEmailDate(startDate) ?? startDate
   const end = formatEmailDate(endDate) ?? endDate
   const dates = start === end ? start : `${start} to ${end}`
-  const dayLabel = `${totalDays} day${totalDays === 1 ? "" : "s"}`
+  const dayLabel = leaveLengthLabel(totalDays)
   const type = cleanLeaveTypeForLetter(leaveType)
   const para = "margin:0 0 16px; font-size:15px; line-height:1.7; color:#374151;"
   const reasonTrimmed = reason?.trim() || ""

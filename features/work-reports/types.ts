@@ -40,7 +40,10 @@ export interface DayRow {
   kind: "work" | "leave" | "idle"
   label?: string
   wfh: boolean
+  /** Part of the day on leave: a half day or a 2-hour short leave. */
   halfDayLeave: boolean
+  /** How much of the day the leave took (0.5 or 0.25); set with halfDayLeave. */
+  leaveDays?: number
   hours: number
   lines: DayLine[]
 }

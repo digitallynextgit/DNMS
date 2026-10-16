@@ -2058,7 +2058,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         ],
       },
       POST: {
-        body: "{ leaveTypeId (required, from GET /api/leave/types/eligible), startDate: YYYY-MM-DD (required), endDate: YYYY-MM-DD (required), reason?: string, isHalfDay?: boolean (single day only), emailSubject?: string, emailBody?: string (custom letter text) }",
+        body: "{ leaveTypeId (required, from GET /api/leave/types/eligible), startDate: YYYY-MM-DD (required), endDate: YYYY-MM-DD (required), reason?: string, isHalfDay?: boolean (single day, 0.5 day), isShortLeave?: boolean (single day, a 2-hour leave charged as 0.25 day; not for EL/ML), emailSubject?: string, emailBody?: string (custom letter text) }",
         guard: "withErrorHandler",
         doc: "Apply for leave for yourself. Checks balance, probation, notice-period and company rules (EL: 60 days notice, 3-7 days, 7 per half-year; CL: 2 days notice, max 2/month; no overlap; CL/SL not next to EL). Days are calendar days incl. weekends (sandwich rule). Note: Emails your manager (sent from your mailbox, cc HR) and notifies approvers; see GET /api/leave/apply/preview for recipients. Holds the days as pending on your balance.",
         keywords: [

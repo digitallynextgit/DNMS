@@ -1,6 +1,7 @@
 import "server-only"
 
 import { db } from "@/server/db"
+import { SHORT_LEAVE_DAYS } from "@/lib/utils"
 import { ADHOC_LABEL } from "@/features/projects/lib/task-permissions"
 import {
   attendanceWindow,
@@ -47,6 +48,11 @@ const isOpen = (s: string): s is OpenStatus => (OPEN_STATUSES as readonly string
 
 function truncate(s: string, max: number): string {
   return s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}…`
+}
+
+/** "Half-day Casual Leave" or, for a 2-hour leave, "Short leave (Casual Leave)". */
+function partLeaveLabel(leave: { type: string; days: number }): string {
+  return leave.days === SHORT_LEAVE_DAYS ? `Short leave (${leave.type})` : `Half-day ${leave.type}`
 }
 
 /** "A", "A and B", "A, B and C". */
@@ -214,14 +220,18 @@ export async function loadWorkReport(input: LoadWorkReportInput): Promise<WorkRe
     const calendar = allDays.filter((d) => !isWeekendKey(d) && !holidays.has(d))
     const onCalendar = new Set(calendar)
 
-    const leaveByDay = new Map<string, { type: string; half: boolean }>()
+    const leaveByDay = new Map<string, { type: string; half: boolean; days: number }>()
     for (const lv of leaves) {
       if (lv.employeeId !== emp.id) continue
       const single = dateKey(lv.startDate) === dateKey(lv.endDate)
       for (let t = lv.startDate.getTime(); t <= lv.endDate.getTime(); t += MS_PER_DAY) {
         const d = dateKey(new Date(t))
         if (onCalendar.has(d)) {
-          leaveByDay.set(d, { type: lv.leaveType.name, half: single && lv.totalDays < 1 })
+          leaveByDay.set(d, {
+            type: lv.leaveType.name,
+            half: single && lv.totalDays < 1,
+            days: single ? Math.min(1, lv.totalDays) : 1,
+          })
         }
       }
     }
@@ -288,7 +298,8 @@ export async function loadWorkReport(input: LoadWorkReportInput): Promise<WorkRe
             kind: "idle",
             wfh: wfhDays.has(day),
             halfDayLeave: !!leave,
-            label: leave ? `Half-day ${leave.type}` : undefined,
+            leaveDays: leave?.days,
+            label: leave ? partLeaveLabel(leave) : undefined,
             hours: 0,
             lines: [],
           })
@@ -317,7 +328,8 @@ export async function loadWorkReport(input: LoadWorkReportInput): Promise<WorkRe
         kind: "work",
         wfh: wfhDays.has(day),
         halfDayLeave: !!leave,
-        label: leave ? `Half-day ${leave.type}` : undefined,
+        leaveDays: leave?.days,
+        label: leave ? partLeaveLabel(leave) : undefined,
         hours: round1(Array.from(worked.values()).reduce((s, h) => s + h, 0)),
         lines,
       })
@@ -392,7 +404,7 @@ export async function loadWorkReport(input: LoadWorkReportInput): Promise<WorkRe
       leaveDays: Array.from(leaveByDay, ([date, l]) => ({
         date,
         type: l.type,
-        days: l.half ? 0.5 : 1,
+        days: l.half ? l.days : 1,
       })),
       officeDays: officeLogs.length,
       officeHours: round1(officeLogs.reduce((s, l) => s + (l!.workHours ?? 0), 0)),

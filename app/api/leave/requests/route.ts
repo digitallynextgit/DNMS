@@ -30,6 +30,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     endDate: string
     reason?: string
     isHalfDay?: boolean
+    isShortLeave?: boolean
     emailBody?: string
     emailSubject?: string
   }

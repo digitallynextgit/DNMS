@@ -417,8 +417,8 @@ export const leaveAdminGuide: HelpGuide = {
           hi: "Maternity Leave (ML): सिर्फ़ महिलाओं के लिए, 2 साल की नौकरी के बाद।",
         },
         {
-          en: "Half day is offered only on leave types with the code CL, SL or PL, and only for a single day.",
-          hi: "Half day का ऑप्शन सिर्फ़ CL, SL या PL code वाले leave types में मिलता है, और सिर्फ़ एक दिन के लिए।",
+          en: "Half day (0.5) and Short leave (2 hours, 0.25) are offered on every leave type except EL and ML, and only for a single day. Probationers get them on Leave Without Pay.",
+          hi: "Half day (0.5) और Short leave (2 घंटे, 0.25) EL और ML को छोड़कर हर leave type में मिलते हैं, और सिर्फ़ एक दिन के लिए। Probation वाले इन्हें Leave Without Pay पर ले सकते हैं।",
         },
         {
           en: "No leave can be applied during the notice period once a resignation is accepted.",

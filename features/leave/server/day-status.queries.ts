@@ -1,6 +1,7 @@
 import "server-only"
 
 import { db } from "@/server/db"
+import { SHORT_LEAVE_DAYS } from "@/lib/utils"
 
 // Away days for the task sheet. Full-day leave and public holidays = away; half day = partly
 // away; an optional holiday only if this person's request was approved; birthday = away (an optional day off,
@@ -127,14 +128,16 @@ function assembleAwayDays(input: {
 
   // Leave next, so a holiday can overwrite it below.
   for (const l of leaves) {
-    // Half day = a single-day request under 1 day (multi-day requests only store a total).
+    // Half day (or a 2-hour short leave) = a single-day request under 1 day (multi-day requests
+    // only store a total). Both are "half-day": away for part of the day.
     const isHalf = l.totalDays < 1 && toKey(l.startDate) === toKey(l.endDate)
+    const partLabel = l.totalDays === SHORT_LEAVE_DAYS ? "Short leave (2 hrs)" : "Half day"
     for (let d = new Date(l.startDate); d <= l.endDate; d.setUTCDate(d.getUTCDate() + 1)) {
       if (d < start || d > end) continue
       out.set(toKey(d), {
         date: toKey(d),
         status: isHalf ? "half-day" : "leave",
-        label: isHalf ? "Half day" : "On leave",
+        label: isHalf ? partLabel : "On leave",
       })
     }
   }

@@ -4,7 +4,7 @@ import { withAuth } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createNotifications } from "@/lib/notifications"
-import { computePayslip } from "@/features/payroll/payroll"
+import { computePayslip, partDayLeaveCredit } from "@/features/payroll/payroll"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import type { Prisma } from "@prisma/client"
 import type { Session } from "next-auth"
@@ -174,6 +174,7 @@ export const POST = withAuth(
             employeeId: true,
             startDate: true,
             endDate: true,
+            totalDays: true,
             leaveType: { select: { isPaid: true } },
           },
         }),
@@ -211,7 +212,12 @@ export const POST = withAuth(
         else attendanceByEmployee.set(log.employeeId, [log])
       }
 
-      type LeaveRow = { startDate: Date; endDate: Date; leaveType: { isPaid: boolean } }
+      type LeaveRow = {
+        startDate: Date
+        endDate: Date
+        totalDays: number
+        leaveType: { isPaid: boolean }
+      }
       const leavesByEmployee = new Map<string, LeaveRow[]>()
       for (const leave of allApprovedLeaves) {
         const arr = leavesByEmployee.get(leave.employeeId)
@@ -272,7 +278,17 @@ export const POST = withAuth(
           const approvedLeaves = leavesByEmployee.get(employee.id) ?? []
           const paidLeave = new Set<string>()
           const unpaidLeave = new Set<string>()
+          // Single-day leave under a day: a half day (0.5) or a 2-hour short leave (0.25).
+          const partDayLeave = new Map<string, { days: number; paid: boolean }>()
           for (const leave of approvedLeaves) {
+            if (ymd(leave.startDate) === ymd(leave.endDate) && leave.totalDays < 1) {
+              if (!isOffDay(leave.startDate))
+                partDayLeave.set(ymd(leave.startDate), {
+                  days: leave.totalDays,
+                  paid: leave.leaveType.isPaid,
+                })
+              continue
+            }
             const start = leave.startDate > monthStart ? leave.startDate : monthStart
             const end = leave.endDate < monthEnd ? leave.endDate : monthEnd
             const cur = new Date(
@@ -314,6 +330,20 @@ export const POST = withAuth(
               continue
             }
             const att = attByDay.get(key)
+            // A part-day leave explains a short day: credit it rather than the hours alone.
+            const part = partDayLeave.get(key)
+            if (part) {
+              const credit = partDayLeaveCredit({
+                leaveDays: part.days,
+                paid: part.paid,
+                cameIn:
+                  att === "PRESENT" || att === "LATE" || att === "HALF_DAY" || wfhDays.has(key),
+              })
+              payableDays += credit.payable
+              lopDays += credit.lop
+              leaveDaysInMonth += credit.paidLeave
+              continue
+            }
             if (att === "PRESENT" || att === "LATE" || wfhDays.has(key)) {
               payableDays += 1
             } else if (att === "HALF_DAY") {

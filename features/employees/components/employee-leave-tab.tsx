@@ -17,7 +17,7 @@ import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatStrip } from "@/components/shared/stat-strip"
 import { LeaveBalanceCard } from "@/features/leave"
 import { useLeaveBalances, useLeaveRequests, type LeaveRequest } from "@/features/leave"
-import { formatDate } from "@/lib/utils"
+import { formatDate, leaveLengthCell } from "@/lib/utils"
 import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 import { CalendarRange, AlertTriangle } from "lucide-react"
 
@@ -85,7 +85,7 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
       align: "center",
       className: "font-medium",
       sortValue: (r) => r.totalDays,
-      cell: (r) => r.totalDays,
+      cell: (r) => leaveLengthCell(r.totalDays),
     },
     {
       header: "Status",

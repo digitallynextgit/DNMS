@@ -92,6 +92,20 @@ export function getAvatarColor(name: string): string {
   return colors[Math.abs(hash) % colors.length]
 }
 
+/** A short leave is 2 hours, charged as a quarter day. */
+export const SHORT_LEAVE_DAYS = 0.25
+
+/** A leave's length for letters: a short leave reads "2 hours (short leave)", else "N day(s)". */
+export function leaveLengthLabel(totalDays: number): string {
+  if (totalDays === SHORT_LEAVE_DAYS) return "2 hours (short leave)"
+  return `${totalDays} day${totalDays === 1 ? "" : "s"}`
+}
+
+/** A leave's length for table cells: "2 hrs" for a short leave, else the number of days. */
+export function leaveLengthCell(totalDays: number): string {
+  return totalDays === SHORT_LEAVE_DAYS ? "2 hrs" : String(totalDays)
+}
+
 /** For request letters: "Leave Without Pay (Unpaid)" -> "leave", "Casual Leave" -> "casual leave". */
 export function cleanLeaveTypeForLetter(name?: string | null): string {
   const cleaned = (name ?? "leave")

@@ -5,7 +5,7 @@ import { useTenantPath } from "@/components/tenant-link"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
+import { SegmentedControl } from "@/components/shared/segmented-control"
 import {
   Select,
   SelectContent,
@@ -22,7 +22,7 @@ import {
 import { DateField, parseDateString } from "@/components/shared/date-field"
 import { LeaveMailPreview } from "./leave-mail-preview"
 import { useSession } from "next-auth/react"
-import { cn } from "@/lib/utils"
+import { cn, SHORT_LEAVE_DAYS } from "@/lib/utils"
 import { CalendarDays, Info, AlertTriangle, Clock, Sparkles, Undo2, Redo2 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -52,6 +52,17 @@ function countWorkingDays(start: Date, end: Date): number {
   return count
 }
 
+type Duration = "full" | "half" | "short"
+
+const DURATION_OPTIONS = [
+  { value: "full", label: "Full day" },
+  { value: "half", label: "Half day" },
+  { value: "short", label: "Short leave (2 hrs)" },
+] as const
+
+// Part-day leave makes no sense for these: EL is 3+ days, ML is months, SHORT is its own type.
+const NO_PART_DAY = ["EL", "ML", "SHORT"]
+
 export function ApplyLeaveForm() {
   const router = useRouter()
   const tp = useTenantPath()
@@ -64,7 +75,7 @@ export function ApplyLeaveForm() {
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [reason, setReason] = useState("")
-  const [isHalfDay, setIsHalfDay] = useState(false)
+  const [duration, setDuration] = useState<Duration>("full")
   const [polishing, setPolishing] = useState(false)
   const [variants, setVariants] = useState<{ label: string; text: string }[]>([])
   // The letter as edited in the preview, sent verbatim (a ref, so edits don't re-render the form).
@@ -95,17 +106,26 @@ export function ApplyLeaveForm() {
     [balances, leaveTypeId, currentYear],
   )
 
+  // The legacy SHORT leave type (inactive) is a half day of its own; any other type except
+  // EL/ML can be taken as a half day or a 2-hour short leave - including LWP during probation.
+  const isShortLeave = selectedType?.code === "SHORT"
+  const allowsPartDay = !!selectedType && !NO_PART_DAY.includes(selectedType.code)
+  const partDay = allowsPartDay && duration !== "full"
+  const singleDay = isShortLeave || partDay
+  const effectiveEnd = singleDay ? startDate : endDate
+  const partDays = isShortLeave ? 0.5 : duration === "short" ? SHORT_LEAVE_DAYS : 0.5
+
   const calendarDays = useMemo(() => {
-    if (!startDate || !endDate) return 0
-    if (isHalfDay || selectedType?.code === "SHORT") return 0.5
-    return countSandwichDays(new Date(startDate), new Date(endDate))
-  }, [startDate, endDate, isHalfDay, selectedType])
+    if (!startDate || !effectiveEnd) return 0
+    if (singleDay) return partDays
+    return countSandwichDays(new Date(startDate), new Date(effectiveEnd))
+  }, [startDate, effectiveEnd, singleDay, partDays])
 
   const workingDays = useMemo(() => {
-    if (!startDate || !endDate) return 0
-    if (isHalfDay || selectedType?.code === "SHORT") return 0.5
-    return countWorkingDays(new Date(startDate), new Date(endDate))
-  }, [startDate, endDate, isHalfDay, selectedType])
+    if (!startDate || !effectiveEnd) return 0
+    if (singleDay) return partDays
+    return countWorkingDays(new Date(startDate), new Date(effectiveEnd))
+  }, [startDate, effectiveEnd, singleDay, partDays])
 
   const sandwichExtra = calendarDays - workingDays
   const totalDays = calendarDays
@@ -121,7 +141,6 @@ export function ApplyLeaveForm() {
     isQuotaType && available !== null && totalDays > 0 && available < totalDays
 
   const todayStart = new Date(new Date().setHours(0, 0, 0, 0))
-  const isShortLeave = selectedType?.code === "SHORT"
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -130,9 +149,10 @@ export function ApplyLeaveForm() {
       await applyLeave.mutateAsync({
         leaveTypeId,
         startDate,
-        endDate: isShortLeave ? startDate : endDate,
+        endDate: effectiveEnd,
         reason: reason.trim(),
-        isHalfDay: isHalfDay || isShortLeave,
+        isHalfDay: isShortLeave || (partDay && duration === "half"),
+        isShortLeave: partDay && duration === "short",
         emailBody: emailBodyRef.current.trim() || undefined,
         emailSubject: emailSubjectRef.current.trim() || undefined,
       })
@@ -208,7 +228,7 @@ export function ApplyLeaveForm() {
             value={leaveTypeId}
             onValueChange={(v) => {
               setLeaveTypeId(v)
-              setIsHalfDay(false)
+              setDuration("full")
             }}
             disabled={typesLoading}
           >
@@ -245,7 +265,19 @@ export function ApplyLeaveForm() {
           )}
         </div>
 
-        {!isShortLeave ? (
+        {allowsPartDay && (
+          <div className="space-y-2">
+            <Label>Duration</Label>
+            <SegmentedControl
+              value={duration}
+              onChange={setDuration}
+              options={DURATION_OPTIONS}
+              aria-label="Leave duration"
+            />
+          </div>
+        )}
+
+        {!singleDay ? (
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label required>Start Date</Label>
@@ -278,24 +310,11 @@ export function ApplyLeaveForm() {
           </div>
         )}
 
-        {leaveTypeId && !isShortLeave && ["CL", "SL", "PL"].includes(selectedType?.code ?? "") && (
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="half-day"
-              checked={isHalfDay}
-              onCheckedChange={(v) => setIsHalfDay(v === true)}
-            />
-            <Label htmlFor="half-day" className="mb-0 cursor-pointer font-normal">
-              Half day
-            </Label>
-          </div>
-        )}
-
         {(totalDays > 0 || isShortLeave) && (
           <Card className="border-dashed">
             <CardContent className="space-y-1.5 px-4 py-3">
               <div className="flex items-center gap-2 text-sm">
-                {isShortLeave ? (
+                {isShortLeave || (partDay && duration === "short") ? (
                   <Clock className="text-muted-foreground h-4 w-4" />
                 ) : (
                   <CalendarDays className="text-muted-foreground h-4 w-4" />
@@ -303,6 +322,7 @@ export function ApplyLeaveForm() {
                 <span className="text-muted-foreground">Leave days charged:</span>
                 <span className="font-semibold">
                   {totalDays} day{totalDays !== 1 ? "s" : ""}
+                  {totalDays === SHORT_LEAVE_DAYS && " (2 hours)"}
                 </span>
               </div>
 
@@ -446,7 +466,7 @@ export function ApplyLeaveForm() {
               applyLeave.isPending ||
               !leaveTypeId ||
               !startDate ||
-              (!isShortLeave && !endDate) ||
+              !effectiveEnd ||
               totalDays === 0 ||
               hasInsufficientBalance ||
               !reason.trim()
@@ -460,7 +480,7 @@ export function ApplyLeaveForm() {
       <LeaveMailPreview
         leaveTypeName={selectedType?.name}
         startDate={startDate}
-        endDate={isShortLeave ? startDate : endDate}
+        endDate={effectiveEnd}
         totalDays={totalDays}
         reason={reason}
         applicantName={applicantName}

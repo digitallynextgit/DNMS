@@ -228,6 +228,7 @@ async function applyLeave(body: {
   endDate: string
   reason?: string
   isHalfDay?: boolean
+  isShortLeave?: boolean
   emailBody?: string
   emailSubject?: string
 }): Promise<{ data: LeaveRequest }> {

@@ -110,3 +110,21 @@ function monthlyTds(monthlyGross: number): number {
   }
   return Math.round((tax * 1.04) / 12) // 4% health & education cess, monthly
 }
+
+/**
+ * Pay for a working day with a part-day leave (a half day 0.5 or a 2-hour short leave 0.25).
+ * Showing up covers the rest of the day, so the leave explains the shorter hours: paid leave
+ * costs nothing, unpaid leave costs its own fraction. Not showing up loses the rest of the day.
+ */
+export function partDayLeaveCredit(input: {
+  /** 0.25 or 0.5. */
+  leaveDays: number
+  paid: boolean
+  /** Present, late, half-day attendance, or approved WFH. */
+  cameIn: boolean
+}): { payable: number; lop: number; paidLeave: number } {
+  const worked = input.cameIn ? 1 - input.leaveDays : 0
+  const paidLeave = input.paid ? input.leaveDays : 0
+  const payable = worked + paidLeave
+  return { payable, lop: 1 - payable, paidLeave }
+}

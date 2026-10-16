@@ -124,9 +124,15 @@ export function periodLine(period: ReportPeriod): string {
   return `${span} (${n} ${n === 1 ? "day" : "days"})`
 }
 
-/** Days worked in a report: a half-day leave counts as half a day, a full-day leave not at all. */
-export function workingDayCount(days: { kind: string; halfDayLeave: boolean }[]): number {
-  return days.reduce((n, d) => n + (d.kind === "leave" ? 0 : d.halfDayLeave ? 0.5 : 1), 0)
+/** Days worked in a report: a part-day leave takes its share (half day 0.5, 2-hour short leave
+ *  0.25), a full-day leave the whole day. */
+export function workingDayCount(
+  days: { kind: string; halfDayLeave: boolean; leaveDays?: number }[],
+): number {
+  return days.reduce(
+    (n, d) => n + (d.kind === "leave" ? 0 : d.halfDayLeave ? 1 - (d.leaveDays ?? 0.5) : 1),
+    0,
+  )
 }
 
 export function isWeekendKey(day: string): boolean {

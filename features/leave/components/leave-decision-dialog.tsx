@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { cn, cleanLeaveTypeForLetter } from "@/lib/utils"
+import { cn, cleanLeaveTypeForLetter, leaveLengthLabel } from "@/lib/utils"
 import { apiFetch } from "@/lib/api-fetch"
 import { MailSignature, type MailSignatureData } from "@/components/shared/mail-signature"
 import {
@@ -49,7 +49,7 @@ function composeBody(args: {
   const e = fmtDate(endDate)
   const dates = s === e ? s : `${s} to ${e}`
   const type = cleanLeaveTypeForLetter(leaveTypeName)
-  const days = `${totalDays} day${totalDays === 1 ? "" : "s"}`
+  const days = leaveLengthLabel(totalDays)
   if (approved) {
     return [
       `Dear ${firstName},`,

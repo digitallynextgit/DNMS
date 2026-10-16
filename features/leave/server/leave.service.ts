@@ -18,6 +18,7 @@ import {
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { startOfDayUTC } from "@/lib/dates"
+import { SHORT_LEAVE_DAYS } from "@/lib/utils"
 import { renderLeaveDecisionLetter, renderLeaveRequestEmail } from "@/lib/email-layout"
 import { getConfig } from "@/server/app-config"
 import { recomputeAccrued } from "./leave-accrual.service"
@@ -861,13 +862,16 @@ export async function applyLeave(body: {
   endDate: string
   reason?: string
   isHalfDay?: boolean
+  /** A 2-hour leave on one day, charged as a quarter day (SHORT_LEAVE_DAYS). */
+  isShortLeave?: boolean
   /** The letter the employee edited in the preview (the signature is still appended). */
   emailBody?: string
   emailSubject?: string
 }): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
-    const { leaveTypeId, startDate, endDate, reason, isHalfDay, emailBody, emailSubject } = body
+    const { leaveTypeId, startDate, endDate, reason, isHalfDay, isShortLeave } = body
+    const { emailBody, emailSubject } = body
     if (!leaveTypeId || !startDate || !endDate)
       return fail("leaveTypeId, startDate, and endDate are required")
 
@@ -909,12 +913,19 @@ export async function applyLeave(body: {
         "You can't apply for leave during your notice period. Any exception is at management's discretion - please contact HR.",
       )
 
-    // Half-day only on a single day; checked here because the POST route calls this directly.
-    if (isHalfDay && countCalendarDays(start, end) > 1) {
-      return fail("A half-day leave must start and end on the same day.")
+    // Half-day and short leave only on a single day; checked here because the POST route calls
+    // this directly.
+    if ((isHalfDay || isShortLeave) && countCalendarDays(start, end) > 1) {
+      return fail(
+        `A ${isShortLeave ? "short" : "half-day"} leave must start and end on the same day.`,
+      )
     }
 
-    let totalDays = isHalfDay ? 0.5 : countCalendarDays(start, end)
+    let totalDays = isShortLeave
+      ? SHORT_LEAVE_DAYS
+      : isHalfDay
+        ? 0.5
+        : countCalendarDays(start, end)
     if (leaveType.code === "SHORT") totalDays = 0.5
     if (totalDays === 0) return fail("Selected date range results in zero leave days")
 

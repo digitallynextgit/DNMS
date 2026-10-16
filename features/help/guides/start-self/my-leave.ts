@@ -21,7 +21,17 @@ export const myLeaveGuide: HelpGuide = {
     en: "Check how many leave days you have, apply for leave, and cancel a request you no longer need.",
     hi: "देखें आपके पास कितनी छुट्टियाँ बची हैं, छुट्टी के लिए अप्लाई करें, और ज़रूरत न हो तो रिक्वेस्ट कैंसल करें।",
   },
-  keywords: ["leave", "holiday", "off", "sick", "casual", "half day", "छुट्टी", "अवकाश"],
+  keywords: [
+    "leave",
+    "holiday",
+    "off",
+    "sick",
+    "casual",
+    "half day",
+    "short leave",
+    "छुट्टी",
+    "अवकाश",
+  ],
   sections: [
     {
       id: "balances",
@@ -100,8 +110,8 @@ export const myLeaveGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Only need half the day? For Casual, Sick or Personal Leave, tick Half day. DNMS counts the days for you and shows them under Leave days charged.",
-            hi: "आधे दिन की छुट्टी चाहिए? Casual, Sick या Personal Leave में Half day पर टिक करें। DNMS अपने आप दिन गिनता है और उन्हें Leave days charged में दिखाता है।",
+            en: "Only need part of the day? Under Duration pick Half day (0.5 day) or Short leave (2 hours, 0.25 day) - on any leave type except Earned and Maternity Leave, so also on Leave Without Pay during probation. DNMS counts the days for you and shows them under Leave days charged.",
+            hi: "पूरे दिन की छुट्टी नहीं चाहिए? Duration में Half day (0.5 दिन) या Short leave (2 घंटे, 0.25 दिन) चुनें - Earned और Maternity Leave को छोड़कर हर leave type में, इसलिए probation में Leave Without Pay पर भी। DNMS अपने आप दिन गिनता है और उन्हें Leave days charged में दिखाता है।",
           },
         },
         {

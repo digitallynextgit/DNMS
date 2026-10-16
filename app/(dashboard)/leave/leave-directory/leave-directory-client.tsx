@@ -31,7 +31,7 @@ import {
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { useUrlState } from "@/hooks/use-url-state"
 import { PERMISSIONS, LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
-import { formatDate } from "@/lib/utils"
+import { formatDate, leaveLengthCell } from "@/lib/utils"
 
 const PAGE_SIZE = 10
 
@@ -166,7 +166,11 @@ export function LeaveDirectoryClient() {
         </>
       ),
     },
-    { header: "Days", className: "text-muted-foreground", cell: (r) => r.totalDays },
+    {
+      header: "Days",
+      className: "text-muted-foreground",
+      cell: (r) => leaveLengthCell(r.totalDays),
+    },
     {
       header: "Status",
       cell: (r) => (

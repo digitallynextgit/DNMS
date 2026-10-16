@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { ShieldCheck, Loader2, AlertTriangle, Pencil } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { apiFetch } from "@/lib/api-fetch"
-import { cleanLeaveTypeForLetter } from "@/lib/utils"
+import { cleanLeaveTypeForLetter, leaveLengthLabel } from "@/lib/utils"
 import { MailSignature, type MailSignatureData } from "@/components/shared/mail-signature"
 
 type Signature = MailSignatureData
@@ -55,7 +55,7 @@ export function LeaveMailPreview({
   // The default letter the employee starts from (matches renderLeaveRequestEmail).
   const composed = useMemo(() => {
     const type = cleanLeaveTypeForLetter(leaveTypeName)
-    const days = `${totalDays || 0} day${totalDays === 1 ? "" : "s"}`
+    const days = leaveLengthLabel(totalDays || 0)
     const reasonLine =
       reason.trim() || "I have submitted this request in Digitally Next for your consideration."
     return [

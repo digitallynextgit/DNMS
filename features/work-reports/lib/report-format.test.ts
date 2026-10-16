@@ -28,6 +28,15 @@ describe("workingDayCount", () => {
       ]),
     ).toBe(3.5)
   })
+
+  it("counts a 2-hour short leave day as three quarters of a day", () => {
+    expect(
+      workingDayCount([
+        { kind: "work", halfDayLeave: true, leaveDays: 0.25 },
+        { kind: "work", halfDayLeave: false },
+      ]),
+    ).toBe(1.75)
+  })
 })
 
 describe("parseReportMonth", () => {

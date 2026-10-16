@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { LeaveDecisionDialog } from "@/features/leave/components/leave-decision-dialog"
 import { useCancelLeave } from "@/features/leave/hooks/use-leave"
 import type { LeaveRequest } from "@/features/leave/hooks/use-leave"
-import { formatDate } from "@/lib/utils"
+import { formatDate, leaveLengthCell, leaveLengthLabel } from "@/lib/utils"
 import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 import { Check, X, Ban } from "lucide-react"
 
@@ -107,7 +107,7 @@ export function LeaveRequestTable({
     {
       header: "Days",
       className: "text-muted-foreground",
-      cell: (request) => request.totalDays,
+      cell: (request) => leaveLengthCell(request.totalDays),
     },
     {
       header: "Reason",
@@ -294,7 +294,7 @@ export function LeaveRequestTable({
                 {formatDate(request.startDate)}
                 {request.startDate !== request.endDate && <> - {formatDate(request.endDate)}</>}
                 {" · "}
-                {request.totalDays} {request.totalDays === 1 ? "day" : "days"}
+                {leaveLengthLabel(request.totalDays)}
               </p>
 
               {request.reason && <p className="text-xs">{request.reason}</p>}
