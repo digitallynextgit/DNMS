@@ -2,6 +2,7 @@ import "server-only"
 
 import { db } from "@/server/db"
 import { EMPLOYEE_SUMMARY_SELECT, VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
+import { HIDDEN_ROLES, SYSTEM_ROLES } from "@/lib/constants"
 
 // Shared by the API routes and the dashboard page prefetch, so both return identical payloads.
 
@@ -52,7 +53,15 @@ export async function getDashboardStats(viewerId: string) {
     }),
 
     db.employee.findMany({
-      where: { isActive: true, ...VISIBLE_EMPLOYEE_FILTER },
+      // Admins (leadership) aren't listed as joiners, and a joiner needs a joining date - Postgres
+      // sorts a missing one first in a descending order.
+      where: {
+        isActive: true,
+        dateOfJoining: { not: null },
+        employeeRoles: {
+          none: { role: { name: { in: [...HIDDEN_ROLES, SYSTEM_ROLES.ADMIN] } } },
+        },
+      },
       orderBy: { dateOfJoining: "desc" },
       take: 5,
       select: {

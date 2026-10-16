@@ -67,6 +67,7 @@ export const ROLE_CATALOGUE: readonly RoleDefinition[] = [
       "email_template:read",
       "email_template:write",
       "project:read",
+      "project:view_all",
       "project:write",
       "project:delete",
       "audit:read",

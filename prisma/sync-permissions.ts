@@ -19,6 +19,8 @@ const ROLE_GRANTS: Record<string, string[]> = {
     "onboarding:write",
     "exit:read",
     "exit:write",
+    // Sees every project (read-only), without project:write's management rights.
+    "project:view_all",
   ],
   // payroll:read self-scopes to the caller's own records; running an exit stays with hr_manager.
   hr_employee: ["payroll:read", "onboarding:read", "exit:read"],

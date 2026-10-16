@@ -36,6 +36,8 @@ export const PERMISSIONS = {
   PAYROLL_PROCESS: "payroll:process",
   PROJECT_READ: "project:read",
   PROJECT_WRITE: "project:write",
+  // Read-only: list every project, not just the ones you're on. project:write implies it.
+  PROJECT_VIEW_ALL: "project:view_all",
   PROJECT_DELETE: "project:delete",
   // Separate from project:* so a PM can't necessarily mint client logins or read the client book.
   CLIENT_READ: "client:read",
@@ -279,6 +281,12 @@ export const PERMISSION_DEFINITIONS = [
     module: "project",
     action: "write",
     description: "Create and edit projects and tasks",
+  },
+  {
+    scope: "project:view_all",
+    module: "project",
+    action: "view_all",
+    description: "See every project, not only the ones they are on (read-only)",
   },
   { scope: "project:delete", module: "project", action: "delete", description: "Delete projects" },
   {

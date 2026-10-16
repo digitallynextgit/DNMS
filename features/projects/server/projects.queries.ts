@@ -29,8 +29,10 @@ export async function listProjects(opts: ListProjectsOptions, session: Session) 
   const where: Record<string, unknown> = {}
   if (status) where.status = status
   if (opts.clientId) where.clientId = opts.clientId
-  // project:write sees all; everyone else only projects they are AM of or on. `mine` only narrows.
-  const canViewAll = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+  // project:write (or the read-only project:view_all) sees all; everyone else only projects they
+  // are AM of or on. `mine` only narrows.
+  const canManageAll = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+  const canViewAll = canManageAll || hasPermission(session, PERMISSIONS.PROJECT_VIEW_ALL)
   if (!canViewAll || mine) {
     where.OR = [
       ...leadConditions(session.user.id),
@@ -71,7 +73,7 @@ export async function listProjects(opts: ListProjectsOptions, session: Session) 
   // Once per person: someone can be on several of the project's teams.
   // Kickoff progress only for people who can manage the project (admins and its Account Managers).
   const canManage = (p: Parameters<typeof isProjectLead>[0]) =>
-    canViewAll || isProjectLead(p, session.user.id)
+    canManageAll || isProjectLead(p, session.user.id)
   const kickoff = await kickoffProgressFor(projects.filter(canManage).map((p) => p.id))
   const decorated = projects.map((p) => ({
     kickoff: canManage(p) ? (kickoff[p.id] ?? null) : null,

@@ -4740,7 +4740,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["status", "mine", "clientId", "page", "limit"],
         guard: "withSession",
-        doc: "List projects, newest first, with their Account Managers (owner = primary, secondaryAccountManager), client, teams, members, service owners (each with its secondary owner), task counts and kick-off checklist progress. project:write holders see every project; everyone else only projects they are an Account Manager of or on a team of. Note: No name search - page through, or filter by clientId/status. Each row's id (or slug) is the [id] for every /api/projects/[id] route. kickoff is null on projects you do not manage.",
+        doc: "List projects, newest first, with their Account Managers (owner = primary, secondaryAccountManager), client, teams, members, service owners (each with its secondary owner), task counts and kick-off checklist progress. project:write and project:view_all (read-only, e.g. HR) holders see every project; everyone else only projects they are an Account Manager of or on a team of. Note: No name search - page through, or filter by clientId/status. Each row's id (or slug) is the [id] for every /api/projects/[id] route. kickoff is null on projects you do not manage.",
         queryHelp:
           "status: PLANNING|ACTIVE|ON_HOLD|COMPLETED|CANCELLED; mine: true = only projects I am an Account Manager of (primary or secondary) or a team member on; clientId: client id; page (default 1); limit (default 20, max 100)",
         keywords: [
