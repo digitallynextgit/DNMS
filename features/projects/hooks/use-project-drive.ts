@@ -55,11 +55,11 @@ export function useCreateDriveFile(projectId: string) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       }).then((r) => r.data),
+    // The caller opens the file: it has to open the tab during the click, before this returns.
     onSuccess: (f) => {
       toast.success(`Created "${f.name}"`)
       qc.invalidateQueries({ queryKey: key(projectId) })
       qc.invalidateQueries({ queryKey: ["project-files", projectId] })
-      if (f.webViewLink) window.open(f.webViewLink, "_blank")
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Create failed"),
   })

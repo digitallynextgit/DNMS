@@ -288,10 +288,10 @@ export async function adoptDriveFolders(
   parentId: string | null,
   driveChildren: DriveFile[],
   actorId: string,
-): Promise<void> {
+): Promise<number> {
   const folders = driveChildren.filter((f) => f.isFolder)
   const field = await activeMirrorField()
-  if (folders.length === 0 || !field) return
+  if (folders.length === 0 || !field) return 0
   const known = new Set(
     (
       await db.projectFolder.findMany({
@@ -303,6 +303,7 @@ export async function adoptDriveFolders(
       })
     ).map((f) => f[field]),
   )
+  let adopted = 0
   for (const f of folders) {
     if (known.has(f.id)) continue
     await db.projectFolder
@@ -315,10 +316,12 @@ export async function adoptDriveFolders(
           createdById: actorId,
         },
       })
+      .then(() => adopted++)
       .catch(() => {
         // Lost a race with a parallel read that adopted it first - fine.
       })
   }
+  return adopted
 }
 
 /** A mirror that was deleted in Drive is forgotten so it can be recreated on the next write. */

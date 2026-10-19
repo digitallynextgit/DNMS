@@ -94,6 +94,28 @@ export async function syncProjectFolderAccess(
   return { folderId: folder.id, granted, revoked, members: wanted.size }
 }
 
+/** Who the project folder should be shared with, counted from the database (no Drive call). */
+export async function projectDriveMemberCount(projectId: string): Promise<number> {
+  const [emails, account] = await Promise.all([
+    projectMemberEmails(projectId),
+    connectedDriveAccount(),
+  ])
+  const self = account?.email.toLowerCase()
+  return emails.filter((e) => e !== self).length
+}
+
+// Last background re-check per project. Membership changes sync on their own; this only catches drift.
+const lastOpenSync = new Map<string, number>()
+const OPEN_SYNC_EVERY_MS = 10 * 60_000
+
+/** Re-check the folder's shares when the Repository is opened - in the background, at most every 10 minutes. */
+export function syncProjectFolderAccessOnOpen(projectId: string): void {
+  const last = lastOpenSync.get(projectId) ?? 0
+  if (Date.now() - last < OPEN_SYNC_EVERY_MS) return
+  lastOpenSync.set(projectId, Date.now())
+  syncProjectFolderAccessAsync(projectId)
+}
+
 /** Fire-and-forget so a slow Drive call never blocks the response. No-op without Drive. */
 export function syncProjectFolderAccessAsync(projectId: string): void {
   void isDriveConfigured()

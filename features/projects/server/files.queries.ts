@@ -10,7 +10,11 @@ import {
   searchFolders,
   type DriveFile,
 } from "@/lib/google-drive"
-import { ensureProjectFolder, syncProjectFolderAccess } from "./project-drive.service"
+import {
+  ensureProjectFolder,
+  projectDriveMemberCount,
+  syncProjectFolderAccessOnOpen,
+} from "./project-drive.service"
 import {
   FOLDER_SELECT,
   activeMirrorField,
@@ -185,20 +189,81 @@ export async function searchRepository(
   }
 }
 
+/** Items directly inside each folder: files, links and sub-folders, plus Drive-only Docs/Sheets. */
+async function folderItemCounts(
+  folders: FolderRow[],
+  field: Awaited<ReturnType<typeof activeMirrorField>>,
+): Promise<Map<string, number>> {
+  const ids = folders.map((f) => f.id)
+  const counts = new Map<string, number>()
+  if (ids.length === 0) return counts
+  const add = (id: string | null, n: number) => {
+    if (id) counts.set(id, (counts.get(id) ?? 0) + n)
+  }
+
+  // Drive side: one call per mirrored sub-folder, capped so a big project can't hit the Drive quota.
+  const mirrored = field ? folders.filter((f) => f[field]).slice(0, 30) : []
+  // Never rejects: the Drive part of a count is cosmetic, and it runs unawaited for a while.
+  const driveOnly = (async () => {
+    if (!field || mirrored.length === 0) return
+    try {
+      const [lists, trackedRows] = await Promise.all([
+        Promise.all(mirrored.map((f) => listFolder(f[field]!).catch(() => null))),
+        db.projectResource.findMany({
+          where: { folderId: { in: mirrored.map((f) => f.id) }, driveFileId: { not: null } },
+          select: { driveFileId: true },
+        }),
+      ])
+      const tracked = new Set(trackedRows.map((r) => r.driveFileId))
+      mirrored.forEach((f, i) => {
+        const items = lists[i]
+        if (items) add(f.id, items.filter((x) => !x.isFolder && !tracked.has(x.id)).length)
+      })
+    } catch (error) {
+      console.error("[files] Drive item counts failed", error)
+    }
+  })()
+
+  const [byFile, byLink, byChild] = await Promise.all([
+    db.projectResource.groupBy({
+      by: ["folderId"],
+      where: { folderId: { in: ids } },
+      _count: { _all: true },
+    }),
+    db.projectLink.groupBy({
+      by: ["folderId"],
+      where: { folderId: { in: ids } },
+      _count: { _all: true },
+    }),
+    db.projectFolder.groupBy({
+      by: ["parentId"],
+      where: { parentId: { in: ids } },
+      _count: { _all: true },
+    }),
+  ])
+  for (const r of byFile) add(r.folderId, r._count._all)
+  for (const r of byLink) add(r.folderId, r._count._all)
+  for (const r of byChild) add(r.parentId, r._count._all)
+  await driveOnly
+  return counts
+}
+
 /**
- * Everything the Files tab needs for one folder, in one round trip. Drive sub-folders found
- * while listing are adopted into the tree, so a folder made in Drive shows up here too.
+ * Everything the Files tab needs for one folder, in one round trip. The database reads, this
+ * folder's Drive listing and the sub-folders' Drive counts run side by side. Drive sub-folders
+ * found while listing are adopted into the tree, so a folder made in Drive shows up here too.
  */
 export async function getFolderListing(
   projectId: string,
   folderId: string | null,
   actorId: string,
 ): Promise<FolderListing> {
-  const folder = folderId ? await getFolder(projectId, folderId) : null
-  const path = await folderPath(projectId, folderId)
-
-  let driveItems: DriveFile[] = []
-  const field = await activeMirrorField()
+  const [folder, path, field] = await Promise.all([
+    folderId ? getFolder(projectId, folderId) : Promise.resolve(null),
+    folderPath(projectId, folderId),
+    activeMirrorField(),
+  ])
+  const parentId = folder?.id ?? null
   const drive = {
     configured: field !== null,
     onDrive: field === "driveMirrorId",
@@ -206,39 +271,31 @@ export async function getFolderListing(
     memberCount: 0,
   }
 
-  if (field) {
+  // Drive side, started first: the project folder (cached after the first read), then this folder's listing.
+  let mirrorId: string | null = null
+  const listing = (async (): Promise<{ items: DriveFile[] } | { error: unknown } | null> => {
+    if (!field) return null
     const root = await ensureProjectFolder(projectId)
-    const mirrorId = folder ? folder[field] : root.id
+    mirrorId = folder ? folder[field] : root.id
     drive.folderLink = folder ? (mirrorId ? driveFolderUrl(mirrorId) : null) : root.webViewLink
-    if (mirrorId) {
-      try {
-        // Access sync is per project, so it only rides along with the root read.
-        const [items, sync] = await Promise.all([
-          listFolder(mirrorId),
-          folder ? Promise.resolve(null) : syncProjectFolderAccess(projectId).catch(() => null),
-        ])
-        await adoptDriveFolders(projectId, folder?.id ?? null, items, actorId)
-        driveItems = items.filter((f) => !f.isFolder)
-        drive.memberCount = sync?.members ?? 0
-      } catch (error) {
-        // The mirror was deleted in Drive: forget it so the next write recreates it.
-        if (folder && isDriveNotFound(error)) {
-          await forgetDriveMirror(folder.id)
-          drive.folderLink = null
-        } else {
-          console.error("[files] Drive listing failed", projectId, mirrorId, error)
-        }
-      }
-    }
-  }
+    if (!mirrorId) return null
+    return listFolder(mirrorId).then(
+      (items) => ({ items }),
+      (error: unknown) => ({ error }),
+    )
+  })().catch((error: unknown) => ({ error }))
+  const memberCount = field ? projectDriveMemberCount(projectId).catch(() => 0) : 0
+  // The share re-check runs in the background now; membership changes sync on their own.
+  if (field) syncProjectFolderAccessOnOpen(projectId)
 
-  const parentId = folder?.id ?? null
-  const [folders, files, links] = await Promise.all([
+  const readFolders = () =>
     db.projectFolder.findMany({
       where: { projectId, parentId },
       select: FOLDER_SELECT,
       orderBy: { name: "asc" },
-    }),
+    })
+  const [initialFolders, files, links] = await Promise.all([
+    readFolders(),
     db.projectResource.findMany({
       where: { projectId, folderId: parentId },
       include: RESOURCE_INCLUDE,
@@ -250,55 +307,37 @@ export async function getFolderListing(
       orderBy: { createdAt: "desc" },
     }),
   ])
+  // Settled into a value, so a failure while the Drive listing is awaited isn't an unhandled rejection.
+  const settle = <T>(p: Promise<T>) =>
+    p.then(
+      (value) => ({ ok: true as const, value }),
+      (error: unknown) => ({ ok: false as const, error }),
+    )
+  let folders = initialFolders
+  let countsPromise = settle(folderItemCounts(folders, field))
 
-  const ids = folders.map((f) => f.id)
-  const counts = new Map<string, number>()
-  const add = (id: string | null, n: number) => {
-    if (id) counts.set(id, (counts.get(id) ?? 0) + n)
-  }
-  if (ids.length > 0) {
-    const [byFile, byLink, byChild] = await Promise.all([
-      db.projectResource.groupBy({
-        by: ["folderId"],
-        where: { folderId: { in: ids } },
-        _count: { _all: true },
-      }),
-      db.projectLink.groupBy({
-        by: ["folderId"],
-        where: { folderId: { in: ids } },
-        _count: { _all: true },
-      }),
-      db.projectFolder.groupBy({
-        by: ["parentId"],
-        where: { parentId: { in: ids } },
-        _count: { _all: true },
-      }),
-    ])
-    for (const r of byFile) add(r.folderId, r._count._all)
-    for (const r of byLink) add(r.folderId, r._count._all)
-    for (const r of byChild) add(r.parentId, r._count._all)
-    if (field) {
-      // One Drive call per mirrored sub-folder, capped so a big project can't hit the Drive quota.
-      const mirrored = folders.filter((f) => f[field]).slice(0, 30)
-      const tracked = new Set(
-        (
-          await db.projectResource.findMany({
-            where: { folderId: { in: mirrored.map((f) => f.id) }, driveFileId: { not: null } },
-            select: { driveFileId: true },
-          })
-        ).map((r) => r.driveFileId),
-      )
-      await Promise.all(
-        mirrored.map((f) =>
-          listFolder(f[field]!)
-            .then((items) =>
-              add(f.id, items.filter((i) => !i.isFolder && !tracked.has(i.id)).length),
-            )
-            .catch(() => {}),
-        ),
-      )
+  let driveItems: DriveFile[] = []
+  const listed = await listing
+  if (listed && "items" in listed) {
+    driveItems = listed.items.filter((f) => !f.isFolder)
+    // Rare: a folder made in Drive itself. Adopt it, then read the tree again so it shows now.
+    if ((await adoptDriveFolders(projectId, parentId, listed.items, actorId)) > 0) {
+      folders = await readFolders()
+      countsPromise = settle(folderItemCounts(folders, field))
+    }
+  } else if (listed && "error" in listed) {
+    // The mirror was deleted in Drive: forget it so the next write recreates it.
+    if (folder && isDriveNotFound(listed.error)) {
+      await forgetDriveMirror(folder.id)
+      drive.folderLink = null
+    } else {
+      console.error("[files] Drive listing failed", projectId, mirrorId, listed.error)
     }
   }
+  const settled = await countsPromise
+  if (!settled.ok) throw settled.error
+  const counts = settled.value
+  drive.memberCount = await memberCount
 
   // Uploads are rows of ours already; only Drive-only items (Docs, Sheets) list from Drive.
   const tracked = new Set(files.map((f) => f.driveFileId).filter(Boolean))

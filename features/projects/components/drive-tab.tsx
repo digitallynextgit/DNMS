@@ -111,6 +111,7 @@ import {
   useDeleteLink,
   useUpdateResource,
   useUpdateDriveFile,
+  type FolderListing,
   type ProjectFolderRow,
   type ProjectLink,
 } from "../hooks/use-project-files"
@@ -461,13 +462,19 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   }
 
   const qc = useQueryClient()
-  /** Name keys one kind of item already uses in a folder, read fresh (a few seconds' cache at most). */
+  /**
+   * Name keys one kind of item already uses in a folder. The listing on screen when there is one
+   * (writes refresh it), so the check adds no wait; a folder not loaded yet is fetched.
+   */
   async function takenIn(
     folder: string | null,
     kind: "file" | "folder" | "link",
     exceptId?: string,
   ): Promise<Set<string>> {
-    const l = await qc.fetchQuery({ ...folderListingQuery(projectId, folder), staleTime: 5_000 })
+    const query = folderListingQuery(projectId, folder)
+    const l: FolderListing =
+      qc.getQueryData<FolderListing>(query.queryKey) ??
+      (await qc.fetchQuery({ queryKey: query.queryKey, queryFn: query.queryFn }))
     const names =
       kind === "folder"
         ? l.folders.filter((f) => f.id !== exceptId).map((f) => f.name)
@@ -525,6 +532,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       where: o.where,
       action: o.action,
       taken,
+      canKeep: o.kind !== "folder",
     })
     if (choice.mode === "rename") return choice.names.one ?? o.name
     return choice.mode === "keep" ? o.name : null
@@ -539,7 +547,24 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       action: "Create",
       hasExtension: false,
     })
-    if (name !== null) createDoc.mutate({ kind, name, folderId })
+    if (name === null) return
+    // Opened now, while the click still counts: a tab opened after the create returns gets blocked.
+    const tab = window.open("", "_blank")
+    if (tab) tab.opener = null
+    tab?.document.write(
+      `<title>Creating…</title><p style="font:15px system-ui;margin:40px">Creating "${name.replace(/[<&"]/g, "")}" in Google Drive…</p>`,
+    )
+    createDoc.mutate(
+      { kind, name, folderId },
+      {
+        onSuccess: (f) => {
+          if (!f.webViewLink) tab?.close()
+          else if (tab) tab.location.href = f.webViewLink
+          else window.open(f.webViewLink, "_blank")
+        },
+        onError: () => tab?.close(),
+      },
+    )
   }
 
   /** Uploads whose names are already in the folder (or twice in the batch) ask first. */

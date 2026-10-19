@@ -39,6 +39,8 @@ export interface NameConflictRequest {
   taken: ReadonlySet<string>
   /** Uploads only: go ahead with the other files and leave these out. */
   canSkip?: boolean
+  /** False for folders: the server refuses two folders with one name. */
+  canKeep?: boolean
 }
 
 /** Asks what to do when a name is already used in the folder: rename (suggested), keep it, or skip. */
@@ -66,7 +68,7 @@ function ConflictForm({
   request: NameConflictRequest
   onChoose: (choice: NameConflictChoice) => void
 }) {
-  const { conflicts, noun, where, action, taken, canSkip } = request
+  const { conflicts, noun, where, action, taken, canSkip, canKeep = true } = request
   const [names, setNames] = useState<Record<string, string>>(() =>
     Object.fromEntries(conflicts.map((c) => [c.key, c.suggested])),
   )
@@ -109,7 +111,8 @@ function ConflictForm({
           {many
             ? `These names are already in ${where}.`
             : `"${conflicts[0]!.name}" is already in ${where}.`}{" "}
-          Give {many ? "them new names" : "it a new name"}, or keep the same name.
+          Give {many ? "them new names" : "it a new name"}
+          {canKeep ? ", or keep the same name." : "."}
         </DialogDescription>
       </DialogHeader>
 
@@ -153,9 +156,11 @@ function ConflictForm({
               Skip {many ? "these" : "this one"}
             </Button>
           )}
-          <Button type="button" variant="outline" onClick={() => onChoose({ mode: "keep" })}>
-            Keep same name{many ? "s" : ""}
-          </Button>
+          {canKeep && (
+            <Button type="button" variant="outline" onClick={() => onChoose({ mode: "keep" })}>
+              Keep same name{many ? "s" : ""}
+            </Button>
+          )}
           <Button type="submit" disabled={!valid}>
             {action} with new name{many ? "s" : ""}
           </Button>

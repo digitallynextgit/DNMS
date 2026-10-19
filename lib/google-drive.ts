@@ -300,6 +300,14 @@ export function driveFolderUrl(id: string): string {
 const ensureLocks = new Map<string, Promise<DriveFile>>()
 
 /**
+ * Found project folders, per Drive client (a reconnected account gets a new client, so a new
+ * cache). The search costs ~0.5-1s and every Repository read starts with it; a folder id doesn't
+ * change, and the TTL still lets duplicate-healing and a trashed root be noticed.
+ */
+const PROJECT_FOLDER_TTL_MS = 30 * 60_000
+const projectFolderCache = new WeakMap<object, Map<string, { file: DriveFile; at: number }>>()
+
+/**
  * Find the folder tagged with this projectId (appProperties) or create it. files.list is eventually
  * consistent, so duplicates are also healed on read: the oldest is kept, the rest trashed.
  */
@@ -308,6 +316,14 @@ export async function ensureFolderForProject(
   folderName: string,
 ): Promise<DriveFile> {
   const ctx = await activeCtx()
+  let cache = projectFolderCache.get(ctx.drive)
+  if (!cache) {
+    cache = new Map()
+    projectFolderCache.set(ctx.drive, cache)
+  }
+  const hit = cache.get(projectId)
+  if (hit && Date.now() - hit.at < PROJECT_FOLDER_TTL_MS) return hit.file
+
   const lockKey = `${ctx.mode}:${projectId}`
   const existing = ensureLocks.get(lockKey)
   if (existing) return existing
@@ -344,7 +360,9 @@ export async function ensureFolderForProject(
 
   ensureLocks.set(lockKey, run)
   try {
-    return await run
+    const file = await run
+    cache.set(projectId, { file, at: Date.now() })
+    return file
   } finally {
     ensureLocks.delete(lockKey)
   }
