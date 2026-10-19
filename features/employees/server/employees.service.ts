@@ -42,7 +42,7 @@ import {
   driveProjectIdsFor,
   syncProjectsFolderAccessAsync,
 } from "@/features/projects/server/project-drive.service"
-import { serviceOwnerExitSteps } from "@/features/projects/server/project-service-owners"
+import { projectExitSteps } from "@/features/projects/server/project-service-owners"
 
 type EmployeeFilters = {
   search?: string
@@ -663,14 +663,9 @@ export async function deactivateEmployee(id: string): Promise<ActionResult<{ mes
     await db.employee.update({ where: { id }, data: { isActive: false } })
     // Mirror onto the membership (login already checks employee.isActive).
     await setMembershipActive({ employeeId: id }, false)
-    // Leavers drop their team seats and team leadership; tasks and deliverables keep pointing
-    // at them as history.
-    const [seats, teamsRun] = await db.$transaction([
-      db.projectTeamMember.deleteMany({ where: { employeeId: id } }),
-      db.projectTeam.updateMany({ where: { managerId: id }, data: { managerId: null } }),
-      // A service they own passes to its secondary owner.
-      ...serviceOwnerExitSteps(id),
-    ])
+    // Leavers drop their team seats, team leadership, service/calendar ownership and Account
+    // Manager roles; tasks and deliverables keep pointing at them as history.
+    const [seats, teamsRun] = await db.$transaction([...projectExitSteps(id)])
     syncProjectsFolderAccessAsync(driveProjects)
     const meta = await getAuditMeta()
     await createAuditLog(session, {
@@ -763,11 +758,15 @@ export async function bulkTerminateEmployees(
     const targets = list.filter((id) => id !== session.user.id)
     if (targets.length === 0) return fail("Nothing to terminate")
 
+    // Read before the seats go, so their projects' Drive folders stop sharing with them.
+    const driveProjects = await driveProjectIdsFor(targets)
     const result = await db.employee.updateMany({
       where: { id: { in: targets } },
       data: { status: "TERMINATED", isActive: false, lastWorkingDate: new Date() },
     })
-    syncProjectsFolderAccessAsync(await driveProjectIdsFor(targets))
+    // The same project cleanup as a single deactivation, so rosters and pickers drop them.
+    for (const id of targets) await db.$transaction([...projectExitSteps(id)])
+    syncProjectsFolderAccessAsync(driveProjects)
     await db.membership.updateMany({
       where: { employeeId: { in: targets } },
       data: { isActive: false },

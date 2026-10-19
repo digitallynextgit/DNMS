@@ -14,7 +14,7 @@ import {
   driveProjectIdsFor,
   syncProjectsFolderAccessAsync,
 } from "@/features/projects/server/project-drive.service"
-import { serviceOwnerExitSteps } from "@/features/projects/server/project-service-owners"
+import { projectExitSteps } from "@/features/projects/server/project-service-owners"
 import { canComplete, type ChecklistItemState } from "../lib/checklist-rules"
 
 // Completing an EXIT issues relieving and closes the account, hence its own file.
@@ -88,10 +88,8 @@ export async function completeExitChecklist(instanceId: string): Promise<ActionR
         where: { id: employee.id },
         data: { status: "RESIGNED", isActive: false },
       }),
-      db.projectTeamMember.deleteMany({ where: { employeeId: employee.id } }),
-      db.projectTeam.updateMany({ where: { managerId: employee.id }, data: { managerId: null } }),
-      // A service they own passes to its secondary owner (lib: project-service-owners).
-      ...serviceOwnerExitSteps(employee.id),
+      // Team seats, team leadership, services, calendars and Account Manager roles.
+      ...projectExitSteps(employee.id),
     ])
 
     syncProjectsFolderAccessAsync(driveProjects)

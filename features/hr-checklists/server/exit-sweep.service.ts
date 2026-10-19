@@ -7,7 +7,7 @@ import {
   driveProjectIdsFor,
   syncProjectsFolderAccessAsync,
 } from "@/features/projects/server/project-drive.service"
-import { serviceOwnerExitSteps } from "@/features/projects/server/project-service-owners"
+import { projectExitSteps } from "@/features/projects/server/project-service-owners"
 
 // Backstop for unfinished exits: deactivates anyone still active after their last working day
 // and tells HR. Never completes the checklist - the clearances still need real signatures.
@@ -54,9 +54,7 @@ export async function sweepOverdueExits(now: Date = new Date()): Promise<ExitSwe
           data: { status: "RESIGNED", isActive: false },
         }),
         // Same cleanup as the normal exit path, so rosters and pickers drop the leaver.
-        db.projectTeamMember.deleteMany({ where: { employeeId: e.id } }),
-        db.projectTeam.updateMany({ where: { managerId: e.id }, data: { managerId: null } }),
-        ...serviceOwnerExitSteps(e.id),
+        ...projectExitSteps(e.id),
       ])
       syncProjectsFolderAccessAsync(driveProjects)
       try {

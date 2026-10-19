@@ -249,3 +249,26 @@ export function serviceOwnerExitSteps(employeeId: string) {
     db.projectServiceOwner.deleteMany({ where: { employeeId } }),
   ] as const
 }
+
+/**
+ * Everything a leaver holds on projects, as steps for one batch `db.$transaction([...])` - the same
+ * for every way an account ends (deactivate, bulk terminate, exit checklist, exit sweep). The first
+ * two results are the team seats removed and the teams left without a manager. A project they lead
+ * passes to its secondary Account Manager; where they are the secondary, they just drop off; a
+ * project with no secondary keeps them as its Account Manager until someone picks a new one.
+ */
+export function projectExitSteps(employeeId: string) {
+  return [
+    db.projectTeamMember.deleteMany({ where: { employeeId } }),
+    db.projectTeam.updateMany({ where: { managerId: employeeId }, data: { managerId: null } }),
+    ...serviceOwnerExitSteps(employeeId),
+    db.$executeRaw`
+      UPDATE projects
+      SET owner_id = secondary_account_manager_id, secondary_account_manager_id = NULL
+      WHERE owner_id = ${employeeId} AND secondary_account_manager_id IS NOT NULL`,
+    db.project.updateMany({
+      where: { secondaryAccountManagerId: employeeId },
+      data: { secondaryAccountManagerId: null },
+    }),
+  ] as const
+}
