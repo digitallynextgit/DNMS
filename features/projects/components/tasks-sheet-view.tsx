@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
   type RefObject,
+  type SyntheticEvent,
 } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
@@ -1386,6 +1387,17 @@ function StatusNumber({
   )
 }
 
+/**
+ * A click or key meant for the cell itself. React passes events up from portals (the status menu,
+ * the History dialog) and from buttons inside the cell; neither may open the editor.
+ */
+function isCellOwnEvent(e: SyntheticEvent<HTMLElement>): boolean {
+  const target = e.target
+  if (!(target instanceof Element) || !e.currentTarget.contains(target)) return false
+  const control = target.closest("button, a, input, textarea, select, [role='menuitem']")
+  return !control || !e.currentTarget.contains(control)
+}
+
 function CellBusy() {
   return (
     <span className="text-muted-foreground flex items-center gap-1.5 px-2.5 py-2 text-[11px]">
@@ -1529,9 +1541,11 @@ function PlanCell({
     <div
       role={readOnly ? undefined : "button"}
       tabIndex={readOnly ? undefined : 0}
-      onClick={begin}
+      onClick={(e) => {
+        if (isCellOwnEvent(e)) begin()
+      }}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
+        if ((e.key === "Enter" || e.key === " ") && isCellOwnEvent(e)) {
           e.preventDefault()
           begin()
         }

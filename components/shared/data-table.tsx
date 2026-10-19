@@ -463,6 +463,15 @@ export function DataTable<T>({
   const justifyClass = (align?: DataTableColumn<T>["align"]) =>
     align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"
 
+  // React passes clicks up from portals (a row's menu or dialog); only clicks on the row itself count.
+  const rowClickHandler = (row: T) =>
+    onRowClick
+      ? (e: React.MouseEvent<HTMLElement>) => {
+          if (e.target instanceof Node && !e.currentTarget.contains(e.target)) return
+          onRowClick(row)
+        }
+      : undefined
+
   const rowKeyHandler = (row: T) =>
     onRowClick
       ? (e: React.KeyboardEvent) => {
@@ -492,7 +501,7 @@ export function DataTable<T>({
             return (
               <div
                 key={key}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                onClick={rowClickHandler(row)}
                 onKeyDown={rowKeyHandler(row)}
                 role={onRowClick ? "button" : undefined}
                 tabIndex={onRowClick ? 0 : undefined}
@@ -686,7 +695,7 @@ export function DataTable<T>({
                   return (
                     <tr
                       key={key}
-                      onClick={onRowClick ? () => onRowClick(row) : undefined}
+                      onClick={rowClickHandler(row)}
                       onKeyDown={rowKeyHandler(row)}
                       role={onRowClick ? "button" : undefined}
                       tabIndex={onRowClick ? 0 : undefined}
