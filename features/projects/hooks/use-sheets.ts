@@ -376,6 +376,37 @@ export function useSheetMutations(projectId: string) {
     onError: (e) => fail(e, "Could not delete the row"),
   })
 
+  /** Several rows by position, empty ones too; the rows below move up. Managers only. */
+  const deleteRows = useMutation({
+    mutationFn: ({ sheetId, positions }: { sheetId: string; positions: number[] }) =>
+      apiFetch<{ data: { deleted: number; moved: number } }>(`${base}/${sheetId}/rows`, {
+        method: "DELETE",
+        headers: json,
+        body: JSON.stringify({ positions }),
+      }),
+    onSuccess: (_res, vars) => {
+      void invalidate()
+      const n = vars.positions.length
+      toast.success(`${n} row${n === 1 ? "" : "s"} deleted`)
+    },
+    onError: (e) => fail(e, "Could not delete the rows"),
+  })
+
+  const deleteColumns = useMutation({
+    mutationFn: ({ sheetId, columnIds }: { sheetId: string; columnIds: string[] }) =>
+      apiFetch<{ data: { deleted: number } }>(`${base}/${sheetId}/columns`, {
+        method: "DELETE",
+        headers: json,
+        body: JSON.stringify({ columnIds }),
+      }),
+    onSuccess: (res) => {
+      void invalidate()
+      const n = res.data.deleted
+      toast.success(`${n} column${n === 1 ? "" : "s"} deleted`)
+    },
+    onError: (e) => fail(e, "Could not delete the columns"),
+  })
+
   /** Not a useMutation: the grid already shows the value. Refetches quietly; only failures surface. */
   const saveCells = async (sheetId: string, position: number, cells: Record<string, unknown>) => {
     try {
@@ -439,8 +470,10 @@ export function useSheetMutations(projectId: string) {
     addColumn,
     updateColumn,
     deleteColumn,
+    deleteColumns,
     addRow,
     deleteRow,
+    deleteRows,
     saveCells,
     saveLayout,
   }

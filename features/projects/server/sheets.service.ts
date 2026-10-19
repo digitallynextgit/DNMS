@@ -21,6 +21,7 @@ import {
   type WorkbookTeam,
 } from "../lib/sheet-types"
 import { ymd } from "../lib/delivery-period"
+import { positionAfterDelete } from "../lib/sheet-rows"
 import { sortProjectTeams } from "../lib/project-teams"
 import { statusProblem, teamProgress, type WorkbookTeamStatus } from "../lib/workbook-team-progress"
 
@@ -1175,20 +1176,128 @@ export async function appendRowByColumnName(
   }
 }
 
-/** Manager-only. The row's values go into the history before it goes. */
+/** Manager-only. The row's values go into the history before it goes; the rows below move up. */
 export async function deleteRow(sheetId: string, rowId: string, actorId: string): Promise<void> {
   // Scoped for the same reason as updateCells: the id alone is not authority.
   const row = await db.projectSheetRow.findFirst({ where: { id: rowId, sheetId } })
   if (!row) throw new NotFoundError("Row")
-  const columns = await db.projectSheetColumn.findMany({ where: { sheetId: row.sheetId } })
-  const cells = asCells(row.cells)
-  // Keyed by column NAME so the entry stays readable after the column is deleted.
-  const snapshot = Object.fromEntries(
-    columns.filter((c) => cells[c.id] != null).map((c) => [c.name, cells[c.id] ?? null]),
+  await deleteRowsAt(sheetId, [row.position], actorId)
+}
+
+/** Most rows one call may delete (the grid shows 1000). */
+export const MAX_ROWS_PER_DELETE = 1000
+
+/**
+ * Manager-only. Delete rows by POSITION - empty positions too - and close the gap as a spreadsheet
+ * does: each row below moves up by the number deleted above it, and so does its stored height.
+ * Each deleted row's values go into the history.
+ */
+export async function deleteRowsAt(
+  sheetId: string,
+  positions: number[],
+  actorId: string,
+): Promise<{ deleted: number; moved: number }> {
+  const doomed = [...new Set(positions.filter((p) => Number.isInteger(p) && p >= 0))]
+  if (doomed.length === 0) return { deleted: 0, moved: 0 }
+  if (doomed.length > MAX_ROWS_PER_DELETE) throw new ValidationError("Too many rows at once")
+  const moveTo = positionAfterDelete(doomed)
+
+  const columns = await db.projectSheetColumn.findMany({ where: { sheetId } })
+  const result = await db.$transaction(async (tx) => {
+    const [rows, sheet] = await Promise.all([
+      tx.projectSheetRow.findMany({
+        where: { sheetId },
+        select: { id: true, position: true, cells: true },
+      }),
+      tx.projectSheet.findUniqueOrThrow({ where: { id: sheetId }, select: { rowHeights: true } }),
+    ])
+    const removed = rows.filter((r) => moveTo(r.position) === null)
+    const moved = rows.filter((r) => {
+      const to = moveTo(r.position)
+      return to !== null && to !== r.position
+    }).length
+
+    if (removed.length > 0) {
+      await tx.projectSheetRow.deleteMany({ where: { id: { in: removed.map((r) => r.id) } } })
+    }
+    // One statement, not a write per row: each row moves up by the deleted positions above it.
+    if (moved > 0) {
+      await tx.$executeRaw`
+        UPDATE project_sheet_rows r
+        SET position = r.position - (SELECT count(*) FROM unnest(${doomed}::int[]) AS d(p) WHERE d.p < r.position)
+        WHERE r.sheet_id = ${sheetId}`
+    }
+    // Heights are keyed by position, so they move with their rows.
+    const heights = (sheet.rowHeights ?? {}) as Record<string, number>
+    if (Object.keys(heights).length > 0) {
+      const next: Record<string, number> = {}
+      for (const [key, h] of Object.entries(heights)) {
+        const to = moveTo(Number(key))
+        if (to !== null) next[String(to)] = h
+      }
+      await tx.projectSheet.update({
+        where: { id: sheetId },
+        data: { rowHeights: next as Prisma.InputJsonValue },
+      })
+    }
+    return { removed, moved }
+  })
+
+  // Keyed by column NAME so each entry stays readable after the column is deleted.
+  for (const r of result.removed) {
+    const cells = asCells(r.cells)
+    const snapshot = Object.fromEntries(
+      columns.filter((c) => cells[c.id] != null).map((c) => [c.name, cells[c.id] ?? null]),
+    )
+    await record(sheetId, actorId, "ROW_DELETED", { rowId: r.id, before: snapshot })
+  }
+  return { deleted: result.removed.length, moved: result.moved }
+}
+
+/** Manager-only. Several columns at once, as deleteColumn does one - but each row is written once. */
+export async function deleteColumns(
+  sheetId: string,
+  columnIds: string[],
+  actorId: string,
+): Promise<{ deleted: number }> {
+  const columns = await db.projectSheetColumn.findMany({
+    where: { sheetId, id: { in: [...new Set(columnIds)] } },
+  })
+  if (columns.length === 0) return { deleted: 0 }
+  const ids = columns.map((c) => c.id)
+  const rows = await db.projectSheetRow.findMany({
+    where: { sheetId },
+    select: { id: true, cells: true },
+  })
+  const discarded = new Map(
+    columns.map((c) => [
+      c.id,
+      rows
+        .map((r) => ({ rowId: r.id, value: asCells(r.cells)[c.id] ?? null }))
+        .filter((v) => v.value !== null),
+    ]),
   )
 
-  await db.projectSheetRow.delete({ where: { id: rowId } })
-  await record(row.sheetId, actorId, "ROW_DELETED", { rowId, before: snapshot })
+  await db.projectSheetColumn.deleteMany({ where: { id: { in: ids } } })
+  // Remove the cells from each row's JSON, or they'd reappear if an id were reused.
+  for (const r of rows) {
+    const cells = asCells(r.cells)
+    if (!ids.some((id) => id in cells)) continue
+    for (const id of ids) delete cells[id]
+    await db.projectSheetRow.update({
+      where: { id: r.id },
+      data: { cells: cells as Prisma.InputJsonValue },
+    })
+  }
+
+  for (const c of columns) {
+    await record(sheetId, actorId, "COLUMN_DELETED", {
+      columnId: c.id,
+      label: c.name,
+      before: { name: c.name, type: c.type, values: discarded.get(c.id) ?? [] },
+    })
+  }
+  return { deleted: columns.length }
 }
 
 // Per-team plan, keyed on (workbookId, teamId): the teams are fixed, and the route guard can

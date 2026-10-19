@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { withProjectAccess } from "@/features/projects/server/project-access"
-import { addColumn, sheetBelongsToProject } from "@/features/projects/server/sheets.service"
+import { withProjectAccess, withProjectManager } from "@/features/projects/server/project-access"
+import {
+  addColumn,
+  deleteColumns,
+  sheetBelongsToProject,
+} from "@/features/projects/server/sheets.service"
 import { SHEET_COLUMN_TYPES, type SheetColumnType } from "@/features/projects/lib/sheet-types"
 import type { Session } from "next-auth"
 
@@ -28,5 +32,24 @@ export const POST = withProjectAccess(
       options: Array.isArray(body.options) ? body.options.filter((o) => typeof o === "string") : [],
     })
     return NextResponse.json({ data: column }, { status: 201 })
+  },
+)
+
+// Manager only: several columns at once, each column's values copied to history first.
+export const DELETE = withProjectManager(
+  async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
+    const { id: projectId, sheetId } = ctx.params
+    if (!(await sheetBelongsToProject(sheetId!, projectId!))) {
+      return NextResponse.json({ error: "Sheet not found" }, { status: 404 })
+    }
+    const body = (await req.json().catch(() => ({}))) as { columnIds?: unknown }
+    const columnIds = Array.isArray(body.columnIds)
+      ? body.columnIds.filter((id): id is string => typeof id === "string")
+      : []
+    if (columnIds.length === 0) {
+      return NextResponse.json({ error: "No columns to delete" }, { status: 400 })
+    }
+    const result = await deleteColumns(sheetId!, columnIds, session.user.id)
+    return NextResponse.json({ data: result })
   },
 )

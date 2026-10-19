@@ -22,13 +22,14 @@ import {
   Download,
   Loader2,
   Plug,
+  X,
 } from "lucide-react"
 import { toast } from "sonner"
 import { SheetImportDialog } from "./sheet-import-dialog"
 import { SheetApiDialog } from "./sheet-api-dialog"
 import { downloadCsv, toCsv } from "@/lib/export-csv"
 import { exportBookToXlsx, exportToXlsx } from "@/lib/export-xlsx"
-import { UTF8_BOM, exportFileName, sheetTable } from "../lib/sheet-export"
+import { UTF8_BOM, exportFileName, sheetTable, sheetTablePart } from "../lib/sheet-export"
 
 import { useMeasuredRowHeights } from "@/hooks/use-measured-row-heights"
 import { cn } from "@/lib/utils"
@@ -773,11 +774,27 @@ export function ProjectSheetSection({
   // `matchIdx` is unbounded and wrapped at use, so a new query needs no reset effect.
   const [search, setSearch] = React.useState("")
   const [matchIdx, setMatchIdx] = React.useState(0)
-  const [confirm, setConfirm] = React.useState<{
-    kind: "workbook" | "sheet" | "row" | "column"
-    id: string
-    label: string
-  } | null>(null)
+  const [confirm, setConfirm] = React.useState<
+    | { kind: "workbook" | "sheet" | "row" | "column"; id: string; label: string }
+    | { kind: "rows"; positions: number[]; label: string }
+    | { kind: "columns"; columnIds: string[]; label: string }
+    | null
+  >(null)
+  /** Whole rows (by position) or columns (by id) picked from the row numbers or column letters. */
+  const [picked, setPicked] = React.useState<
+    | { kind: "rows"; sheetId: string; keys: number[]; anchor: number }
+    | { kind: "cols"; sheetId: string; keys: string[]; anchor: string }
+    | null
+  >(null)
+  // Set by a plain press on a row number or column letter, so dragging over others extends the pick.
+  const pickDragging = React.useRef(false)
+  React.useEffect(() => {
+    const up = () => {
+      pickDragging.current = false
+    }
+    window.addEventListener("mouseup", up)
+    return () => window.removeEventListener("mouseup", up)
+  }, [])
   /** The live drag, kept apart from the server copy; written once on mouse-up. */
   const [drag, setDrag] = React.useState<
     | { kind: "col"; columnId: string; startX: number; startW: number; w: number }
@@ -799,6 +816,68 @@ export function ProjectSheetSection({
   )
 
   const columns = React.useMemo(() => active?.columns ?? [], [active])
+
+  // A pick belongs to its tab; columns deleted since (by anyone) drop out of it.
+  const pick = React.useMemo(() => {
+    if (!picked || !active || picked.sheetId !== active.id) return null
+    if (picked.kind === "rows") return picked
+    const keys = picked.keys.filter((id) => columns.some((c) => c.id === id))
+    return keys.length > 0 ? { ...picked, keys } : null
+  }, [picked, active, columns])
+  const pickedRows = React.useMemo(() => new Set(pick?.kind === "rows" ? pick.keys : []), [pick])
+  const pickedCols = React.useMemo(() => new Set(pick?.kind === "cols" ? pick.keys : []), [pick])
+
+  const span = (a: number, b: number) =>
+    Array.from({ length: Math.abs(b - a) + 1 }, (_, i) => Math.min(a, b) + i)
+
+  /** Click picks one, Shift-click a range from the last click, Ctrl/Cmd-click adds or removes one. */
+  const pickRow = (pos: number, e: React.MouseEvent) => {
+    if (!active || e.button !== 0) return
+    const prev = pick?.kind === "rows" ? pick : null
+    let keys = [pos]
+    let anchor = pos
+    if (e.shiftKey && prev) {
+      anchor = prev.anchor
+      keys = span(prev.anchor, pos)
+    } else if ((e.ctrlKey || e.metaKey) && prev) {
+      keys = prev.keys.includes(pos) ? prev.keys.filter((p) => p !== pos) : [...prev.keys, pos]
+    }
+    pickDragging.current = !e.shiftKey && !e.ctrlKey && !e.metaKey
+    setPicked(keys.length > 0 ? { kind: "rows", sheetId: active.id, keys, anchor } : null)
+    setSelected(null)
+  }
+
+  const dragPickRow = (pos: number) => {
+    if (!pickDragging.current) return
+    setPicked((p) => (p?.kind === "rows" ? { ...p, keys: span(p.anchor, pos) } : p))
+  }
+
+  const pickColumn = (ci: number, e: React.MouseEvent) => {
+    const id = columns[ci]?.id
+    if (!active || !id || e.button !== 0) return
+    const prev = pick?.kind === "cols" ? pick : null
+    const from = prev ? columns.findIndex((c) => c.id === prev.anchor) : -1
+    let keys = [id]
+    let anchor = id
+    if (e.shiftKey && prev && from >= 0) {
+      anchor = prev.anchor
+      keys = span(from, ci).map((i) => columns[i]!.id)
+    } else if ((e.ctrlKey || e.metaKey) && prev) {
+      keys = prev.keys.includes(id) ? prev.keys.filter((k) => k !== id) : [...prev.keys, id]
+    }
+    pickDragging.current = !e.shiftKey && !e.ctrlKey && !e.metaKey
+    setPicked(keys.length > 0 ? { kind: "cols", sheetId: active.id, keys, anchor } : null)
+    setSelected(null)
+  }
+
+  const dragPickColumn = (ci: number) => {
+    if (!pickDragging.current) return
+    setPicked((p) => {
+      if (p?.kind !== "cols") return p
+      const from = columns.findIndex((c) => c.id === p.anchor)
+      return from < 0 ? p : { ...p, keys: span(from, ci).map((i) => columns[i]!.id) }
+    })
+  }
 
   /** Committed sizes, not the live drag: like Google Sheets, a guide line shows and the grid snaps on release. */
   const widthOf = (c: SheetColumn) => sizes.cols[c.id] ?? c.width ?? COL_W
@@ -862,8 +941,10 @@ export function ProjectSheetSection({
   }, [teams])
 
   const [exporting, setExporting] = React.useState(false)
-  /** What the grid shows, as a file: one tab (CSV or Excel), or every tab in one Excel file. */
-  async function download(what: "tab-csv" | "tab-xlsx" | "all-xlsx") {
+  /** What the grid shows, as a file: one tab or its picked rows/columns (CSV or Excel), or every tab. */
+  async function download(
+    what: "tab-csv" | "tab-xlsx" | "all-xlsx" | "picked-csv" | "picked-xlsx",
+  ) {
     if (!workbook || !active) return
     const personName = (id: string) => people.get(id)
     const parts = [
@@ -875,6 +956,27 @@ export function ProjectSheetSection({
       if (what === "all-xlsx") {
         const tabs = workbook.sheets.map((s) => sheetTable(s, personName))
         await exportBookToXlsx(tabs, exportFileName(parts, "xlsx"))
+      } else if (what === "picked-csv" || what === "picked-xlsx") {
+        if (!pick) return
+        const t = sheetTablePart(
+          active,
+          personName,
+          pick.kind === "rows" ? { positions: pick.keys } : { columnIds: pick.keys },
+        )
+        if (t.rows.length === 0 && pick.kind === "rows") {
+          toast.error("The selected rows are empty")
+          return
+        }
+        const name = [
+          ...parts,
+          active.name,
+          pick.kind === "rows" ? "selected rows" : "selected columns",
+        ]
+        if (what === "picked-csv") {
+          downloadCsv(`${UTF8_BOM}${toCsv(t.rows, t.header)}`, exportFileName(name, "csv"))
+        } else {
+          await exportToXlsx(t.header, t.rows, exportFileName(name, "xlsx"), active.name)
+        }
       } else {
         const t = sheetTable(active, personName)
         if (what === "tab-csv") {
@@ -1037,6 +1139,11 @@ export function ProjectSheetSection({
 
   /** Key map on the grid, not per cell, so it works on a merely selected cell. */
   const onGridKeyDown = (e: React.KeyboardEvent) => {
+    if (pick && e.key === "Escape") {
+      e.preventDefault()
+      setPicked(null)
+      return
+    }
     if (editing || !selected) return
     const column = columns[selected.c]
 
@@ -1551,32 +1658,52 @@ export function ProjectSheetSection({
                       <th
                         key={c.id}
                         className={cn(
-                          "bg-muted border-border sticky top-0 z-20 border-r border-b px-0 font-medium",
+                          "bg-muted border-border group/col sticky top-0 z-20 border-r border-b px-0 font-medium select-none",
                           selected?.c === ci && "bg-primary/20",
+                          pickedCols.has(c.id) && "bg-primary/25",
                         )}
                         style={{ height: HEADER_H }}
                       >
                         <div className="flex w-full items-stretch" style={{ height: HEADER_H }}>
+                          {/* Picks the column; the arrow beside it opens the column menu. */}
+                          <button
+                            type="button"
+                            title={
+                              c.name +
+                              " - " +
+                              COLUMN_TYPE_LABEL[c.type] +
+                              "\nClick to select · Shift/Ctrl-click for more · Double-click to edit"
+                            }
+                            onMouseDown={(e) => pickColumn(ci, e)}
+                            onMouseEnter={() => dragPickColumn(ci)}
+                            onDoubleClick={() => setColumnDialog({ column: c })}
+                            className={cn(
+                              "text-foreground/80 hover:text-foreground flex h-full min-w-0 flex-1 items-center gap-1.5 pl-2",
+                              pickedCols.has(c.id) && "text-primary",
+                            )}
+                          >
+                            {unnamed ? (
+                              <span className="mx-auto text-[11px] font-semibold tabular-nums">
+                                {columnLetter(ci)}
+                              </span>
+                            ) : (
+                              <>
+                                <span className="text-muted-foreground text-[10px] tabular-nums">
+                                  {columnLetter(ci)}
+                                </span>
+                                <span className="truncate text-xs font-medium">{c.name}</span>
+                              </>
+                            )}
+                          </button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button
                                 type="button"
-                                title={c.name + " - " + COLUMN_TYPE_LABEL[c.type]}
-                                className="text-foreground/80 hover:text-foreground group flex h-full min-w-0 flex-1 items-center gap-1.5 px-2"
+                                aria-label={"Column menu for " + c.name}
+                                title="Column menu"
+                                className="text-muted-foreground hover:text-foreground flex h-full w-5 shrink-0 items-center justify-center opacity-40 group-hover/col:opacity-100 data-[state=open]:opacity-100"
                               >
-                                {unnamed ? (
-                                  <span className="mx-auto text-[11px] font-semibold tabular-nums">
-                                    {columnLetter(ci)}
-                                  </span>
-                                ) : (
-                                  <>
-                                    <span className="text-muted-foreground text-[10px] tabular-nums">
-                                      {columnLetter(ci)}
-                                    </span>
-                                    <span className="truncate text-xs font-medium">{c.name}</span>
-                                  </>
-                                )}
-                                <ChevronDown className="ml-auto h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100" />
+                                <ChevronDown className="h-3 w-3" />
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="start">
@@ -1650,13 +1777,23 @@ export function ProjectSheetSection({
                     <tr key={pos} data-row-pos={pos} className="group">
                       <th
                         className={cn(
-                          "bg-muted border-border sticky left-0 z-10 border-r border-b px-0 font-normal",
+                          "bg-muted border-border sticky left-0 z-10 border-r border-b px-0 font-normal select-none",
                           selected?.r === pos && "bg-primary/20",
+                          pickedRows.has(pos) && "bg-primary/25",
                         )}
                         style={{ height: heightOf(pos) }}
                       >
                         <div className="flex w-full flex-col" style={{ height: heightOf(pos) }}>
-                          <span className="text-muted-foreground flex min-h-0 flex-1 items-start justify-center gap-1 pt-1 text-[11px] tabular-nums">
+                          {/* Picks the row (Shift: a range, Ctrl: add or remove one, or drag). */}
+                          <span
+                            title="Click to select · Shift/Ctrl-click or drag for more"
+                            onMouseDown={(e) => pickRow(pos, e)}
+                            onMouseEnter={() => dragPickRow(pos)}
+                            className={cn(
+                              "text-muted-foreground flex min-h-0 flex-1 cursor-pointer items-start justify-center gap-1 pt-1 text-[11px] tabular-nums",
+                              pickedRows.has(pos) && "text-primary font-medium",
+                            )}
+                          >
                             <span className={cn(canManage && row && "group-hover:hidden")}>
                               {pos + 1}
                             </span>
@@ -1664,6 +1801,8 @@ export function ProjectSheetSection({
                               <button
                                 type="button"
                                 title={"Delete row " + (pos + 1)}
+                                // Its own action, not a pick of the row.
+                                onMouseDown={(e) => e.stopPropagation()}
                                 onClick={() =>
                                   setConfirm({ kind: "row", id: row.id, label: "Row " + (pos + 1) })
                                 }
@@ -1716,10 +1855,14 @@ export function ProjectSheetSection({
                           <td
                             key={c.id}
                             data-col={c.id}
-                            onMouseDown={() => setSelected({ r: pos, c: ci })}
+                            onMouseDown={() => {
+                              setSelected({ r: pos, c: ci })
+                              setPicked(null)
+                            }}
                             onDoubleClick={() => !LIVE_TYPES.has(c.type) && startEdit(pos, c)}
                             className={cn(
                               "border-border relative border-r border-b p-0 align-middle",
+                              (pickedRows.has(pos) || pickedCols.has(c.id)) && "bg-primary/10",
                               // Raised so the next cell's rule doesn't clip the ring.
                               isSelected && !isEditing && "ring-primary z-10 ring-2",
                               isMatch && !isSelected && "z-10 ring-2 ring-amber-400",
@@ -1780,6 +1923,78 @@ export function ProjectSheetSection({
                   : { left: 0, right: 0, height: 2, top: guideTop }
               }
             />
+          )}
+
+          {/* Floats over the grid, so picking doesn't push the rows being clicked. */}
+          {pick && (
+            <div className="bg-popover text-popover-foreground absolute bottom-4 left-1/2 z-40 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center gap-1.5 rounded-md border p-1.5 pl-3 shadow-lg">
+              <span className="mr-1 text-xs font-medium whitespace-nowrap">
+                {pick.keys.length}{" "}
+                {pick.kind === "rows"
+                  ? pick.keys.length === 1
+                    ? "row"
+                    : "rows"
+                  : pick.keys.length === 1
+                    ? "column"
+                    : "columns"}{" "}
+                selected
+              </span>
+              <Button
+                variant="outline"
+                className="h-8 gap-1.5 px-3 text-xs"
+                disabled={exporting}
+                onClick={() => void download("picked-xlsx")}
+              >
+                <Download className="h-3.5 w-3.5" /> Excel
+              </Button>
+              <Button
+                variant="outline"
+                className="h-8 gap-1.5 px-3 text-xs"
+                disabled={exporting}
+                onClick={() => void download("picked-csv")}
+              >
+                <Download className="h-3.5 w-3.5" /> CSV
+              </Button>
+              {canManage && (
+                <Button
+                  variant="outline"
+                  className="text-destructive hover:text-destructive h-8 gap-1.5 px-3 text-xs"
+                  disabled={m.deleteRows.isPending || m.deleteColumns.isPending}
+                  onClick={() => {
+                    const n = pick.keys.length
+                    if (pick.kind === "rows") {
+                      setConfirm({
+                        kind: "rows",
+                        positions: pick.keys,
+                        label: n === 1 ? `Row ${pick.keys[0]! + 1}` : `${n} rows`,
+                      })
+                    } else {
+                      const names = columns.filter((c) => pickedCols.has(c.id)).map((c) => c.name)
+                      setConfirm({
+                        kind: "columns",
+                        columnIds: pick.keys,
+                        label:
+                          names.length <= 3
+                            ? names.map((x) => `"${x}"`).join(", ")
+                            : `${names.length} columns`,
+                      })
+                    }
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label="Clear selection"
+                title="Clear selection (Esc)"
+                onClick={() => setPicked(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           )}
         </div>
       )}
@@ -1968,7 +2183,13 @@ export function ProjectSheetSection({
               ? "Delete this tab?"
               : confirm?.kind === "column"
                 ? "Delete this column?"
-                : "Delete this row?"
+                : confirm?.kind === "columns"
+                  ? confirm.columnIds.length === 1
+                    ? "Delete this column?"
+                    : `Delete ${confirm.columnIds.length} columns?`
+                  : confirm?.kind === "rows" && confirm.positions.length > 1
+                    ? `Delete ${confirm.positions.length} rows?`
+                    : "Delete this row?"
         }
         description={
           confirm?.kind === "workbook"
@@ -1983,7 +2204,14 @@ export function ProjectSheetSection({
                 ? '"' +
                   (confirm?.label ?? "") +
                   '" will be removed, and its value in every row goes with it. The values are kept in the history.'
-                : (confirm?.label ?? "") + " will be removed. Its values are kept in the history."
+                : confirm?.kind === "columns"
+                  ? (confirm.label || "These columns") +
+                    " will be removed, with their values in every row. The values are kept in the history."
+                  : (confirm?.label ?? "") +
+                    " will be removed and the rows below move up. " +
+                    (confirm?.kind === "rows" && confirm.positions.length > 1
+                      ? "Their values are kept in the history."
+                      : "Its values are kept in the history.")
         }
         variant="destructive"
         confirmLabel="Delete"
@@ -2001,8 +2229,18 @@ export function ProjectSheetSection({
             m.deleteSheet.mutate(confirm.id, { onSuccess: () => setActiveId(null) })
           } else if (active && confirm.kind === "column") {
             m.deleteColumn.mutate({ sheetId: active.id, columnId: confirm.id })
-          } else if (active) {
+          } else if (active && confirm.kind === "row") {
             m.deleteRow.mutate({ sheetId: active.id, rowId: confirm.id })
+          } else if (active && confirm.kind === "rows") {
+            m.deleteRows.mutate(
+              { sheetId: active.id, positions: confirm.positions },
+              { onSuccess: () => setPicked(null) },
+            )
+          } else if (active && confirm.kind === "columns") {
+            m.deleteColumns.mutate(
+              { sheetId: active.id, columnIds: confirm.columnIds },
+              { onSuccess: () => setPicked(null) },
+            )
           }
           setConfirm(null)
         }}

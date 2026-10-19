@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { exportFileName, sheetTable } from "./sheet-export"
+import { exportFileName, sheetTable, sheetTablePart } from "./sheet-export"
 import type { ProjectSheet } from "./sheet-types"
 
 const sheet: ProjectSheet = {
@@ -40,6 +40,26 @@ describe("sheetTable", () => {
       // Someone who left the project shows as their stored id, as in the grid.
       [null, "gone", null],
     ])
+  })
+})
+
+describe("sheetTablePart", () => {
+  const name = (id: string) => (id === "e1" ? "Priya Sharma" : undefined)
+
+  it("keeps only the picked rows that have something in them", () => {
+    const t = sheetTablePart(sheet, name, { positions: [2, 0, 1, 9] })
+    expect(t.header).toEqual(["Date", "Owner", "Done"])
+    expect(t.rows).toEqual([
+      ["2026-12-02", "Priya Sharma", true],
+      [null, "gone", null],
+    ])
+  })
+
+  it("keeps only the picked columns, in grid order", () => {
+    const t = sheetTablePart(sheet, name, { columnIds: ["c", "a"] })
+    expect(t.header).toEqual(["Date", "Done"])
+    // Row 2 only had an Owner, so it trails empty and is dropped.
+    expect(t.rows).toEqual([["2026-12-02", true]])
   })
 })
 

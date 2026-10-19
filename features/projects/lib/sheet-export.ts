@@ -39,6 +39,27 @@ export function sheetTable(
   return { name: sheet.name, header: columns.map((c) => c.name), rows }
 }
 
+/** Only the picked rows (by position; empty ones dropped) or the picked columns (by id) of a tab. */
+export function sheetTablePart(
+  sheet: ProjectSheet,
+  personName: (id: string) => string | undefined,
+  part: { positions: number[] } | { columnIds: string[] },
+): SheetTable {
+  const full = sheetTable(sheet, personName)
+  if ("positions" in part) {
+    const rows = [...new Set(part.positions)]
+      .sort((a, b) => a - b)
+      .map((pos) => full.rows[pos])
+      .filter((r): r is CellValue[] => !!r && r.some((v) => v !== null))
+    return { ...full, rows }
+  }
+  const columns = [...sheet.columns].sort((a, b) => a.position - b.position)
+  const keep = columns.flatMap((c, i) => (part.columnIds.includes(c.id) ? [i] : []))
+  const rows = full.rows.map((r) => keep.map((i) => r[i] ?? null))
+  while (rows.length > 0 && rows[rows.length - 1]!.every((v) => v === null)) rows.pop()
+  return { ...full, header: keep.map((i) => full.header[i]!), rows }
+}
+
 /** "Hard2Soft Calendar · Dec 2026 · LinkedIn" -> a name every OS accepts. */
 export function exportFileName(parts: (string | null | undefined)[], ext: "csv" | "xlsx"): string {
   const base = parts
