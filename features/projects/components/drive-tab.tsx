@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
+import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
   ChevronDown,
@@ -98,6 +99,7 @@ import {
 } from "../hooks/use-project-drive"
 import { useDebounce } from "@/hooks/use-debounce"
 import {
+  folderListingQuery,
   useProjectFiles,
   useProjectFolders,
   useRepositorySearch,
@@ -115,6 +117,13 @@ import {
 import { iconBtn, PersonCell, StorageCell, TagChip, TYPE_META } from "./files/file-bits"
 import { FileGrid } from "./files/file-grid"
 import { NameDialog } from "./files/name-dialog"
+import {
+  NameConflictDialog,
+  type NameConflict,
+  type NameConflictChoice,
+  type NameConflictRequest,
+} from "./files/name-conflict-dialog"
+import { freeName, nameKey } from "../lib/file-names"
 import { LinkDialog, type LinkFormValues } from "./files/link-dialog"
 import { FolderPickerDialog } from "./files/folder-picker-dialog"
 import { FilePreviewSheet, type PreviewItem } from "./files/file-preview-sheet"
@@ -451,10 +460,137 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     inputRef.current?.click()
   }
 
+  const qc = useQueryClient()
+  /** Name keys one kind of item already uses in a folder, read fresh (a few seconds' cache at most). */
+  async function takenIn(
+    folder: string | null,
+    kind: "file" | "folder" | "link",
+    exceptId?: string,
+  ): Promise<Set<string>> {
+    const l = await qc.fetchQuery({ ...folderListingQuery(projectId, folder), staleTime: 5_000 })
+    const names =
+      kind === "folder"
+        ? l.folders.filter((f) => f.id !== exceptId).map((f) => f.name)
+        : kind === "link"
+          ? l.links.filter((x) => x.id !== exceptId).map((x) => x.title)
+          : [
+              ...l.files.filter((f) => f.id !== exceptId).map((f) => f.fileName),
+              ...l.driveFiles.filter((f) => f.id !== exceptId).map((f) => f.name),
+            ]
+    return new Set(names.map(nameKey))
+  }
+
+  const whereLabel = (name: string | null | undefined) =>
+    name ? `"${name}"` : "the top level of the Repository"
+
+  // The same-name pop-up, awaited like a confirm().
+  const [conflictReq, setConflictReq] = useState<NameConflictRequest | null>(null)
+  const conflictResolve = useRef<((c: NameConflictChoice) => void) | null>(null)
+  const askNames = (req: NameConflictRequest) =>
+    new Promise<NameConflictChoice>((resolve) => {
+      conflictResolve.current = resolve
+      setConflictReq(req)
+    })
+  const chooseNames = (c: NameConflictChoice) => {
+    conflictResolve.current?.(c)
+    conflictResolve.current = null
+    setConflictReq(null)
+  }
+
+  /**
+   * The name to create or rename to: the one asked for when it's free, else what the person picks
+   * in the pop-up. null = they cancelled. A failed check never blocks the action.
+   */
+  async function settleName(o: {
+    name: string
+    kind: "file" | "folder" | "link"
+    folder: string | null
+    where: string
+    action: string
+    exceptId?: string
+    hasExtension?: boolean
+  }): Promise<string | null> {
+    let taken: Set<string>
+    try {
+      taken = await takenIn(o.folder, o.kind, o.exceptId)
+    } catch {
+      return o.name
+    }
+    if (!taken.has(nameKey(o.name))) return o.name
+    const choice = await askNames({
+      conflicts: [
+        { key: "one", name: o.name, suggested: freeName(o.name, taken, o.hasExtension ?? true) },
+      ],
+      noun: o.kind,
+      where: o.where,
+      action: o.action,
+      taken,
+    })
+    if (choice.mode === "rename") return choice.names.one ?? o.name
+    return choice.mode === "keep" ? o.name : null
+  }
+
+  async function newDriveDoc(kind: "doc" | "sheet") {
+    const name = await settleName({
+      name: kind === "doc" ? "Untitled doc" : "Untitled sheet",
+      kind: "file",
+      folder: folderId,
+      where: whereLabel(currentFolderName),
+      action: "Create",
+      hasExtension: false,
+    })
+    if (name !== null) createDoc.mutate({ kind, name, folderId })
+  }
+
+  /** Uploads whose names are already in the folder (or twice in the batch) ask first. */
+  async function settleUploadNames(queue: File[]): Promise<File[] | null> {
+    let taken: Set<string>
+    try {
+      taken = await takenIn(folderId, "file")
+    } catch {
+      return queue
+    }
+    const seen = new Set(taken)
+    const clashing = new Set<number>()
+    queue.forEach((f, i) => {
+      const k = nameKey(f.name)
+      if (seen.has(k)) clashing.add(i)
+      seen.add(k)
+    })
+    if (clashing.size === 0) return queue
+
+    // Suggestions avoid the folder, the whole batch and each other.
+    const used = new Set([...taken, ...queue.map((f) => nameKey(f.name))])
+    const conflicts: NameConflict[] = [...clashing].map((i) => {
+      const suggested = freeName(queue[i]!.name, used)
+      used.add(nameKey(suggested))
+      return { key: String(i), name: queue[i]!.name, suggested }
+    })
+    const fixed = new Set([
+      ...taken,
+      ...queue.filter((_, i) => !clashing.has(i)).map((f) => nameKey(f.name)),
+    ])
+    const choice = await askNames({
+      conflicts,
+      noun: "file",
+      where: whereLabel(currentFolderName),
+      action: "Upload",
+      taken: fixed,
+      canSkip: true,
+    })
+    if (choice.mode === "cancel") return null
+    if (choice.mode === "skip") return queue.filter((_, i) => !clashing.has(i))
+    if (choice.mode === "keep") return queue
+    return queue.map((f, i) => {
+      const name = choice.names[String(i)]
+      return name ? new File([f], name, { type: f.type, lastModified: f.lastModified }) : f
+    })
+  }
+
   async function onFilesPicked(files: File[]) {
     // Reject oversize files before the browser uploads them.
     const tooBig = files.filter((f) => f.size > MAX_UPLOAD_BYTES)
-    const queue = files.filter((f) => f.size <= MAX_UPLOAD_BYTES)
+    let queue = files.filter((f) => f.size <= MAX_UPLOAD_BYTES)
     if (tooBig.length === 1) {
       toast.error(
         `"${tooBig[0]!.name}" is ${fmtBytes(tooBig[0]!.size)} - the limit is ${MAX_UPLOAD_MB} MB.`,
@@ -464,7 +600,11 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     }
     if (queue.length === 0) return
 
+    // Read before the await: the pop-up can sit open while another picker sets the ref.
     const target = targetRef.current
+    const settled = await settleUploadNames(queue)
+    if (!settled || settled.length === 0) return
+    queue = settled
     const failed: string[] = []
     setProgress({ done: 0, total: queue.length })
 
@@ -1147,16 +1287,10 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
             {driveConfigured && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => createDoc.mutate({ kind: "doc", name: "Untitled doc", folderId })}
-                >
+                <DropdownMenuItem onClick={() => void newDriveDoc("doc")}>
                   <FileText className="mr-2 h-4 w-4 text-blue-500" /> Google Doc
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() =>
-                    createDoc.mutate({ kind: "sheet", name: "Untitled sheet", folderId })
-                  }
-                >
+                <DropdownMenuItem onClick={() => void newDriveDoc("sheet")}>
                   <SheetIcon className="mr-2 h-4 w-4 text-emerald-500" /> Google Sheet
                 </DropdownMenuItem>
               </>
@@ -1385,12 +1519,21 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         placeholder="e.g. Contracts, Creatives, Research"
         submitLabel="Create folder"
         pending={createFolder.isPending}
-        onSubmit={(name) =>
+        onSubmit={async (asked) => {
+          const name = await settleName({
+            name: asked,
+            kind: "folder",
+            folder: folderId,
+            where: whereLabel(currentFolderName),
+            action: "Create",
+            hasExtension: false,
+          })
+          if (name === null) return
           createFolder.mutate(
             { name, parentId: folderId },
             { onSuccess: () => setNewFolderOpen(false) },
           )
-        }
+        }}
       />
 
       <NameDialog
@@ -1401,7 +1544,24 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         initial={renameTarget?.name ?? ""}
         submitLabel="Rename"
         pending={renaming}
-        onSubmit={(name) => renameTarget && renameItem(renameTarget, name)}
+        onSubmit={async (asked) => {
+          const f = renameTarget
+          if (!f) return
+          // A search hit lives in its own folder, not the one that is open.
+          const inSearch = f.location !== undefined
+          const name = await settleName({
+            name: asked,
+            kind: f.source === "folder" ? "folder" : f.source === "link" ? "link" : "file",
+            folder: inSearch ? (f.locationFolderId ?? null) : folderId,
+            where: inSearch ? whereLabel(f.location) : whereLabel(currentFolderName),
+            action: "Rename",
+            exceptId: f.id,
+            hasExtension:
+              f.source === "b2" ||
+              (f.source === "drive" && !f.mimeType.startsWith("application/vnd.google-apps.")),
+          })
+          if (name !== null) renameItem(f, name)
+        }}
       />
 
       <LinkDialog
@@ -1421,11 +1581,28 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
               : undefined
         }
         pending={createLink.isPending || updateLink.isPending}
-        onSubmit={(values: LinkFormValues) => {
+        onSubmit={async (asked: LinkFormValues) => {
           const close = { onSuccess: () => setLinkDialog({ open: false, edit: null }) }
-          if (linkDialog.edit) {
+          const edit = linkDialog.edit
+          // Only a new or changed title is checked; an old clash doesn't nag on every edit.
+          let values = asked
+          if (!edit || nameKey(edit.name) !== nameKey(asked.title)) {
+            const inSearch = edit?.location !== undefined
+            const title = await settleName({
+              name: asked.title,
+              kind: "link",
+              folder: edit && inSearch ? (edit.locationFolderId ?? null) : folderId,
+              where: edit && inSearch ? whereLabel(edit.location) : whereLabel(currentFolderName),
+              action: edit ? "Save" : "Create",
+              exceptId: edit?.id,
+              hasExtension: false,
+            })
+            if (title === null) return
+            values = { ...asked, title }
+          }
+          if (edit) {
             updateLink.mutate(
-              { linkId: linkDialog.edit.id, ...values },
+              { linkId: edit.id, ...values },
               {
                 onSuccess: () => {
                   close.onSuccess()
@@ -1438,6 +1615,8 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
           }
         }}
       />
+
+      <NameConflictDialog request={conflictReq} onChoose={chooseNames} />
 
       <FolderPickerDialog
         open={moveTargets !== null}

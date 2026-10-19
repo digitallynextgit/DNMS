@@ -73,14 +73,19 @@ const INVALIDATE = (projectId: string) => [
   ["project-resources", projectId],
 ]
 
+/** One folder's listing as a query, shared by the hook and by one-off reads (the same-name check). */
+export const folderListingQuery = (projectId: string, folderId: string | null) => ({
+  queryKey: [...filesKey(projectId), folderId ?? "root"],
+  queryFn: () =>
+    apiFetch<{ data: FolderListing }>(
+      `/api/projects/${projectId}/files${folderId ? `?folder=${encodeURIComponent(folderId)}` : ""}`,
+    ).then((r) => r.data),
+})
+
 /** One folder (null = top level). Keeps the previous rows on screen while the next one loads. */
 export function useProjectFiles(projectId: string, folderId: string | null) {
   return useQuery({
-    queryKey: [...filesKey(projectId), folderId ?? "root"],
-    queryFn: () =>
-      apiFetch<{ data: FolderListing }>(
-        `/api/projects/${projectId}/files${folderId ? `?folder=${encodeURIComponent(folderId)}` : ""}`,
-      ).then((r) => r.data),
+    ...folderListingQuery(projectId, folderId),
     placeholderData: keepPreviousData,
     staleTime: 15_000,
   })
