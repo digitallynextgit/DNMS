@@ -17,17 +17,19 @@ import {
   useSetItemDone,
   type MyChecklistItem,
 } from "@/features/hr-checklists"
+import { useMyDueWeeklyReviews, weekState, type DueWeeklyReview } from "@/features/joinee-scorecard"
 
 /** Open to everyone: Finance, IT and line managers sign off exits but hold no HR permission. */
 export default function ClearancesPage() {
   const { data: items, isLoading } = useMyClearances()
+  const { data: reviews, isLoading: reviewsLoading } = useMyDueWeeklyReviews()
   const setDone = useSetItemDone()
   const [signing, setSigning] = React.useState<MyChecklistItem | null>(null)
 
   const clearances = items?.filter((i) => i.itemKind === "CLEARANCE") ?? []
   const tasks = items?.filter((i) => i.itemKind === "TASK") ?? []
 
-  if (isLoading) {
+  if (isLoading || reviewsLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-14 rounded-sm" />
@@ -40,18 +42,19 @@ export default function ClearancesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Waiting on you"
-        description="Checklist items and clearance sign-offs assigned to you."
+        description="Checklist items, clearance sign-offs and weekly reviews assigned to you."
       />
 
-      {(items?.length ?? 0) === 0 ? (
+      {(items?.length ?? 0) === 0 && (reviews?.length ?? 0) === 0 ? (
         <EmptyState
           icon={CheckCircle2}
           variant="card"
           title="Nothing is waiting on you"
-          description="Clearance sign-offs and onboarding tasks assigned to you appear here."
+          description="Clearance sign-offs, onboarding tasks and your joinees' weekly reviews appear here."
         />
       ) : (
         <div className="space-y-6">
+          {(reviews?.length ?? 0) > 0 && <WeeklyReviewsDue reviews={reviews ?? []} />}
           {clearances.length > 0 && (
             <Group
               title="Clearance sign-offs"
@@ -140,6 +143,56 @@ function Group({
               </div>
               <Button onClick={() => onAct(item)} disabled={isPending} className="shrink-0">
                 {actionLabel}
+              </Button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
+/** Joinees whose Friday review the signed-in reporting manager still has to fill in. */
+function WeeklyReviewsDue({ reviews }: { reviews: DueWeeklyReview[] }) {
+  const today = new Date()
+  const todayUtc = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()))
+  return (
+    <section className="overflow-hidden rounded-sm border">
+      <header className="bg-muted/50 border-b px-3 py-2">
+        <h2 className="text-xs font-medium">
+          Weekly reviews{" "}
+          <span className="text-muted-foreground font-normal">({reviews.length})</span>
+        </h2>
+        <p className="text-muted-foreground mt-0.5 text-[11px]">
+          Your new joinees, every Friday for 90 days after their 15-day scorecard.
+        </p>
+      </header>
+      <ul className="divide-y">
+        {reviews.map((r) => {
+          const overdue = weekState(r.date, false, todayUtc) === "overdue"
+          return (
+            <li
+              key={`${r.employee.id}-${r.weekNumber}`}
+              className="flex flex-wrap items-center gap-3 px-3 py-3"
+            >
+              <AvatarDisplay
+                firstName={r.employee.firstName}
+                lastName={r.employee.lastName}
+                size="sm"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm">
+                  {r.employee.firstName} {r.employee.lastName}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  Week {r.weekNumber} · {formatDate(r.date)}
+                  {overdue && (
+                    <span className="ml-1.5 text-red-600 dark:text-red-400">Overdue</span>
+                  )}
+                </p>
+              </div>
+              <Button asChild className="shrink-0">
+                <Link href={`/weekly-reviews/${r.employee.id}`}>Review</Link>
               </Button>
             </li>
           )

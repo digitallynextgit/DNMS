@@ -18,7 +18,6 @@ import {
 import { FormDialog } from "@/components/shared/form-dialog"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EmployeeCombobox } from "@/features/employees"
-import { TONE } from "@/lib/constants"
 import { cn, formatDate } from "@/lib/utils"
 import {
   RECOMMENDATIONS,
@@ -26,7 +25,6 @@ import {
   SCORING_GUIDE,
   dayAverages,
   formatScore,
-  ratingFor,
   scorecardSummary,
   type DayOffKind,
   type Recommendation,
@@ -41,19 +39,9 @@ import {
 } from "../hooks/use-scorecard"
 import type { Scorecard, ScorecardCriterionRow } from "../types"
 import { CriteriaDialog } from "./criteria-dialog"
+import { SCORE_TONE, toneFor } from "./score-tone"
 
 // One component everywhere: HR edits it (onboarding:write), the employee sees it read-only.
-
-/** Colour for a score or an average, by the guide entry it rounds to. */
-const SCORE_TONE: Record<number, string> = {
-  5: TONE.green,
-  4: TONE.emerald,
-  3: TONE.amber,
-  2: TONE.orange,
-  1: TONE.red,
-}
-const toneFor = (score: number | null) =>
-  score === null ? "" : (SCORE_TONE[ratingFor(score)?.score ?? 0] ?? "")
 
 /** Label colour on a day that isn't scored. */
 const OFF_TONE: Record<DayOffKind, string> = {

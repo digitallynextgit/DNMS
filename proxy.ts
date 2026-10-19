@@ -88,6 +88,8 @@ const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
   [/^\/employees\/org-chart(\/|$)/, null],
   // Anyone may be asked to sign a clearance; the API limits it to the caller's own items.
   [/^\/clearances(\/|$)/, null],
+  // The reporting manager fills it in without HR rights; the API limits it to them, HR and the joinee.
+  [/^\/weekly-reviews(\/|$)/, null],
   [/^\/holiday-calendar(\/|$)/, null],
   [/^\/calendar(\/|$)/, null],
   // Each guide hides itself from readers who can't open the page it explains.

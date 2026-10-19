@@ -30,6 +30,7 @@ export async function register() {
         startSeoScheduler,
         startWorkDigestScheduler,
         startDriveBackupScheduler,
+        startWeeklyReviewScheduler,
       } = await import("@/server/scheduler")
       startTaskReminderScheduler()
       startCampaignScheduler()
@@ -38,6 +39,7 @@ export async function register() {
       startSeoScheduler()
       startWorkDigestScheduler()
       startDriveBackupScheduler()
+      startWeeklyReviewScheduler()
     }
   }
 }

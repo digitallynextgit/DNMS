@@ -667,6 +667,9 @@ model Employee {
   joineeScorecard      JoineeScorecard?  @relation("JoineeScorecardEmployee")
   joineeScorecardsSpoc JoineeScorecard[] @relation("JoineeScorecardHrSpoc")
 
+  joineeWeeklyReview   JoineeWeeklyReview?      @relation("JoineeWeeklyReviewEmployee")
+  weeklyReviewsGiven   JoineeWeeklyReviewWeek[] @relation("JoineeWeeklyReviewer")
+
   managedTeams               ProjectTeam[]          @relation("TeamManager")
   projectTeamMemberships     ProjectTeamMember[]    @relation("ProjectTeamMembership")
   ownedProjectServices       ProjectServiceOwner[]  @relation("ProjectServiceOwner")
@@ -1336,6 +1339,70 @@ model JoineeScorecardCriterion {
   @@unique([tenantId, key])
   @@index([tenantId])
   @@map("joinee_scorecard_criteria")
+}
+
+/// After the 15-day scorecard: the reporting manager reviews the joinee every Friday for 90
+/// days. One per employee; its Fridays are created up front.
+model JoineeWeeklyReview {
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String   @id @default(uuid()) @map("id")
+  employeeId  String   @map("employee_id")
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  employee Employee                 @relation("JoineeWeeklyReviewEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  weeks    JoineeWeeklyReviewWeek[]
+
+  @@unique([employeeId])
+  @@index([tenantId])
+  @@map("joinee_weekly_reviews")
+}
+
+/// One Friday of a weekly review: its own parameters (copied from the company default when the
+/// review starts, editable for this Friday alone), 1-5 scores by parameter key, and a comment.
+model JoineeWeeklyReviewWeek {
+  tenantId     String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id           String    @id @default(uuid()) @map("id")
+  reviewId     String    @map("review_id")
+  /// 1..n in date order.
+  weekNumber   Int       @map("week_number")
+  /// The Friday it is due.
+  date         DateTime  @map("date") @db.Date
+  /// [{ key, label, isActive }] in order.
+  params       Json      @map("params")
+  /// { [key]: 1-5 }
+  scores       Json?     @map("scores")
+  comment      String?   @map("comment") @db.Text
+  /// Set when it is first filled in; who and when, for the reminders and the list.
+  reviewedById String?   @map("reviewed_by_id")
+  reviewedAt   DateTime? @map("reviewed_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  review     JoineeWeeklyReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  reviewedBy Employee?          @relation("JoineeWeeklyReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([reviewId, weekNumber])
+  @@index([date])
+  @@index([tenantId])
+  @@map("joinee_weekly_review_weeks")
+}
+
+/// The company's default weekly-review parameters, once HR edits them (until then the built-in
+/// list in lib/weekly-review.ts). Hidden, never deleted.
+model JoineeWeeklyReviewParam {
+  tenantId     String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id           String   @id @default(uuid()) @map("id")
+  key          String   @map("key")
+  label        String   @map("label")
+  displayOrder Int      @default(0) @map("display_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+  @@map("joinee_weekly_review_params")
 }
 
 model ChecklistInstanceItem {

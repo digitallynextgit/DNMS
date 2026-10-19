@@ -14,6 +14,7 @@ import {
   Wallet,
   Upload,
   Pencil,
+  CalendarCheck,
   ClipboardCheck,
   ClipboardList,
 } from "lucide-react"
@@ -24,7 +25,7 @@ import { EmployeeTaskAccess } from "@/features/employees"
 // Direct import, not the projects barrel, which would pull every project component into this bundle.
 import { EmployeeWorkView } from "@/features/projects/components/employee-work"
 import { DocumentList } from "@/features/documents"
-import { JoineeScorecard } from "@/features/joinee-scorecard"
+import { JoineeScorecard, WeeklyReview } from "@/features/joinee-scorecard"
 import { DocumentUploadDialog } from "@/features/documents"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -121,6 +122,8 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
   const canDeleteDocs = can(PERMISSIONS.DOCUMENT_DELETE)
   const canEdit = can(PERMISSIONS.EMPLOYEE_WRITE)
   const canSeeScorecard = can(PERMISSIONS.ONBOARDING_READ) || can(PERMISSIONS.ONBOARDING_WRITE)
+  // HR, and the reporting manager who fills it in.
+  const canSeeWeeklyReview = canSeeScorecard || (!!userId && emp.manager?.id === userId)
 
   const ca = (emp.currentAddress ?? {}) as Record<string, string>
   const pa = (emp.permanentAddress ?? {}) as Record<string, string>
@@ -246,6 +249,11 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
               value: "scorecard",
               label: "15-Day Scorecard",
               icon: ClipboardCheck,
+            },
+            canSeeWeeklyReview && {
+              value: "weekly-review",
+              label: "Weekly Review",
+              icon: CalendarCheck,
             },
           ]}
         />
@@ -440,6 +448,11 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
         {canSeeScorecard && (
           <TabsContent value="scorecard">
             <JoineeScorecard employeeId={emp.id} />
+          </TabsContent>
+        )}
+        {canSeeWeeklyReview && (
+          <TabsContent value="weekly-review">
+            <WeeklyReview employeeId={emp.id} />
           </TabsContent>
         )}
       </Tabs>

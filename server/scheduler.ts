@@ -36,6 +36,11 @@ const WORK_DIGEST_EARLIEST_HOUR = 8
 const DRIVE_BACKUP_INTERVAL_MS = 60 * 60_000
 const DRIVE_BACKUP_FIRST_RUN_DELAY_MS = 150_000
 
+// Hourly; the run itself is claimed per day, and only Fridays and Mondays send anything.
+const WEEKLY_REVIEW_INTERVAL_MS = 60 * 60_000
+const WEEKLY_REVIEW_FIRST_RUN_DELAY_MS = 180_000
+const WEEKLY_REVIEW_EARLIEST_HOUR = 10
+
 const FIRST_RUN_DELAY_MS = 15_000
 
 // On globalThis so dev hot-reload doesn't start duplicate intervals.
@@ -54,6 +59,8 @@ const globalForScheduler = globalThis as unknown as {
   workDigestRunning?: boolean
   driveBackupTimer?: NodeJS.Timeout
   driveBackupRunning?: boolean
+  weeklyReviewTimer?: NodeJS.Timeout
+  weeklyReviewRunning?: boolean
 }
 
 export function startTaskReminderScheduler(): void {
@@ -365,5 +372,48 @@ async function driveBackupTick(): Promise<void> {
     console.error("[scheduler] drive backup failed:", err)
   } finally {
     globalForScheduler.driveBackupRunning = false
+  }
+}
+
+/**
+ * Joinee weekly reviews: Friday 10 AM tells the reporting manager, Monday 10 AM chases the ones
+ * still empty. Production only: a dev machine shares the database and could take the day's claim.
+ */
+export function startWeeklyReviewScheduler(): void {
+  if (globalForScheduler.weeklyReviewTimer) return
+  if (process.env.DISABLE_INLINE_SCHEDULER === "1") {
+    console.log("[scheduler] weekly reviews disabled (DISABLE_INLINE_SCHEDULER=1)")
+    return
+  }
+  if (process.env.NODE_ENV !== "production") return
+
+  const timer = setInterval(weeklyReviewTick, WEEKLY_REVIEW_INTERVAL_MS)
+  timer.unref?.()
+  globalForScheduler.weeklyReviewTimer = timer
+
+  const first = setTimeout(weeklyReviewTick, WEEKLY_REVIEW_FIRST_RUN_DELAY_MS)
+  first.unref?.()
+
+  console.log("[scheduler] weekly reviews started (hourly check, Fri and Mon from 10:00)")
+}
+
+async function weeklyReviewTick(): Promise<void> {
+  if (globalForScheduler.weeklyReviewRunning) return
+  const now = new Date()
+  const day = now.getDay()
+  if ((day !== 5 && day !== 1) || now.getHours() < WEEKLY_REVIEW_EARLIEST_HOUR) return
+
+  globalForScheduler.weeklyReviewRunning = true
+  try {
+    await forEachTenant("weekly-reviews", async () => {
+      const { runWeeklyReviewReminders } =
+        await import("@/features/joinee-scorecard/server/weekly-review.service")
+      const r = await runWeeklyReviewReminders(now)
+      if (!r.skipped) console.log(`[scheduler] weekly reviews: ${r.sent} reminder(s)`)
+    })
+  } catch (err) {
+    console.error("[scheduler] weekly reviews failed:", err)
+  } finally {
+    globalForScheduler.weeklyReviewRunning = false
   }
 }

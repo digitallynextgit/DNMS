@@ -5,7 +5,7 @@ import { db } from "@/server/db"
 import { PERMISSIONS } from "@/lib/constants"
 import { hasAnyPermission, hasPermission } from "@/lib/permissions"
 import { createAuditLog } from "@/lib/audit"
-import { toDateOnly, todayUtc } from "@/lib/dates"
+import { todayUtc } from "@/lib/dates"
 import { requirePermission, requireSession, getAuditMeta } from "@/server/action-guard"
 import { ok, fail, runAction, type ActionResult } from "@/server/action-result"
 import {
@@ -22,12 +22,13 @@ import {
   scorecardDates,
   type DayOff,
   type DayScores,
-  type LeaveSpan,
   type LegacyScoreKey,
   type ScorecardCriterion,
   type ScorecardSide,
 } from "../lib/scorecard"
 import type { ScorecardCriterionRow } from "../types"
+import { calendarFor } from "./joinee-calendar"
+import { startWeeklyReviewFor } from "./weekly-review.service"
 
 // 15-day new-joinee scorecard. Only raw 1-5 scores are stored; averages come from lib/scorecard.ts.
 
@@ -78,39 +79,6 @@ const NOT_FOUND = "Scorecard not found"
 const MAX_CRITERIA = 30
 const MAX_LABEL = 60
 
-/**
- * Company holidays and the joinee's approved leave over a stretch of days, for dayStatus(). Read
- * live, so leave approved after the card started still shows. Floating holidays count as working.
- */
-async function calendarFor(employeeId: string, from: Date, to: Date) {
-  const [holidays, leaves] = await Promise.all([
-    db.holiday.findMany({
-      where: { isOptional: false, date: { gte: from, lte: to } },
-      select: { date: true, name: true },
-    }),
-    db.leaveRequest.findMany({
-      where: { employeeId, status: "APPROVED", startDate: { lte: to }, endDate: { gte: from } },
-      select: {
-        startDate: true,
-        endDate: true,
-        totalDays: true,
-        leaveType: { select: { name: true } },
-      },
-    }),
-  ])
-  return {
-    holidays: new Map(holidays.map((h) => [toDateOnly(h.date), h.name])),
-    leaves: leaves.map(
-      (l): LeaveSpan => ({
-        start: l.startDate,
-        end: l.endDate,
-        totalDays: l.totalDays,
-        type: l.leaveType.name,
-      }),
-    ),
-  }
-}
-
 const OFF_TEXT: Record<DayOff["kind"], string> = {
   weekend: "a weekend",
   holiday: "a holiday",
@@ -158,6 +126,11 @@ export async function startScorecardFor(
     })
     return card.id
   })
+  // The weekly reviews follow the scorecard, so they start with it. A failure here must not
+  // undo the scorecard; HR can start the review from its tab.
+  await startWeeklyReviewFor(employeeId, { actorId: opts.actorId ?? null }).catch((e) =>
+    console.error("[scorecard] weekly review start failed", employeeId, e),
+  )
   return { id, created: true }
 }
 

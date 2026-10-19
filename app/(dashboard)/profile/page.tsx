@@ -22,6 +22,7 @@ import {
   Upload,
   Pencil,
   Trash2,
+  CalendarCheck,
   ClipboardCheck,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -44,7 +45,12 @@ import { TaskReminderSettings } from "@/features/notifications"
 import { DocumentList } from "@/features/documents"
 import { DocumentUploadDialog } from "@/features/documents"
 import { useSession } from "next-auth/react"
-import { JoineeScorecard, useScorecard } from "@/features/joinee-scorecard"
+import {
+  JoineeScorecard,
+  WeeklyReview,
+  useScorecard,
+  useWeeklyReview,
+} from "@/features/joinee-scorecard"
 import { useEmployee } from "@/features/employees"
 import { formatDate } from "@/lib/utils"
 import { getProbationStatus } from "@/features/employees"
@@ -87,6 +93,8 @@ export default function ProfilePage() {
   // Read-only; the tab appears once HR has started one. Same query as the tab, so no second request.
   const { data: scorecardData } = useScorecard(userId)
   const hasScorecard = !!scorecardData?.scorecard
+  const { data: weeklyData } = useWeeklyReview(userId)
+  const hasWeeklyReview = !!weeklyData?.review
 
   const [pwForm, setPwForm] = useState({
     currentPassword: "",
@@ -264,6 +272,11 @@ export default function ProfilePage() {
             { value: "security", label: "Security", icon: Shield },
             { value: "notifications", label: "Notifications", icon: Bell },
             hasScorecard && { value: "scorecard", label: "15-Day Scorecard", icon: ClipboardCheck },
+            hasWeeklyReview && {
+              value: "weekly-review",
+              label: "Weekly Review",
+              icon: CalendarCheck,
+            },
           ]}
         />
 
@@ -634,6 +647,12 @@ export default function ProfilePage() {
         {hasScorecard && userId && (
           <TabsContent value="scorecard">
             <JoineeScorecard employeeId={userId} />
+          </TabsContent>
+        )}
+
+        {hasWeeklyReview && userId && (
+          <TabsContent value="weekly-review">
+            <WeeklyReview employeeId={userId} />
           </TabsContent>
         )}
       </Tabs>

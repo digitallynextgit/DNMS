@@ -338,6 +338,59 @@ export const TALENT_PAY: DescriptionMap = {
     body: "{ items: Array<{ key?: string | null (null = new), side: 'MANAGER' | 'HR', label: string, isActive?: boolean }> } in display order",
     keywords: ["edit scorecard criteria", "add scorecard column", "rename scorecard criterion"],
   },
+  "GET /api/joinee-weekly-reviews": {
+    summary:
+      "A new joinee's weekly review: after the 15-day scorecard, the reporting manager scores them every Friday for 90 days (about 13 Fridays). Each Friday has its own parameters, 1-5 scores, a comment, who reviewed it and a note when the Friday is a holiday or leave. The joinee reads their own; their reporting manager and onboarding:read/write see it.",
+    query:
+      "employeeId: the employee's id (required; find it with dnms_search_people or /api/employees)",
+    keywords: [
+      "weekly review",
+      "joinee friday review",
+      "probation weekly evaluation",
+      "manager weekly feedback",
+    ],
+    notes:
+      "review is null until started (plannedFridays then shows the Fridays it would cover). canEdit = may score (reporting manager or onboarding:write); canManage = may start/delete it and edit the default parameters.",
+  },
+  "POST /api/joinee-weekly-reviews": {
+    summary:
+      "Start a joinee's weekly review by hand (it normally starts with their 15-day scorecard). Needs onboarding:write. Creates one row per Friday with the company's default parameters.",
+    body: "{ employeeId: string }",
+    keywords: ["start weekly review", "begin joinee weekly review"],
+  },
+  "DELETE /api/joinee-weekly-reviews/[id]": {
+    summary:
+      "Delete a joinee's weekly review with every Friday's scores and comments. Needs onboarding:write. [id] is review.id from GET /api/joinee-weekly-reviews?employeeId=...",
+    keywords: ["delete weekly review"],
+  },
+  "PATCH /api/joinee-weekly-reviews/[id]/weeks/[week]": {
+    summary:
+      "Fill in one Friday of a joinee's weekly review: 1-5 scores and/or the comment. The joinee's reporting manager or onboarding:write. [id] is review.id; [week] is the week number (1 = the first Friday). A Friday opens on the Monday of its week.",
+    body: "{ scores?: { <paramKey>: 1-5 or null to clear } (keys from that week's params), comment?: string | null }",
+    keywords: ["score weekly review", "fill friday review", "weekly review comment"],
+  },
+  "PUT /api/joinee-weekly-reviews/[id]/weeks/[week]/params": {
+    summary:
+      "Replace the parameters of ONE Friday of one joinee's weekly review (other Fridays and other joinees are untouched). The reporting manager or onboarding:write. Rows left out are hidden, never deleted; at least one stays visible.",
+    body: "{ items: Array<{ key?: string | null (null = new), label: string, isActive?: boolean }> } in display order",
+    keywords: ["edit friday parameters", "change weekly review parameters for one week"],
+  },
+  "GET /api/joinee-weekly-reviews/params": {
+    summary:
+      "The company's DEFAULT weekly-review parameters - what every Friday of a new review starts with - hidden ones included. Built-in five until HR edits them.",
+    keywords: ["weekly review parameters", "default review parameters"],
+  },
+  "PUT /api/joinee-weekly-reviews/params": {
+    summary:
+      "Replace the DEFAULT weekly-review parameters that new reviews start with. Reviews already started keep their own. Needs onboarding:write. Rows left out are hidden, never deleted; at least one stays visible.",
+    body: "{ items: Array<{ key?: string | null (null = new), label: string, isActive?: boolean }> } in display order",
+    keywords: ["edit default review parameters", "weekly review template"],
+  },
+  "GET /api/joinee-weekly-reviews/due": {
+    summary:
+      "The weekly reviews the signed-in reporting manager still has to fill in: Fridays up to today with nothing entered, for their active direct reports.",
+    keywords: ["my weekly reviews due", "pending friday reviews", "reviews waiting on me"],
+  },
   "PUT /api/joinee-scorecards/[id]/criteria": {
     summary:
       "Replace ONE joinee's scorecard criteria: rename, reorder, hide or add columns on that card only (other cards and the company default are untouched). Needs onboarding:write. [id] is scorecard.id. Rows left out are hidden, never deleted; each side (MANAGER, HR) keeps at least one visible criterion.",
