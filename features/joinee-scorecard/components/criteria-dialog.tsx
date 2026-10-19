@@ -11,12 +11,13 @@ import type { ScorecardSide } from "../lib/scorecard"
 import type { ScorecardCriterionRow } from "../types"
 import {
   useScorecardCriteria,
+  useUpdateCardCriteria,
   useUpdateCriteria,
   type CriterionInput,
 } from "../hooks/use-scorecard"
 
-// HR edits the company's scorecard columns: rename, reorder, hide (never delete - old scores keep
-// their meaning) and add. Applies to every joinee's scorecard.
+// HR edits scorecard columns: rename, reorder, hide (never delete - old scores keep their meaning)
+// and add. Either one joinee's card, or the company default that new cards start from.
 
 interface Draft extends CriterionInput {
   /** Stable React key for rows that have no criterion key yet. */
@@ -26,24 +27,36 @@ interface Draft extends CriterionInput {
 export function CriteriaDialog({
   open,
   onOpenChange,
+  card,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** This joinee's card; left out, the dialog edits the company default for new cards. */
+  card?: { id: string; employeeId: string; firstName: string; rows: ScorecardCriterionRow[] }
 }) {
-  const { data, isLoading } = useScorecardCriteria(open)
+  const defaults = useScorecardCriteria(open && !card)
+  const saveDefault = useUpdateCriteria()
+  // Called either way (hooks can't be conditional); only used when there is a card.
+  const saveCard = useUpdateCardCriteria(card?.employeeId ?? "", card?.id ?? "")
+  const save = card ? saveCard : saveDefault
+  const rows = card ? card.rows : defaults.data?.criteria
   return (
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Scorecard criteria"
-      description="What the manager and HR score each day. Changes apply to every joinee's scorecard; hiding a column keeps the scores already given."
+      title={card ? `Criteria for ${card.firstName}` : "Default criteria for new joinees"}
+      description={
+        card
+          ? `What the manager and HR score each day on ${card.firstName}'s scorecard. Only this scorecard changes; hiding a column keeps the scores already given.`
+          : "Every new scorecard starts with these. Scorecards already started keep their own criteria."
+      }
       isEdit
       size="lg"
       submitLabel="Save criteria"
       submitDisabled
       onSubmit={(e) => e.preventDefault()}
     >
-      {isLoading || !data ? (
+      {!rows ? (
         <div className="space-y-2">
           <Skeleton className="h-9 w-full" />
           <Skeleton className="h-9 w-full" />
@@ -53,7 +66,9 @@ export function CriteriaDialog({
         // Remounts per opening, so the draft starts from what is saved.
         <CriteriaEditor
           key={String(open)}
-          rows={data.criteria}
+          rows={rows}
+          saving={save.isPending}
+          onSave={(items) => save.mutate(items, { onSuccess: () => onOpenChange(false) })}
           onDone={() => onOpenChange(false)}
         />
       )}
@@ -61,8 +76,17 @@ export function CriteriaDialog({
   )
 }
 
-function CriteriaEditor({ rows, onDone }: { rows: ScorecardCriterionRow[]; onDone: () => void }) {
-  const save = useUpdateCriteria()
+function CriteriaEditor({
+  rows,
+  saving,
+  onSave,
+  onDone,
+}: {
+  rows: ScorecardCriterionRow[]
+  saving: boolean
+  onSave: (items: CriterionInput[]) => void
+  onDone: () => void
+}) {
   const [items, setItems] = useState<Draft[]>(() =>
     rows.map((r) => ({
       key: r.key,
@@ -100,10 +124,9 @@ function CriteriaEditor({ rows, onDone }: { rows: ScorecardCriterionRow[]; onDon
     (["MANAGER", "HR"] as const).every((s) => items.some((i) => i.side === s && i.isActive))
 
   const submit = () => {
-    if (!valid || save.isPending) return
-    save.mutate(
+    if (!valid || saving) return
+    onSave(
       items.map(({ key, side, label, isActive }) => ({ key, side, label: label.trim(), isActive })),
-      { onSuccess: onDone },
     )
   }
 
@@ -178,10 +201,10 @@ function CriteriaEditor({ rows, onDone }: { rows: ScorecardCriterionRow[]; onDon
       )}
 
       <div className="flex justify-end gap-2 border-t pt-4">
-        <Button type="button" variant="outline" onClick={onDone} disabled={save.isPending}>
+        <Button type="button" variant="outline" onClick={onDone} disabled={saving}>
           Cancel
         </Button>
-        <Button type="button" onClick={submit} disabled={!valid} loading={save.isPending}>
+        <Button type="button" onClick={submit} disabled={!valid} loading={saving}>
           Save criteria
         </Button>
       </div>

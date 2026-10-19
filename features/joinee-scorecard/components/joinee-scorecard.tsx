@@ -12,6 +12,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { FormDialog } from "@/components/shared/form-dialog"
@@ -27,6 +28,7 @@ import {
   formatScore,
   ratingFor,
   scorecardSummary,
+  type DayOffKind,
   type Recommendation,
   type ScorecardCriterion,
 } from "../lib/scorecard"
@@ -37,7 +39,7 @@ import {
   useStartScorecard,
   useUpdateScorecard,
 } from "../hooks/use-scorecard"
-import type { Scorecard } from "../types"
+import type { Scorecard, ScorecardCriterionRow } from "../types"
 import { CriteriaDialog } from "./criteria-dialog"
 
 // One component everywhere: HR edits it (onboarding:write), the employee sees it read-only.
@@ -52,6 +54,13 @@ const SCORE_TONE: Record<number, string> = {
 }
 const toneFor = (score: number | null) =>
   score === null ? "" : (SCORE_TONE[ratingFor(score)?.score ?? 0] ?? "")
+
+/** Label colour on a day that isn't scored. */
+const OFF_TONE: Record<DayOffKind, string> = {
+  weekend: "text-muted-foreground",
+  holiday: "text-violet-600 dark:text-violet-400",
+  leave: "text-amber-600 dark:text-amber-400",
+}
 
 const name = (p: { firstName: string; lastName: string } | null | undefined) =>
   p ? `${p.firstName} ${p.lastName}`.trim() : "-"
@@ -97,6 +106,7 @@ export function JoineeScorecard({ employeeId }: { employeeId: string }) {
       employeeId={employeeId}
       card={data.scorecard}
       criteria={data.criteria}
+      criteriaRows={data.criteriaRows}
       canEdit={data.canEdit}
       canEditCriteria={data.canEditCriteria}
     />
@@ -114,7 +124,7 @@ function NotStarted({ employeeId, canEdit }: { employeeId: string; canEdit: bool
         <p className="font-semibold">No 15-day scorecard yet</p>
         <p className="text-muted-foreground max-w-md text-sm">
           {canEdit
-            ? "Track this joinee's first 15 working days: daily 1-5 ratings by the reporting manager and HR, then observations and a recommendation."
+            ? "Track this joinee's first 15 days from joining: daily 1-5 ratings by the reporting manager and HR on working days, then observations and a recommendation."
             : "HR has not started a 15-day scorecard for this employee."}
         </p>
       </div>
@@ -131,12 +141,14 @@ function ScorecardBody({
   employeeId,
   card,
   criteria,
+  criteriaRows,
   canEdit,
   canEditCriteria,
 }: {
   employeeId: string
   card: Scorecard
   criteria: ScorecardCriterion[]
+  criteriaRows: ScorecardCriterionRow[]
   canEdit: boolean
   canEditCriteria: boolean
 }) {
@@ -146,15 +158,18 @@ function ScorecardBody({
   const [spocOpen, setSpocOpen] = useState(false)
   const [spocId, setSpocId] = useState<string | undefined>(card.hrSpocId ?? undefined)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [criteriaOpen, setCriteriaOpen] = useState(false)
+  // "card" = this joinee's own criteria; "default" = what new scorecards start with.
+  const [criteriaFor, setCriteriaFor] = useState<"card" | "default" | null>(null)
 
   const MANAGER = criteria.filter((c) => c.side === "MANAGER")
   const HR = criteria.filter((c) => c.side === "HR")
   const COLS = [...MANAGER, ...HR]
   // A left border opens each group of columns.
   const groupStart = (i: number) => i === 0 || i === MANAGER.length
+  // Weekends, holidays and leave are shown but never count towards an average.
+  const workingDays = card.days.filter((d) => !d.off)
   const summary = scorecardSummary(
-    card.days.map((d) => d.scores),
+    workingDays.map((d) => d.scores),
     criteria,
   )
   const first = card.days[0]?.date
@@ -168,7 +183,7 @@ function ScorecardBody({
           <div className="min-w-0 flex-1">
             <h3 className="text-base font-semibold">15-Day New Joinee Scorecard</h3>
             <p className="text-muted-foreground text-xs">
-              {summary.scoredDays} of {card.days.length} days scored
+              {summary.scoredDays} of {workingDays.length} working days scored
             </p>
           </div>
           {canEditCriteria && (
@@ -176,7 +191,8 @@ function ScorecardBody({
               type="button"
               variant="ghost"
               className="text-muted-foreground"
-              onClick={() => setCriteriaOpen(true)}
+              onClick={() => setCriteriaFor("card")}
+              title={`Changes ${card.employee.firstName}'s scorecard only`}
             >
               <Settings2 className="mr-1.5 h-4 w-4" />
               Edit criteria
@@ -195,6 +211,15 @@ function ScorecardBody({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {canEditCriteria && (
+                  <>
+                    <DropdownMenuItem onClick={() => setCriteriaFor("default")}>
+                      <Settings2 className="mr-2 h-4 w-4" />
+                      Default criteria for new joinees
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
                   onClick={() => setConfirmDelete(true)}
@@ -211,11 +236,11 @@ function ScorecardBody({
           <Fact label="Designation">{card.employee.designation?.title ?? "-"}</Fact>
           <Fact label="Joining date">{formatDate(card.employee.dateOfJoining)}</Fact>
           <Fact label="Evaluation period">
-            {SCORECARD_DAYS} working days
+            {SCORECARD_DAYS} days
             {first && last && (
               <span className="text-muted-foreground">
                 {" "}
-                · {dayLabel(first)} - {dayLabel(last)}
+                · {dayLabel(first)} - {dayLabel(last)} · {workingDays.length} working
               </span>
             )}
           </Fact>
@@ -283,9 +308,14 @@ function ScorecardBody({
               {card.days.map((day) => {
                 const avg = dayAverages(day.scores, criteria)
                 const isToday = day.date.slice(0, 10) === today
-                return (
-                  <tr key={day.dayNumber} className={cn(isToday && "bg-primary/5")}>
-                    <td className="px-4 py-1.5 font-medium whitespace-nowrap">
+                const dayCells = (
+                  <>
+                    <td
+                      className={cn(
+                        "px-4 py-1.5 font-medium whitespace-nowrap",
+                        day.off && "text-muted-foreground font-normal",
+                      )}
+                    >
                       Day {day.dayNumber}
                       {isToday && (
                         <span className="text-muted-foreground ml-1.5 text-[10px] font-normal">
@@ -295,7 +325,38 @@ function ScorecardBody({
                     </td>
                     <td className="text-muted-foreground px-2 py-1.5 whitespace-nowrap">
                       {dayLabel(day.date)}
+                      {day.note && (
+                        <span className="block text-[10px] text-sky-600 dark:text-sky-400">
+                          {day.note}
+                        </span>
+                      )}
                     </td>
+                  </>
+                )
+                // Weekend, holiday or full-day leave: shown in its place, never scored.
+                if (day.off) {
+                  return (
+                    <tr
+                      key={day.dayNumber}
+                      className={cn("bg-muted/30", isToday && "bg-primary/5")}
+                    >
+                      {dayCells}
+                      <td colSpan={COLS.length + 3} className="border-l px-4 py-2.5">
+                        <span
+                          className={cn(
+                            "text-xs font-medium",
+                            OFF_TONE[day.off.kind] ?? "text-muted-foreground",
+                          )}
+                        >
+                          {day.off.label}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                }
+                return (
+                  <tr key={day.dayNumber} className={cn(isToday && "bg-primary/5")}>
+                    {dayCells}
                     {COLS.map((c, i) => (
                       <td
                         key={c.key}
@@ -454,7 +515,20 @@ function ScorecardBody({
         </div>
       </FormDialog>
 
-      <CriteriaDialog open={criteriaOpen} onOpenChange={setCriteriaOpen} />
+      <CriteriaDialog
+        open={criteriaFor !== null}
+        onOpenChange={(o) => !o && setCriteriaFor(null)}
+        card={
+          criteriaFor === "card"
+            ? {
+                id: card.id,
+                employeeId,
+                firstName: card.employee.firstName,
+                rows: criteriaRows,
+              }
+            : undefined
+        }
+      />
 
       <ConfirmDialog
         open={confirmDelete}

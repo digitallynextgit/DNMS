@@ -22,8 +22,8 @@ export const onboardingGuide: HelpGuide = {
   href: "/onboarding",
   title: { en: "Onboarding", hi: "ऑनबोर्डिंग (Onboarding)" },
   summary: {
-    en: "Follow every new joiner's checklist from the week before they start to their first-month review, and score their first 15 working days.",
-    hi: "हर नए joiner की checklist को जॉइनिंग से पहले वाले हफ्ते से लेकर पहले महीने के review तक फॉलो करें, और उनके पहले 15 वर्किंग डेज़ को स्कोर करें।",
+    en: "Follow every new joiner's checklist from the week before they start to their first-month review, and score their first 15 days.",
+    hi: "हर नए joiner की checklist को जॉइनिंग से पहले वाले हफ्ते से लेकर पहले महीने के review तक फॉलो करें, और उनके पहले 15 दिनों को स्कोर करें।",
   },
   keywords: [
     "onboarding",
@@ -160,14 +160,14 @@ export const onboardingGuide: HelpGuide = {
       id: "scorecard",
       title: { en: "The 15-day joinee scorecard", hi: "नए joinee का 15-day scorecard" },
       intro: {
-        en: "Every new joiner gets a scorecard for their first 15 working days. You'll find it at the bottom of their onboarding page, and on the 15-Day Scorecard tab of their profile.",
-        hi: "हर नए joiner का पहले 15 वर्किंग डेज़ के लिए एक scorecard होता है। ये उनके onboarding पेज में सबसे नीचे, और उनकी प्रोफाइल के 15-Day Scorecard टैब पर मिलता है।",
+        en: "Every new joiner gets a scorecard for the first 15 days from their joining date. Weekends, holidays and leave days show in their place but aren't scored. You'll find it at the bottom of their onboarding page, and on the 15-Day Scorecard tab of their profile. Edit criteria changes that joinee's columns only; the default for new joinees is in the ⋯ menu.",
+        hi: "हर नए joiner का जॉइनिंग की तारीख से पहले 15 दिनों का एक scorecard होता है। Weekend, holiday और छुट्टी वाले दिन अपनी जगह दिखते हैं, पर उनका स्कोर नहीं होता। ये उनके onboarding पेज में सबसे नीचे, और उनकी प्रोफाइल के 15-Day Scorecard टैब पर मिलता है। Edit criteria से सिर्फ उसी joinee के कॉलम बदलते हैं; नए joinees के default कॉलम ⋯ मेन्यू में हैं।",
       },
       steps: [
         {
           text: {
-            en: "Each row is one working day. The Manager columns (1) score understanding of the job role, communication and learning. The HR columns (2) score discipline and attendance, culture and adaptability. DNMS works out the Average columns for you.",
-            hi: "हर लाइन एक वर्किंग डे है। Manager वाले कॉलम (1) में job role की समझ, communication और learning के नंबर होते हैं। HR वाले कॉलम (2) में discipline और attendance, culture और adaptability के नंबर होते हैं। Average वाले कॉलम DNMS खुद निकालता है।",
+            en: "Each row is one day. The Manager columns (1) score understanding of the job role, communication and learning. The HR columns (2) score discipline and attendance, culture and adaptability. DNMS works out the Average columns for you. Weekends, holidays and leave show as grey rows and don't count.",
+            hi: "हर लाइन एक दिन है। Manager वाले कॉलम (1) में job role की समझ, communication और learning के नंबर होते हैं। HR वाले कॉलम (2) में discipline और attendance, culture और adaptability के नंबर होते हैं। Average वाले कॉलम DNMS खुद निकालता है। Weekend, holiday और छुट्टी वाले दिन ग्रे लाइन में दिखते हैं और गिने नहीं जाते।",
           },
           shot: {
             id: "onboarding-scorecard",
@@ -191,7 +191,7 @@ export const onboardingGuide: HelpGuide = {
             path: RAHUL_PROFILE,
             actions: [
               ...OPEN_RAHUL_SCORECARD,
-              { click: { role: "button", name: "Day 2 - HR: Culture & Collaboration" } },
+              { click: { role: "button", name: "Day 1 - HR: Culture & Collaboration" } },
             ],
             highlight: [{ role: "dialog" }],
           },

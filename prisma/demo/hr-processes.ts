@@ -21,14 +21,9 @@ import {
 
 const POOJA_STATUS: "APPROVED" | "PENDING" = "APPROVED"
 
-/** First `n` working days from `start` inclusive (fixed holidays skipped). */
-function firstWorkingDays(ctx: DemoContext, start: Date, n: number): Date[] {
-  const out: Date[] = []
-  for (let d = start; out.length < n; d = addDays(d, 1)) {
-    if (isWeekend(d) || ctx.holidayKeys.has(dayKey(d))) continue
-    out.push(d)
-  }
-  return out
+/** Weekends and fixed holidays sit in a scorecard's 15 calendar days unscored. */
+function isWorkingDay(ctx: DemoContext, d: Date): boolean {
+  return !isWeekend(d) && !ctx.holidayKeys.has(dayKey(d))
 }
 
 async function markItems(
@@ -163,7 +158,7 @@ export async function seedHrProcesses(ctx: DemoContext): Promise<void> {
       recommendation: opts.complete ? "CONTINUE" : null,
       createdAt: at(joined, "10:00"),
     })
-    const dates = firstWorkingDays(ctx, joined, SCORECARD_DAYS)
+    const dates = Array.from({ length: SCORECARD_DAYS }, (_, i) => addDays(joined, i))
     const score = () => r.int(3, 5)
     await makeMany(
       ctx,
@@ -171,8 +166,9 @@ export async function seedHrProcesses(ctx: DemoContext): Promise<void> {
       dates.map((date, i) => {
         const past = date < ctx.today
         const isToday = date.getTime() === ctx.today.getTime()
-        const mgr = opts.complete || past || isToday
-        const hr = opts.complete || past
+        const working = isWorkingDay(ctx, date)
+        const mgr = working && (opts.complete || past || isToday)
+        const hr = working && (opts.complete || past)
         return {
           scorecardId: card,
           dayNumber: i + 1,

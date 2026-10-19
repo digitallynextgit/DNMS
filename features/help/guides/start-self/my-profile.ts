@@ -292,8 +292,8 @@ export const myProfileGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Open the 15-Day Scorecard tab. For each of your first 15 working days, your reporting manager and HR give you scores from 1 to 5.",
-            hi: "15-Day Scorecard टैब खोलें। आपके पहले 15 वर्किंग डेज़ में से हर दिन के लिए आपके रिपोर्टिंग मैनेजर और HR आपको 1 से 5 तक स्कोर देते हैं।",
+            en: "Open the 15-Day Scorecard tab. For each working day in your first 15 days, your reporting manager and HR give you scores from 1 to 5. Weekends, holidays and leave days aren't scored.",
+            hi: "15-Day Scorecard टैब खोलें। आपके पहले 15 दिनों में हर वर्किंग डे के लिए आपके रिपोर्टिंग मैनेजर और HR आपको 1 से 5 तक स्कोर देते हैं। Weekend, holiday और छुट्टी वाले दिनों का स्कोर नहीं होता।",
           },
         },
         {

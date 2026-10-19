@@ -1275,6 +1275,9 @@ model JoineeScorecard {
   hrObservations      String?  @map("hr_observations") @db.Text
   /// CONTINUE | CONTINUE_WITH_IMPROVEMENTS | REVIEW_REQUIRED (null = not decided yet)
   recommendation      String?  @map("recommendation")
+  /// This card's own criteria, [{ key, side, label, isActive }] in sheet order - copied from the
+  /// company default when the card starts. Null = the company default (cards from before this).
+  criteria            Json?    @map("criteria")
   createdById         String?  @map("created_by_id")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")

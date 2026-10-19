@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest"
 import {
+  applyCriteriaEdit,
   dayAverages,
+  dayStatus,
   formatScore,
   isScore,
+  parseCardCriteria,
   ratingFor,
+  scorecardDates,
   scorecardSummary,
+  type CriterionEntry,
   type DayScores,
 } from "./scorecard"
 
@@ -103,5 +108,68 @@ describe("custom criteria", () => {
       overall: 3,
       scoredDays: 2,
     })
+  })
+})
+
+describe("scorecardDates", () => {
+  it("covers 15 calendar days from joining, weekends included", () => {
+    const days = scorecardDates("2027-01-01")
+    expect(days).toHaveLength(15)
+    expect(days[0]!.toISOString().slice(0, 10)).toBe("2027-01-01")
+    expect(days[14]!.toISOString().slice(0, 10)).toBe("2027-01-15")
+  })
+})
+
+describe("dayStatus", () => {
+  const holidays = new Map([["2026-10-20", "Dussehra"]])
+  const leaves = [
+    { start: "2026-10-22", end: "2026-10-23", totalDays: 2, type: "Casual Leave" },
+    { start: "2026-10-26", end: "2026-10-26", totalDays: 0.5, type: "Sick Leave" },
+    { start: "2026-10-27", end: "2026-10-27", totalDays: 0.25, type: "Casual Leave" },
+  ]
+  const at = (d: string) => dayStatus(d, holidays, leaves)
+
+  it("marks weekends, holidays and full-day leave as not scored", () => {
+    expect(at("2026-10-17").off).toEqual({ kind: "weekend", label: "Weekend" })
+    expect(at("2026-10-20").off).toEqual({ kind: "holiday", label: "Holiday · Dussehra" })
+    expect(at("2026-10-23").off).toEqual({ kind: "leave", label: "On leave · Casual Leave" })
+  })
+
+  it("keeps a part-day leave scored, with a note", () => {
+    expect(at("2026-10-26")).toEqual({ off: null, note: "Half-day leave · Sick Leave" })
+    expect(at("2026-10-27")).toEqual({ off: null, note: "Short leave · Casual Leave" })
+  })
+
+  it("leaves an ordinary working day alone", () => {
+    expect(at("2026-10-21")).toEqual({ off: null, note: null })
+  })
+})
+
+describe("card criteria", () => {
+  const current: CriterionEntry[] = [
+    { key: "mgrJobRole", side: "MANAGER", label: "Job role", isActive: true },
+    { key: "hrCulture", side: "HR", label: "Culture", isActive: true },
+    { key: "custom.client-handling", side: "MANAGER", label: "Client handling", isActive: true },
+  ]
+
+  it("reads a stored list and refuses anything malformed", () => {
+    expect(parseCardCriteria(current)).toEqual(current)
+    expect(parseCardCriteria(null)).toBeNull()
+    expect(parseCardCriteria([{ key: "x", side: "BOSS", label: "X" }])).toBeNull()
+  })
+
+  it("renames and reorders, keys new rows apart, and hides rows left out", () => {
+    const next = applyCriteriaEdit(current, [
+      { key: "hrCulture", side: "HR", label: "Culture fit", isActive: true },
+      { key: "mgrJobRole", side: "MANAGER", label: "Job role", isActive: true },
+      { key: null, side: "MANAGER", label: "Client handling", isActive: true },
+    ])
+    expect(next.map((c) => [c.key, c.label, c.isActive])).toEqual([
+      ["hrCulture", "Culture fit", true],
+      ["mgrJobRole", "Job role", true],
+      // The old "Client handling" keeps its key (and scores); the new one gets its own.
+      ["custom.client-handling-2", "Client handling", true],
+      ["custom.client-handling", "Client handling", false],
+    ])
   })
 })

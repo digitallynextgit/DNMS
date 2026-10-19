@@ -69,9 +69,24 @@ export const PROJECT_CONTENT: DescriptionMap = {
   },
   "DELETE /api/projects/[id]/sheets/[sheetId]/rows/[rowId]": {
     summary:
-      "Delete a row from a sheet tab (e.g. one post from a content calendar). Only the Account Manager or a project admin. [rowId] is rows[].id from GET /api/projects/[id]/workbooks/[workbookId].",
+      "Delete a row from a sheet tab (e.g. one post from a content calendar); the rows below move up. Only the Account Manager or a project admin. [rowId] is rows[].id from GET /api/projects/[id]/workbooks/[workbookId].",
     keywords: ["delete row", "remove post from calendar", "delete sheet row"],
     notes: "The row's values are kept in the tab's history, but the row itself cannot be restored.",
+  },
+  "DELETE /api/projects/[id]/sheets/[sheetId]/rows": {
+    summary:
+      "Delete several rows of a sheet tab at once by position (0 = the first grid row), empty rows included; the rows below move up to close the gap, as in a spreadsheet. Only the Account Manager or a project admin.",
+    body: "{ positions: number[] } - 0-based grid row positions (rows[].position), at most 1000",
+    keywords: ["delete rows", "remove empty rows", "bulk delete calendar rows", "close gap"],
+    notes: "Each deleted row's values are kept in the tab's history; returns { deleted, moved }.",
+  },
+  "DELETE /api/projects/[id]/sheets/[sheetId]/columns": {
+    summary:
+      "Delete several columns of a sheet tab at once, clearing their values in every row. Only the Account Manager or a project admin. Column ids from the tab's columns in GET /api/projects/[id]/workbooks/[workbookId].",
+    body: "{ columnIds: string[] }",
+    keywords: ["delete columns", "bulk delete sheet columns", "remove columns"],
+    notes:
+      "The discarded values are copied into the tab's history but cannot be restored automatically; returns { deleted }.",
   },
   "DELETE /api/projects/[id]/workbooks/[workbookId]": {
     summary:

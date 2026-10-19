@@ -96,7 +96,7 @@ export const TALENT_PAY: DescriptionMap = {
   },
   "GET /api/joinee-scorecards": {
     summary:
-      "A new joinee's 15-working-day scorecard: daily 1-5 scores from the manager (job role, communication, learning) and HR (discipline, culture, learning), observations, recommendation and HR SPOC. Anyone can read their own; onboarding:read or onboarding:write sees anyone's.",
+      "A new joinee's 15-day scorecard (15 calendar days from joining): daily 1-5 scores from the manager and HR on working days, observations, recommendation and HR SPOC. Each day has off (weekend, holiday or full-day leave - not scored) and note (a half-day or short leave). Each card has its own criteria (criteria = the active columns, criteriaRows = all of them). Anyone can read their own; onboarding:read or onboarding:write sees anyone's.",
     query:
       "employeeId: the employee's id (required; find it with dnms_search_people or /api/employees)",
     keywords: [
@@ -323,20 +323,26 @@ export const TALENT_PAY: DescriptionMap = {
   },
   "PATCH /api/joinee-scorecards/[id]/days/[day]": {
     summary:
-      "Enter or clear one day's 1-5 scores on a new joinee's 15-day scorecard. Needs onboarding:write (a manager without it cannot score). [id] is the scorecard id; [day] is the day number 1-15.",
-    body: "{ <criterionKey>: whole number 1-5 (5 Excellent, 4 Good, 3 Average, 2 Needs Improvement, 1 Unsatisfactory) or null to clear } - keys come from GET /api/joinee-scorecards/criteria (built-in: mgrJobRole, mgrCommunication, mgrLearning, hrDiscipline, hrCulture, hrLearning); send only the scores to change",
+      "Enter or clear one day's 1-5 scores on a new joinee's 15-day scorecard. Needs onboarding:write (a manager without it cannot score). [id] is the scorecard id; [day] is the day number 1-15. A day that is a weekend, holiday or full-day leave can't be given a score (clearing one is allowed).",
+    body: "{ <criterionKey>: whole number 1-5 (5 Excellent, 4 Good, 3 Average, 2 Needs Improvement, 1 Unsatisfactory) or null to clear } - keys come from criteriaRows in GET /api/joinee-scorecards?employeeId=... - each card has its own (built-in: mgrJobRole, mgrCommunication, mgrLearning, hrDiscipline, hrCulture, hrLearning); send only the scores to change",
     keywords: ["score new joinee", "daily joinee rating", "joinee day score"],
   },
   "GET /api/joinee-scorecards/criteria": {
     summary:
-      "The company's joinee-scorecard criteria (the columns the manager and HR score each day), hidden ones included, with the key to use when scoring. Built-in six until HR edits them.",
+      "The company's DEFAULT joinee-scorecard criteria - the columns every new scorecard starts with - hidden ones included. Built-in six until HR edits them. A started scorecard keeps its own list (criteriaRows in GET /api/joinee-scorecards).",
     keywords: ["scorecard criteria", "scorecard columns", "what is scored"],
   },
   "PUT /api/joinee-scorecards/criteria": {
     summary:
-      "Replace the joinee-scorecard criteria list: rename, reorder, hide or add columns, company-wide. Needs onboarding:write. Rows left out are hidden, never deleted; each side (MANAGER, HR) keeps at least one visible criterion.",
+      "Replace the DEFAULT joinee-scorecard criteria that new scorecards start with: rename, reorder, hide or add columns. Scorecards already started are not changed (use PUT /api/joinee-scorecards/[id]/criteria). Needs onboarding:write. Rows left out are hidden, never deleted; each side (MANAGER, HR) keeps at least one visible criterion.",
     body: "{ items: Array<{ key?: string | null (null = new), side: 'MANAGER' | 'HR', label: string, isActive?: boolean }> } in display order",
     keywords: ["edit scorecard criteria", "add scorecard column", "rename scorecard criterion"],
+  },
+  "PUT /api/joinee-scorecards/[id]/criteria": {
+    summary:
+      "Replace ONE joinee's scorecard criteria: rename, reorder, hide or add columns on that card only (other cards and the company default are untouched). Needs onboarding:write. [id] is scorecard.id. Rows left out are hidden, never deleted; each side (MANAGER, HR) keeps at least one visible criterion.",
+    body: "{ items: Array<{ key?: string | null (null = new), side: 'MANAGER' | 'HR', label: string, isActive?: boolean }> } in display order - start from criteriaRows in GET /api/joinee-scorecards?employeeId=...",
+    keywords: ["edit one joinee's criteria", "scorecard columns for one employee"],
   },
   "PATCH /api/payroll/records/[id]": {
     summary:

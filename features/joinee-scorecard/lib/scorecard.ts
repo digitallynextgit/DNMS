@@ -1,6 +1,8 @@
 // 15-day joinee scorecard rules. Only raw 1-5 scores are stored; every average is computed here.
 
-/** How many working days a joinee is scored for. */
+import { addDays, isWeekend, startOfDayUTC, toDateOnly } from "@/lib/dates"
+
+/** How many calendar days a scorecard covers, from the joining date. */
 export const SCORECARD_DAYS = 15
 
 export type ScorecardSide = "MANAGER" | "HR"
@@ -11,8 +13,8 @@ export interface ScorecardCriterion {
   label: string
 }
 
-/** The built-in six, in sheet order: three by the manager, three by HR. HR can rename, reorder,
- *  hide or add to them per company (joinee_scorecard_criteria). */
+/** The built-in six, in sheet order: three by the manager, three by HR. The company default
+ *  (joinee_scorecard_criteria) starts from these; each card then keeps its own copy. */
 export const SCORECARD_CRITERIA: readonly ScorecardCriterion[] = [
   { key: "mgrJobRole", side: "MANAGER", label: "Understanding of Job Role" },
   { key: "mgrCommunication", side: "MANAGER", label: "Communication & Ownership" },
@@ -81,6 +83,94 @@ export function criterionKeyFor(label: string): string {
       .replace(/^-+|-+$/g, "")
       .slice(0, 40) || "criterion"
   return `custom.${slug}`
+}
+
+/** A criterion in a card's own list (or the company default), hidden ones included. */
+export interface CriterionEntry extends ScorecardCriterion {
+  isActive: boolean
+}
+
+/** A card's stored list, or null when it has none of its own (or it can't be read). */
+export function parseCardCriteria(value: unknown): CriterionEntry[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null
+  const out: CriterionEntry[] = []
+  for (const v of value) {
+    const o = (v ?? {}) as Record<string, unknown>
+    if (typeof o.key !== "string" || typeof o.label !== "string" || !isScorecardSide(o.side))
+      return null
+    out.push({ key: o.key, side: o.side, label: o.label, isActive: o.isActive !== false })
+  }
+  return out
+}
+
+/**
+ * The list after an edit: the edited items in their new order (new ones get a key no other row
+ * of this list has), then any row left out, hidden - never dropped, so its scores keep meaning.
+ */
+export function applyCriteriaEdit(
+  current: readonly CriterionEntry[],
+  items: readonly { key: string | null; side: ScorecardSide; label: string; isActive: boolean }[],
+): CriterionEntry[] {
+  const known = new Set(current.map((c) => c.key))
+  const used = new Set<string>()
+  const out: CriterionEntry[] = []
+  for (const item of items) {
+    if (item.key && known.has(item.key) && !used.has(item.key)) {
+      used.add(item.key)
+      out.push({ key: item.key, side: item.side, label: item.label, isActive: item.isActive })
+      continue
+    }
+    const base = criterionKeyFor(item.label)
+    let key = base
+    for (let n = 2; known.has(key) || used.has(key); n++) key = `${base}-${n}`
+    used.add(key)
+    out.push({ key, side: item.side, label: item.label, isActive: item.isActive })
+  }
+  for (const c of current) if (!used.has(c.key)) out.push({ ...c, isActive: false })
+  return out
+}
+
+/** The 15 calendar days from the start. Weekends, holidays and leave stay in, shown but unscored. */
+export function scorecardDates(start: Date | string): Date[] {
+  const first = startOfDayUTC(start)
+  return Array.from({ length: SCORECARD_DAYS }, (_, i) => addDays(first, i))
+}
+
+export type DayOffKind = "weekend" | "holiday" | "leave"
+
+export interface DayOff {
+  kind: DayOffKind
+  label: string
+}
+
+/** An approved leave, as the scorecard needs it. */
+export interface LeaveSpan {
+  start: Date | string
+  end: Date | string
+  totalDays: number
+  type: string
+}
+
+/**
+ * Why a day isn't scored (off), or null for a working day. A holiday wins over a weekend. A
+ * part-day leave (half day, short leave) leaves the day scored and comes back as a note.
+ */
+export function dayStatus(
+  date: Date | string,
+  holidays: ReadonlyMap<string, string>,
+  leaves: readonly LeaveSpan[],
+): { off: DayOff | null; note: string | null } {
+  const key = toDateOnly(date)
+  const holiday = holidays.get(key)
+  if (holiday) return { off: { kind: "holiday", label: `Holiday · ${holiday}` }, note: null }
+  if (isWeekend(date)) return { off: { kind: "weekend", label: "Weekend" }, note: null }
+  const leave = leaves.find((l) => toDateOnly(l.start) <= key && key <= toDateOnly(l.end))
+  if (!leave) return { off: null, note: null }
+  if (toDateOnly(leave.start) === toDateOnly(leave.end) && leave.totalDays < 1) {
+    const part = leave.totalDays <= 0.25 ? "Short leave" : "Half-day leave"
+    return { off: null, note: `${part} · ${leave.type}` }
+  }
+  return { off: { kind: "leave", label: `On leave · ${leave.type}` }, note: null }
 }
 
 /** Mean of the values that are there; null when none are. */

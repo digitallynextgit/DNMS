@@ -137,7 +137,7 @@ export interface CriterionInput {
   isActive: boolean
 }
 
-/** Replaces the company's criteria list; every scorecard picks the change up. */
+/** Replaces the company default that new scorecards start from; started cards keep their own. */
 export function useUpdateCriteria() {
   const qc = useQueryClient()
   return useMutation(
@@ -148,7 +148,24 @@ export function useUpdateCriteria() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ items }),
         }),
-      invalidate: [CRITERIA_KEY, ["joinee-scorecard"]],
+      invalidate: [CRITERIA_KEY],
+      success: "Default criteria saved",
+    }),
+  )
+}
+
+/** One joinee's own criteria. */
+export function useUpdateCardCriteria(employeeId: string, id: string) {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (items: CriterionInput[]) =>
+        apiFetch(`/api/joinee-scorecards/${id}/criteria`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items }),
+        }),
+      invalidate: [keyFor(employeeId)],
       success: "Criteria saved",
     }),
   )

@@ -5,18 +5,24 @@ import { db } from "@/server/db"
 import { PERMISSIONS } from "@/lib/constants"
 import { hasAnyPermission, hasPermission } from "@/lib/permissions"
 import { createAuditLog } from "@/lib/audit"
-import { addDays, startOfDayUTC, toDateOnly, todayUtc, workingDaysBetween } from "@/lib/dates"
+import { toDateOnly, todayUtc } from "@/lib/dates"
 import { requirePermission, requireSession, getAuditMeta } from "@/server/action-guard"
 import { ok, fail, runAction, type ActionResult } from "@/server/action-result"
 import {
   SCORECARD_CRITERIA,
   SCORECARD_DAYS,
+  applyCriteriaEdit,
   criterionKeyFor,
+  dayStatus,
   isLegacyScoreKey,
   isRecommendation,
   isScore,
   isScorecardSide,
+  parseCardCriteria,
+  scorecardDates,
+  type DayOff,
   type DayScores,
+  type LeaveSpan,
   type LegacyScoreKey,
   type ScorecardCriterion,
   type ScorecardSide,
@@ -34,6 +40,7 @@ const SCORECARD_SELECT = {
   managerObservations: true,
   hrObservations: true,
   recommendation: true,
+  criteria: true,
   updatedAt: true,
   employee: {
     select: {
@@ -71,17 +78,43 @@ const NOT_FOUND = "Scorecard not found"
 const MAX_CRITERIA = 30
 const MAX_LABEL = 60
 
-/** First `count` working days from `start`; floating holidays count as working days. */
-async function firstWorkingDays(start: Date, count: number): Promise<Date[]> {
-  const from = startOfDayUTC(start)
-  // 3 calendar days per working day leaves ample room for weekends and holidays.
-  const to = addDays(from, count * 3)
-  const holidays = await db.holiday.findMany({
-    where: { isOptional: false, date: { gte: from, lte: to } },
-    select: { date: true },
-  })
-  const keys = new Set(holidays.map((h) => toDateOnly(h.date)))
-  return workingDaysBetween(from, to, keys).slice(0, count)
+/**
+ * Company holidays and the joinee's approved leave over a stretch of days, for dayStatus(). Read
+ * live, so leave approved after the card started still shows. Floating holidays count as working.
+ */
+async function calendarFor(employeeId: string, from: Date, to: Date) {
+  const [holidays, leaves] = await Promise.all([
+    db.holiday.findMany({
+      where: { isOptional: false, date: { gte: from, lte: to } },
+      select: { date: true, name: true },
+    }),
+    db.leaveRequest.findMany({
+      where: { employeeId, status: "APPROVED", startDate: { lte: to }, endDate: { gte: from } },
+      select: {
+        startDate: true,
+        endDate: true,
+        totalDays: true,
+        leaveType: { select: { name: true } },
+      },
+    }),
+  ])
+  return {
+    holidays: new Map(holidays.map((h) => [toDateOnly(h.date), h.name])),
+    leaves: leaves.map(
+      (l): LeaveSpan => ({
+        start: l.startDate,
+        end: l.endDate,
+        totalDays: l.totalDays,
+        type: l.leaveType.name,
+      }),
+    ),
+  }
+}
+
+const OFF_TEXT: Record<DayOff["kind"], string> = {
+  weekend: "a weekend",
+  holiday: "a holiday",
+  leave: "a leave day",
 }
 
 /** No permission check (callers decide). Returns the existing id rather than throwing. */
@@ -101,7 +134,14 @@ export async function startScorecardFor(
   })
   if (!employee) return null
 
-  const dates = await firstWorkingDays(employee.dateOfJoining ?? todayUtc(), SCORECARD_DAYS)
+  const dates = scorecardDates(employee.dateOfJoining ?? todayUtc())
+  // The card keeps its own copy, so a later change to the default (or another card) leaves it be.
+  const criteria = (await listCriteriaRows()).map(({ key, side, label, isActive }) => ({
+    key,
+    side,
+    label,
+    isActive,
+  }))
   // Top-level createMany, not a nested create: the tenant guard only stamps top-level writes.
   const id = await db.$transaction(async (tx) => {
     const card = await tx.joineeScorecard.create({
@@ -109,6 +149,7 @@ export async function startScorecardFor(
         employeeId,
         hrSpocId: opts.hrSpocId ?? null,
         createdById: opts.actorId ?? null,
+        criteria: criteria as Prisma.InputJsonValue,
       },
       select: { id: true },
     })
@@ -151,6 +192,41 @@ export async function listCriteriaRows(): Promise<ScorecardCriterionRow[]> {
 const activeCriteria = (rows: ScorecardCriterionRow[]): ScorecardCriterion[] =>
   rows.filter((r) => r.isActive).map(({ key, side, label }) => ({ key, side, label }))
 
+/** A card's own list; a card without one (from before per-card criteria) uses the company default. */
+async function cardCriteriaRows(stored: Prisma.JsonValue | null): Promise<ScorecardCriterionRow[]> {
+  const own = parseCardCriteria(stored)
+  if (!own) return listCriteriaRows()
+  return own.map((c, i) => ({ id: null, ...c, displayOrder: i }))
+}
+
+type CriteriaItem = { key: string | null; side: ScorecardSide; label: string; isActive: boolean }
+
+/** The editor's list, checked: a string is the reason it was refused. */
+function parseCriteriaItems(value: unknown): CriteriaItem[] | string {
+  const raw = Array.isArray(value) ? value : null
+  if (!raw || raw.length === 0) return "Send the criteria list"
+  if (raw.length > MAX_CRITERIA) return `At most ${MAX_CRITERIA} criteria`
+  const items: CriteriaItem[] = []
+  for (const it of raw) {
+    const o = (it ?? {}) as Record<string, unknown>
+    const label = typeof o.label === "string" ? o.label.trim() : ""
+    if (!label) return "Every criterion needs a name"
+    if (label.length > MAX_LABEL) return `Names are at most ${MAX_LABEL} characters`
+    if (!isScorecardSide(o.side)) return "Each criterion belongs to Manager or HR"
+    items.push({
+      key: typeof o.key === "string" && o.key.trim() ? o.key.trim() : null,
+      side: o.side,
+      label,
+      isActive: o.isActive !== false,
+    })
+  }
+  for (const side of ["MANAGER", "HR"] as const) {
+    if (!items.some((i) => i.side === side && i.isActive))
+      return `Keep at least one ${side === "HR" ? "HR" : "Manager"} criterion`
+  }
+  return items
+}
+
 function jsonScores(value: Prisma.JsonValue | null | undefined): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -177,40 +253,63 @@ export async function getScorecardCriteria(): Promise<
   })
 }
 
-export async function getScorecard(employeeId: string): Promise<
-  ActionResult<{
-    scorecard:
-      | (Omit<ScorecardRow, "days"> & {
-          days: { dayNumber: number; date: Date; scores: DayScores }[]
-        })
-      | null
-    criteria: ScorecardCriterion[]
-    canEdit: boolean
-    canEditCriteria: boolean
-  }>
-> {
-  return runAction(async () => {
+type ScorecardView = Omit<ScorecardRow, "days" | "criteria"> & {
+  days: {
+    dayNumber: number
+    date: Date
+    scores: DayScores
+    off: DayOff | null
+    note: string | null
+  }[]
+}
+
+type ScorecardResult = {
+  scorecard: ScorecardView | null
+  criteria: ScorecardCriterion[]
+  criteriaRows: ScorecardCriterionRow[]
+  canEdit: boolean
+  canEditCriteria: boolean
+}
+
+export async function getScorecard(employeeId: string): Promise<ActionResult<ScorecardResult>> {
+  return runAction<ScorecardResult>(async () => {
     const session = await requireSession()
     if (!employeeId) return fail("employeeId is required")
     const { canRead, canEdit } = rightsFor(session, employeeId)
     if (!canRead) return fail("You can only view your own scorecard", undefined, 403)
-    const [raw, rows] = await Promise.all([
-      db.joineeScorecard.findUnique({ where: { employeeId }, select: SCORECARD_SELECT }),
-      listCriteriaRows(),
-    ])
+    const raw = await db.joineeScorecard.findUnique({
+      where: { employeeId },
+      select: SCORECARD_SELECT,
+    })
+    const rows = raw ? await cardCriteriaRows(raw.criteria) : await listCriteriaRows()
     const criteria = activeCriteria(rows)
+    if (!raw)
+      return ok({
+        scorecard: null,
+        criteria,
+        criteriaRows: rows,
+        canEdit,
+        canEditCriteria: canEdit,
+      })
+
     const keys = criteria.map((c) => c.key)
-    const scorecard = raw
-      ? {
-          ...raw,
-          days: raw.days.map((d) => ({
-            dayNumber: d.dayNumber,
-            date: d.date,
-            scores: dayScores(d, keys),
-          })),
-        }
-      : null
-    return ok({ scorecard, criteria, canEdit, canEditCriteria: canEdit })
+    const { criteria: _stored, days, ...card } = raw
+    const first = days[0]?.date
+    const last = days.at(-1)?.date
+    const calendar =
+      first && last
+        ? await calendarFor(raw.employeeId, first, last)
+        : { holidays: new Map<string, string>(), leaves: [] }
+    const scorecard = {
+      ...card,
+      days: days.map((d) => ({
+        dayNumber: d.dayNumber,
+        date: d.date,
+        scores: dayScores(d, keys),
+        ...dayStatus(d.date, calendar.holidays, calendar.leaves),
+      })),
+    }
+    return ok({ scorecard, criteria, criteriaRows: rows, canEdit, canEditCriteria: canEdit })
   })
 }
 
@@ -292,7 +391,13 @@ export async function updateScorecardDay(
     if (!Number.isInteger(dayNumber) || dayNumber < 1 || dayNumber > SCORECARD_DAYS)
       return fail(`Day must be 1-${SCORECARD_DAYS}`)
 
-    const allowed = new Set((await listCriteriaRows()).map((r) => r.key))
+    const card = await db.joineeScorecard.findUnique({
+      where: { id },
+      select: { employeeId: true, criteria: true },
+    })
+    if (!card) return fail(NOT_FOUND, undefined, 404)
+    // This card's own criteria, hidden ones too (their old scores can still be cleared).
+    const allowed = new Set((await cardCriteriaRows(card.criteria)).map((r) => r.key))
     const legacy: Partial<Record<LegacyScoreKey, number | null>> = {}
     const custom: Record<string, number | null> = {}
     for (const [key, v] of Object.entries(scores)) {
@@ -306,9 +411,18 @@ export async function updateScorecardDay(
 
     const day = await db.joineeScorecardDay.findFirst({
       where: { scorecardId: id, dayNumber },
-      select: { id: true, scores: true },
+      select: { id: true, scores: true, date: true },
     })
     if (!day) return fail(NOT_FOUND, undefined, 404)
+
+    // Weekends, holidays and full-day leave are shown, not scored. Clearing stays allowed, for a
+    // score given before the leave was approved.
+    const givesScore = [...Object.values(legacy), ...Object.values(custom)].some((v) => v !== null)
+    if (givesScore) {
+      const calendar = await calendarFor(card.employeeId, day.date, day.date)
+      const { off } = dayStatus(day.date, calendar.holidays, calendar.leaves)
+      if (off) return fail(`Day ${dayNumber} is ${OFF_TEXT[off.kind]}, so it isn't scored`)
+    }
 
     const next = { ...jsonScores(day.scores) }
     for (const [key, v] of Object.entries(custom)) {
@@ -326,36 +440,52 @@ export async function updateScorecardDay(
   })
 }
 
-/** HR's edit of the criteria list: rename, reorder, hide, add. Rows left out are hidden, never
- *  deleted, so the scores already given keep their meaning. */
+/** One card's criteria: rename, reorder, hide, add - for this joinee only. Rows left out are
+ *  hidden, never deleted, so the scores already given keep their meaning. */
+export async function updateCardCriteria(
+  id: string,
+  input: { items?: unknown },
+): Promise<ActionResult<{ criteria: ScorecardCriterionRow[] }>> {
+  return runAction(async () => {
+    const session = await requirePermission(PERMISSIONS.ONBOARDING_WRITE)
+    const items = parseCriteriaItems(input.items)
+    if (typeof items === "string") return fail(items)
+    const card = await db.joineeScorecard.findUnique({
+      where: { id },
+      select: { id: true, criteria: true },
+    })
+    if (!card) return fail(NOT_FOUND, undefined, 404)
+
+    const current = (await cardCriteriaRows(card.criteria)).map(
+      ({ key, side, label, isActive }) => ({ key, side, label, isActive }),
+    )
+    const next = applyCriteriaEdit(current, items)
+    await db.joineeScorecard.update({
+      where: { id },
+      data: { criteria: next as unknown as Prisma.InputJsonValue },
+    })
+    await createAuditLog(session, {
+      action: "joinee_scorecard.criteria",
+      module: "onboarding",
+      entityType: "JoineeScorecard",
+      entityId: id,
+      changes: {
+        criteria: items.map((i) => `${i.side}: ${i.label}${i.isActive ? "" : " (hidden)"}`),
+      },
+      ...(await getAuditMeta()),
+    })
+    return ok({ criteria: next.map((c, i) => ({ id: null, ...c, displayOrder: i })) })
+  })
+}
+
+/** The company default every NEW card starts from. Cards already started keep their own list. */
 export async function updateScorecardCriteria(input: {
   items?: unknown
 }): Promise<ActionResult<{ criteria: ScorecardCriterionRow[] }>> {
   return runAction(async () => {
     const session = await requirePermission(PERMISSIONS.ONBOARDING_WRITE)
-    const raw = Array.isArray(input.items) ? input.items : null
-    if (!raw || raw.length === 0) return fail("Send the criteria list")
-    if (raw.length > MAX_CRITERIA) return fail(`At most ${MAX_CRITERIA} criteria`)
-
-    const items: { key: string | null; side: ScorecardSide; label: string; isActive: boolean }[] =
-      []
-    for (const it of raw) {
-      const o = (it ?? {}) as Record<string, unknown>
-      const label = typeof o.label === "string" ? o.label.trim() : ""
-      if (!label) return fail("Every criterion needs a name")
-      if (label.length > MAX_LABEL) return fail(`Names are at most ${MAX_LABEL} characters`)
-      if (!isScorecardSide(o.side)) return fail("Each criterion belongs to Manager or HR")
-      items.push({
-        key: typeof o.key === "string" && o.key.trim() ? o.key.trim() : null,
-        side: o.side,
-        label,
-        isActive: o.isActive !== false,
-      })
-    }
-    for (const side of ["MANAGER", "HR"] as const) {
-      if (!items.some((i) => i.side === side && i.isActive))
-        return fail(`Keep at least one ${side === "HR" ? "HR" : "Manager"} criterion`)
-    }
+    const items = parseCriteriaItems(input.items)
+    if (typeof items === "string") return fail(items)
 
     await db.$transaction(async (tx) => {
       // First edit: seed the built-in six so their scores (own columns) keep their keys.
