@@ -3,7 +3,7 @@
 import { TrendingDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import type { GoalNode } from "../lib/goal-derivation"
+import type { GoalNode, GoalSeriesInfo } from "../lib/goal-derivation"
 
 // Shared goal vocabulary. Types mirror ProjectGoalsSummary in ../server/goals.service.ts.
 
@@ -20,7 +20,13 @@ export interface GoalEvent {
 }
 
 /** From the pure ../lib/goal-derivation.ts, so client components can use them without server code. */
-export type { GoalNode, GoalTaskLink, GoalTarget } from "../lib/goal-derivation"
+export type {
+  GoalNode,
+  GoalTaskLink,
+  GoalTarget,
+  GoalResultEntry,
+  GoalSeriesInfo,
+} from "../lib/goal-derivation"
 
 export interface GoalsSummary {
   goals: GoalNode[]
@@ -40,6 +46,10 @@ export interface GoalsSummary {
   allTags: string[]
   /** Open tasks serving no goal - shown to the manager as work to sort. */
   unlinkedOpenTasks: number
+  /** The month the recurring goals are shown for ("2026-10"). */
+  month?: string
+  /** The project's recurring goals, for the month switcher and the growth chart. */
+  series?: GoalSeriesInfo[]
 }
 
 /** Used before the first response and on failure, instead of null checks everywhere. */

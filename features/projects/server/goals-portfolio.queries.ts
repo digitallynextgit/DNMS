@@ -15,6 +15,8 @@ import {
   type GoalNode,
   type GoalRowLite,
 } from "./goals.service"
+import { loadMetaActuals } from "./goal-metrics.service"
+import { planMonthPeriod } from "../lib/goal-periods"
 
 // Goals across the portfolio for the Progress page: one query, summarised per project with the
 // Goals tab's own summariseGoalRows so the two can't disagree. Deactivated goals are always out.
@@ -102,8 +104,14 @@ export async function getGoalsPortfolio(
     }
   }
 
+  // Recurring goals count with this month's edition only; their past months are history.
+  const month = planMonthPeriod()
   const rows = await db.projectGoal.findMany({
-    where: { projectId: { in: projects.map((p) => p.id) }, isActive: true },
+    where: {
+      projectId: { in: projects.map((p) => p.id) },
+      isActive: true,
+      OR: [{ seriesId: null }, { periodStart: month.start }],
+    },
     orderBy: GOAL_ORDER,
     // LITE: no event history (nothing here renders it, and it is the bulk of the payload).
     select: { ...GOAL_SELECT_LITE, projectId: true },
@@ -127,7 +135,8 @@ export async function getGoalsPortfolio(
 
   const out: ProjectGoalsRow[] = []
   for (const p of projects) {
-    const summary = summariseGoalRows(byProject.get(p.id) ?? [], today, outputs)
+    const own = byProject.get(p.id) ?? []
+    const summary = summariseGoalRows(own, today, outputs, await loadMetaActuals(p.id, own))
     out.push({
       projectId: p.id,
       projectName: p.name,

@@ -2,24 +2,136 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
+import { toast } from "sonner"
+
 import { apiFetch } from "@/lib/api-fetch"
 import type { ProjectGoalsSummary } from "../lib/goal-derivation"
 
 /**
  * One key for both the Overview card and the Goals tab, so they never disagree. `includeInactive`
- * is part of the key (it changes the server response); mutations invalidate the prefix.
+ * and `month` are part of the key (they change the server response); mutations invalidate the prefix.
  */
-export const goalsKey = (projectId: string, includeInactive = false) =>
-  ["project-goals", projectId, includeInactive] as const
+export const goalsKey = (projectId: string, includeInactive = false, month: string | null = null) =>
+  ["project-goals", projectId, includeInactive, month ?? "current"] as const
 
-export function useProjectGoals(projectId: string, includeInactive = false) {
+/** `month` ("2026-10") picks which edition of each recurring goal is shown; null = this month. */
+export function useProjectGoals(
+  projectId: string,
+  includeInactive = false,
+  month: string | null = null,
+) {
+  const qs = new URLSearchParams()
+  if (includeInactive) qs.set("includeInactive", "1")
+  if (month) qs.set("month", month)
+  const query = qs.toString()
   return useQuery({
-    queryKey: goalsKey(projectId, includeInactive),
+    queryKey: goalsKey(projectId, includeInactive, month),
     queryFn: () =>
-      apiFetch<ProjectGoalsSummary>(
-        `/api/projects/${projectId}/goals${includeInactive ? "?includeInactive=1" : ""}`,
-      ),
+      apiFetch<ProjectGoalsSummary>(`/api/projects/${projectId}/goals${query ? `?${query}` : ""}`),
     enabled: Boolean(projectId),
+  })
+}
+
+/** Entering and removing actual numbers; the goal tree and the Progress page refetch. */
+export function useGoalResultMutations(projectId: string) {
+  const qc = useQueryClient()
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["project-goals", projectId] })
+    qc.invalidateQueries({ queryKey: ["goals-portfolio"] })
+    qc.invalidateQueries({ queryKey: ["goal-series", projectId] })
+  }
+  const fail = (e: unknown) => toast.error(e instanceof Error ? e.message : "Couldn't save that")
+
+  const addResult = useMutation({
+    mutationFn: ({
+      goalId,
+      ...body
+    }: {
+      goalId: string
+      value: number
+      recordedFor: string
+      note?: string | null
+    }) =>
+      apiFetch(`/api/projects/${projectId}/goals/${goalId}/results`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      invalidate()
+      toast.success("Result saved")
+    },
+    onError: fail,
+  })
+
+  const removeResult = useMutation({
+    mutationFn: ({ goalId, resultId }: { goalId: string; resultId: string }) =>
+      apiFetch(`/api/projects/${projectId}/goals/${goalId}/results/${resultId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      invalidate()
+      toast.success("Result removed")
+    },
+    onError: fail,
+  })
+
+  return { addResult, removeResult }
+}
+
+export interface SeriesMonth {
+  month: string
+  goalId: string
+  targetValue: number | null
+  actualValue: number | null
+  progress: number
+  status: string
+  parts: {
+    service: string | null
+    title: string
+    targetValue: number | null
+    actualValue: number | null
+  }[]
+}
+
+export interface SeriesHistory {
+  id: string
+  title: string
+  metricLabel: string | null
+  stoppedAt: string | null
+  months: SeriesMonth[]
+}
+
+/** Every month of a repeating goal, for the growth chart. */
+export function useGoalSeriesHistory(projectId: string, seriesId: string | null) {
+  return useQuery({
+    queryKey: ["goal-series", projectId, seriesId],
+    queryFn: () =>
+      apiFetch<{ data: SeriesHistory }>(`/api/projects/${projectId}/goal-series/${seriesId}`).then(
+        (r) => r.data,
+      ),
+    enabled: Boolean(projectId && seriesId),
+  })
+}
+
+/** Stop a repeating goal (its months stay), or start it again from this month. */
+export function useSetSeriesStopped(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ seriesId, stopped }: { seriesId: string; stopped: boolean }) =>
+      apiFetch(`/api/projects/${projectId}/goal-series/${seriesId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stopped }),
+      }),
+    onSuccess: (_r, v) => {
+      qc.invalidateQueries({ queryKey: ["project-goals", projectId] })
+      qc.invalidateQueries({ queryKey: ["goal-series", projectId] })
+      toast.success(
+        v.stopped ? "Stopped repeating - its months stay" : "Repeating every month again",
+      )
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't change that"),
   })
 }
 

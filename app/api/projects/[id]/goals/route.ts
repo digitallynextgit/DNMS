@@ -11,9 +11,11 @@ export const dynamic = "force-dynamic"
 
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
-    // Deactivated goals are opt-in; they never affect the numbers.
+    // Deactivated goals are opt-in; they never affect the numbers. `month` picks which edition of
+    // each recurring goal is shown ("2026-10"; default this month).
     const includeInactive = _req.nextUrl.searchParams.get("includeInactive") === "1"
-    return NextResponse.json(await getProjectGoals(ctx.params.id!, includeInactive))
+    const month = _req.nextUrl.searchParams.get("month")
+    return NextResponse.json(await getProjectGoals(ctx.params.id!, includeInactive, month))
   },
 )
 

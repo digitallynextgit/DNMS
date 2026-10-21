@@ -708,6 +708,7 @@ model Employee {
   deliverableEvents    ProjectDeliverableEvent[] @relation("DeliverableEventActor")
   goalTargetsCreated   ProjectGoalTarget[]       @relation("GoalTargetCreator")
   goalEvents           ProjectGoalEvent[]        @relation("GoalEventActor")
+  goalResultsEntered   ProjectGoalResult[]       @relation("GoalResultEnteredBy")
 
   @@unique([tenantId, employeeNo])
   @@index([managerId])
@@ -1747,6 +1748,7 @@ model Project {
   products            Product[]
   projectMailerAssets ProjectMailerAsset[]
   projectGoals        ProjectGoal[]
+  goalSeries          ProjectGoalSeries[]
 
   @@unique([tenantId, code])
   @@unique([tenantId, slug])
@@ -4791,10 +4793,24 @@ model ProjectGoal {
   createdById   String?    @map("created_by_id")
   /// Who is accountable for this goal landing (not the creator or the doers). Null = the account manager.
   ownerId       String?    @map("owner_id")
+  /// What is counted ("Orders", "Leads"). Null = a goal measured by its work, as before.
+  metricLabel   String?    @map("metric_label")
+  /// The number to reach in the goal's period (or by its target date).
+  targetValue   Float?     @map("target_value")
+  /// A PROJECT_SERVICES code: this sub-goal is that service's share of its parent.
+  service       String?    @map("service")
+  /// MANUAL (results entered) or META_PURCHASES (read from the project's Meta Ads sync).
+  actualSource  String     @default("MANUAL") @map("actual_source")
+  /// Set on every goal of a recurring goal's monthly edition (main goal and sub-goals alike).
+  seriesId      String?    @map("series_id")
+  /// The month an edition covers. Null on a one-time goal.
+  periodStart   DateTime?  @map("period_start") @db.Date
+  periodEnd     DateTime?  @map("period_end") @db.Date
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
   project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  series       ProjectGoalSeries?   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
   parent       ProjectGoal?         @relation("GoalHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children     ProjectGoal[]        @relation("GoalHierarchy")
   createdBy    Employee?            @relation("GoalCreator", fields: [createdById], references: [id], onDelete: SetNull)
@@ -4806,12 +4822,61 @@ model ProjectGoal {
   targets      ProjectGoalTarget[]
   /// Output attributed to this goal directly (not through a task).
   deliverables ProjectDeliverable[]
+  /// The actual numbers entered against a metric goal.
+  results      ProjectGoalResult[]
 
   @@index([projectId])
   @@index([parentId])
   @@index([projectId, sortOrder])
   @@index([ownerId])
+  @@index([seriesId, periodStart])
+  /// One main goal per series per month, so two rollovers can't both create the month.
+  @@unique([seriesId, periodStart], map: "project_goals_series_month_main_key", where: raw("parent_id IS NULL"))
   @@map("project_goals")
+}
+
+/// A recurring goal ("3000 orders a month"). Each month is a full ProjectGoal edition (seriesId +
+/// period), copied from the latest one, so every month is judged on its own and stays as history.
+model ProjectGoalSeries {
+  tenantId    String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String    @id @default(uuid()) @map("id")
+  projectId   String    @map("project_id")
+  title       String    @map("title")
+  /// MONTHLY only, for now.
+  cadence     String    @default("MONTHLY") @map("cadence")
+  /// Set when it stops repeating; the editions so far stay.
+  stoppedAt   DateTime? @map("stopped_at")
+  createdById String?   @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  goals   ProjectGoal[]
+
+  @@index([projectId])
+  @@index([tenantId])
+  @@map("project_goal_series")
+}
+
+/// One actual number entered against a metric goal ("180 orders, week of 5 Oct"). A goal's actual
+/// is the sum of its results inside its period. Wrong entries are deleted, never edited.
+model ProjectGoalResult {
+  tenantId    String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String    @id @default(uuid()) @map("id")
+  goalId      String    @map("goal_id")
+  /// The day the number is for.
+  recordedFor DateTime  @map("recorded_for") @db.Date
+  value       Float     @map("value")
+  note        String?   @map("note")
+  enteredById String?   @map("entered_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  goal      ProjectGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  enteredBy Employee?   @relation("GoalResultEnteredBy", fields: [enteredById], references: [id], onDelete: SetNull)
+
+  @@index([goalId, recordedFor])
+  @@index([tenantId])
+  @@map("project_goal_results")
 }
 
 enum GoalEventType {

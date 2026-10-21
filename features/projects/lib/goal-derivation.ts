@@ -2,11 +2,13 @@ import type { Prisma } from "@prisma/client"
 
 import { todayUtc, daysBetween, startOfDayUTC } from "@/lib/dates"
 import { typeKey } from "./deliverable-types"
+import { elapsedShare } from "./goal-periods"
 
 // Goal maths, PURE (type-only Prisma import) so the Goals tab, Progress page and tests share it.
-// Progress, in order of authority: targets met, else linked tasks + sub-goals weighted by the units
-// of work under them, else the DONE flag. Deactivated/DISCARDED goals leave the sum (discarded
-// output still counts). totalGoals/doneGoals count MAIN goals only.
+// Progress, in order of authority: a number reached (actual / target), else targets met, else linked
+// tasks + sub-goals weighted by the units of work under them, else the DONE flag. Deactivated and
+// DISCARDED goals leave the sum (discarded output still counts). totalGoals/doneGoals count MAIN
+// goals only.
 
 export type GoalStatusValue = "NOT_STARTED" | "IN_PROGRESS" | "AT_RISK" | "DONE" | "DISCARDED"
 
@@ -41,6 +43,28 @@ export interface GoalOutput {
 export type GoalOutputMap = ReadonlyMap<string, readonly GoalOutput[]>
 
 export const EMPTY_OUTPUTS: GoalOutputMap = new Map()
+
+/** Where a metric goal's actual number comes from. */
+export type GoalActualSource = "MANUAL" | "META_PURCHASES"
+
+export const GOAL_ACTUAL_SOURCES: readonly GoalActualSource[] = ["MANUAL", "META_PURCHASES"]
+
+/** Actuals read from outside DNMS (the Meta Ads sync), by goal id. */
+export type GoalActualMap = ReadonlyMap<string, number>
+
+export const EMPTY_ACTUALS: GoalActualMap = new Map()
+
+/** One number entered against a metric goal. */
+export interface GoalResultEntry {
+  id: string
+  /** yyyy-MM-dd: the day the number is for. */
+  recordedFor: string
+  value: number
+  note: string | null
+  enteredById: string | null
+  enteredByName: string | null
+  createdAt: string
+}
 
 /** The deliverables feature's own key, so a target for "Reels" matches rows typed "reels". */
 export const normaliseType = (t: string): string => typeKey(t)
@@ -119,6 +143,26 @@ export interface GoalNode {
   /** Accountable for it landing. Null reads as "the account manager". */
   ownerId: string | null
   ownerName: string | null
+  /** What is counted ("Orders"). Null on a goal measured by its work. */
+  metricLabel: string | null
+  /** The number to reach. Null on a goal measured by its work. */
+  targetValue: number | null
+  /** Reached so far: its results (or Meta) - on a parent with numbered parts, their sum. */
+  actualValue: number | null
+  /** Where it should be by today at a steady rate. Null with no period or target date. */
+  paceValue: number | null
+  /** A PROJECT_SERVICES code: this part is that service's share of its parent. */
+  service: string | null
+  actualSource: GoalActualSource
+  /** Set on a recurring goal's monthly edition. */
+  seriesId: string | null
+  /** yyyy-MM-dd. The month an edition covers. */
+  periodStart: string | null
+  periodEnd: string | null
+  /** Entered numbers, newest first. */
+  results: GoalResultEntry[]
+  /** The day of the newest result, for the "not reported" check. */
+  lastResultOn: string | null
   /** ISO. The clock a slipping check runs against starts here. */
   createdAt: string
   children: GoalNode[]
@@ -151,6 +195,16 @@ export interface GoalNode {
   events: GoalEvent[]
 }
 
+/** A recurring goal, for the month switcher and the growth chart. */
+export interface GoalSeriesInfo {
+  id: string
+  title: string
+  /** ISO. Set once it stopped repeating; its months stay. */
+  stoppedAt: string | null
+  /** "2026-10", oldest first: the months it has an edition for. */
+  months: string[]
+}
+
 export interface ProjectGoalsSummary {
   goals: GoalNode[]
   overallProgress: number
@@ -171,6 +225,10 @@ export interface ProjectGoalsSummary {
   allTags: string[]
   /** Open tasks serving no goal - not an error, the manager's list to sort. */
   unlinkedOpenTasks: number
+  /** One project's board only: the month its recurring goals are shown for ("2026-10"). */
+  month?: string
+  /** One project's board only: its recurring goals. */
+  series?: GoalSeriesInfo[]
 }
 
 /** Exported so the portfolio query selects EXACTLY this shape - a second select would drift. */
@@ -188,6 +246,24 @@ export const GOAL_SELECT = {
   createdAt: true,
   createdBy: { select: { firstName: true, lastName: true } },
   owner: { select: { id: true, firstName: true, lastName: true } },
+  metricLabel: true,
+  targetValue: true,
+  service: true,
+  actualSource: true,
+  seriesId: true,
+  periodStart: true,
+  periodEnd: true,
+  results: {
+    select: {
+      id: true,
+      recordedFor: true,
+      value: true,
+      note: true,
+      createdAt: true,
+      enteredBy: { select: { id: true, firstName: true, lastName: true } },
+    },
+    orderBy: [{ recordedFor: "desc" }, { createdAt: "desc" }],
+  },
   // Ordered by period so targets read as a calendar.
   targets: {
     select: {
@@ -275,6 +351,8 @@ export function isSlipping(a: {
   measurable: boolean
   ratio: number
   createdAt: Date
+  /** A monthly edition's clock starts with its month, not when the row was made. */
+  startsOn?: Date | null
   targetDate: Date | null
   today: Date
 }): boolean {
@@ -282,7 +360,7 @@ export function isSlipping(a: {
   if (a.status === "DONE" || a.status === "DISCARDED") return false
   if (!a.targetDate || a.targetDate <= a.today) return false
 
-  const start = startOfDayUTC(a.createdAt)
+  const start = startOfDayUTC(a.startsOn ?? a.createdAt)
   const total = daysBetween(start, a.targetDate)
   // Created on/after its own date: no runway to fall behind on (and no divide by zero).
   if (total <= 0) return false
@@ -317,6 +395,22 @@ export function derivedStatus(
   return anyStarted ? "IN_PROGRESS" : "NOT_STARTED"
 }
 
+/**
+ * A goal with a number: DONE once it is reached, AT_RISK when flagged (or a part is), IN_PROGRESS
+ * once anything has happened or its month has begun, else NOT_STARTED. DISCARDED is kept.
+ */
+export function metricStatus(
+  stored: GoalStatusValue,
+  ratio: number,
+  started: boolean,
+  partAtRisk: boolean,
+): GoalStatusValue {
+  if (stored === "DISCARDED") return stored
+  if (ratio >= 1) return "DONE"
+  if (stored === "AT_RISK" || partAtRisk) return "AT_RISK"
+  return started ? "IN_PROGRESS" : "NOT_STARTED"
+}
+
 /** Every distinct tag, deduped and sorted case-insensitively. */
 function collectTags(rows: readonly { tags: string[] }[]): string[] {
   const seen = new Map<string, string>()
@@ -345,6 +439,7 @@ export function summariseGoalRows(
   rows: readonly GoalRowLite[],
   today: Date = todayUtc(),
   outputs: GoalOutputMap = EMPTY_OUTPUTS,
+  actuals: GoalActualMap = EMPTY_ACTUALS,
 ): ProjectGoalsSummary {
   const byParent = new Map<string | null, GoalRowLite[]>()
   for (const r of rows) {
@@ -436,18 +531,64 @@ export function summariseGoalRows(
       ? targetRatios.reduce((s, x) => s + x, 0) / targetRatios.length
       : null
 
-    const derived = kids.length > 0 || tasks.length > 0 || targets.length > 0
-    const status = derived
-      ? derivedStatus(
-          r.status as GoalStatusValue,
-          countableKids.map((k) => k.node),
-          countableTasks,
-          targets,
-        )
-      : (r.status as GoalStatusValue)
+    // A number to reach. Parts with numbers add up into their parent; a goal without parts counts
+    // its own entries (or Meta's purchases), which are only accepted inside its period.
+    const target = r.metricLabel && r.targetValue && r.targetValue > 0 ? r.targetValue : null
+    const results = (r.results ?? []).map(
+      (x): GoalResultEntry => ({
+        id: x.id,
+        recordedFor: ymd(x.recordedFor)!,
+        value: x.value,
+        note: x.note,
+        enteredById: x.enteredBy?.id ?? null,
+        enteredByName: name(x.enteredBy),
+        createdAt: x.createdAt.toISOString(),
+      }),
+    )
+    const ownActual =
+      r.actualSource === "META_PURCHASES"
+        ? (actuals.get(r.id) ?? 0)
+        : results.reduce((s, x) => s + x.value, 0)
+    const numberedParts = countableKids.filter((k) => k.node.actualValue !== null)
+    const actualValue =
+      numberedParts.length > 0
+        ? numberedParts.reduce((s, k) => s + (k.node.actualValue ?? 0), 0)
+        : target !== null || r.metricLabel
+          ? ownActual
+          : null
+    const metricRatio = target !== null ? Math.min(1, (actualValue ?? 0) / target) : null
 
-    // Output wins over ticked tasks; with neither targets nor work, the DONE flag is all there is.
-    const ratio = outcomeRatio ?? taskRatio ?? (status === "DONE" ? 1 : 0)
+    // Its clock: the month of an edition, else creation to the target date.
+    const startsOn = r.periodStart ?? null
+    const endsOn = r.periodEnd ?? r.targetDate
+    const paceValue =
+      target !== null && endsOn
+        ? Math.round(target * elapsedShare(startOfDayUTC(startsOn ?? r.createdAt), endsOn, today))
+        : null
+
+    const derived = kids.length > 0 || tasks.length > 0 || targets.length > 0 || target !== null
+    const status =
+      target !== null
+        ? metricStatus(
+            r.status as GoalStatusValue,
+            metricRatio ?? 0,
+            (actualValue ?? 0) > 0 ||
+              (startsOn !== null && startsOn <= today) ||
+              countableKids.some((k) => k.node.status !== "NOT_STARTED") ||
+              countableTasks.some((t) => t.status !== "TODO"),
+            countableKids.some((k) => k.node.status === "AT_RISK"),
+          )
+        : derived
+          ? derivedStatus(
+              r.status as GoalStatusValue,
+              countableKids.map((k) => k.node),
+              countableTasks,
+              targets,
+            )
+          : (r.status as GoalStatusValue)
+
+    // A reached number wins, then output over ticked tasks; with none of them, the DONE flag.
+    const ratio = metricRatio ?? outcomeRatio ?? taskRatio ?? (status === "DONE" ? 1 : 0)
 
     const overdue = Boolean(
       r.targetDate &&
@@ -471,6 +612,17 @@ export function summariseGoalRows(
       createdByName: name(r.createdBy),
       ownerId: r.owner?.id ?? null,
       ownerName: name(r.owner),
+      metricLabel: r.metricLabel,
+      targetValue: target,
+      actualValue,
+      paceValue,
+      service: r.service,
+      actualSource: r.actualSource as GoalActualSource,
+      seriesId: r.seriesId,
+      periodStart: ymd(r.periodStart),
+      periodEnd: ymd(r.periodEnd),
+      results,
+      lastResultOn: results[0]?.recordedFor ?? null,
       createdAt: r.createdAt.toISOString(),
       children: kids,
       progressIsDerived: derived,
@@ -491,10 +643,11 @@ export function summariseGoalRows(
       slipping: isSlipping({
         status,
         isActive: r.isActive,
-        measurable: units > 0 || targets.length > 0,
+        measurable: units > 0 || targets.length > 0 || target !== null,
         ratio,
         createdAt: r.createdAt,
-        targetDate: r.targetDate,
+        startsOn,
+        targetDate: endsOn,
         today,
       }),
       // Absent when the caller selected without history (GOAL_SELECT_LITE).

@@ -41,6 +41,11 @@ const WEEKLY_REVIEW_INTERVAL_MS = 60 * 60_000
 const WEEKLY_REVIEW_FIRST_RUN_DELAY_MS = 180_000
 const WEEKLY_REVIEW_EARLIEST_HOUR = 10
 
+// Hourly: each recurring goal's month is created as soon as it begins; Mondays chase results.
+const GOALS_INTERVAL_MS = 60 * 60_000
+const GOALS_FIRST_RUN_DELAY_MS = 210_000
+const GOAL_REMINDER_EARLIEST_HOUR = 10
+
 const FIRST_RUN_DELAY_MS = 15_000
 
 // On globalThis so dev hot-reload doesn't start duplicate intervals.
@@ -61,6 +66,8 @@ const globalForScheduler = globalThis as unknown as {
   driveBackupRunning?: boolean
   weeklyReviewTimer?: NodeJS.Timeout
   weeklyReviewRunning?: boolean
+  goalsTimer?: NodeJS.Timeout
+  goalsRunning?: boolean
 }
 
 export function startTaskReminderScheduler(): void {
@@ -415,5 +422,50 @@ async function weeklyReviewTick(): Promise<void> {
     console.error("[scheduler] weekly reviews failed:", err)
   } finally {
     globalForScheduler.weeklyReviewRunning = false
+  }
+}
+
+/**
+ * Recurring goals: this month's edition (copied from the last) as soon as the month starts, and on
+ * Mondays from 10 AM a nudge to owners who entered no results last week. Production only: a dev
+ * machine shares the database and could take the Monday claim.
+ */
+export function startGoalScheduler(): void {
+  if (globalForScheduler.goalsTimer) return
+  if (process.env.DISABLE_INLINE_SCHEDULER === "1") {
+    console.log("[scheduler] goals disabled (DISABLE_INLINE_SCHEDULER=1)")
+    return
+  }
+  if (process.env.NODE_ENV !== "production") return
+
+  const timer = setInterval(goalsTick, GOALS_INTERVAL_MS)
+  timer.unref?.()
+  globalForScheduler.goalsTimer = timer
+
+  const first = setTimeout(goalsTick, GOALS_FIRST_RUN_DELAY_MS)
+  first.unref?.()
+
+  console.log("[scheduler] goals started (hourly monthly editions, Monday result reminders)")
+}
+
+async function goalsTick(): Promise<void> {
+  if (globalForScheduler.goalsRunning) return
+  globalForScheduler.goalsRunning = true
+  const now = new Date()
+  try {
+    await forEachTenant("goals", async () => {
+      const { ensureGoalEditions, runGoalResultReminders } =
+        await import("@/features/projects/server/goal-metrics.service")
+      const made = await ensureGoalEditions({ now })
+      if (made.length > 0) console.log(`[scheduler] goals: ${made.length} new monthly edition(s)`)
+      if (now.getDay() === 1 && now.getHours() >= GOAL_REMINDER_EARLIEST_HOUR) {
+        const r = await runGoalResultReminders(now)
+        if (!r.skipped) console.log(`[scheduler] goals: ${r.sent} result reminder(s)`)
+      }
+    })
+  } catch (err) {
+    console.error("[scheduler] goals failed:", err)
+  } finally {
+    globalForScheduler.goalsRunning = false
   }
 }

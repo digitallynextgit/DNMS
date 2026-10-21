@@ -139,8 +139,9 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "GET /api/projects/[id]/goals": {
     summary:
-      "A project's goals, nested (main goals with sub-goals): status, progress %, target date, owner, tags, deliverable targets, linked tasks and history, plus totals (done, overdue, at risk) and the count of open tasks serving no goal. Anyone with access to the project.",
-    query: "includeInactive: 1 = also return deactivated goals",
+      "A project's goals, nested (main goals with sub-goals): status, progress %, target date, owner, tags, deliverable targets, linked tasks and history, plus totals (done, overdue, at risk) and the count of open tasks serving no goal. Goals with a number show metricLabel, targetValue, actualValue (entered results, Meta purchases, or the sum of their service parts), paceValue and results; service parts carry `service`. Repeating goals show one month's edition (seriesId, periodStart/End); `series` lists them with their months. Anyone with access to the project.",
+    query:
+      "includeInactive: 1 = also return deactivated goals; month: YYYY-MM = which month of the repeating goals to show (default this month)",
     keywords: ["project goals", "objectives", "OKR", "goal progress", "milestones"],
   },
   "GET /api/projects/[id]/kickoff": {
@@ -384,7 +385,7 @@ export const PROJECTS_CORE: DescriptionMap = {
   "PATCH /api/projects/[id]/goals/[goalId]": {
     summary:
       "Edit a project goal: title, description, status, target date, tags or the person accountable for it. Only the Account Manager or project:write holders. Send only what changes.",
-    body: "{ title?: max 200; description?: string or null; status?: NOT_STARTED|IN_PROGRESS|AT_RISK|DONE|DISCARDED; reason?: required with AT_RISK or DISCARDED; targetDate?: YYYY-MM-DD or null; tags?: string[] (max 6, each max 24 chars; replaces the set); ownerId?: accountable employee id, or null = the Account Manager }",
+    body: "{ title?: max 200; description?: string or null; status?: NOT_STARTED|IN_PROGRESS|AT_RISK|DONE|DISCARDED; reason?: required with AT_RISK or DISCARDED; targetDate?: YYYY-MM-DD or null (not on a monthly edition); tags?: string[] (max 6, each max 24 chars; replaces the set); ownerId?: accountable employee id, or null = the Account Manager; metricLabel?: what is counted, or null; targetValue?: number > 0, or null to remove the number; actualSource?: MANUAL|META_PURCHASES; service?: a project service code, on a sub-goal only }",
     keywords: ["update goal", "goal at risk", "goal status", "goal owner", "goal due date"],
     notes:
       "A goal with sub-goals or linked tasks takes its status from them - you can only flag it AT_RISK/DISCARDED or clear that flag. Progress % is not settable (it comes from sub-goals, tasks or deliverable targets). Status changes go into the goal history.",
@@ -513,10 +514,42 @@ export const PROJECTS_CORE: DescriptionMap = {
   "POST /api/projects/[id]/goals": {
     summary:
       "Create a project goal, or a sub-goal under a main goal (one level of nesting only). Only the Account Manager or project:write holders.",
-    body: "{ title (required, max 200); description?; parentId?: main goal id to make this a sub-goal; status?: NOT_STARTED (default)|IN_PROGRESS|AT_RISK|DONE|DISCARDED; reason?: required for AT_RISK/DISCARDED; targetDate?: YYYY-MM-DD; tags?: string[] (max 6); ownerId?: accountable employee id (default the Account Manager) }",
-    keywords: ["create goal", "add objective", "new goal", "sub-goal", "OKR"],
+    body: "{ title (required, max 200); description?; parentId?: main goal id to make this a sub-goal; status?: NOT_STARTED (default)|IN_PROGRESS|AT_RISK|DONE|DISCARDED; reason?: required for AT_RISK/DISCARDED; targetDate?: YYYY-MM-DD; tags?: string[] (max 6); ownerId?: accountable employee id (default the Account Manager, or the service's owner for a service part); metricLabel?: what is counted, e.g. 'Orders'; targetValue?: number > 0; actualSource?: MANUAL (default) | META_PURCHASES; service?: project service code (sub-goals only); recurring?: true = repeats monthly (main goals); startMonth?: YYYY-MM (default this month); split?: [{ service, targetValue, actualSource? }] = one numbered part per service, created with the goal }",
+    keywords: [
+      "create goal",
+      "add objective",
+      "new goal",
+      "sub-goal",
+      "OKR",
+      "monthly target",
+      "split goal by service",
+    ],
     notes:
       "Returns { id }. Add countable targets with POST .../goals/[goalId]/targets and link tasks with POST .../goals/[goalId]/tasks.",
+  },
+  "POST /api/projects/[id]/goals/[goalId]/results": {
+    summary:
+      "Enter an actual number against a goal with a number (e.g. 180 orders for a day or week). Its owner, its service's owners, or the Account Manager / project:write. Results add up to the goal's actual; a goal whose service parts have numbers takes its total from them, so enter on the parts.",
+    body: "{ value: number >= 0; recordedFor?: YYYY-MM-DD (default today; inside the month for a monthly edition); note?: string (max 300) }",
+    keywords: ["enter goal result", "record orders", "goal actual", "log results against goal"],
+    notes:
+      "Refused on goals whose results come from Meta Ads (actualSource META_PURCHASES). Owners can add to a month until 7 days after it ends; managers any time.",
+  },
+  "DELETE /api/projects/[id]/goals/[goalId]/results/[resultId]": {
+    summary:
+      "Remove a wrongly entered goal result. Whoever entered it (until 7 days after the month ends), or the Account Manager / project:write. The goal's history keeps what it said. [resultId] from results[] in GET /api/projects/[id]/goals.",
+    keywords: ["delete goal result", "remove wrong result"],
+  },
+  "GET /api/projects/[id]/goal-series/[seriesId]": {
+    summary:
+      "Every month of a repeating goal: target against reached, % and status, with each service part's target and actual - for growth over time. Anyone with access to the project. [seriesId] from series[] in GET /api/projects/[id]/goals.",
+    keywords: ["goal growth", "monthly goal history", "target vs actual by month"],
+  },
+  "PATCH /api/projects/[id]/goal-series/[seriesId]": {
+    summary:
+      "Stop a repeating goal (no new months; the months so far stay as history) or start it again from this month. Only the Account Manager or project:write holders.",
+    body: "{ stopped: boolean }",
+    keywords: ["stop recurring goal", "restart recurring goal", "end monthly target"],
   },
   "POST /api/projects/[id]/goals/[goalId]/reactivate": {
     summary:

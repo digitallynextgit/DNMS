@@ -15,6 +15,11 @@ import {
   EyeOff,
   Pencil,
   ListChecks,
+  TrendingUp,
+  Repeat,
+  CircleStop,
+  ChevronLeft,
+  ClipboardPen,
 } from "lucide-react"
 
 import { apiFetch } from "@/lib/api-fetch"
@@ -49,8 +54,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useProjectGoals } from "../hooks/use-goals"
-import { useAssignableEmployees, useProjectTeams } from "../hooks/use-projects"
+import { useProjectGoals, useSetSeriesStopped } from "../hooks/use-goals"
+import { useAssignableEmployees, useProject, useProjectTeams } from "../hooks/use-projects"
+import { serviceInfo } from "../lib/project-services"
+import { currentPlanMonth, formatMonth } from "../lib/calendar-months"
+import type { GoalActualSource } from "../lib/goal-derivation"
+import { GoalCreateDialog, type SplitService } from "./goal-create-dialog"
+import { GoalResultsDialog } from "./goal-results-dialog"
+import { GoalGrowthDialog } from "./goal-growth-dialog"
+import { GoalNumber } from "./goal-number"
 import {
   EMPTY_SUMMARY,
   NEEDS_REASON,
@@ -153,9 +165,12 @@ function EditDialog({
   onCancel: () => void
   onSave: (patch: {
     title: string
-    targetDate: string | null
+    targetDate?: string | null
     ownerId: string | null
     tags: string[]
+    metricLabel?: string | null
+    targetValue?: number | null
+    actualSource?: GoalActualSource
   }) => void
   people: { id: string; firstName: string; lastName: string }[]
   allTags: string[]
@@ -165,20 +180,41 @@ function EditDialog({
   const [date, setDate] = React.useState(goal.targetDate ?? "")
   const [owner, setOwner] = React.useState(goal.ownerId ?? "")
   const [tags, setTags] = React.useState<string[]>(goal.tags)
+  const [metricLabel, setMetricLabel] = React.useState(goal.metricLabel ?? "")
+  const [target, setTarget] = React.useState(goal.targetValue?.toString() ?? "")
+  const [source, setSource] = React.useState<GoalActualSource>(goal.actualSource)
+  // A parent that adds its parts up takes no entries of its own, so it has no source to pick.
+  const addsUpParts = goal.children.some((c) => c.targetValue !== null)
+  const monthly = Boolean(goal.seriesId)
 
   const trimmed = title.trim()
   const tagsChanged =
     tags.length !== goal.tags.length ||
     tags.some((t, i) => t.toLowerCase() !== goal.tags[i]?.toLowerCase())
+  const nextLabel = metricLabel.trim() || null
+  const nextTarget = target.trim() === "" ? null : Number(target)
+  const numberValid =
+    nextTarget === null ? true : Number.isFinite(nextTarget) && nextTarget > 0 && nextLabel !== null
+  const numberChanged = nextLabel !== goal.metricLabel || nextTarget !== goal.targetValue
   // Nothing changed means nothing to save; the button stays disabled.
   const changed =
     trimmed !== goal.title ||
-    (date || null) !== goal.targetDate ||
+    (!monthly && (date || null) !== goal.targetDate) ||
     (owner || null) !== goal.ownerId ||
-    tagsChanged
+    tagsChanged ||
+    numberChanged ||
+    source !== goal.actualSource
   const submit = () => {
-    if (!trimmed || !changed) return
-    onSave({ title: trimmed, targetDate: date || null, ownerId: owner || null, tags })
+    if (!trimmed || !changed || !numberValid) return
+    onSave({
+      title: trimmed,
+      // An edition's date is its month's last day.
+      ...(monthly ? {} : { targetDate: date || null }),
+      ownerId: owner || null,
+      tags,
+      ...(numberChanged ? { metricLabel: nextLabel, targetValue: nextTarget } : {}),
+      ...(source !== goal.actualSource ? { actualSource: source } : {}),
+    })
   }
 
   return (
@@ -206,20 +242,74 @@ function EditDialog({
               aria-label="Goal title"
             />
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-muted-foreground text-[11px]">Target date</Label>
-            {/* modal: the calendar pops over a dialog and has to layer above it. */}
-            <DateField value={date} onChange={setDate} placeholder="No target date" modal />
-            {date && (
-              <button
-                type="button"
-                onClick={() => setDate("")}
-                className="text-muted-foreground hover:text-foreground text-[11px] underline underline-offset-4"
-              >
-                Clear the date
-              </button>
-            )}
+          {monthly ? (
+            <p className="text-muted-foreground text-xs">
+              This is {formatMonth(goal.periodStart)}&rsquo;s edition of a goal that repeats every
+              month. A new number applies to this month, and the next months start from it.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground text-[11px]">Target date</Label>
+              {/* modal: the calendar pops over a dialog and has to layer above it. */}
+              <DateField value={date} onChange={setDate} placeholder="No target date" modal />
+              {date && (
+                <button
+                  type="button"
+                  onClick={() => setDate("")}
+                  className="text-muted-foreground hover:text-foreground text-[11px] underline underline-offset-4"
+                >
+                  Clear the date
+                </button>
+              )}
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground text-[11px]">What is counted</Label>
+              <Input
+                value={metricLabel}
+                onChange={(e) => setMetricLabel(e.target.value)}
+                placeholder="e.g. Orders"
+                maxLength={40}
+                aria-label="What is counted"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground text-[11px]">Target</Label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                placeholder="No number"
+                aria-label="Target number"
+              />
+            </div>
           </div>
+          {!numberValid && (
+            <p className="text-destructive text-[11px]">
+              A target is a number above 0, with what it counts.
+            </p>
+          )}
+          {nextTarget !== null && !addsUpParts && (
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground text-[11px]">Results come from</Label>
+              <Select value={source} onValueChange={(v) => setSource(v as GoalActualSource)}>
+                <SelectTrigger className="h-8 text-xs" aria-label="Results come from">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MANUAL" className="text-xs">
+                    The owner enters them
+                  </SelectItem>
+                  <SelectItem value="META_PURCHASES" className="text-xs">
+                    Meta Ads purchases (automatic)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label className="text-muted-foreground text-[11px]">Owner</Label>
             {/* Accountable for it landing; blank reads as the account manager. */}
@@ -253,7 +343,7 @@ function EditDialog({
           <Button variant="ghost" onClick={onCancel}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!trimmed || !changed || pending}>
+          <Button onClick={submit} disabled={!trimmed || !changed || !numberValid || pending}>
             Save changes
           </Button>
         </DialogFooter>
@@ -422,7 +512,39 @@ export function GoalsTab({
 }) {
   const qc = useQueryClient()
   const [showInactive, setShowInactive] = React.useState(false)
-  const { data, isLoading } = useProjectGoals(projectId, showInactive)
+  /** "2026-10": which edition of each repeating goal is on the board. Null = this month. */
+  const [month, setMonth] = React.useState<string | null>(null)
+  const { data, isLoading } = useProjectGoals(projectId, showInactive, month)
+
+  // The services a goal can be split across, and who owns each - accountable for its part.
+  const project = useProject(projectId)
+  const projectRow = project.data?.data
+  const splitServices = React.useMemo<SplitService[]>(
+    () =>
+      (projectRow?.services ?? []).map((code) => {
+        const owner = projectRow?.serviceOwners.find((o) => o.service === code)
+        return {
+          code,
+          name: serviceInfo(code)?.name ?? code,
+          ownerName: owner ? `${owner.employee.firstName} ${owner.employee.lastName}`.trim() : null,
+        }
+      }),
+    [projectRow],
+  )
+  /** May this person enter numbers on this goal? Mirrors the server: managers, its owner, its service's owners. */
+  const canEnterResults = (goal: GoalNode) => {
+    if (goal.targetValue === null || goal.children.some((c) => c.targetValue !== null)) return false
+    if (canManage || (currentUserId && goal.ownerId === currentUserId)) return true
+    const owners = goal.service
+      ? projectRow?.serviceOwners.find((o) => o.service === goal.service)
+      : null
+    return Boolean(
+      currentUserId &&
+      owners &&
+      (owners.employee.id === currentUserId || owners.secondaryEmployee?.id === currentUserId),
+    )
+  }
+  const setStopped = useSetSeriesStopped(projectId)
 
   // What was promised is the account manager's (canManage); staffing it is also the team manager's (canStaff).
   const teams = useProjectTeams(projectId)
@@ -476,6 +598,8 @@ export function GoalsTab({
   })
 
   const [adding, setAdding] = React.useState(false)
+  const [resultsFor, setResultsFor] = React.useState<GoalNode | null>(null)
+  const [growthFor, setGrowthFor] = React.useState<string | null>(null)
   /** Which goal is having a target added, so the button can live in its footer. */
   const [targetFor, setTargetFor] = React.useState<string | null>(null)
   /** Same for work: the card offers these once, not once per row. */
@@ -490,13 +614,13 @@ export function GoalsTab({
       else next.add(id)
       return next
     })
-  const [newGoal, setNewGoal] = React.useState("")
-  const [newDate, setNewDate] = React.useState("")
-  const [newTags, setNewTags] = React.useState<string[]>([])
   const [subFor, setSubFor] = React.useState<string | null>(null)
   const [subTitle, setSubTitle] = React.useState("")
   const [subDate, setSubDate] = React.useState("")
   const [subTags, setSubTags] = React.useState<string[]>([])
+  const [subService, setSubService] = React.useState("")
+  const [subTarget, setSubTarget] = React.useState("")
+  const [subSource, setSubSource] = React.useState<GoalActualSource>("MANUAL")
   const [filters, setFilters] = React.useState<GoalFilters>(NO_GOAL_FILTERS)
   const [historyFor, setHistoryFor] = React.useState<GoalNode | null>(null)
   const [editing, setEditing] = React.useState<GoalNode | null>(null)
@@ -527,20 +651,37 @@ export function GoalsTab({
         : [...f.tags, tag],
     }))
 
-  const addMain = () => {
-    if (!newGoal.trim()) return
-    create.mutate({ title: newGoal, targetDate: newDate || null, tags: newTags })
-    setNewGoal("")
-    setNewDate("")
-    setNewTags([])
-    setAdding(false)
-  }
+  // The month the board shows, and the months either side that have editions.
+  const shownMonth = full.month ?? currentPlanMonth()
+  const editionMonths = [
+    ...new Set([...(full.series ?? []).flatMap((x) => x.months), currentPlanMonth()]),
+  ].sort()
+  const at = editionMonths.indexOf(shownMonth)
+  const prevMonth = at > 0 ? editionMonths[at - 1] : null
+  const nextMonth = at >= 0 && at < editionMonths.length - 1 ? editionMonths[at + 1] : null
+  const seriesOf = (id: string | null) => (full.series ?? []).find((x) => x.id === id) ?? null
+
+  const subParent = summary.goals.find((g) => g.id === subFor) ?? null
+  const subTitleFor = (code: string) => serviceInfo(code)?.name ?? code
   const addSub = (parentId: string) => {
-    if (!subTitle.trim()) return
-    create.mutate({ title: subTitle, parentId, targetDate: subDate || null, tags: subTags })
+    const title = subTitle.trim() || (subService ? subTitleFor(subService) : "")
+    if (!title) return
+    const target = subTarget.trim() === "" ? null : Number(subTarget)
+    create.mutate({
+      title,
+      parentId,
+      targetDate: subDate || null,
+      tags: subTags,
+      service: subService || null,
+      targetValue: target,
+      actualSource: target !== null ? subSource : undefined,
+    })
     setSubTitle("")
     setSubDate("")
     setSubTags([])
+    setSubService("")
+    setSubTarget("")
+    setSubSource("MANUAL")
     setSubFor(null)
   }
 
@@ -578,8 +719,9 @@ export function GoalsTab({
     )
 
   /** One menu, not four icons per row. */
-  const rowActions = (goal: GoalNode) => {
+  const rowActions = (goal: GoalNode, main = false) => {
     const canEdit = canManage && goal.isActive
+    const series = main ? seriesOf(goal.seriesId) : null
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -597,6 +739,32 @@ export function GoalsTab({
           {canEdit && (
             <DropdownMenuItem onClick={() => setEditing(goal)}>
               <Pencil className="mr-2 h-3.5 w-3.5" /> Edit goal
+            </DropdownMenuItem>
+          )}
+          {goal.isActive && canEnterResults(goal) && (
+            <DropdownMenuItem onClick={() => setResultsFor(goal)}>
+              <ClipboardPen className="mr-2 h-3.5 w-3.5" />
+              {goal.actualSource === "META_PURCHASES" ? "Results" : "Enter results"}
+            </DropdownMenuItem>
+          )}
+          {series && (
+            <DropdownMenuItem onClick={() => setGrowthFor(series.id)}>
+              <TrendingUp className="mr-2 h-3.5 w-3.5" /> Growth
+            </DropdownMenuItem>
+          )}
+          {series && canManage && (
+            <DropdownMenuItem
+              onClick={() => setStopped.mutate({ seriesId: series.id, stopped: !series.stoppedAt })}
+            >
+              {series.stoppedAt ? (
+                <>
+                  <Repeat className="mr-2 h-3.5 w-3.5" /> Repeat every month again
+                </>
+              ) : (
+                <>
+                  <CircleStop className="mr-2 h-3.5 w-3.5" /> Stop repeating
+                </>
+              )}
             </DropdownMenuItem>
           )}
           {/* Sub-goals have no footer, so their way to a target is here. */}
@@ -653,6 +821,43 @@ export function GoalsTab({
                   ? "These numbers describe the filtered goals only."
                   : "What this project is for, and how far along it is."}
               </p>
+              {/* Repeating goals show one month at a time; one-time goals show in every month. */}
+              {(full.series?.length ?? 0) > 0 && (
+                <div className="mt-2 flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    aria-label="Previous month"
+                    disabled={!prevMonth}
+                    onClick={() => prevMonth && setMonth(prevMonth)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="min-w-28 text-center text-xs font-medium">
+                    {formatMonth(`${shownMonth}-01`)}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    aria-label="Next month"
+                    disabled={!nextMonth}
+                    onClick={() => nextMonth && setMonth(nextMonth)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  {shownMonth !== currentPlanMonth() && (
+                    <button
+                      type="button"
+                      onClick={() => setMonth(null)}
+                      className="text-muted-foreground hover:text-foreground ml-1 text-[11px] underline underline-offset-4"
+                    >
+                      This month
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
               <Stat label="Overall" value={`${summary.overallProgress}%`} accent />
@@ -733,51 +938,14 @@ export function GoalsTab({
         </div>
       </div>
 
-      {canManage && adding && (
-        <Dialog open onOpenChange={(o) => !o && setAdding(false)}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Add a goal</DialogTitle>
-              <DialogDescription>
-                What this project is for. Break it into sub-goals once it exists.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label required className="text-muted-foreground text-[11px]">
-                  Goal
-                </Label>
-                <Input
-                  autoFocus
-                  value={newGoal}
-                  onChange={(e) => setNewGoal(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addMain()}
-                  placeholder="e.g. Launch the new storefront"
-                  aria-label="Goal title"
-                  maxLength={200}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-muted-foreground text-[11px]">Target date</Label>
-                <DateField value={newDate} onChange={setNewDate} placeholder="Target date" modal />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-muted-foreground text-[11px]">Tags</Label>
-                <GoalTagInput value={newTags} onChange={setNewTags} suggestions={full.allTags} />
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setAdding(false)}>
-                Cancel
-              </Button>
-              <Button onClick={addMain} disabled={!newGoal.trim() || create.isPending}>
-                <Plus className="h-4 w-4" /> Add goal
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      {canManage && (
+        <GoalCreateDialog
+          projectId={projectId}
+          open={adding}
+          onOpenChange={setAdding}
+          services={splitServices}
+          allTags={full.allTags}
+        />
       )}
 
       {/* Unlinked work is allowed (forcing a goal makes junk goals), but the manager should sort it. */}
@@ -878,6 +1046,16 @@ export function GoalsTab({
                       )}
                       {/* Beside "Past target", not instead: a goal can be both overdue and slipping. */}
                       {goal.slipping && <SlippingChip />}
+                      {goal.seriesId && (
+                        <span
+                          className="text-muted-foreground border-border inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium"
+                          title="Repeats every month; each month is judged on its own"
+                        >
+                          <Repeat className="h-3 w-3" />
+                          {formatMonth(goal.periodStart)}
+                          {seriesOf(goal.seriesId)?.stoppedAt && " · stopped repeating"}
+                        </span>
+                      )}
                     </div>
                     <p className="text-muted-foreground mt-1 text-xs tabular-nums">
                       {[
@@ -934,7 +1112,9 @@ export function GoalsTab({
                     )}
                   </div>
 
-                  {isLeaf ? (
+                  {goal.targetValue !== null ? (
+                    <GoalNumber goal={goal} />
+                  ) : isLeaf ? (
                     statusControl(goal)
                   ) : (
                     <div className="w-36 shrink-0">
@@ -957,7 +1137,7 @@ export function GoalsTab({
                     </div>
                   )}
 
-                  {rowActions(goal)}
+                  {rowActions(goal, true)}
                 </div>
 
                 {isOpen && goal.children.length > 0 && (
@@ -981,9 +1161,19 @@ export function GoalsTab({
                               )}
                             >
                               <Rung sub n={`${gi + 1}.${si + 1}`} />
+                              {sub.service && (
+                                <span className="bg-primary/10 text-primary rounded-sm px-1.5 py-0.5 text-[10px] font-semibold">
+                                  {serviceInfo(sub.service)?.label ?? sub.service}
+                                </span>
+                              )}
                               {sub.title}
                             </p>
                             <p className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-2 text-[11px] empty:hidden">
+                              {sub.targetValue !== null && (
+                                <span title="Accountable for this part">
+                                  {sub.ownerName ?? "no owner - the account manager"}
+                                </span>
+                              )}
                               {sub.targetDate && (
                                 <span className="inline-flex items-center gap-1">
                                   <CalendarDays className="h-3 w-3" />
@@ -1014,7 +1204,24 @@ export function GoalsTab({
                               onAddingChange={(v) => setTargetFor(v ? sub.id : null)}
                             />
                           </div>
-                          {statusControl(sub)}
+                          {sub.targetValue !== null ? (
+                            <>
+                              <GoalNumber goal={sub} compact />
+                              {sub.isActive &&
+                                canEnterResults(sub) &&
+                                sub.actualSource === "MANUAL" && (
+                                  <Button
+                                    variant="outline"
+                                    className="h-7 px-2 text-[11px]"
+                                    onClick={() => setResultsFor(sub)}
+                                  >
+                                    Enter results
+                                  </Button>
+                                )}
+                            </>
+                          ) : (
+                            statusControl(sub)
+                          )}
                           {rowActions(sub)}
                         </div>
                         <GoalTasks
@@ -1113,11 +1320,77 @@ export function GoalsTab({
                 value={subTitle}
                 onChange={(e) => setSubTitle(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && subFor && addSub(subFor)}
-                placeholder="What needs to happen?"
+                placeholder={subService ? subTitleFor(subService) : "What needs to happen?"}
                 aria-label="Sub-goal title"
                 maxLength={200}
               />
             </div>
+            {splitServices.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-muted-foreground text-[11px]">Service</Label>
+                {/* The service's owner becomes accountable for this part. */}
+                <Select
+                  value={subService || NO_OWNER}
+                  onValueChange={(v) => setSubService(v === NO_OWNER ? "" : v)}
+                >
+                  <SelectTrigger className="h-8 text-xs" aria-label="Service">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_OWNER} className="text-xs">
+                      No service
+                    </SelectItem>
+                    {splitServices
+                      .filter(
+                        (x) => !subParent?.children.some((c) => c.service === x.code && c.isActive),
+                      )
+                      .map((x) => (
+                        <SelectItem key={x.code} value={x.code} className="text-xs">
+                          {x.name}
+                          {x.ownerName ? ` · ${x.ownerName}` : ""}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {subParent?.targetValue !== null && subParent?.targetValue !== undefined && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-muted-foreground text-[11px]">
+                    Share ({subParent.metricLabel})
+                  </Label>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    value={subTarget}
+                    onChange={(e) => setSubTarget(e.target.value)}
+                    placeholder="e.g. 1200"
+                    aria-label="Share of the number"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-muted-foreground text-[11px]">Results come from</Label>
+                  <Select
+                    value={subSource}
+                    onValueChange={(v) => setSubSource(v as GoalActualSource)}
+                  >
+                    <SelectTrigger className="h-8 text-xs" aria-label="Results come from">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MANUAL" className="text-xs">
+                        Owner enters
+                      </SelectItem>
+                      <SelectItem value="META_PURCHASES" className="text-xs">
+                        Meta purchases
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-muted-foreground text-[11px]">Target date</Label>
               <DateField value={subDate} onChange={setSubDate} placeholder="Target date" modal />
@@ -1132,7 +1405,10 @@ export function GoalsTab({
             <Button variant="ghost" onClick={() => setSubFor(null)}>
               Cancel
             </Button>
-            <Button onClick={() => subFor && addSub(subFor)} disabled={!subTitle.trim()}>
+            <Button
+              onClick={() => subFor && addSub(subFor)}
+              disabled={!subTitle.trim() && !subService}
+            >
               <Plus className="h-4 w-4" /> Add sub-goal
             </Button>
           </DialogFooter>
@@ -1164,6 +1440,25 @@ export function GoalsTab({
         />
       )}
       <HistoryDialog goal={historyFor} onClose={() => setHistoryFor(null)} />
+      <GoalResultsDialog
+        projectId={projectId}
+        // The live node, so a saved result shows straight away.
+        goal={
+          resultsFor
+            ? (summary.goals
+                .flatMap((g) => [g, ...g.children])
+                .find((g) => g.id === resultsFor.id) ?? resultsFor)
+            : null
+        }
+        canManage={canManage}
+        currentUserId={currentUserId}
+        onClose={() => setResultsFor(null)}
+      />
+      <GoalGrowthDialog
+        projectId={projectId}
+        seriesId={growthFor}
+        onClose={() => setGrowthFor(null)}
+      />
       <ReasonDialog
         open={Boolean(reasonFor)}
         status={reasonFor?.status ?? null}

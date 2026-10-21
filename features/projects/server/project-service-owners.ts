@@ -8,6 +8,7 @@ import { PROJECT_LEADS_SELECT, isProjectLead } from "../lib/project-leads"
 import { currentPlanMonth } from "../lib/calendar-months"
 import { canManageProject } from "./project-access"
 import { syncServiceCalendarManager } from "./service-calendars"
+import { syncServiceGoalOwners } from "./goal-metrics.service"
 import { parsePeriodMonth } from "./sheets.service"
 
 // Each service on a project has an owner (who manages its calendars) and, optionally, an always-on
@@ -141,6 +142,8 @@ export async function setServiceOwners(
       secondary !== before.secondary || change.primary !== undefined ? secondary : undefined,
     )
   }
+  // So do its open parts of goals; past months keep who was accountable then.
+  if (primary !== before.primary) await syncServiceGoalOwners(projectId, service, primary)
 
   const assigned: { employeeId: string; secondary: boolean }[] = []
   if (primary && primary !== before.primary)
@@ -270,5 +273,21 @@ export function projectExitSteps(employeeId: string) {
       where: { secondaryAccountManagerId: employeeId },
       data: { secondaryAccountManagerId: null },
     }),
+    // Their open goal parts (this month on): to whoever owns the service now, else unowned (the
+    // account manager). Runs after the service owners above. Past months keep their name.
+    db.$executeRaw`
+      UPDATE project_goals g
+      SET owner_id = o.employee_id
+      FROM project_service_owners o
+      WHERE g.owner_id = ${employeeId} AND g.service IS NOT NULL
+        AND o.project_id = g.project_id AND o.service = g.service
+        AND (g.period_end IS NULL OR g.period_end >= date_trunc('month', CURRENT_DATE))
+        AND g.status NOT IN ('DONE', 'DISCARDED')`,
+    db.$executeRaw`
+      UPDATE project_goals
+      SET owner_id = NULL
+      WHERE owner_id = ${employeeId}
+        AND (period_end IS NULL OR period_end >= date_trunc('month', CURRENT_DATE))
+        AND status NOT IN ('DONE', 'DISCARDED')`,
   ] as const
 }

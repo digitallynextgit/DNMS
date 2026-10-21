@@ -55,6 +55,8 @@ vi.mock("./service-calendars", () => ({
   ),
 }))
 vi.mock("./sheets.service", () => ({ parsePeriodMonth: () => new Date("2026-10-01") }))
+// Goal parts follow the service's owner; that sync is goal-metrics' own concern.
+vi.mock("./goal-metrics.service", () => ({ syncServiceGoalOwners: vi.fn(async () => {}) }))
 let manager = false
 vi.mock("./project-access", () => ({ canManageProject: vi.fn(async () => manager) }))
 

@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest"
 import {
   derivedStatus,
   isSlipping,
+  metricStatus,
   summariseGoalRows,
   tallyTarget,
   targetTypeKeys,
+  type GoalActualMap,
   type GoalNode,
   type GoalOutput,
   type GoalOutputMap,
@@ -52,6 +54,14 @@ interface RowSpec {
   tags?: string[]
   createdAt?: Date
   targetDate?: Date | null
+  metricLabel?: string
+  targetValue?: number
+  service?: string
+  actualSource?: "MANUAL" | "META_PURCHASES"
+  /** yyyy-MM-dd, an edition's month. */
+  period?: [string, string]
+  /** Entered numbers: [value, yyyy-MM-dd]. */
+  results?: [number, string][]
 }
 
 /** One goal row as the query returns it. Defaults: an active, not-started, empty goal. */
@@ -70,6 +80,21 @@ function row(spec: RowSpec = {}): GoalRowLite {
     createdAt: spec.createdAt ?? D("2026-01-01"),
     createdBy: null,
     owner: null,
+    metricLabel: spec.metricLabel ?? null,
+    targetValue: spec.targetValue ?? null,
+    service: spec.service ?? null,
+    actualSource: spec.actualSource ?? "MANUAL",
+    seriesId: spec.period ? "series" : null,
+    periodStart: spec.period ? D(spec.period[0]) : null,
+    periodEnd: spec.period ? D(spec.period[1]) : null,
+    results: (spec.results ?? []).map(([value, on]) => ({
+      id: uid("r"),
+      recordedFor: D(on),
+      value,
+      note: null,
+      createdAt: D(on),
+      enteredBy: null,
+    })),
     targets: (spec.targets ?? []).map((t) => ({
       id: uid("tg"),
       deliverableType: t.type,
@@ -121,8 +146,8 @@ function findOrNull(goals: GoalNode[], id: string): GoalNode | null {
   return null
 }
 
-const summarise = (rows: GoalRowLite[], outputs?: GoalOutputMap) =>
-  summariseGoalRows(rows, TODAY, outputs)
+const summarise = (rows: GoalRowLite[], outputs?: GoalOutputMap, actuals?: GoalActualMap) =>
+  summariseGoalRows(rows, TODAY, outputs, actuals)
 
 describe("weighting", () => {
   it("weights a sub-goal by the work under it, not by one tick", () => {
@@ -437,5 +462,85 @@ describe("output skipping", () => {
     expect(
       tasks.filter((t) => t.producesOutput && t.outputs === 0 && !t.outputSkipped),
     ).toHaveLength(1)
+  })
+})
+
+describe("goals with a number", () => {
+  // TODAY is 1 Mar; an edition for March has had 1 of its 31 days.
+  const MARCH: [string, string] = ["2026-03-01", "2026-03-31"]
+
+  it("adds the service parts up into the main goal and reads actual over target", () => {
+    const s = summarise(
+      [
+        row({ id: "G", metricLabel: "Orders", targetValue: 3000, period: MARCH }),
+        row({
+          id: "WEB",
+          parentId: "G",
+          metricLabel: "Orders",
+          targetValue: 1200,
+          service: "WEB",
+          period: MARCH,
+          results: [
+            [100, "2026-03-01"],
+            [50, "2026-03-01"],
+          ],
+        }),
+        row({
+          id: "PM",
+          parentId: "G",
+          metricLabel: "Orders",
+          targetValue: 1300,
+          service: "PM",
+          actualSource: "META_PURCHASES",
+          period: MARCH,
+        }),
+      ],
+      undefined,
+      new Map([["PM", 300]]),
+    )
+    const g = find(s.goals, "G")
+    expect(find(s.goals, "WEB").actualValue).toBe(150)
+    expect(find(s.goals, "PM").actualValue).toBe(300)
+    expect(g.actualValue).toBe(450)
+    expect(g.progress).toBe(15)
+    expect(g.status).toBe("IN_PROGRESS")
+    // One day of 31 gone: pace is 3000 / 31, rounded.
+    expect(g.paceValue).toBe(97)
+    expect(find(s.goals, "WEB").lastResultOn).toBe("2026-03-01")
+  })
+
+  it("is done once the number is reached, and a missed month reads as past target", () => {
+    const s = summarise([
+      row({
+        id: "FEB",
+        metricLabel: "Leads",
+        targetValue: 100,
+        period: ["2026-02-01", "2026-02-28"],
+        targetDate: D("2026-02-28"),
+        results: [[60, "2026-02-10"]],
+      }),
+      row({ id: "HIT", metricLabel: "Leads", targetValue: 50, results: [[70, "2026-02-01"]] }),
+    ])
+    expect(find(s.goals, "FEB").overdue).toBe(true)
+    expect(find(s.goals, "FEB").progress).toBe(60)
+    expect(find(s.goals, "HIT").status).toBe("DONE")
+    expect(find(s.goals, "HIT").progress).toBe(100)
+  })
+
+  it("keeps a goal without a number exactly as before", () => {
+    const s = summarise([row({ id: "W", tasks: ["DONE", "TODO"] })])
+    const w = find(s.goals, "W")
+    expect(w.actualValue).toBeNull()
+    expect(w.targetValue).toBeNull()
+    expect(w.progress).toBe(50)
+  })
+
+  it("derives a numbered goal's status", () => {
+    expect(metricStatus("NOT_STARTED", 1, false, false)).toBe("DONE")
+    expect(metricStatus("AT_RISK", 0.4, true, false)).toBe("AT_RISK")
+    expect(metricStatus("NOT_STARTED", 0.4, false, true)).toBe("AT_RISK")
+    expect(metricStatus("NOT_STARTED", 0, true, false)).toBe("IN_PROGRESS")
+    expect(metricStatus("NOT_STARTED", 0, false, false)).toBe("NOT_STARTED")
+    expect(metricStatus("DISCARDED", 1, true, false)).toBe("DISCARDED")
   })
 })
