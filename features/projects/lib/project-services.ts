@@ -24,6 +24,12 @@ export const PROJECT_SERVICES = [
     calendar: { name: "Paid Performance Calendar", tabs: ["Calendar"] },
   },
   {
+    code: "DA",
+    label: "Data",
+    name: "Data & Analytics",
+    calendar: { name: "Data & Analytics Calendar", tabs: ["Calendar"] },
+  },
+  {
     code: "MSG",
     label: "Email/WA/SMS",
     name: "Email, WhatsApp & SMS",
@@ -106,6 +112,7 @@ export const SERVICE_TEAMS: Record<ProjectServiceCode, readonly ProjectTeamName[
   SMO: ["SMO", "DESIGN", "VIDEO", "CONTENT"],
   SEO: ["SEO", "CONTENT", "WEB"],
   PM: ["PERFORMANCE", "DESIGN", "VIDEO"],
+  DA: ["PERFORMANCE", "WEB"],
   MSG: ["CONTENT", "DESIGN"],
   INF: ["SMO", "VIDEO", "CONTENT"],
   ALL: ["ALLIANCES & PARTNERSHIPS"],

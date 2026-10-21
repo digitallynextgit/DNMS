@@ -544,7 +544,7 @@ export const PROJECTS_CORE: DescriptionMap = {
   "POST /api/projects": {
     summary:
       "Create a new project. It gets the next DN code, a URL slug, all 11 fixed teams (its Account Manager managing AM) and a calendar per service. Needs project:write. The Account Manager defaults to you.",
-    body: "{ name (required); accountManagerId?: active employee id, the primary Account Manager (default you); secondaryAccountManagerId?: active employee id, someone other than the primary; clientId?; description?; status?: PLANNING (default)|ACTIVE|ON_HOLD|COMPLETED|CANCELLED; priority?: LOW|MEDIUM (default)|HIGH|URGENT; stage?: LAUNCH|GROWTH|REBRANDING|DECLINE (the Phase); startDate?: YYYY-MM-DD; budget?: number (INR); shortName?: up to 24 chars, unique; services?: array of SMO (Social Media), SEO (SEO/AEO/GEO), PM (Paid Performance), MSG (Email/WhatsApp/SMS), INF (Influencers), ALL (Alliances & Partnerships), DPR (Digital PR), WEB (Website), CAMP (Campaign Planning), OFF (Offline), BD (BD/Sales), BRAND (Branding Kit) }",
+    body: "{ name (required); accountManagerId?: active employee id, the primary Account Manager (default you); secondaryAccountManagerId?: active employee id, someone other than the primary; clientId?; description?; status?: PLANNING (default)|ACTIVE|ON_HOLD|COMPLETED|CANCELLED; priority?: LOW|MEDIUM (default)|HIGH|URGENT; stage?: LAUNCH|GROWTH|REBRANDING|DECLINE (the Phase); startDate?: YYYY-MM-DD; budget?: number (INR); shortName?: up to 24 chars, unique; services?: array of SMO (Social Media), SEO (SEO/AEO/GEO), PM (Paid Performance), DA (Data & Analytics), MSG (Email/WhatsApp/SMS), INF (Influencers), ALL (Alliances & Partnerships), DPR (Digital PR), WEB (Website), CAMP (Campaign Planning), OFF (Offline), BD (BD/Sales), BRAND (Branding Kit) }",
     keywords: ["new project", "create project", "add project", "start project", "onboard client"],
     notes:
       "Also shares the project's Drive folder with its Account Managers and team members, and notifies a new Account Manager in-app. Unknown service codes are silently dropped. Set service owners afterwards with PUT /api/projects/[id]/service-owners.",
@@ -772,7 +772,7 @@ export const PROJECTS_CORE: DescriptionMap = {
   "PUT /api/projects/[id]/service-owners": {
     summary:
       "Set or clear who owns one service on a project (e.g. who owns SEO) and its always-on secondary owner, who has the same powers on the service's calendars. An Account Manager or project:write holder sets either; the service's owner may also pick or clear their own secondary.",
-    body: "{ service (required): a service code ticked on the project (SMO, SEO, PM, MSG, INF, ALL, DPR, WEB, CAMP, OFF, BD, BRAND); employeeId?: the owner - someone on the project's teams (or an Account Manager), or null to clear; secondaryEmployeeId?: the secondary owner, same rule, someone other than the owner, or null to clear. A key left out stays as it is. }",
+    body: "{ service (required): a service code ticked on the project (SMO, SEO, PM, DA, MSG, INF, ALL, DPR, WEB, CAMP, OFF, BD, BRAND); employeeId?: the owner - someone on the project's teams (or an Account Manager), or null to clear; secondaryEmployeeId?: the secondary owner, same rule, someone other than the owner, or null to clear. A key left out stays as it is. }",
     keywords: [
       "service owner",
       "secondary service owner",

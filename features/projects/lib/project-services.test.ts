@@ -12,11 +12,12 @@ import {
 } from "./project-services"
 
 describe("project services", () => {
-  it("lists the twelve services in the agreed order, each with its own calendar", () => {
+  it("lists the thirteen services in the agreed order, each with its own calendar", () => {
     expect(PROJECT_SERVICES.map((s) => s.label)).toEqual([
       "SMO",
       "SEO",
       "PM",
+      "Data",
       "Email/WA/SMS",
       "Inf.",
       "All.",
