@@ -211,6 +211,12 @@ export const PROJECTS_CORE: DescriptionMap = {
       "Active members of one project team, earliest joined first. Each row's id is the membership id ([memberId] for remove/promote); employee.id is the person. Anyone with access to the project.",
     keywords: ["team members", "who is on the team", "team roster"],
   },
+  "GET /api/projects/[id]/teams/[teamId]/assignable": {
+    summary:
+      "Whom the caller may give a task on this team to: themselves and their reports on it, or everyone on it for the team manager and project managers.",
+    keywords: ["who can I assign", "assignable people", "delegate to my reports"],
+    notes: "Returns { ids, canAssignAnyone }.",
+  },
   "GET /api/projects/[id]/teams/[teamId]/tasks": {
     summary:
       "All tasks of one project team with assignee, creator, goal, blocking requirement and deliverable count. [teamId] from GET /api/projects/[id]/teams. Anyone with access to the project.",
@@ -342,6 +348,25 @@ export const PROJECTS_CORE: DescriptionMap = {
       "A task's checklist (sub-items) in order with checked state. [id] = task id. Anyone who can see the task (project access; for adhoc work its assignee, creator or their manager).",
     keywords: ["subtasks", "task checklist", "to-do items"],
   },
+  "GET /api/tasks/[id]/work-logs": {
+    summary:
+      "A task's work log, newest day first: what was done each day, how many were made, links, and who logged it. Also where the task sits (its goal and parent goal, and the planned deliverable it is part of, with made of quantity) and whether the caller may log. Anyone who can see the task.",
+    keywords: ["work log", "what was done", "daily progress", "task progress notes", "task chain"],
+    notes:
+      "Returns { chain: { goal, deliverable }, logs: [{ id, workedOn, note, quantity, links, employeeName, canDelete }], canLog }.",
+  },
+  "POST /api/tasks/[id]/work-logs": {
+    summary:
+      "Log work on a task for a day. The assignee can always log, whoever raised the task; their team manager and project managers too. A quantity adds to the made count of the deliverable the task is part of while it is still owed (a planned one moves to In progress).",
+    body: "{ note (required, max 2000), workedOn?: YYYY-MM-DD (default today, not future; members up to 90 days back), quantity?: whole number >= 1 (only on a task that is part of an owed deliverable), links?: http(s) URLs (max 10) }",
+    keywords: ["log work", "add work log", "record progress", "how many made", "report done work"],
+    notes: "Returns { id }.",
+  },
+  "DELETE /api/tasks/[id]/work-logs/[logId]": {
+    summary:
+      "Remove a work log: its author within 7 days, or the task's managers any time. The units it added come off the deliverable while that is still owed.",
+    keywords: ["delete work log", "remove work log", "undo work log"],
+  },
   "GET /api/tasks/[id]/comments": {
     summary:
       "Comments on a task, oldest first, with author name and designation. [id] = task id. Anyone who can see the task.",
@@ -433,8 +458,8 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "PATCH /api/tasks/[id]": {
     summary:
-      "Update a task: move its status (start, complete, hold, discard), edit details, reassign, change due date, priority, hours, links, goal or milestone flag. For the assignee, the task's manager (team manager; for adhoc work the assignee's line manager) or project:write holders.",
-    body: "{ status?: TODO|IN_PROGRESS|DONE|ON_HOLD|DISCARDED; holdReason + holdExpectedDate (YYYY-MM-DD): required for ON_HOLD; discardReason: required for DISCARDED; keepFollowUp?: true to go ahead after a 409 about a hold follow-up; title?; description?; priority?: LOW|MEDIUM|HIGH|URGENT; startDate?, dueDate?: YYYY-MM-DD or null; estimatedHours?: number or null; tags?: string[]; assigneeId?: active employee id or null (manager/admin only); links?: http(s) URLs, max 20; isMilestone?: boolean; goalId?: goal on the task's project or null; producesOutput?: boolean; outputSkipped?: true = nothing came out of this }",
+      "Update a task: move its status (start, complete, hold, discard), edit details, reassign, change due date, priority, hours, links, goal or milestone flag. For the assignee, the task's manager (team manager; for adhoc work the assignee's line manager), the project's Account Manager or project:write holders.",
+    body: "{ status?: TODO|IN_PROGRESS|DONE|ON_HOLD|DISCARDED; holdReason + holdExpectedDate (YYYY-MM-DD): required for ON_HOLD; discardReason: required for DISCARDED; keepFollowUp?: true to go ahead after a 409 about a hold follow-up; title?; description?; priority?: LOW|MEDIUM|HIGH|URGENT; startDate?, dueDate?: YYYY-MM-DD or null; estimatedHours?: number or null; tags?: string[]; assigneeId?: active employee id or null (manager/admin; the assignee may also hand it to their own report on the same team); links?: http(s) URLs, max 20; isMilestone?: boolean; goalId?: goal on the task's project or null; producesOutput?: boolean; outputSkipped?: true = nothing came out of this }",
     keywords: [
       "update task",
       "complete task",
@@ -482,6 +507,20 @@ export const PROJECTS_CORE: DescriptionMap = {
     keywords: ["start deliverable", "claim work", "pick up deliverable", "begin owed work"],
     notes:
       "No body. Fails if it is already delivered or already tracked as a task. Returns { taskId, claimed }.",
+  },
+  "GET /api/projects/[id]/deliverables/[deliverableId]/tasks": {
+    summary:
+      "The tasks a planned deliverable is split into (title, assignee, status, due, hours, units logged), whom the caller may give a new one to, and whether they may split it. Anyone on the project.",
+    keywords: ["deliverable tasks", "split tasks", "who is working on this deliverable"],
+    notes: "Returns { tasks, assignable: [{ id, name }], canSplit }.",
+  },
+  "POST /api/projects/[id]/deliverables/[deliverableId]/tasks": {
+    summary:
+      "Split owed work into tasks for the team's people. Each task belongs to the deliverable and its goal; work logged on them adds to its made count. For the owing team's members, its manager and project managers. A member may give tasks to themselves or to their own reports (any depth, dotted line too) on that team; managers to anyone on it.",
+    body: "{ tasks (required, 1-30): [{ title (required), assigneeId (required), dueDate?: YYYY-MM-DD (default the deliverable's due day), estimatedHours?: 0-500 }] }",
+    keywords: ["split deliverable", "break into tasks", "assign deliverable work", "delegate work"],
+    notes:
+      "Claims an unclaimed deliverable (the caller if on the team, else the first assignee). Each other assignee is notified. Returns { created }.",
   },
   "POST /api/projects/[id]/deliverables/[deliverableId]/status": {
     summary:
@@ -626,7 +665,7 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "POST /api/projects/[id]/teams/[teamId]/tasks": {
     summary:
-      "Create a task in a project team. A team member may add their own task (send their own id as assigneeId); the team manager, Account Manager or project:write may assign it to any member of the team.",
+      "Create a task in a project team. A team member may add their own task (send their own id as assigneeId) or give it to someone who reports to them on that team; the team manager, Account Manager or project:write may assign it to any member of the team.",
     body: "{ title (required); assigneeId?: a member of this team - defaults to the TEAM MANAGER, so non-managers must send their own id; description?; priority?: LOW|MEDIUM (default)|HIGH|URGENT; dueDate?: YYYY-MM-DD; estimatedHours?: number; tags?: string[]; goalId?: goal on this project; producesOutput?: boolean; seoPropertyId?: an SEO site of this project }",
     keywords: ["create team task", "assign task", "add my task", "new task"],
     notes:

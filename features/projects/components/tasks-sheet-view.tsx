@@ -1081,6 +1081,7 @@ export function TasksSheetView({
                               tasks={cellTasks}
                               busy={!!busyCells[actualKey]}
                               canEdit={mayEdit}
+                              onOpenTask={onOpenTask}
                               onCommit={(task, text) =>
                                 patchTask(task, { description: text || null }, actualKey, "Saved")
                               }
@@ -1608,11 +1609,14 @@ function ActualCell({
   tasks,
   busy,
   canEdit,
+  onOpenTask,
   onCommit,
 }: {
   tasks: SheetTask[]
   busy: boolean
   canEdit: (task: SheetTask) => boolean
+  /** A locked note opens the task instead, where its work log can always be added to. */
+  onOpenTask?: (task: SheetTask) => void
   onCommit: (task: SheetTask, text: string) => void
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -1636,7 +1640,11 @@ function ActualCell({
   }, [editingId])
 
   function begin(task: SheetTask) {
-    if (!canEdit(task) || busy) return
+    if (busy) return
+    if (!canEdit(task)) {
+      onOpenTask?.(task)
+      return
+    }
     settled.current = false
     setText(task.description ?? "")
     setEditingId(task.id)
@@ -1659,6 +1667,7 @@ function ActualCell({
       {tasks.length === 0 && <span className="text-muted-foreground/40 select-none">-</span>}
       {tasks.map((task, i) => {
         const editable = canEdit(task)
+        const opens = !editable && !!onOpenTask
         return (
           <span key={task.id} className="flex items-start gap-1.5 py-0.5">
             <TaskNumber n={i + 1} status={task.status} />
@@ -1687,8 +1696,8 @@ function ActualCell({
               />
             ) : (
               <span
-                role={editable ? "button" : undefined}
-                tabIndex={editable ? 0 : undefined}
+                role={editable || opens ? "button" : undefined}
+                tabIndex={editable || opens ? 0 : undefined}
                 onClick={() => begin(task)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
@@ -1696,11 +1705,18 @@ function ActualCell({
                     begin(task)
                   }
                 }}
-                title={editable ? undefined : "Locked - only the team manager can change this now"}
+                title={
+                  editable
+                    ? undefined
+                    : opens
+                      ? "Locked - open the task to add to its work log"
+                      : "Locked - only the team manager can change this now"
+                }
                 className={cn(
                   "min-w-0 flex-1 break-words whitespace-pre-wrap",
                   editable &&
                     "hover:bg-muted/40 focus:ring-primary/60 cursor-text rounded-sm outline-none focus:ring-2",
+                  opens && "hover:bg-muted/40 cursor-pointer rounded-sm",
                   task.description
                     ? (STATUS_TEXT[task.status] ?? "text-foreground")
                     : "text-muted-foreground/40",

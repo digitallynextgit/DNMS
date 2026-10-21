@@ -15,6 +15,8 @@ import { createNotification } from "@/lib/notifications"
 import { addEmailJob } from "@/lib/queue"
 import { createAuditLog } from "@/lib/audit"
 import { openFirstStatusPeriod } from "@/features/projects/server/task-status-periods"
+import { teamAssignContext } from "@/features/projects/server/task-assign.service"
+import { mayAssignTo } from "@/features/projects/lib/task-assign"
 import type { Session } from "next-auth"
 
 export const GET = withProjectAccess(
@@ -106,11 +108,18 @@ export const POST = withSession(
       const outputExpected =
         typeof producesOutput === "boolean" ? producesOutput : expectsOutput(team.name)
 
+      // Besides themselves, a member may hand work to their own reports on this team.
       if (finalAssigneeId !== session.user.id && !isManager && !isAdmin) {
-        return NextResponse.json(
-          { error: "Only the team manager can assign tasks to other members" },
-          { status: 403 },
-        )
+        const assign = await teamAssignContext(session, projectId, teamId)
+        if (!assign || !mayAssignTo(assign, finalAssigneeId)) {
+          return NextResponse.json(
+            {
+              error:
+                "You can give team tasks to yourself or to people who report to you; the team manager can assign anyone.",
+            },
+            { status: 403 },
+          )
+        }
       }
 
       if (!memberIds.includes(finalAssigneeId)) {

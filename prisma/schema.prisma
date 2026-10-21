@@ -709,6 +709,7 @@ model Employee {
   goalTargetsCreated   ProjectGoalTarget[]       @relation("GoalTargetCreator")
   goalEvents           ProjectGoalEvent[]        @relation("GoalEventActor")
   goalResultsEntered   ProjectGoalResult[]       @relation("GoalResultEnteredBy")
+  taskWorkLogs         TaskWorkLog[]             @relation("TaskWorkLogAuthor")
 
   @@unique([tenantId, employeeNo])
   @@index([managerId])
@@ -2488,7 +2489,8 @@ model ProjectDeliverable {
   acceptedBy       Employee?                 @relation("DeliverableAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
   loggedByClient   ClientUser?               @relation("DeliverableClientLogger", fields: [loggedByClientId], references: [id], onDelete: SetNull)
   acceptedByClient ClientUser?               @relation("DeliverableClientAcceptor", fields: [acceptedByClientId], references: [id], onDelete: SetNull)
-  task             ProjectTask?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  task             ProjectTask?              @relation("DeliverableTask", fields: [taskId], references: [id], onDelete: SetNull)
+  workTasks        ProjectTask[]             @relation("DeliverableWorkTasks")
   goal             ProjectGoal?              @relation(fields: [goalId], references: [id], onDelete: SetNull)
   files            ProjectResource[]
   events           ProjectDeliverableEvent[]
@@ -2709,6 +2711,8 @@ model ProjectTask {
   producesOutput  Boolean   @default(true) @map("produces_output")
   // "Done, nothing to log" - stops the capture prompt. Cleared when a deliverable is logged or the task leaves DONE.
   outputSkippedAt DateTime? @map("output_skipped_at")
+  // The planned deliverable this task is part of (one deliverable can be split into many tasks).
+  deliverableId   String?   @map("deliverable_id")
 
   project        Project?              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   seoProperty    SeoProperty?          @relation(fields: [seoPropertyId], references: [id], onDelete: SetNull)
@@ -2726,11 +2730,15 @@ model ProjectTask {
   statusPeriods  TaskStatusPeriod[]
   reminderStates TaskReminderState[]
   contentEntry   ContentCalendarEntry?
-  deliverables   ProjectDeliverable[]
+  // What this task logged (each row's taskId); not the same as `deliverable`, the work it is part of.
+  deliverables   ProjectDeliverable[]  @relation("DeliverableTask")
+  deliverable    ProjectDeliverable?   @relation("DeliverableWorkTasks", fields: [deliverableId], references: [id], onDelete: SetNull)
+  workLogs       TaskWorkLog[]
 
   @@index([projectId])
   @@index([teamId])
   @@index([assigneeId])
+  @@index([deliverableId])
   @@index([status])
   @@index([approvalStatus])
   @@index([resumedFromId])
@@ -4877,6 +4885,28 @@ model ProjectGoalResult {
   @@index([goalId, recordedFor])
   @@index([tenantId])
   @@map("project_goal_results")
+}
+
+/// What was done on a task, day by day. The assignee can always add one, whoever raised the task;
+/// `quantity` adds to the made count of the deliverable the task is part of.
+model TaskWorkLog {
+  tenantId   String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id         String   @id @default(uuid()) @map("id")
+  taskId     String   @map("task_id")
+  employeeId String   @map("employee_id")
+  workedOn   DateTime @map("worked_on") @db.Date
+  note       String   @map("note") @db.Text
+  quantity   Int?     @map("quantity")
+  links      String[] @default([]) @map("links")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  task     ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  employee Employee    @relation("TaskWorkLogAuthor", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, workedOn])
+  @@index([employeeId, workedOn])
+  @@index([tenantId])
+  @@map("task_work_logs")
 }
 
 enum GoalEventType {

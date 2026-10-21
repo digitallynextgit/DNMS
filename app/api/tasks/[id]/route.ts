@@ -17,6 +17,9 @@ import { dedupeLinks, isSafeHttpUrl } from "@/features/projects/lib/task-links"
 import { myWorkHref, projectHref } from "@/features/projects/lib/project-href"
 import { formatHours } from "@/features/projects/lib/format-hours"
 import { hasPastTaskAccess } from "@/features/employees/server/task-access.service"
+import { canManageProject } from "@/features/projects/server/project-access"
+import { teamAssignContext } from "@/features/projects/server/task-assign.service"
+import { mayAssignTo } from "@/features/projects/lib/task-assign"
 import { createNotification } from "@/lib/notifications"
 import {
   canDeleteTask,
@@ -25,6 +28,12 @@ import {
 } from "@/features/projects/lib/task-permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
+
+/** PROJECT_WRITE, or the project's account manager for a project task. */
+async function isTaskAdmin(session: Session, projectId: string | null): Promise<boolean> {
+  if (hasPermission(session, PERMISSIONS.PROJECT_WRITE)) return true
+  return projectId ? canManageProject(session, projectId) : false
+}
 
 // "Manager" = the team's manager for project work, or the assignee's line manager for adhoc work.
 async function getTaskAuthContext(taskId: string, userId: string) {
@@ -84,7 +93,7 @@ export const PATCH = withSession(
       const auth = await getTaskAuthContext(ctx.params.id, session.user.id)
       if (!auth) return NextResponse.json({ error: "Task not found" }, { status: 404 })
 
-      const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+      const isAdmin = await isTaskAdmin(session, auth.task.projectId)
 
       if (!auth.isAssignee && !auth.isManager && !isAdmin) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
@@ -101,12 +110,22 @@ export const PATCH = withSession(
       }
       const actor = { userId: session.user.id, isAdmin, canEditPastTasks: false }
 
-      // Reassigning is an allocation decision, so it stays with the manager even inside the author's window.
+      // Reassigning is an allocation decision: the manager's, or the person on it handing it to their
+      // own report on the same team.
       if (assigneeId !== undefined && !auth.isManager && !isAdmin) {
-        return NextResponse.json(
-          { error: "Only the team manager can reassign a task." },
-          { status: 403 },
-        )
+        const assign =
+          auth.isAssignee && assigneeId && auth.task.projectId && auth.task.teamId
+            ? await teamAssignContext(session, auth.task.projectId, auth.task.teamId)
+            : null
+        if (!assign || !mayAssignTo(assign, assigneeId)) {
+          return NextResponse.json(
+            {
+              error:
+                "Only the team manager can reassign a task, or you to someone who reports to you.",
+            },
+            { status: 403 },
+          )
+        }
       }
 
       const isStructuralChange =
@@ -434,7 +453,7 @@ export const DELETE = withSession(
       if (!auth) return NextResponse.json({ error: "Task not found" }, { status: 404 })
 
       // Deleting destroys hours, comments and history, so it stays with the manager - not the author.
-      const isAdminDel = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+      const isAdminDel = await isTaskAdmin(session, auth.task.projectId)
       const deletable = canDeleteTask(
         {
           creatorId: auth.task.creatorId,

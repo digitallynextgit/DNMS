@@ -8,7 +8,7 @@ import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import { isAiConfigured } from "@/lib/ai"
 import { previousMonth } from "../lib/report-format"
-import { reportingLine } from "../lib/reporting-line"
+import { reportingLine } from "@/lib/reporting-line"
 import type { WorkReportRole, WorkReportScopeData, WorkReportScopePerson } from "../types"
 
 // Who a work report may cover: admins (project:write, HR) anyone; managers themselves plus their

@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TaskTime } from "./task-time"
 import { TaskTimeline } from "./task-timeline"
+import { TaskWorkLog } from "./task-work-log"
 import {
   useTaskComments,
   useAddComment,
@@ -180,6 +181,10 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
               {isManager && task.projectId && <GoalPicker task={task} />}
             </div>
           )}
+
+          <div className="border-b px-5 py-4">
+            <TaskWorkLog taskId={task.id} />
+          </div>
 
           <div className="border-b px-5 py-4">
             <ChecklistSection taskId={task.id} />

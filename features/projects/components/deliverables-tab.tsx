@@ -87,6 +87,7 @@ import {
 import { linkLabel } from "../lib/task-links"
 import { DeliverableTracker } from "./deliverable-tracker"
 import { LogWorkDialog } from "./log-work-dialog"
+import { DeliverableSplitDialog } from "./deliverable-split-dialog"
 import { EditItemDialog } from "./edit-item-dialog"
 import { PlanPeriodDialog } from "./plan-period-dialog"
 import {
@@ -632,6 +633,8 @@ interface RowHandlers {
   onAssign?: (r: DeliverableRow) => void
   claimable: boolean
   onLogWork?: () => void
+  /** Owed work a team member or manager can split into tasks (the server has the final say). */
+  onSplit?: () => void
 }
 
 type Period = DeliverablePeriod<DeliverableRow>
@@ -1047,17 +1050,30 @@ function PeriodItemsTable({
       header: "Log work",
       cell: (r) => {
         const h = rowProps(r)
-        return h.onLogWork ? (
-          <Button
-            variant="outline"
-            className="h-7 px-2 text-xs"
-            onClick={h.onLogWork}
-            title="Record what is finished, with the link or file"
-          >
-            Log work
-          </Button>
-        ) : (
-          <span className="text-muted-foreground/50">-</span>
+        if (!h.onLogWork && !h.onSplit) return <span className="text-muted-foreground/50">-</span>
+        return (
+          <span className="inline-flex gap-1">
+            {h.onLogWork && (
+              <Button
+                variant="outline"
+                className="h-7 px-2 text-xs"
+                onClick={h.onLogWork}
+                title="Record what is finished, with the link or file"
+              >
+                Log work
+              </Button>
+            )}
+            {h.onSplit && (
+              <Button
+                variant="ghost"
+                className="text-muted-foreground h-7 px-2 text-xs"
+                onClick={h.onSplit}
+                title="Split it into tasks for the team's people"
+              >
+                Tasks
+              </Button>
+            )}
+          </span>
         )
       },
     },
@@ -1220,6 +1236,7 @@ export function DeliverablesTab({
   const [range, setRange] = React.useState<DateRangeValue>({ preset: "all", from: null, to: null })
   const [editingItem, setEditingItem] = React.useState<DeliverableRow | null>(null)
   const [logging, setLogging] = React.useState<DeliverableRow | null>(null)
+  const [splitting, setSplitting] = React.useState<DeliverableRow | null>(null)
   const [assigning, setAssigning] = React.useState<DeliverableRow | null>(null)
   const [deletingPeriods, setDeletingPeriods] = React.useState<Period[] | null>(null)
 
@@ -1404,6 +1421,10 @@ export function DeliverablesTab({
       actorFor(r) !== "none" && r.status !== "ACCEPTED" && r.status !== "DELIVERED"
         ? () => setLogging(r)
         : undefined,
+    onSplit:
+      r.team && isOpenStatus(r.status) && actorFor(r) !== "none"
+        ? () => setSplitting(r)
+        : undefined,
   })
 
   if (isLoading && !data) {
@@ -1536,6 +1557,12 @@ export function DeliverablesTab({
       />
 
       <LogWorkDialog projectId={projectId} row={loggingRow} onClose={() => setLogging(null)} />
+      <DeliverableSplitDialog
+        projectId={projectId}
+        row={splitting}
+        currentUserId={currentUserId}
+        onClose={() => setSplitting(null)}
+      />
 
       {assigning && (
         <AssignDialog

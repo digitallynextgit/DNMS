@@ -20,6 +20,7 @@ import { apiFetch } from "@/lib/api-fetch"
 import { PERMISSIONS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 import { useProject, useProjects, useProjectTeams } from "@/features/projects/hooks/use-projects"
 import { useProjectGoals } from "@/features/projects/hooks/use-goals"
+import { useTeamAssignable } from "@/features/projects/hooks/use-task-work"
 import { NONE_OPTION, SearchPicker } from "./search-picker"
 
 /** Radix Select cannot hold "" as a value, so "no goal" needs a sentinel. */
@@ -35,7 +36,7 @@ import { useSession } from "next-auth/react"
 
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"]
 
-/** Self-assigned tasks go to your manager for approval (server rule). `lockProject` hides the project picker. */
+/** Raise a task; who it may go to follows the server's rule. `lockProject` hides the project picker. */
 export function TaskCreateDialog({
   open,
   onOpenChange,
@@ -108,9 +109,12 @@ export function TaskCreateDialog({
 
   const team = selectableTeams.find((t) => t.id === teamId)
   const canAssignOthers = isProjectAdmin || team?.managerId === userId
+  // A member may also hand work to their own reports on the team - the server says who.
+  const { data: assignable } = useTeamAssignable(realProjectId, canAssignOthers ? null : teamId)
+  const allowed = new Set(assignable?.ids ?? [userId])
   const assignees = canAssignOthers
     ? (team?.members ?? [])
-    : (team?.members ?? []).filter((m) => m.employeeId === userId)
+    : (team?.members ?? []).filter((m) => m.employeeId === userId || allowed.has(m.employeeId))
 
   // Each step runs when its inputs change; the order matters when several change at once.
   const [seen, setSeen] = React.useState({
@@ -184,7 +188,7 @@ export function TaskCreateDialog({
     create.mutate({
       title: title.trim(),
       description: description.trim() || undefined,
-      assigneeId: assigneeId || undefined,
+      assigneeId: assigneeId || (canAssignOthers ? undefined : userId || undefined),
       priority,
       dueDate: dueDate || undefined,
       estimatedHours: estimateInHours,
@@ -307,13 +311,14 @@ export function TaskCreateDialog({
 
         {isAdhoc ? (
           <p className="text-muted-foreground text-xs">
-            Raised on you. It goes to your line manager for approval.
+            Raised on you. Your line manager can see it.
           </p>
         ) : (
           <div className="space-y-2">
             <Label>Assignee</Label>
             <Select
-              value={assigneeId || "auto"}
+              // Members can't hand work to the manager, so theirs starts on themselves.
+              value={assigneeId || (canAssignOthers ? "auto" : userId)}
               onValueChange={(v) => setAssigneeId(v === "auto" ? "" : v)}
               disabled={!teamId}
             >
@@ -321,7 +326,7 @@ export function TaskCreateDialog({
                 <SelectValue placeholder="Team manager (default)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto">Team manager (default)</SelectItem>
+                {canAssignOthers && <SelectItem value="auto">Team manager (default)</SelectItem>}
                 {assignees.map((m) => (
                   <SelectItem key={m.employeeId} value={m.employeeId}>
                     {m.employee.firstName} {m.employee.lastName}
@@ -331,8 +336,10 @@ export function TaskCreateDialog({
             </Select>
             <p className="text-muted-foreground text-xs">
               {teamId && !canAssignOthers
-                ? "You can only raise a task on yourself here; it goes to your team manager for approval."
-                : "Assign it to yourself and it goes to your manager for approval."}
+                ? assignees.length > 1
+                  ? "You can raise it on yourself or on someone who reports to you."
+                  : "You can raise a task on yourself here; your team manager is told."
+                : "Leave it with the team manager, or pick who does it."}
             </p>
           </div>
         )}

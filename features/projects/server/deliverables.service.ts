@@ -1092,6 +1092,7 @@ export async function startDeliverable(
         creatorId: session.user.id,
         dueDate: existing.dueOn,
         goalId: existing.goalId,
+        deliverableId: id,
         // It exists to produce this deliverable, so the completion prompt must fire.
         producesOutput: true,
         isManagerCreated: ownerId !== session.user.id,
