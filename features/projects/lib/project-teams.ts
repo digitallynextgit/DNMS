@@ -8,6 +8,7 @@ export const PROJECT_TEAMS = [
   "SMO",
   "SEO",
   "PERFORMANCE",
+  "DATA",
   "PR",
   "ALLIANCES & PARTNERSHIPS",
   "ADMIN",

@@ -62,6 +62,7 @@ describe("suggestTypes", () => {
     expect(suggestTypes("AM")[0]).toBe("Brief")
     expect(suggestTypes("SEO")[0]).toBe("Keyword set")
     expect(suggestTypes("PERFORMANCE")).toContain("Ad creative")
+    expect(suggestTypes("DATA")[0]).toBe("Dashboard")
     expect(suggestTypes("PR")[0]).toBe("Press release")
     expect(suggestTypes("ALLIANCES & PARTNERSHIPS")[0]).toBe("Partnership")
     expect(suggestTypes("ADMIN")).toEqual([...GENERIC_TYPES])

@@ -8,6 +8,10 @@ export const MAX_LINKS = 20
 /** Matched against the team's NAME, which is the only signal there is. */
 const BY_TEAM: { match: RegExp; types: string[] }[] = [
   {
+    match: /^data$|analytic|insight/i,
+    types: ["Dashboard", "Report", "Tracking setup", "Data audit", "Insight deck"],
+  },
+  {
     match: /video|reel|motion|edit|film/i,
     types: ["Video", "Reel", "Short", "Thumbnail", "Motion graphic", "Edit"],
   },

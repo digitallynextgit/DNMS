@@ -41,7 +41,7 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "DELETE /api/projects/[id]/teams/[teamId]": {
     summary:
-      "Always refused (405): every project has the same fixed teams (AM, WEB, DESIGN, VIDEO, CONTENT, SMO, SEO, PERFORMANCE, PR, ALLIANCES & PARTNERSHIPS, ADMIN). Remove people instead with DELETE /api/projects/[id]/teams/[teamId]/members/[memberId].",
+      "Always refused (405): every project has the same fixed teams (AM, WEB, DESIGN, VIDEO, CONTENT, SMO, SEO, PERFORMANCE, DATA, PR, ALLIANCES & PARTNERSHIPS, ADMIN). Remove people instead with DELETE /api/projects/[id]/teams/[teamId]/members/[memberId].",
     keywords: ["delete team", "remove team"],
   },
   "DELETE /api/projects/[id]/teams/[teamId]/members/[memberId]": {
@@ -201,7 +201,7 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "GET /api/projects/[id]/teams": {
     summary:
-      "A project's teams (fixed set: AM, WEB, DESIGN, VIDEO, CONTENT, SMO, SEO, PERFORMANCE, PR, ALLIANCES & PARTNERSHIPS, ADMIN) with each team's manager, members and task count. Anyone with access to the project.",
+      "A project's teams (fixed set: AM, WEB, DESIGN, VIDEO, CONTENT, SMO, SEO, PERFORMANCE, DATA, PR, ALLIANCES & PARTNERSHIPS, ADMIN) with each team's manager, members and task count. Anyone with access to the project.",
     keywords: ["project teams", "team manager", "team members", "team id"],
     notes:
       "teams[].id is the [teamId]; teams[].members[].id is the membership id used as [memberId] for remove/promote (employeeId is the person).",

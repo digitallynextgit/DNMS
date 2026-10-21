@@ -138,6 +138,7 @@ function precedent(): Team[] {
       team(p, "SMO", "teesha"),
       team(p, "SEO", null),
       team(p, "PERFORMANCE", null),
+      team(p, "DATA", null),
       team(p, "PR", "harsh"),
       team(p, "ALLIANCES & PARTNERSHIPS", "gokul"),
       team(p, "ADMIN", "manpreet"),
@@ -147,7 +148,7 @@ function precedent(): Team[] {
 }
 
 describe("ensureProjectTeams", () => {
-  it("gives a bare project all eleven teams, staffed the way the other projects are", async () => {
+  it("gives a bare project all twelve teams, staffed the way the other projects are", async () => {
     const teams = precedent()
     const members: Member[] = []
     const client = fakeClient({ teams, members, active: everyoneActive })
@@ -163,6 +164,7 @@ describe("ensureProjectTeams", () => {
       "SMO",
       "SEO",
       "PERFORMANCE",
+      "DATA",
       "PR",
       "ALLIANCES & PARTNERSHIPS",
       "ADMIN",
@@ -176,6 +178,7 @@ describe("ensureProjectTeams", () => {
       SMO: "teesha",
       SEO: null,
       PERFORMANCE: null,
+      DATA: null,
       PR: "harsh",
       "ALLIANCES & PARTNERSHIPS": "gokul",
       ADMIN: "manpreet",
@@ -205,7 +208,7 @@ describe("ensureProjectTeams", () => {
     const created = await ensureProjectTeams("p1", { client })
 
     expect(created).toEqual([])
-    expect(teams).toHaveLength(22)
+    expect(teams).toHaveLength(24)
   })
 
   it("adds only the missing teams and leaves existing ones alone", async () => {
@@ -221,6 +224,7 @@ describe("ensureProjectTeams", () => {
       "SMO",
       "SEO",
       "PERFORMANCE",
+      "DATA",
       "PR",
       "ALLIANCES & PARTNERSHIPS",
       "ADMIN",

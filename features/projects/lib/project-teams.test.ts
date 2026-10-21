@@ -8,7 +8,7 @@ import {
 } from "./project-teams"
 
 describe("project team catalogue", () => {
-  it("is the eleven fixed teams, in display order", () => {
+  it("is the twelve fixed teams, in display order", () => {
     expect(PROJECT_TEAMS).toEqual([
       "AM",
       "WEB",
@@ -18,6 +18,7 @@ describe("project team catalogue", () => {
       "SMO",
       "SEO",
       "PERFORMANCE",
+      "DATA",
       "PR",
       "ALLIANCES & PARTNERSHIPS",
       "ADMIN",
