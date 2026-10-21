@@ -222,7 +222,9 @@ export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employe
       header: "Account manager",
       headerAction: <AmViewSwitch value={amView} onChange={setAmView} />,
       exportValue: accountManagerText,
-      cell: (emp) => <AccountManagerCell employee={emp} view={amView} />,
+      cell: (emp) => (
+        <AccountManagerCell employee={emp} view={amView} onOpen={() => setProjectsOf(emp)} />
+      ),
     },
     {
       header: "Project roles",

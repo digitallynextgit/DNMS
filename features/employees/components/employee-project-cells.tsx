@@ -118,33 +118,38 @@ export function AmViewSwitch({
   )
 }
 
-/** The projects they run in the chosen seat, each opening the project. */
+/** The projects they run in the chosen seat; clicking opens the same window as Project roles. */
 export function AccountManagerCell({
   employee,
   view,
+  onOpen,
 }: {
   employee: EmployeeListItem
   view: AmView
+  onOpen: () => void
 }) {
   const projects = (view === "P" ? employee.ownedProjects : employee.secondaryAmProjects) ?? []
   if (projects.length === 0) return <span className="text-muted-foreground text-xs">None</span>
   return (
-    <div className="flex max-w-52 flex-wrap gap-1">
+    <button
+      type="button"
+      onClick={onOpen}
+      title={`${AM_VIEW_LABEL[view]} account manager - click to see every project`}
+      className="hover:bg-muted/50 focus-visible:ring-ring -mx-1.5 flex max-w-52 flex-wrap gap-1 rounded-sm px-1.5 py-1 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
+    >
       {projects.map((p) => (
-        <Link
+        <span
           key={p.id}
-          href={projectHref(p)}
-          title={`${p.name} - ${AM_VIEW_LABEL[view].toLowerCase()} account manager`}
           className={
             view === "P"
-              ? "bg-primary/10 text-primary hover:bg-primary/20 rounded-sm px-1.5 py-0.5 text-[11px] font-semibold"
-              : "text-foreground hover:bg-muted rounded-sm border px-1.5 py-0.5 text-[11px] font-medium"
+              ? "bg-primary/10 text-primary rounded-sm px-1.5 py-0.5 text-[11px] font-semibold"
+              : "text-foreground rounded-sm border px-1.5 py-0.5 text-[11px] font-medium"
           }
         >
           {label(p)}
-        </Link>
+        </span>
       ))}
-    </div>
+    </button>
   )
 }
 
