@@ -134,14 +134,18 @@ function CountPill({
   title: string
 }) {
   if (n === 0) {
-    return <span className="text-muted-foreground/60 w-10 text-center text-sm tabular-nums">0</span>
+    return (
+      <span className="text-muted-foreground/60 w-10 justify-self-center text-center text-sm tabular-nums">
+        0
+      </span>
+    )
   }
   return (
     <Link
       href={href}
       title={title}
       className={cn(
-        "w-10 rounded-sm py-1 text-center text-sm font-semibold tabular-nums transition-opacity hover:opacity-80",
+        "w-10 justify-self-center rounded-sm py-1 text-center text-sm font-semibold tabular-nums transition-opacity hover:opacity-80",
         tone === "bad"
           ? "bg-red-500/10 text-red-600 dark:text-red-400"
           : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
@@ -155,7 +159,7 @@ function CountPill({
 function ProjectRow({ p }: { p: ProjectAttention }) {
   const severe = p.goalsNeedingAttention > 0 || p.overdueTasks + p.lateDeliverables >= 20
   return (
-    <li className="hover:bg-muted/30 grid grid-cols-[minmax(0,1fr)_7.5rem_2.5rem_2.5rem] items-center gap-x-4 px-5 py-3 transition-colors sm:grid-cols-[minmax(0,1fr)_9rem_3.5rem_3.5rem]">
+    <li className="hover:bg-muted/30 grid grid-cols-[minmax(0,1fr)_7rem_4.5rem_5.5rem] items-center gap-x-4 px-5 py-3 transition-colors sm:grid-cols-[minmax(0,1fr)_9rem_5.5rem_6.5rem]">
       <div className="flex min-w-0 items-center gap-3">
         <span
           aria-hidden
@@ -281,7 +285,7 @@ function PeopleList({
           {title}
         </p>
       )}
-      <ul className="grid gap-x-3 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+      <ul className="space-y-0.5">
         {shown.map((p) => (
           <li key={p.id}>
             <Link
@@ -291,8 +295,10 @@ function PeopleList({
             >
               <Avatar p={p} />
               <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
-              {p.note && (
-                <span className="text-muted-foreground shrink-0 text-[11px]">{p.note}</span>
+              {(p.note ?? p.department) && (
+                <span className="text-muted-foreground max-w-[45%] shrink-0 truncate text-[11px]">
+                  {p.note ?? p.department}
+                </span>
               )}
             </Link>
           </li>
@@ -528,15 +534,11 @@ export function LeadershipDashboard() {
             </p>
           ) : (
             <>
-              <div className="text-muted-foreground grid grid-cols-[minmax(0,1fr)_7.5rem_2.5rem_2.5rem] gap-x-4 border-b px-5 py-2 text-[10px] font-medium tracking-wider uppercase sm:grid-cols-[minmax(0,1fr)_9rem_3.5rem_3.5rem]">
+              <div className="text-muted-foreground grid grid-cols-[minmax(0,1fr)_7rem_4.5rem_5.5rem] gap-x-4 border-b px-5 py-2 text-[10px] font-medium tracking-wider uppercase sm:grid-cols-[minmax(0,1fr)_9rem_5.5rem_6.5rem]">
                 <span>Project</span>
                 <span>Goals</span>
-                <span className="text-center" title="Overdue tasks">
-                  Tasks
-                </span>
-                <span className="text-center" title="Late deliverables">
-                  Deliv.
-                </span>
+                <span className="text-center leading-tight">Overdue tasks</span>
+                <span className="text-center leading-tight">Late deliverables</span>
               </div>
               <ul className="divide-border/60 divide-y">
                 {projects.attention.map((p) => (
