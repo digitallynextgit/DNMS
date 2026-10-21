@@ -4,6 +4,7 @@ import { todayUtc, daysBetween, startOfDayUTC } from "@/lib/dates"
 import { typeKey } from "./deliverable-types"
 import { elapsedShare } from "./goal-periods"
 import type { GoalPlans } from "./goal-plan"
+import { isTaskOverdue } from "./task-overdue"
 
 // Goal maths, PURE (type-only Prisma import) so the Goals tab, Progress page and tests share it.
 // Progress, in order of authority: a number reached (actual / target), else targets met, else linked
@@ -124,6 +125,8 @@ export interface GoalTaskLink {
   estimatedHours: number | null
   /** They said there was nothing to log - don't chase it like missing output. */
   outputSkipped: boolean
+  /** The client item it is waiting on, while it waits. */
+  waitingOn: { id: string; title: string } | null
 }
 
 export interface GoalNode {
@@ -288,6 +291,7 @@ export const GOAL_SELECT = {
       outputSkippedAt: true,
       estimatedHours: true,
       assignee: { select: { id: true, firstName: true, lastName: true } },
+      requirement: { select: { id: true, title: true } },
       _count: { select: { deliverables: true } },
     },
     orderBy: { createdAt: "asc" },
@@ -470,12 +474,13 @@ export function summariseGoalRows(
         title: t.title,
         status: t.status,
         dueDate: ymd(t.dueDate),
-        overdue: Boolean(t.dueDate && t.dueDate < today && !TASK_CLOSED.has(t.status)),
+        overdue: isTaskOverdue(t.status, t.dueDate, today),
         assigneeName: name(t.assignee),
         producesOutput: t.producesOutput,
         outputs: t._count.deliverables,
         estimatedHours: t.estimatedHours,
         outputSkipped: t.outputSkippedAt != null,
+        waitingOn: t.requirement ?? null,
       }),
     )
     const countableTasks = tasks.filter((t) => !TASK_DROPPED.has(t.status))

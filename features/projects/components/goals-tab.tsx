@@ -91,6 +91,8 @@ import { GoalTagInput, GoalTagList } from "./goal-tag-input"
 import { GoalTasks } from "./goal-tasks"
 import { GoalTargets } from "./goal-targets"
 import { GoalWork } from "./goal-work"
+import { VerdictChip, VerdictDialog } from "./goal-verdict"
+import { goalVerdict, mainGoalVerdict, type GoalVerdict } from "../lib/goal-accountability"
 import { PlanPeriodDialog, type PlanGoal } from "./plan-period-dialog"
 
 /** Radix Select cannot carry "" as a value; this stands in for "no owner". */
@@ -604,6 +606,7 @@ export function GoalsTab({
   const [resultsFor, setResultsFor] = React.useState<GoalNode | null>(null)
   const [growthFor, setGrowthFor] = React.useState<string | null>(null)
   const [planFor, setPlanFor] = React.useState<PlanGoal | null>(null)
+  const [whyFor, setWhyFor] = React.useState<{ title: string; verdict: GoalVerdict } | null>(null)
   /** A part is planned as "Goal › Part", so the dialog says which goal it counts towards. */
   const planWork = (goal: GoalNode, parent?: GoalNode) =>
     setPlanFor({
@@ -673,6 +676,22 @@ export function GoalsTab({
   const prevMonth = at > 0 ? editionMonths[at - 1] : null
   const nextMonth = at >= 0 && at < editionMonths.length - 1 ? editionMonths[at + 1] : null
   const seriesOf = (id: string | null) => (full.series ?? []).find((x) => x.id === id) ?? null
+
+  const amName = projectRow?.owner
+    ? `${projectRow.owner.firstName} ${projectRow.owner.lastName ?? ""}`.trim()
+    : null
+  const now = new Date()
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const plans = full.plans ?? {}
+  const verdictChip = (goal: GoalNode, main: boolean) => {
+    if (!goal.isActive) return null
+    const verdict = main
+      ? mainGoalVerdict(goal, plans, amName, today)
+      : goalVerdict({ goal, plan: plans[goal.id], amName, today })
+    return verdict ? (
+      <VerdictChip verdict={verdict} onClick={() => setWhyFor({ title: goal.title, verdict })} />
+    ) : null
+  }
 
   const subParent = summary.goals.find((g) => g.id === subFor) ?? null
   const subTitleFor = (code: string) => serviceInfo(code)?.name ?? code
@@ -1064,6 +1083,7 @@ export function GoalsTab({
                       )}
                       {/* Beside "Past target", not instead: a goal can be both overdue and slipping. */}
                       {goal.slipping && <SlippingChip />}
+                      {verdictChip(goal, true)}
                       {goal.seriesId && (
                         <span
                           className="text-muted-foreground border-border inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium"
@@ -1202,6 +1222,7 @@ export function GoalsTab({
                                 <span className="text-destructive font-medium">past target</span>
                               )}
                               {sub.slipping && <SlippingChip />}
+                              {sub.targetValue !== null && verdictChip(sub, false)}
                               <GoalTagList
                                 tags={sub.tags}
                                 activeTags={filters.tags}
@@ -1498,6 +1519,11 @@ export function GoalsTab({
         projectId={projectId}
         seriesId={growthFor}
         onClose={() => setGrowthFor(null)}
+      />
+      <VerdictDialog
+        title={whyFor?.title ?? ""}
+        verdict={whyFor?.verdict ?? null}
+        onClose={() => setWhyFor(null)}
       />
       <PlanPeriodDialog
         projectId={projectId}

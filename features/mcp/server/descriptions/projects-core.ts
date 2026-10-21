@@ -211,6 +211,21 @@ export const PROJECTS_CORE: DescriptionMap = {
       "Active members of one project team, earliest joined first. Each row's id is the membership id ([memberId] for remove/promote); employee.id is the person. Anyone with access to the project.",
     keywords: ["team members", "who is on the team", "team roster"],
   },
+  "GET /api/projects/delivery-scores": {
+    summary:
+      "Delivery scores for a month (Team Performance): one 0-100 score per person and per team with its parts - goals they own (40%, reached vs expected by now, capped), deliverables made by their due day (35%) and tasks done by their due day (25%); a part with nothing in it is left out and the rest rescaled. Held and discarded tasks don't count. Scoped like Progress: admins everyone, account managers their projects, team managers their teams and reports, members only themselves.",
+    query: "month?: YYYY-MM (default this month); projectId?: one project",
+    keywords: [
+      "delivery score",
+      "team performance",
+      "performance ranking",
+      "leaderboard",
+      "who is delivering",
+      "on time rate",
+    ],
+    notes:
+      "Returns { month, role, people: [{ id, name, designation, score }], teams: [{ id, name, projectName, score }] }; score = { score, goals: { score, count }, deliverables: { score, onTime, due }, tasks: { score, onTime, due }, basedOn }.",
+  },
   "GET /api/projects/[id]/teams/[teamId]/assignable": {
     summary:
       "Whom the caller may give a task on this team to: themselves and their reports on it, or everyone on it for the team manager and project managers.",

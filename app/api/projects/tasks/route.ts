@@ -7,6 +7,7 @@ import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { ledBy } from "@/features/projects/lib/project-leads"
+import { TASK_NOT_OVERDUE_STATUSES, isTaskOverdue } from "@/features/projects/lib/task-overdue"
 
 // The tasks behind a count on the Progress page. `state` uses exactly the performance route's buckets
 // and visibility rules - if they disagreed, a slice of 42 would open a list of 39.
@@ -50,20 +51,21 @@ export const GET = withSession(
     const todayStart = new Date()
     todayStart.setUTCHours(0, 0, 0, 0)
 
-    // Mirrors the performance route's predicates exactly. Being on hold does not exempt a task from overdue.
+    // Mirrors the performance route's predicates exactly. Held work is never overdue (lib/task-overdue.ts).
     const CLOSED = ["DONE", "DISCARDED", "CANCELLED"] as const
     const notLate: Prisma.ProjectTaskWhereInput = {
       OR: [{ dueDate: null }, { dueDate: { gte: todayStart } }],
     }
     const byState: Record<State, Prisma.ProjectTaskWhereInput> = {
-      overdue: { status: { notIn: [...CLOSED] }, dueDate: { lt: todayStart } },
-      // The live buckets exclude anything late, so the five states stay mutually exclusive.
+      overdue: { status: { notIn: [...TASK_NOT_OVERDUE_STATUSES] }, dueDate: { lt: todayStart } },
+      // To-do and in-progress exclude late work and held work is never late, so the five states stay
+      // mutually exclusive.
       todo: {
         status: { notIn: [...CLOSED, "ON_HOLD", "IN_PROGRESS", "IN_REVIEW"] },
         ...notLate,
       },
       progress: { status: { in: ["IN_PROGRESS", "IN_REVIEW"] }, ...notLate },
-      hold: { status: "ON_HOLD", ...notLate },
+      hold: { status: "ON_HOLD" },
       done: { status: "DONE" },
       // "Open" on the tile = not finished or dropped, so it spans overdue, todo, progress and hold.
       open: { status: { notIn: [...CLOSED] } },
@@ -120,8 +122,7 @@ export const GET = withSession(
 
     const day = 86_400_000
     const data = rows.map((t) => {
-      const late =
-        t.dueDate && t.dueDate < todayStart && !(CLOSED as readonly string[]).includes(t.status)
+      const late = isTaskOverdue(t.status, t.dueDate, todayStart)
       return {
         id: t.id,
         title: t.title,

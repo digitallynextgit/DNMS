@@ -10,6 +10,7 @@ export interface GoalPlanRow {
   goalId: string
   teamId: string | null
   teamName: string | null
+  teamManagerName?: string | null
   type: string
   title: string
   quantity: number
@@ -36,6 +37,8 @@ export interface GoalPlanItem {
 export interface GoalPlanTeam {
   teamId: string | null
   teamName: string
+  /** Answers for unclaimed work. */
+  managerName: string | null
   planned: number
   made: number
   /** Items still owed past their due day. */
@@ -66,6 +69,7 @@ export function groupGoalPlans(rows: readonly GoalPlanRow[], today: Date): GoalP
     const team = teams.get(key) ?? {
       teamId: r.teamId,
       teamName: r.teamName ?? "No team",
+      managerName: r.teamManagerName ?? null,
       planned: 0,
       made: 0,
       overdue: 0,

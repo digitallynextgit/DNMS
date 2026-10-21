@@ -114,6 +114,7 @@ function row(spec: RowSpec = {}): GoalRowLite {
         outputSkippedAt: t.outputSkippedAt ?? null,
         estimatedHours: t.estimatedHours ?? null,
         assignee: null,
+        requirement: null,
         _count: { deliverables: t.outputs ?? 0 },
       }
     }),

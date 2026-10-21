@@ -116,9 +116,9 @@ export function useTaskList(filters: TaskListFilters, enabled = true, limit = PA
 export function stateOfTask(t: DrillTask): State | null {
   if (t.status === "DONE") return "done"
   if (t.status === "DISCARDED" || t.status === "CANCELLED") return null
-  // Overdue outranks on-hold, matching the server.
-  if (t.overdue) return "overdue"
+  // Held work is never overdue, matching the server.
   if (t.status === "ON_HOLD") return "hold"
+  if (t.overdue) return "overdue"
   if (t.status === "IN_PROGRESS" || t.status === "IN_REVIEW") return "progress"
   return "todo"
 }

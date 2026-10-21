@@ -178,7 +178,7 @@ export async function loadGoalPlans(projectId: string, goalIds: string[]): Promi
       id: true,
       goalId: true,
       teamId: true,
-      team: { select: { name: true } },
+      team: { select: { name: true, manager: { select: { firstName: true, lastName: true } } } },
       type: true,
       title: true,
       quantity: true,
@@ -201,6 +201,9 @@ export async function loadGoalPlans(projectId: string, goalIds: string[]): Promi
           goalId,
           teamId: r.teamId,
           teamName: r.team?.name ?? null,
+          teamManagerName: r.team?.manager
+            ? `${r.team.manager.firstName} ${r.team.manager.lastName ?? ""}`.trim()
+            : null,
           type: r.type,
           title: r.title,
           quantity: r.quantity,

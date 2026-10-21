@@ -57,11 +57,12 @@ export const GET = withSession(
         ? Prisma.sql`t.due_date <= ${new Date(`${to}T23:59:59.999Z`)}`
         : Prisma.sql`TRUE`
 
-      // Overdue = past its date and not finished (on hold still counts). CANCELLED is legacy, like DISCARDED.
+      // Overdue = past its date, not finished and not on hold (lib/task-overdue.ts). CANCELLED is
+      // legacy, like DISCARDED.
       const CLOSED = Prisma.sql`(t.status IN ('DONE', 'DISCARDED', 'CANCELLED'))`
       // due_date is @db.Date (UTC midnight); a task due today has all of today.
       const LATE = Prisma.sql`(t.due_date IS NOT NULL AND t.due_date < ${todayStart})`
-      const OVERDUE = Prisma.sql`(NOT ${CLOSED} AND ${LATE})`
+      const OVERDUE = Prisma.sql`(NOT ${CLOSED} AND t.status <> 'ON_HOLD' AND ${LATE})`
       // End of the due day (23:59:59.999).
       const DUE_END = Prisma.sql`(t.due_date + INTERVAL '1 day' - INTERVAL '1 millisecond')`
 
@@ -104,11 +105,10 @@ export const GET = withSession(
           )                                                             AS late,
           COUNT(*) FILTER (WHERE ${OVERDUE})                            AS overdue,
           COUNT(*) FILTER (WHERE t.status = 'IN_PROGRESS')              AS in_progress,
-          -- The four "live" buckets below all exclude OVERDUE, so the five
-          -- chart states stay MUTUALLY EXCLUSIVE and the donut still sums to
-          -- the total. Overdue outranks on-hold: a held task past its date is
-          -- counted once, as late, not twice.
-          COUNT(*) FILTER (WHERE t.status = 'ON_HOLD' AND NOT ${LATE})  AS on_hold,
+          -- The five chart states stay MUTUALLY EXCLUSIVE and the donut still
+          -- sums to the total: every held task is on hold (never overdue), and
+          -- the to-do and in-progress buckets exclude late work.
+          COUNT(*) FILTER (WHERE t.status = 'ON_HOLD')                  AS on_hold,
           COUNT(*) FILTER (WHERE t.status IN ('DISCARDED', 'CANCELLED')) AS discarded,
           COUNT(*) FILTER (
             WHERE t.due_date >= ${weekStart} AND t.due_date < ${weekEnd}

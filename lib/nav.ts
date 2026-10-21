@@ -33,6 +33,7 @@ import {
   LifeBuoy,
   Wrench,
   Sparkles,
+  Gauge,
 } from "lucide-react"
 
 import { PERMISSIONS } from "@/lib/constants"
@@ -114,6 +115,12 @@ export function projectItems(canManageProjects: boolean): NavItem[] {
       label: canManageProjects ? "Progress" : "My Progress",
       href: "/projects/progress",
       icon: TrendingUp,
+    },
+    // Scoped server-side like Progress; a member sees only their own score.
+    {
+      label: "Team Performance",
+      href: "/projects/performance",
+      icon: Gauge,
     },
     {
       label: "Clients",
