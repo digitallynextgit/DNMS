@@ -3,14 +3,17 @@
 import { useState } from "react"
 import { useSearchParams } from "next/navigation"
 import dynamic from "next/dynamic"
-import { Download } from "lucide-react"
+import { Download, Gauge, TrendingUp } from "lucide-react"
 
 import { DeliverablesReportDialog } from "@/features/projects/components/deliverables-report-dialog"
+import { DeliveryScoresView } from "@/features/projects/components/delivery-scores-view"
 import { WorkReportMenu } from "@/features/work-reports"
 import type { ProgressFilterState } from "@/features/projects/components/my-progress"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PageHeader } from "@/components/shared/page-header"
-import { replaceUrlParams } from "@/hooks/use-url-state"
+import { TabsBar } from "@/components/shared/tabs-bar"
+import { Tabs } from "@/components/ui/tabs"
+import { replaceUrlParams, useUrlState } from "@/hooks/use-url-state"
 import {
   DateRangeField,
   presetValue,
@@ -20,8 +23,9 @@ import { Button } from "@/components/ui/button"
 import { ProgressSkeleton } from "@/features/projects/components/progress-skeleton"
 import { PERMISSIONS } from "@/lib/constants"
 
-// One page for everyone: the server decides the scope (admin, account manager, team manager,
-// member) and the panel builds its filters from the answer.
+// Progress (deliverables done, still to do, overdue) and Team Performance (one delivery score per
+// person and team) on one page. Both are scoped server-side: admin, account manager, team manager,
+// member - and the panels build their filters from the answer.
 
 // Recharts measures the DOM, so the panel is client-only.
 const MyProgress = dynamic(
@@ -31,8 +35,17 @@ const MyProgress = dynamic(
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 
+const DESCRIPTION = {
+  progress: "What is still to do, what is completed, and what is overdue - by deliverable.",
+  performance:
+    "One delivery score per person and team for the month - goals, deliverables and tasks on time - always with what it is made of. Click a row for the items behind it.",
+}
+
 export default function ProjectProgressPage() {
   const { can, isLoading: permsLoading } = usePermissions()
+  // ?tab=performance opens Team Performance (its old address redirects here).
+  const [tab, setTab] = useUrlState("tab", "progress")
+  const onPerformance = tab === "performance"
   // Deliverables are planned by the week. Owned here so the panel and the Slides deck share it.
   const [range, setRange] = useState<DateRangeValue>(() => presetValue("week"))
   // A link can name the dates (?from=&to=), e.g. the weekly digest's last week.
@@ -56,15 +69,15 @@ export default function ProjectProgressPage() {
   const [exportOpen, setExportOpen] = useState(false)
   const [filters, setFilters] = useState<ProgressFilterState | null>(null)
 
-  // The title is a permission decision, and during a client-side navigation
-  // the session has not resolved yet - `can()` answers false for a beat.
+  const title = "Progress & Performance"
+  const description = onPerformance ? DESCRIPTION.performance : DESCRIPTION.progress
+
+  // The scope is a permission decision, and during a client-side navigation the session has not
+  // resolved yet - `can()` answers false for a beat.
   if (permsLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader
-          title="My Progress"
-          description="What is still to do, what is completed, and what is overdue - by deliverable."
-        />
+        <PageHeader title={title} description={description} />
         <ProgressSkeleton />
       </div>
     )
@@ -75,40 +88,69 @@ export default function ProjectProgressPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={managesProjects ? "Progress" : "My Progress"}
-        description="What is still to do, what is completed, and what is overdue - by deliverable."
+        title={title}
+        description={description}
         actions={
-          <>
-            <DateRangeField value={range} onChange={pickRange} />
-            {/* Same range, people and project as the page below. */}
-            <WorkReportMenu
-              from={range.from}
-              to={range.to}
-              employeeIds={filters?.peopleIds ?? []}
-              projectIds={
-                filters?.projectId && filters.projectId !== "all" ? [filters.projectId] : []
-              }
-              whoLabel={filters?.personLabel}
-            />
-            <Button className="gap-1.5" variant="outline" onClick={() => setExportOpen(true)}>
-              <Download className="h-3.5 w-3.5" />
-              Export
-            </Button>
-          </>
+          // The date range, reports and export belong to Progress; Team Performance has its own month.
+          onPerformance ? undefined : (
+            <>
+              <DateRangeField value={range} onChange={pickRange} />
+              {/* Same range, people and project as the page below. */}
+              <WorkReportMenu
+                from={range.from}
+                to={range.to}
+                employeeIds={filters?.peopleIds ?? []}
+                projectIds={
+                  filters?.projectId && filters.projectId !== "all" ? [filters.projectId] : []
+                }
+                whoLabel={filters?.personLabel}
+              />
+              <Button className="gap-1.5" variant="outline" onClick={() => setExportOpen(true)}>
+                <Download className="h-3.5 w-3.5" />
+                Export
+              </Button>
+            </>
+          )
         }
       />
-      <MyProgress range={range} onFilterChange={setFilters} />
-      <DeliverablesReportDialog
-        open={exportOpen}
-        onOpenChange={setExportOpen}
-        range={range}
-        projectId={
-          filters?.projectId && filters.projectId !== "all" ? filters.projectId : undefined
-        }
-        teamIds={filters?.teamIds}
-        employeeId={filters?.personId && filters.personId !== "all" ? filters.personId : undefined}
-        filterSummary={filters ?? undefined}
-      />
+
+      <Tabs value={onPerformance ? "performance" : "progress"} onValueChange={setTab}>
+        <TabsBar
+          items={[
+            {
+              value: "progress",
+              label: managesProjects ? "Progress" : "My Progress",
+              icon: TrendingUp,
+            },
+            {
+              value: "performance",
+              label: managesProjects ? "Team Performance" : "My Delivery Score",
+              icon: Gauge,
+            },
+          ]}
+        />
+      </Tabs>
+
+      {onPerformance ? (
+        <DeliveryScoresView />
+      ) : (
+        <>
+          <MyProgress range={range} onFilterChange={setFilters} />
+          <DeliverablesReportDialog
+            open={exportOpen}
+            onOpenChange={setExportOpen}
+            range={range}
+            projectId={
+              filters?.projectId && filters.projectId !== "all" ? filters.projectId : undefined
+            }
+            teamIds={filters?.teamIds}
+            employeeId={
+              filters?.personId && filters.personId !== "all" ? filters.personId : undefined
+            }
+            filterSummary={filters ?? undefined}
+          />
+        </>
+      )}
     </div>
   )
 }

@@ -511,7 +511,7 @@ export function LeadershipDashboard() {
           tone={projects.goals.needAttention > 0 ? "warn" : undefined}
         />
         <Tile
-          href="/projects/performance"
+          href="/projects/progress?tab=performance"
           title="Delivery score"
           value={performance.average ?? "-"}
           suffix={performance.average !== null ? "/100" : undefined}
@@ -584,7 +584,7 @@ export function LeadershipDashboard() {
         <Panel
           title="Delivery this month"
           hint="Goals owned, deliverables and tasks on time. Fewer than 3 items due are left out."
-          more={{ href: "/projects/performance", label: "Team Performance" }}
+          more={{ href: "/projects/progress?tab=performance", label: "Team Performance" }}
           className="lg:col-span-2"
         >
           <div className="divide-border/60 flex flex-col pb-2 sm:flex-row sm:divide-x">

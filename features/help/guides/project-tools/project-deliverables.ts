@@ -362,8 +362,8 @@ export const projectDeliverablesGuide: HelpGuide = {
         },
         {
           text: {
-            en: "For a ready-made report, open Progress (My Progress) in the sidebar and click Export. Pick Excel (1), Word (2) or PowerPoint (3). Leave Include AI-generated summary and speaker takeaways ticked if you want an AI summary in it.",
-            hi: "तैयार रिपोर्ट के लिए साइडबार में Progress (My Progress) खोलें और Export पर क्लिक करें। Excel (1), Word (2) या PowerPoint (3) चुनें। अगर रिपोर्ट में AI समरी चाहिए, तो Include AI-generated summary and speaker takeaways पर टिक रहने दें।",
+            en: "For a ready-made report, open Progress & Performance (My Progress) in the sidebar and click Export. Pick Excel (1), Word (2) or PowerPoint (3). Leave Include AI-generated summary and speaker takeaways ticked if you want an AI summary in it.",
+            hi: "तैयार रिपोर्ट के लिए साइडबार में Progress & Performance (My Progress) खोलें और Export पर क्लिक करें। Excel (1), Word (2) या PowerPoint (3) चुनें। अगर रिपोर्ट में AI समरी चाहिए, तो Include AI-generated summary and speaker takeaways पर टिक रहने दें।",
           },
           shot: {
             id: "project-deliverables-report",

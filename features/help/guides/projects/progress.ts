@@ -6,14 +6,17 @@ export const progressGuide: HelpGuide = {
   group: "projects",
   icon: TrendingUp,
   href: "/projects/progress",
-  title: { en: "Progress and My Progress", hi: "Progress और My Progress" },
+  title: { en: "Progress & Performance", hi: "Progress & Performance (प्रगति और प्रदर्शन)" },
   summary: {
-    en: "See what is still to do, what is completed and what is overdue - counted by deliverable - for yourself, your team or the whole company, and export it.",
-    hi: "देखें क्या अभी बाकी है, क्या पूरा हुआ और क्या overdue है - deliverables के हिसाब से - अपने लिए, अपनी टीम के लिए या पूरी कंपनी के लिए, और इसे export करें।",
+    en: "See what is still to do, what is completed and what is overdue - counted by deliverable - and each person's and team's delivery score, for yourself, your team or the whole company.",
+    hi: "देखें क्या अभी बाकी है, क्या पूरा हुआ और क्या overdue है - deliverables के हिसाब से - और हर व्यक्ति व टीम का delivery score, अपने लिए, अपनी टीम के लिए या पूरी कंपनी के लिए।",
   },
   keywords: [
     "progress",
     "my progress",
+    "team performance",
+    "delivery score",
+    "leaderboard",
     "deliverables",
     "overdue",
     "completed",
@@ -31,14 +34,14 @@ export const progressGuide: HelpGuide = {
       id: "what",
       title: { en: "What this page shows", hi: "ये पेज क्या दिखाता है" },
       intro: {
-        en: "This page counts deliverables - the things planned for each client, like a reel, a blog post or a banner - not tasks. The sidebar calls it Progress if you manage projects, and My Progress for everyone else.",
-        hi: "ये पेज deliverables गिनता है - हर क्लाइंट के लिए प्लान की गई चीज़ें, जैसे reel, blog post या banner - tasks नहीं। अगर आप प्रोजेक्ट्स संभालते हैं तो साइडबार में इसका नाम Progress है, बाकी सबके लिए My Progress।",
+        en: "The Progress tab counts deliverables - the things planned for each client, like a reel, a blog post or a banner - not tasks. The sidebar calls the page Progress & Performance if you manage projects, and My Progress for everyone else.",
+        hi: "Progress टैब deliverables गिनता है - हर क्लाइंट के लिए प्लान की गई चीज़ें, जैसे reel, blog post या banner - tasks नहीं। अगर आप प्रोजेक्ट्स संभालते हैं तो साइडबार में इस पेज का नाम Progress & Performance है, बाकी सबके लिए My Progress।",
       },
       steps: [
         {
           text: {
-            en: "Click Progress or My Progress in the sidebar. The line at the top left says whose work you are looking at: Your own deliverables, Your team, The projects you own, or Everything in the company.",
-            hi: "साइडबार में Progress या My Progress पर क्लिक करें। ऊपर बाईं ओर की लाइन बताती है कि आप किसका काम देख रहे हैं: Your own deliverables, Your team, The projects you own, या Everything in the company।",
+            en: "Click Progress & Performance or My Progress in the sidebar. The line at the top left says whose work you are looking at: Your own deliverables, Your team, The projects you own, or Everything in the company.",
+            hi: "साइडबार में Progress & Performance या My Progress पर क्लिक करें। ऊपर बाईं ओर की लाइन बताती है कि आप किसका काम देख रहे हैं: Your own deliverables, Your team, The projects you own, या Everything in the company।",
           },
         },
         {
@@ -200,6 +203,28 @@ export const progressGuide: HelpGuide = {
           text: {
             en: "Click Excel (2), Word (3) or PowerPoint (4). The file downloads with exactly what you see on screen.",
             hi: "Excel (2), Word (3) या PowerPoint (4) पर क्लिक करें। फ़ाइल डाउनलोड होती है, उसमें ठीक वही होता है जो स्क्रीन पर दिख रहा है।",
+          },
+        },
+      ],
+    },
+    {
+      id: "performance",
+      title: { en: "Team Performance: delivery scores", hi: "Team Performance: डिलीवरी स्कोर" },
+      intro: {
+        en: "The second tab (My Delivery Score for team members) gives one 0-100 score for the month to each person and team, always with what it is made of.",
+        hi: "दूसरा टैब (team members के लिए My Delivery Score) महीने का एक 0-100 score देता है, हर व्यक्ति और टीम को, हमेशा ये बताते हुए कि वो किससे बना है।",
+      },
+      steps: [
+        {
+          text: {
+            en: "The score weighs goals they own (40%), deliverables made by their due day (35%) and tasks done by their due day (25%). A part with nothing in it is left out, so nobody is marked down for work they never had.",
+            hi: "Score में उनके goals (40%), समय पर बने deliverables (35%) और समय पर हुए tasks (25%) गिने जाते हैं। जिस हिस्से में कुछ नहीं है वो छोड़ दिया जाता है, ताकि जो काम मिला ही नहीं उसके लिए नंबर न कटें।",
+          },
+        },
+        {
+          text: {
+            en: "Use the arrows to change the month, and the project box to look at one project. Click a person or a team to see every goal, deliverable and task behind their score - on time, late, not due yet or not counted - and click one to open it.",
+            hi: "महीना बदलने के लिए arrows और एक प्रोजेक्ट देखने के लिए project box इस्तेमाल करें। किसी व्यक्ति या टीम पर क्लिक करें तो उनके score के पीछे का हर goal, deliverable और task दिखता है - on time, late, not due yet या not counted - और खोलने के लिए उस पर क्लिक करें।",
           },
         },
       ],
