@@ -120,7 +120,6 @@ export function Topbar({ session }: { session: Session }) {
       </div>
 
       <div className="flex items-center gap-1">
-        {showRating && <RatingChip />}
         <Button
           variant="ghost"
           size="icon"
@@ -155,6 +154,9 @@ export function Topbar({ session }: { session: Session }) {
             )}
           </Link>
         </Button>
+
+        {/* Beside the name: it is about the person signed in. */}
+        {showRating && <RatingChip />}
 
         <div className="bg-border mx-1 h-4 w-px" />
 
