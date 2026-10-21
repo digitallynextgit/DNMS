@@ -5,6 +5,7 @@ import type { Session } from "next-auth"
 import { db } from "@/server/db"
 import { ForbiddenError } from "@/lib/errors"
 import { todayUtc } from "@/lib/dates"
+import { employeeSlug } from "@/lib/utils"
 import { GOAL_SELECT, summariseGoalRows, type GoalNode } from "../lib/goal-derivation"
 import { monthPeriod, periodKey, planMonthPeriod, type GoalPeriod } from "../lib/goal-periods"
 import {
@@ -26,6 +27,8 @@ import { loadMetaActuals } from "./goal-metrics.service"
 
 export interface ScoredPerson {
   id: string
+  /** For the profile link: /employees/<slug>, as the directory links them. */
+  slug: string
   name: string
   designation: string | null
   score: DeliveryScore
@@ -344,6 +347,7 @@ export async function getDeliveryScores(
       where: { id: { in: personIds } },
       select: {
         id: true,
+        employeeNo: true,
         firstName: true,
         lastName: true,
         designation: { select: { title: true } },
@@ -361,6 +365,7 @@ export async function getDeliveryScores(
     people: employees
       .map((e) => ({
         id: e.id,
+        slug: employeeSlug(e.employeeNo, e.firstName, e.lastName ?? ""),
         name: nameOf(e)!,
         designation: e.designation?.title ?? null,
         score: scoreOf(people.get(e.id)!),

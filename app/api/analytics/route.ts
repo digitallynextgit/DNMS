@@ -155,6 +155,7 @@ export const GET = withAuth(
             documents: { total: totalDocuments },
             recentJoiners: recentJoiners.map((e) => ({
               id: e.id,
+              employeeNo: e.employeeNo,
               firstName: e.firstName,
               lastName: e.lastName,
               profilePhoto: e.profilePhoto,

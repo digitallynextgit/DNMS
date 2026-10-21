@@ -9,10 +9,11 @@ import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
-import { formatDate } from "@/lib/utils"
+import { employeeSlug, formatDate } from "@/lib/utils"
 
 export interface RecentJoiner {
   id: string
+  employeeNo: string
   firstName: string
   lastName: string
   profilePhoto: string | null
@@ -36,7 +37,7 @@ export function RecentJoinersCard({ joiners }: { joiners: RecentJoiner[] }) {
             {joiners.map((e) => (
               <li key={e.id}>
                 <Link
-                  href={`/employees/${e.id}`}
+                  href={`/employees/${employeeSlug(e.employeeNo, e.firstName, e.lastName)}`}
                   className="hover:bg-muted/40 flex items-center gap-3 px-5 py-3 transition-colors"
                 >
                   <AvatarDisplay

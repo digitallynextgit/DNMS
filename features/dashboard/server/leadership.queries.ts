@@ -3,6 +3,7 @@ import "server-only"
 import type { Session } from "next-auth"
 import { db } from "@/server/db"
 import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
+import { employeeSlug } from "@/lib/utils"
 import { getAttendanceDirectory } from "@/features/attendance/server/attendance-directory.queries"
 import { getAwayDaysForMany } from "@/features/leave/server/day-status.queries"
 import { getGoalsPortfolio } from "@/features/projects/server/goals-portfolio.queries"
@@ -17,6 +18,8 @@ import type { DeliveryScore } from "@/features/projects/lib/delivery-score"
 
 export interface LeadPerson {
   id: string
+  /** For the profile link: /employees/<slug>, as the directory links them. */
+  slug: string
   name: string
   profilePhoto: string | null
   department: string | null
@@ -38,6 +41,7 @@ export interface ProjectAttention {
 
 export interface ScoredLead {
   id: string
+  slug: string
   name: string
   designation: string | null
   score: DeliveryScore
@@ -111,6 +115,7 @@ export async function getLeadershipDashboard(session: Session): Promise<Leadersh
     where: { isActive: true, status: "ACTIVE", ...VISIBLE_EMPLOYEE_FILTER },
     select: {
       id: true,
+      employeeNo: true,
       firstName: true,
       lastName: true,
       profilePhoto: true,
@@ -122,6 +127,7 @@ export async function getLeadershipDashboard(session: Session): Promise<Leadersh
   const ids = people.map((p) => p.id)
   const lead = (p: (typeof people)[number], note?: string): LeadPerson => ({
     id: p.id,
+    slug: employeeSlug(p.employeeNo, p.firstName, p.lastName ?? ""),
     name: name(p),
     profilePhoto: p.profilePhoto,
     department: p.department?.name ?? null,
@@ -291,6 +297,7 @@ export async function getLeadershipDashboard(session: Session): Promise<Leadersh
     : null
   const toLead = (p: (typeof ranked)[number]): ScoredLead => ({
     id: p.id,
+    slug: p.slug,
     name: p.name,
     designation: p.designation,
     score: p.score,

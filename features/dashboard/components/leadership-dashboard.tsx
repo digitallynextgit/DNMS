@@ -289,7 +289,7 @@ function PeopleList({
         {shown.map((p) => (
           <li key={p.id}>
             <Link
-              href={`/employees/${p.id}`}
+              href={`/employees/${p.slug}`}
               className="hover:bg-muted/40 flex items-center gap-2 rounded-sm px-1.5 py-1 transition-colors"
               title={[p.name, p.note ?? p.department].filter(Boolean).join(" - ")}
             >
@@ -333,7 +333,7 @@ function ScoreRow({ r, rank }: { r: ScoredLead; rank: number }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
           <Link
-            href={`/employees/${r.id}`}
+            href={`/employees/${r.slug}`}
             className="truncate text-sm font-medium hover:underline"
           >
             {r.name}
