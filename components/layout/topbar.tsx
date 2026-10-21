@@ -33,6 +33,7 @@ import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications"
 import { cn } from "@/lib/utils"
 import { FOUNDING_TENANT_ID } from "@/lib/tenant-url"
 import { ThemePicker } from "./theme-picker"
+import { RatingChip } from "@/features/performance"
 import { Link } from "@/components/tenant-link"
 import Image from "next/image"
 
@@ -61,6 +62,11 @@ export function Topbar({ session }: { session: Session }) {
   }
 
   const { data: unreadCount = 0 } = useUnreadNotificationCount()
+
+  // Everyone's own rating, one click from anywhere - except the admin accounts, who aren't reviewed.
+  const roles = session.user.roles ?? []
+  const showRating =
+    session.user.kind !== "client" && !roles.includes("admin") && !roles.includes("admin_")
 
   // The panel is rendered by the dashboard layout; this only toggles it.
   const aiOpen = useAiAssistantStore((s) => s.open)
@@ -114,6 +120,7 @@ export function Topbar({ session }: { session: Session }) {
       </div>
 
       <div className="flex items-center gap-1">
+        {showRating && <RatingChip />}
         <Button
           variant="ghost"
           size="icon"
