@@ -2,21 +2,25 @@
 
 import { useQuery } from "@tanstack/react-query"
 import {
+  ArrowRight,
   Briefcase,
+  Cake,
   CalendarOff,
   Clock,
   FolderKanban,
   Gauge,
+  Home,
   Inbox,
   LogOut,
   PartyPopper,
   Target,
   UserPlus,
+  UserRoundPlus,
   Wallet,
 } from "lucide-react"
 
 import { Link } from "@/components/tenant-link"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { apiFetch } from "@/lib/api-fetch"
@@ -25,17 +29,23 @@ import { projectHref } from "@/features/projects/lib/project-href"
 import type {
   LeadPerson,
   LeadershipDashboard as Data,
+  ProjectAttention,
   ScoredLead,
 } from "../server/leadership.queries"
 
-const scoreTone = (s: number | null) =>
-  s === null
-    ? "text-muted-foreground"
-    : s >= 80
-      ? "text-emerald-600 dark:text-emerald-400"
-      : s >= 60
-        ? "text-amber-600 dark:text-amber-400"
-        : "text-destructive"
+type Tone = "good" | "warn" | "bad"
+
+const TONE_TEXT: Record<Tone, string> = {
+  good: "text-emerald-600 dark:text-emerald-400",
+  warn: "text-amber-600 dark:text-amber-400",
+  bad: "text-red-600 dark:text-red-400",
+}
+const TONE_BAR: Record<Tone, string> = {
+  good: "bg-emerald-500",
+  warn: "bg-amber-500",
+  bad: "bg-red-500",
+}
+const scoreToneOf = (s: number): Tone => (s >= 80 ? "good" : s >= 60 ? "warn" : "bad")
 
 /** A headline number that opens where it comes from. */
 function Tile({
@@ -53,7 +63,7 @@ function Tile({
   suffix?: string
   sub: React.ReactNode
   icon: React.ElementType
-  tone?: "warn" | "bad" | "good"
+  tone?: Tone
 }) {
   return (
     <Link
@@ -66,14 +76,7 @@ function Tile({
         </p>
         <Icon className="text-muted-foreground h-4 w-4 shrink-0" />
       </div>
-      <p
-        className={cn(
-          "mt-2 text-2xl font-semibold tabular-nums",
-          tone === "warn" && "text-amber-600 dark:text-amber-400",
-          tone === "bad" && "text-destructive",
-          tone === "good" && "text-emerald-600 dark:text-emerald-400",
-        )}
-      >
+      <p className={cn("mt-2 text-2xl font-semibold tabular-nums", tone && TONE_TEXT[tone])}>
         {value}
         {suffix && <span className="text-muted-foreground ml-1 text-sm font-normal">{suffix}</span>}
       </p>
@@ -82,120 +85,316 @@ function Tile({
   )
 }
 
-function PersonRow({ p }: { p: LeadPerson }) {
-  const [first, ...rest] = p.name.split(" ")
+/** A panel: a title, a one-line explainer, an optional "see all" link, and its body. */
+function Panel({
+  title,
+  hint,
+  more,
+  className,
+  children,
+}: {
+  title: string
+  hint?: string
+  more?: { href: string; label: string }
+  className?: string
+  children: React.ReactNode
+}) {
   return (
-    <li>
-      <Link
-        href={`/employees/${p.id}`}
-        className="hover:bg-muted/40 flex items-center gap-2.5 rounded-sm px-2 py-1.5 transition-colors"
-      >
-        <AvatarDisplay
-          src={p.profilePhoto}
-          firstName={first ?? ""}
-          lastName={rest.join(" ")}
-          size="chip"
+    <Card className={cn("flex flex-col", className)}>
+      <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          {hint && <p className="text-muted-foreground mt-0.5 text-xs">{hint}</p>}
+        </div>
+        {more && (
+          <Link
+            href={more.href}
+            className="text-primary inline-flex shrink-0 items-center gap-1 text-xs font-medium hover:underline"
+          >
+            {more.label} <ArrowRight className="h-3 w-3" />
+          </Link>
+        )}
+      </div>
+      <CardContent className="flex-1 p-0">{children}</CardContent>
+    </Card>
+  )
+}
+
+/** A count that is quiet at zero and coloured once there is something to act on. */
+function CountPill({
+  n,
+  href,
+  tone,
+  title,
+}: {
+  n: number
+  href: string
+  tone: Tone
+  title: string
+}) {
+  if (n === 0) {
+    return <span className="text-muted-foreground/60 w-10 text-center text-sm tabular-nums">0</span>
+  }
+  return (
+    <Link
+      href={href}
+      title={title}
+      className={cn(
+        "w-10 rounded-sm py-1 text-center text-sm font-semibold tabular-nums transition-opacity hover:opacity-80",
+        tone === "bad"
+          ? "bg-red-500/10 text-red-600 dark:text-red-400"
+          : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+      )}
+    >
+      {n}
+    </Link>
+  )
+}
+
+function ProjectRow({ p }: { p: ProjectAttention }) {
+  const severe = p.goalsNeedingAttention > 0 || p.overdueTasks + p.lateDeliverables >= 20
+  return (
+    <li className="hover:bg-muted/30 grid grid-cols-[minmax(0,1fr)_7.5rem_2.5rem_2.5rem] items-center gap-x-4 px-5 py-3 transition-colors sm:grid-cols-[minmax(0,1fr)_9rem_3.5rem_3.5rem]">
+      <div className="flex min-w-0 items-center gap-3">
+        <span
+          aria-hidden
+          className={cn("h-8 w-1 shrink-0 rounded-full", severe ? "bg-red-500" : "bg-amber-500")}
         />
-        <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
-        <span className="text-muted-foreground shrink-0 text-[11px]">{p.note ?? p.department}</span>
-      </Link>
+        <div className="min-w-0">
+          <Link
+            href={projectHref(p)}
+            className="block truncate text-sm font-semibold hover:underline"
+            title={p.name}
+          >
+            {p.name}
+          </Link>
+          <p className="text-muted-foreground truncate text-xs">
+            {p.accountManager ?? "No account manager"}
+          </p>
+        </div>
+      </div>
+
+      {/* Goals: a short bar of progress, or the count that needs attention. */}
+      <div className="min-w-0">
+        {p.goalsNeedingAttention > 0 ? (
+          <Link
+            href={projectHref(p, "goals")}
+            className="inline-flex items-center gap-1 rounded-sm bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
+          >
+            <Target className="h-3 w-3" /> {p.goalsNeedingAttention} need attention
+          </Link>
+        ) : p.goalsProgress !== null ? (
+          <Link href={projectHref(p, "goals")} className="group block" title="Goal progress">
+            <span className="text-muted-foreground text-[11px] tabular-nums group-hover:underline">
+              {p.goalsProgress}% of goals
+            </span>
+            <span className="bg-muted mt-1 block h-1.5 overflow-hidden rounded-full">
+              <span
+                className="bg-primary block h-full rounded-full"
+                style={{ width: `${Math.max(2, p.goalsProgress)}%` }}
+              />
+            </span>
+          </Link>
+        ) : (
+          <Link
+            href={projectHref(p, "goals")}
+            className="text-muted-foreground text-xs hover:underline"
+          >
+            No goals set
+          </Link>
+        )}
+      </div>
+
+      <CountPill
+        n={p.overdueTasks}
+        href={projectHref(p, "tasks")}
+        tone={p.overdueTasks >= 10 ? "bad" : "warn"}
+        title="Overdue tasks"
+      />
+      <CountPill
+        n={p.lateDeliverables}
+        href={projectHref(p, "deliverables")}
+        tone={p.lateDeliverables >= 10 ? "bad" : "warn"}
+        title="Late deliverables"
+      />
     </li>
   )
 }
 
-function PeopleGroup({
+function Avatar({ p }: { p: LeadPerson }) {
+  const [first, ...rest] = p.name.split(" ")
+  return (
+    <AvatarDisplay
+      src={p.profilePhoto}
+      firstName={first ?? ""}
+      lastName={rest.join(" ")}
+      size="chip"
+    />
+  )
+}
+
+/** One of Today's counters. */
+function TodayStat({
+  icon: Icon,
+  label,
+  n,
+  tone,
+}: {
+  icon: React.ElementType
+  label: string
+  n: number
+  tone?: Tone
+}) {
+  return (
+    <div className="bg-muted/20 rounded-sm border px-3 py-2.5">
+      <p className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium">
+        <Icon className="h-3.5 w-3.5" /> {label}
+      </p>
+      <p
+        className={cn(
+          "mt-1 text-xl font-semibold tabular-nums",
+          n > 0 && tone ? TONE_TEXT[tone] : n === 0 && "text-muted-foreground",
+        )}
+      >
+        {n}
+      </p>
+    </div>
+  )
+}
+
+function PeopleList({
   title,
   people,
-  empty,
   more,
 }: {
   title: string
   people: LeadPerson[]
-  empty: string
   more?: { href: string; label: string }
 }) {
-  const shown = people.slice(0, 6)
+  if (people.length === 0) return null
+  const shown = people.slice(0, 8)
   return (
-    <div className="space-y-1">
-      <p className="text-muted-foreground px-2 text-[11px] font-medium tracking-wide uppercase">
-        {title} <span className="tabular-nums">({people.length})</span>
-      </p>
-      {people.length === 0 ? (
-        <p className="text-muted-foreground px-2 text-xs">{empty}</p>
-      ) : (
-        <ul>
-          {shown.map((p) => (
-            <PersonRow key={p.id} p={p} />
-          ))}
-        </ul>
+    <div>
+      {title && (
+        <p className="text-muted-foreground mb-1.5 text-[11px] font-medium tracking-wide uppercase">
+          {title}
+        </p>
       )}
+      <ul className="grid gap-x-3 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+        {shown.map((p) => (
+          <li key={p.id}>
+            <Link
+              href={`/employees/${p.id}`}
+              className="hover:bg-muted/40 flex items-center gap-2 rounded-sm px-1.5 py-1 transition-colors"
+              title={[p.name, p.note ?? p.department].filter(Boolean).join(" - ")}
+            >
+              <Avatar p={p} />
+              <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
+              {p.note && (
+                <span className="text-muted-foreground shrink-0 text-[11px]">{p.note}</span>
+              )}
+            </Link>
+          </li>
+        ))}
+      </ul>
       {people.length > shown.length && more && (
-        <Link href={more.href} className="text-primary block px-2 text-xs hover:underline">
-          and {people.length - shown.length} more - {more.label}
+        <Link
+          href={more.href}
+          className="text-primary mt-1 inline-flex items-center gap-1 px-1.5 text-xs hover:underline"
+        >
+          {people.length - shown.length} more - {more.label} <ArrowRight className="h-3 w-3" />
         </Link>
       )}
     </div>
   )
 }
 
-function ScoreList({ title, rows }: { title: string; rows: ScoredLead[] }) {
+function ScoreRow({ r, rank }: { r: ScoredLead; rank: number }) {
+  const s = r.score.score ?? 0
+  const tone = scoreToneOf(s)
+  const bits = [
+    r.score.deliverables.due > 0 &&
+      `Deliverables ${r.score.deliverables.onTime}/${r.score.deliverables.due}`,
+    r.score.tasks.due > 0 && `Tasks ${r.score.tasks.onTime}/${r.score.tasks.due}`,
+    r.score.goals.count > 0 && `Goals ${r.score.goals.score}%`,
+  ].filter(Boolean)
   return (
-    <div className="min-w-0 flex-1 space-y-1">
-      <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+    <li className="flex items-center gap-3 px-4 py-2.5">
+      <span className="text-muted-foreground w-4 shrink-0 text-right text-xs tabular-nums">
+        {rank}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <Link
+            href={`/employees/${r.id}`}
+            className="truncate text-sm font-medium hover:underline"
+          >
+            {r.name}
+          </Link>
+          <span className={cn("shrink-0 text-sm font-semibold tabular-nums", TONE_TEXT[tone])}>
+            {s}
+          </span>
+        </div>
+        <span className="bg-muted mt-1 block h-1 overflow-hidden rounded-full">
+          <span
+            className={cn("block h-full rounded-full", TONE_BAR[tone])}
+            style={{ width: `${Math.max(2, s)}%` }}
+          />
+        </span>
+        <p className="text-muted-foreground mt-1 truncate text-[11px]">{bits.join(" · ")}</p>
+      </div>
+    </li>
+  )
+}
+
+function ScoreColumn({ title, rows, empty }: { title: string; rows: ScoredLead[]; empty: string }) {
+  return (
+    <div className="min-w-0 flex-1">
+      <p className="text-muted-foreground px-4 pt-3 pb-1 text-[11px] font-medium tracking-wide uppercase">
         {title}
       </p>
       {rows.length === 0 ? (
-        <p className="text-muted-foreground text-xs">Nobody yet.</p>
+        <p className="text-muted-foreground px-4 py-3 text-xs">{empty}</p>
       ) : (
-        <ul className="divide-y rounded-sm border">
-          {rows.map((r) => (
-            <li key={r.id} className="flex items-center gap-2 px-3 py-2">
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{r.name}</span>
-                <span className="text-muted-foreground block truncate text-[11px]">
-                  {[
-                    r.score.deliverables.due > 0 &&
-                      `deliverables ${r.score.deliverables.onTime}/${r.score.deliverables.due}`,
-                    r.score.tasks.due > 0 && `tasks ${r.score.tasks.onTime}/${r.score.tasks.due}`,
-                    r.score.goals.count > 0 && `goals ${r.score.goals.score}%`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </span>
-              </span>
-              <span className={cn("text-lg font-semibold tabular-nums", scoreTone(r.score.score))}>
-                {r.score.score}
-              </span>
-            </li>
+        <ol className="divide-border/60 divide-y">
+          {rows.map((r, i) => (
+            <ScoreRow key={r.id} r={r} rank={i + 1} />
           ))}
-        </ul>
+        </ol>
       )}
     </div>
   )
 }
 
-function HrRow({
+function HrTile({
   href,
   icon: Icon,
   label,
   value,
+  sub,
+  className,
 }: {
   href: string
   icon: React.ElementType
   label: string
   value: React.ReactNode
+  sub?: string
+  className?: string
 }) {
   return (
-    <li>
-      <Link
-        href={href}
-        className="hover:bg-muted/40 flex items-center gap-3 rounded-sm px-2 py-2 transition-colors"
-      >
-        <Icon className="text-muted-foreground h-4 w-4 shrink-0" />
-        <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
-        <span className="shrink-0 text-sm font-semibold tabular-nums">{value}</span>
-      </Link>
-    </li>
+    <Link
+      href={href}
+      className={cn(
+        "hover:border-foreground/25 bg-muted/20 block rounded-sm border px-3 py-2.5 transition-colors",
+        className,
+      )}
+    >
+      <p className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium">
+        <Icon className="h-3.5 w-3.5" /> {label}
+      </p>
+      <p className="mt-1 text-lg font-semibold tabular-nums">{value}</p>
+      {sub && <p className="text-muted-foreground truncate text-[11px]">{sub}</p>}
+    </Link>
   )
 }
 
@@ -224,8 +423,8 @@ export function LeadershipDashboard() {
           ))}
         </div>
         <div className="grid gap-4 lg:grid-cols-3">
-          <Skeleton className="h-72 rounded-sm lg:col-span-2" />
-          <Skeleton className="h-72 rounded-sm" />
+          <Skeleton className="h-80 rounded-sm lg:col-span-2" />
+          <Skeleton className="h-80 rounded-sm" />
         </div>
       </div>
     )
@@ -295,191 +494,132 @@ export function LeadershipDashboard() {
           suffix={performance.average !== null ? "/100" : undefined}
           sub={`average of ${performance.scored} people this month`}
           icon={Gauge}
-          tone={
-            performance.average === null
-              ? undefined
-              : performance.average >= 80
-                ? "good"
-                : performance.average >= 60
-                  ? "warn"
-                  : "bad"
-          }
+          tone={performance.average === null ? undefined : scoreToneOf(performance.average)}
         />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Projects needing a look</CardTitle>
-            <p className="text-muted-foreground text-xs">
-              Goals at risk or behind, overdue tasks and late deliverables - worst first.
+        <Panel
+          title="Projects needing a look"
+          hint="Worst first - click a number to open those items."
+          more={{ href: "/projects/my-projects", label: "All projects" }}
+          className="lg:col-span-2"
+        >
+          {projects.attention.length === 0 ? (
+            <p className="text-muted-foreground px-5 py-8 text-center text-sm">
+              Every active project is on track.
             </p>
-          </CardHeader>
-          <CardContent className="p-0">
-            {projects.attention.length === 0 ? (
-              <p className="text-muted-foreground px-6 pb-6 text-sm">
-                Every active project is on track.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-muted-foreground border-y text-left text-[11px] tracking-wide uppercase">
-                      <th className="px-4 py-2 font-medium">Project</th>
-                      <th className="px-3 py-2 text-right font-medium">Goals</th>
-                      <th className="px-3 py-2 text-right font-medium">Overdue tasks</th>
-                      <th className="px-4 py-2 text-right font-medium">Late deliverables</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {projects.attention.map((p) => (
-                      <tr key={p.id} className="hover:bg-muted/30">
-                        <td className="px-4 py-2.5">
-                          <Link
-                            href={projectHref(p, "goals")}
-                            className="font-medium hover:underline"
-                          >
-                            {p.name}
-                          </Link>
-                          <span className="text-muted-foreground block text-[11px]">
-                            {p.accountManager ?? "no account manager"}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5 text-right tabular-nums">
-                          {p.goalsNeedingAttention > 0 ? (
-                            <Link
-                              href={projectHref(p, "goals")}
-                              className="text-amber-600 hover:underline dark:text-amber-400"
-                            >
-                              {p.goalsNeedingAttention} need attention
-                            </Link>
-                          ) : p.goalsProgress !== null ? (
-                            <span className="text-muted-foreground">{p.goalsProgress}%</span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 text-right tabular-nums">
-                          {p.overdueTasks > 0 ? (
-                            <Link
-                              href={projectHref(p, "tasks")}
-                              className="text-destructive hover:underline"
-                            >
-                              {p.overdueTasks}
-                            </Link>
-                          ) : (
-                            <span className="text-muted-foreground">0</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums">
-                          {p.lateDeliverables > 0 ? (
-                            <Link
-                              href={projectHref(p, "deliverables")}
-                              className="text-destructive hover:underline"
-                            >
-                              {p.lateDeliverables}
-                            </Link>
-                          ) : (
-                            <span className="text-muted-foreground">0</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          ) : (
+            <>
+              <div className="text-muted-foreground grid grid-cols-[minmax(0,1fr)_7.5rem_2.5rem_2.5rem] gap-x-4 border-b px-5 py-2 text-[10px] font-medium tracking-wider uppercase sm:grid-cols-[minmax(0,1fr)_9rem_3.5rem_3.5rem]">
+                <span>Project</span>
+                <span>Goals</span>
+                <span className="text-center" title="Overdue tasks">
+                  Tasks
+                </span>
+                <span className="text-center" title="Late deliverables">
+                  Deliv.
+                </span>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <ul className="divide-border/60 divide-y">
+                {projects.attention.map((p) => (
+                  <ProjectRow key={p.id} p={p} />
+                ))}
+              </ul>
+            </>
+          )}
+        </Panel>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Today</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <PeopleGroup title="Away" people={people.away} empty="Everyone is in." />
-            <PeopleGroup
-              title="Working from home"
-              people={people.wfh}
-              empty="Nobody is working from home."
-            />
-            <PeopleGroup
+        <Panel title="Today" hint="Who is in, away or working from home.">
+          <div className="space-y-4 p-5">
+            <div className="grid grid-cols-3 gap-2">
+              <TodayStat icon={Clock} label="Not in yet" n={attendance.notIn.length} tone="warn" />
+              <TodayStat icon={CalendarOff} label="Away" n={people.away.length} />
+              <TodayStat icon={Home} label="WFH" n={people.wfh.length} />
+            </div>
+            <PeopleList
               title="Not in yet"
               people={attendance.notIn}
-              empty="Everyone expected has checked in."
               more={{ href: "/attendance/attendance-directory", label: "see attendance" }}
             />
+            <PeopleList title="Away" people={people.away} />
+            <PeopleList title="Working from home" people={people.wfh} />
             {people.birthdays.length > 0 && (
-              <PeopleGroup title="Birthdays" people={people.birthdays} empty="" />
+              <div>
+                <p className="text-muted-foreground mb-1.5 flex items-center gap-1.5 text-[11px] font-medium tracking-wide uppercase">
+                  <Cake className="h-3.5 w-3.5" /> Birthdays today
+                </p>
+                <PeopleList title="" people={people.birthdays} />
+              </div>
             )}
-          </CardContent>
-        </Card>
+            {attendance.notIn.length === 0 &&
+              people.away.length === 0 &&
+              people.wfh.length === 0 && (
+                <p className="text-muted-foreground text-center text-sm">Everyone is in today.</p>
+              )}
+          </div>
+        </Panel>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <CardTitle className="text-sm">Delivery this month</CardTitle>
-              <Link href="/projects/performance" className="text-primary text-xs hover:underline">
-                Team Performance →
-              </Link>
-            </div>
-            <p className="text-muted-foreground text-xs">
-              Goals owned, deliverables and tasks on time. People with fewer than 3 items due are
-              left out.
-            </p>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 sm:flex-row">
-            <ScoreList title="Doing best" rows={performance.top} />
-            <ScoreList title="Could use support" rows={performance.needsSupport} />
-          </CardContent>
-        </Card>
+        <Panel
+          title="Delivery this month"
+          hint="Goals owned, deliverables and tasks on time. Fewer than 3 items due are left out."
+          more={{ href: "/projects/performance", label: "Team Performance" }}
+          className="lg:col-span-2"
+        >
+          <div className="divide-border/60 flex flex-col pb-2 sm:flex-row sm:divide-x">
+            <ScoreColumn
+              title="Doing best"
+              rows={performance.top}
+              empty="Nobody has enough work due yet."
+            />
+            <ScoreColumn
+              title="Could use support"
+              rows={performance.needsSupport}
+              empty="Nobody is falling behind."
+            />
+          </div>
+        </Panel>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <CardTitle className="text-sm">People and hiring</CardTitle>
-              <Link href="/analytics" className="text-primary text-xs hover:underline">
-                Analytics →
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ul>
-              <HrRow
-                href="/employees/employee-directory"
-                icon={UserPlus}
-                label="Joined this month"
-                value={hr.newJoinersThisMonth}
-              />
-              <HrRow
-                href="/onboarding"
-                icon={UserPlus}
-                label="Onboarding in progress"
-                value={hr.onboarding}
-              />
-              <HrRow
-                href="/exit-clearance"
-                icon={LogOut}
-                label="Serving notice"
-                value={hr.servingNotice}
-              />
-              <HrRow
-                href="/recruitment/applications"
-                icon={Briefcase}
-                label="Open jobs"
-                value={`${hr.openJobs} · ${hr.applicantsThisMonth} applicants`}
-              />
-              <HrRow
-                href="/payroll/payroll-directory"
-                icon={Wallet}
-                label={hr.payroll ? `Payroll ${hr.payroll.period}` : "Last payroll"}
-                value={hr.payroll ? formatCurrency(hr.payroll.net) : "not run"}
-              />
-            </ul>
-          </CardContent>
-        </Card>
+        <Panel title="People and hiring" more={{ href: "/analytics", label: "Analytics" }}>
+          <div className="grid grid-cols-2 gap-2 p-5">
+            <HrTile
+              href="/employees/employee-directory"
+              icon={UserPlus}
+              label="Joined this month"
+              value={hr.newJoinersThisMonth}
+            />
+            <HrTile
+              href="/onboarding"
+              icon={UserRoundPlus}
+              label="Onboarding"
+              value={hr.onboarding}
+              sub="in progress"
+            />
+            <HrTile
+              href="/exit-clearance"
+              icon={LogOut}
+              label="Serving notice"
+              value={hr.servingNotice}
+            />
+            <HrTile
+              href="/recruitment/applications"
+              icon={Briefcase}
+              label="Open jobs"
+              value={hr.openJobs}
+              sub={`${hr.applicantsThisMonth} applicants this month`}
+            />
+            <HrTile
+              href="/payroll/payroll-directory"
+              icon={Wallet}
+              label={hr.payroll ? `Payroll · ${hr.payroll.period}` : "Last payroll"}
+              value={hr.payroll ? formatCurrency(hr.payroll.net) : "Not run yet"}
+              sub={hr.payroll ? `${hr.payroll.count} payslips` : undefined}
+              className="col-span-2"
+            />
+          </div>
+        </Panel>
       </div>
     </div>
   )
