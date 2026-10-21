@@ -41,9 +41,24 @@ export interface EmployeeListItem {
   isActive: boolean
   createdAt: string
   department: { id: string; name: string } | null
-  designation: { id: string; title: string } | null
+  designation: { id: string; title: string; code?: string | null; level?: number } | null
   jobRole: { id: string; name: string } | null
   manager: { id: string; firstName: string; lastName: string } | null
+  /** Live projects they run as primary / secondary account manager (directory list only). */
+  ownedProjects?: ProjectLabel[]
+  secondaryAmProjects?: ProjectLabel[]
+  /** What they do on live projects: teams they are on or lead, services they own. */
+  projectTeamMemberships?: { team: { name: string; project: ProjectLabel } }[]
+  managedTeams?: { name: string; project: ProjectLabel }[]
+  ownedProjectServices?: { service: string; project: ProjectLabel }[]
+  secondaryServiceOwnerships?: { service: string; project: ProjectLabel }[]
+}
+
+export interface ProjectLabel {
+  id: string
+  name: string
+  shortName: string | null
+  slug: string | null
 }
 
 export interface EmployeeDetail extends EmployeeListItem {

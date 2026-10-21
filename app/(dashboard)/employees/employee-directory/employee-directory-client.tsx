@@ -36,7 +36,14 @@ import {
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { useDebounce } from "@/hooks/use-debounce"
 import { formatDate, employeeSlug } from "@/lib/utils"
-import { isOnProbation } from "@/features/employees"
+import {
+  AccountManagerCell,
+  ProjectRolesCell,
+  accountManagerText,
+  designationLevel,
+  isOnProbation,
+  projectRolesText,
+} from "@/features/employees"
 import {
   ACTIVE_STATUS_COLORS,
   ACTIVE_STATUS_LABELS,
@@ -222,8 +229,37 @@ export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employe
     {
       header: "Designation",
       className: "text-muted-foreground",
-      exportValue: (emp) => emp.designation?.title ?? "",
-      cell: (emp) => emp.designation?.title ?? "-",
+      exportValue: (emp) => {
+        const level = designationLevel(emp.designation)
+        return emp.designation ? `${emp.designation.title}${level ? ` (${level})` : ""}` : ""
+      },
+      cell: (emp) => {
+        if (!emp.designation) return "-"
+        const level = designationLevel(emp.designation)
+        return (
+          <span className="inline-flex items-center gap-1.5">
+            {emp.designation.title}
+            {level && (
+              <span
+                className="text-foreground rounded-sm border px-1 py-px text-[10px] font-semibold tabular-nums"
+                title="Level"
+              >
+                {level}
+              </span>
+            )}
+          </span>
+        )
+      },
+    },
+    {
+      header: "Account manager",
+      exportValue: accountManagerText,
+      cell: (emp) => <AccountManagerCell employee={emp} />,
+    },
+    {
+      header: "Project roles",
+      exportValue: projectRolesText,
+      cell: (emp) => <ProjectRolesCell employee={emp} />,
     },
     {
       header: "Status",

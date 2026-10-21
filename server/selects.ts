@@ -15,6 +15,14 @@ export const EMPLOYEE_SUMMARY_SELECT = {
   profilePhoto: true,
 } satisfies Prisma.EmployeeSelect
 
+/** Projects still being worked on: not archived, not finished or cancelled. */
+const LIVE_PROJECT: Prisma.ProjectWhereInput = {
+  isArchived: false,
+  status: { in: ["PLANNING", "ACTIVE", "ON_HOLD"] },
+}
+
+const PROJECT_LABEL = { id: true, name: true, shortName: true, slug: true } as const
+
 /**
  * Exactly what the directory renders (`EmployeeListItem`). Never use a bare `include` there - it
  * returns every scalar, address JSON blobs included.
@@ -44,7 +52,26 @@ export const EMPLOYEE_LIST_SELECT = {
   isActive: true,
   createdAt: true,
   department: { select: { id: true, name: true } },
-  designation: { select: { id: true, title: true } },
+  designation: { select: { id: true, title: true, code: true, level: true } },
   jobRole: { select: { id: true, name: true } },
   manager: { select: { id: true, firstName: true, lastName: true } },
+  // The projects they run as account manager, and what they do on the rest - live projects only.
+  ownedProjects: { where: LIVE_PROJECT, select: PROJECT_LABEL, orderBy: { name: "asc" } },
+  secondaryAmProjects: { where: LIVE_PROJECT, select: PROJECT_LABEL, orderBy: { name: "asc" } },
+  projectTeamMemberships: {
+    where: { team: { project: LIVE_PROJECT } },
+    select: { team: { select: { name: true, project: { select: PROJECT_LABEL } } } },
+  },
+  managedTeams: {
+    where: { project: LIVE_PROJECT },
+    select: { name: true, project: { select: PROJECT_LABEL } },
+  },
+  ownedProjectServices: {
+    where: { project: LIVE_PROJECT },
+    select: { service: true, project: { select: PROJECT_LABEL } },
+  },
+  secondaryServiceOwnerships: {
+    where: { project: LIVE_PROJECT },
+    select: { service: true, project: { select: PROJECT_LABEL } },
+  },
 } satisfies Prisma.EmployeeSelect
