@@ -22,6 +22,10 @@ import {
   ChevronLeft,
   ClipboardPen,
   CalendarPlus,
+  ChevronDown,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  UserRound,
 } from "lucide-react"
 
 import { apiFetch } from "@/lib/api-fetch"
@@ -92,6 +96,8 @@ import { GoalTagInput, GoalTagList } from "./goal-tag-input"
 import { GoalTasks } from "./goal-tasks"
 import { GoalTargets } from "./goal-targets"
 import { GoalWork } from "./goal-work"
+import { Link } from "@/components/tenant-link"
+import { projectHref } from "../lib/project-href"
 import { VerdictChip, VerdictDialog } from "./goal-verdict"
 import { goalVerdict, mainGoalVerdict, type GoalVerdict } from "../lib/goal-accountability"
 import { PlanPeriodDialog, type PlanGoal } from "./plan-period-dialog"
@@ -632,6 +638,14 @@ export function GoalsTab({
   const [linkFor, setLinkFor] = React.useState<string | null>(null)
   /** Collapsed by default so the whole list reads in one screen. */
   const [openGoals, setOpenGoals] = React.useState<Set<string>>(new Set())
+  // A board of one or two goals opens with their details showing; a longer one stays scannable.
+  const [autoOpened, setAutoOpened] = React.useState(false)
+  if (!autoOpened && data) {
+    setAutoOpened(true)
+    if (data.goals.length <= 2) setOpenGoals(new Set(data.goals.map((g) => g.id)))
+  }
+  const openGoal = (id: string) =>
+    setOpenGoals((cur) => (cur.has(id) ? cur : new Set([...cur, id])))
   const toggleGoal = (id: string) =>
     setOpenGoals((cur) => {
       const next = new Set(cur)
@@ -704,6 +718,12 @@ export function GoalsTab({
       />
     ) : null
   }
+
+  const attentionCount = summary.goals.filter((g) => {
+    if (!g.isActive) return false
+    const v = mainGoalVerdict(g, plans, amName, today)
+    return v?.tone === "bad" || v?.tone === "warn" || g.slipping || g.status === "AT_RISK"
+  }).length
 
   const subParent = summary.goals.find((g) => g.id === subFor) ?? null
   const subTitleFor = (code: string) => serviceInfo(code)?.name ?? code
@@ -818,16 +838,31 @@ export function GoalsTab({
           )}
           {/* Sub-goals have no footer, so their way to a target is here. */}
           {canEdit && (
-            <DropdownMenuItem onClick={() => setTargetFor(goal.id)}>
+            <DropdownMenuItem
+              onClick={() => {
+                openGoal((parent ?? goal).id)
+                setTargetFor(goal.id)
+              }}
+            >
               <Target className="mr-2 h-3.5 w-3.5" /> Add target
             </DropdownMenuItem>
           )}
           {canStaff && goal.isActive && (
             <>
-              <DropdownMenuItem onClick={() => setTaskFor(goal.id)}>
+              <DropdownMenuItem
+                onClick={() => {
+                  openGoal((parent ?? goal).id)
+                  setTaskFor(goal.id)
+                }}
+              >
                 <Plus className="mr-2 h-3.5 w-3.5" /> Add task
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLinkFor(goal.id)}>
+              <DropdownMenuItem
+                onClick={() => {
+                  openGoal((parent ?? goal).id)
+                  setLinkFor(goal.id)
+                }}
+              >
                 <ListChecks className="mr-2 h-3.5 w-3.5" /> Link tasks
               </DropdownMenuItem>
             </>
@@ -858,80 +893,91 @@ export function GoalsTab({
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+        <CardContent className="space-y-4 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="flex items-center gap-2 text-sm font-semibold">
-                <Target className="text-primary h-4 w-4" />
-                Project goals
+              <h3 className="flex items-center gap-2 text-base font-semibold">
+                <Target className="text-primary h-5 w-5" />
+                Goals
               </h3>
-              <p className="text-muted-foreground mt-1 text-xs">
+              <p className="text-muted-foreground mt-1 text-sm">
                 {filtering
                   ? "These numbers describe the filtered goals only."
-                  : "What this project is for, and how far along it is."}
+                  : "What this project is aiming at, and how far along it is."}
               </p>
-              {/* Repeating goals show one month at a time; one-time goals show in every month. */}
-              {(full.series?.length ?? 0) > 0 && (
-                <div className="mt-2 flex items-center gap-1">
+            </div>
+            {/* Repeating goals show one month at a time; one-time goals show in every month. */}
+            {(full.series?.length ?? 0) > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="bg-background flex items-center rounded-sm border">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7"
+                    className="h-9 w-9 rounded-none"
                     aria-label="Previous month"
                     disabled={!prevMonth}
                     onClick={() => prevMonth && setMonth(prevMonth)}
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <span className="min-w-28 text-center text-xs font-medium">
+                  <span className="flex min-w-32 items-center justify-center gap-1.5 border-x px-3 text-sm font-medium">
+                    <CalendarDays className="text-muted-foreground h-3.5 w-3.5" />
                     {formatMonth(`${shownMonth}-01`)}
                   </span>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7"
+                    className="h-9 w-9 rounded-none"
                     aria-label="Next month"
                     disabled={!nextMonth}
                     onClick={() => nextMonth && setMonth(nextMonth)}
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
-                  {shownMonth !== currentPlanMonth() && (
-                    <button
-                      type="button"
-                      onClick={() => setMonth(null)}
-                      className="text-muted-foreground hover:text-foreground ml-1 text-[11px] underline underline-offset-4"
-                    >
-                      This month
-                    </button>
-                  )}
                 </div>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
-              <Stat label="Overall" value={`${summary.overallProgress}%`} accent />
-              <Stat
-                label="Done"
-                value={`${summary.doneGoals}`}
-                suffix={`/ ${summary.totalGoals}`}
-              />
-              <Stat
-                label="Overdue"
-                value={`${summary.overdueGoals}`}
-                tone={summary.overdueGoals > 0 ? "bad" : "muted"}
-              />
-              {/* Only when non-zero, so it doesn't become a tile people skip. */}
-              {summary.slippingGoals > 0 && (
-                <Stat label="Slipping" value={`${summary.slippingGoals}`} tone="warn" />
-              )}
-              <Stat label="Next target" value={fmtDate(summary.nextTargetDate)} small />
-            </div>
+                {shownMonth !== currentPlanMonth() && (
+                  <Button variant="outline" onClick={() => setMonth(null)}>
+                    This month
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
-          <ProgressBar value={summary.overallProgress} className="mt-4" />
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <KpiTile
+              label="Overall progress"
+              value={`${summary.overallProgress}%`}
+              tone="primary"
+              bar={summary.overallProgress}
+            />
+            <KpiTile
+              label="Goals done"
+              value={`${summary.doneGoals}`}
+              suffix={`of ${summary.totalGoals}`}
+              tone={
+                summary.totalGoals > 0 && summary.doneGoals === summary.totalGoals
+                  ? "good"
+                  : undefined
+              }
+            />
+            <KpiTile
+              label="Need attention"
+              value={`${attentionCount}`}
+              tone={attentionCount > 0 ? "warn" : "muted"}
+              hint="Behind, at risk, unplanned or not reported"
+            />
+            <KpiTile
+              label="Past target"
+              value={`${summary.overdueGoals}`}
+              tone={summary.overdueGoals > 0 ? "bad" : "muted"}
+            />
+            <KpiTile label="Next target" value={fmtDate(summary.nextTargetDate)} small />
+          </div>
 
           {/* Visibility comes from the unfiltered project, so a filter can't strand the toggle. */}
           {(full.discardedGoals > 0 || full.inactiveGoals > 0 || showInactive) && (
-            <div className="text-muted-foreground mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
               {summary.discardedGoals > 0 && (
                 <span>{summary.discardedGoals} discarded (not counted)</span>
               )}
@@ -950,23 +996,28 @@ export function GoalsTab({
       </Card>
 
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-sm font-semibold">
-          Goals
-          <span className="text-muted-foreground ml-2 text-xs font-normal tabular-nums">
-            {summary.goals.length}
-          </span>
-        </h3>
+        <p className="text-sm font-semibold">
+          {summary.goals.length} goal{summary.goals.length === 1 ? "" : "s"}
+        </p>
         {summary.goals.length > 0 && (
           <Button
-            variant="ghost"
-            className="text-muted-foreground"
+            variant="outline"
+            className="gap-1.5"
             onClick={() =>
               setOpenGoals((cur) =>
                 cur.size > 0 ? new Set() : new Set(summary.goals.map((g) => g.id)),
               )
             }
           >
-            {openGoals.size > 0 ? "Collapse all" : "Expand all"}
+            {openGoals.size > 0 ? (
+              <>
+                <ChevronsDownUp className="h-4 w-4" /> Hide all details
+              </>
+            ) : (
+              <>
+                <ChevronsUpDown className="h-4 w-4" /> Show all details
+              </>
+            )}
           </Button>
         )}
 
@@ -999,17 +1050,23 @@ export function GoalsTab({
 
       {/* Unlinked work is allowed (forcing a goal makes junk goals), but the manager should sort it. */}
       {canManage && full.unlinkedOpenTasks > 0 && (
-        <p className="text-muted-foreground border-border/60 flex items-center gap-2 rounded-sm border border-dashed px-4 py-2.5 text-xs">
-          <ListChecks className="h-3.5 w-3.5 shrink-0" />
-          <span>
-            <span className="text-foreground font-medium">
+        <div className="flex flex-wrap items-center gap-3 rounded-sm border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+          <ListChecks className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p className="min-w-0 flex-1 text-sm">
+            <span className="font-semibold">
               {full.unlinkedOpenTasks} open task{full.unlinkedOpenTasks === 1 ? "" : "s"}
             </span>{" "}
             on this project {full.unlinkedOpenTasks === 1 ? "isn't" : "aren't"} tied to any goal.
-            Use <span className="text-foreground">Link tasks</span> on a goal below, or add the goal
-            that is missing.
-          </span>
-        </p>
+            <span className="text-muted-foreground">
+              {" "}
+              Use <span className="text-foreground font-medium">Link tasks</span> on a goal, or add
+              the goal that is missing.
+            </span>
+          </p>
+          <Button variant="outline" asChild>
+            <Link href={projectHref({ id: projectId }, "tasks")}>Open tasks</Link>
+          </Button>
+        </div>
       )}
 
       {summary.goals.length === 0 ? (
@@ -1041,101 +1098,102 @@ export function GoalsTab({
                     ? "Add the outcome this project is aiming at, then break it into sub-goals with their own dates."
                     : "The project manager has not set any goals for this project yet."}
                 </p>
+                {canManage && (
+                  <Button className="mt-4" onClick={() => setAdding(true)}>
+                    <Plus className="h-4 w-4" /> Add goal
+                  </Button>
+                )}
               </>
             )}
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {summary.goals.map((goal, gi) => {
             // A parent emptied by the filter is still a parent: its status stays server-derived.
             const isLeaf = !goal.progressIsDerived
             const hiddenHere =
               (fullChildCount.get(goal.id) ?? goal.children.length) - goal.children.length
             const isOpen = openGoals.has(goal.id)
-            const taskCount = goal.tasks.length
+            const family = [goal, ...goal.children]
+            const taskCount = family.reduce((n, g) => n + g.tasks.length, 0)
+            const workCount = family.reduce(
+              (n, g) => n + (plans[g.id] ?? []).reduce((m, t) => m + t.items.length, 0),
+              0,
+            )
+            const targetCount = family.reduce((n, g) => n + g.targets.length, 0)
+            const detailBits = [
+              workCount > 0 && `${workCount} work item${workCount === 1 ? "" : "s"}`,
+              taskCount > 0 && `${taskCount} task${taskCount === 1 ? "" : "s"}`,
+              targetCount > 0 && `${targetCount} target${targetCount === 1 ? "" : "s"}`,
+            ].filter(Boolean)
             return (
               <Card key={goal.id} className={cn("overflow-hidden", !goal.isActive && "opacity-60")}>
-                <div className="flex flex-wrap items-start gap-x-4 gap-y-3 p-4 sm:p-5">
-                  <button
-                    type="button"
-                    onClick={() => toggleGoal(goal.id)}
-                    aria-expanded={isOpen}
-                    className="text-muted-foreground hover:text-foreground -ml-1 shrink-0 pt-0.5"
-                    title={isOpen ? "Collapse" : "Expand"}
-                  >
-                    <ChevronRight
-                      className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")}
-                    />
-                  </button>
-                  <div className="min-w-48 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Rung n={String(gi + 1)} />
-                      <h4
-                        className={cn(
-                          "cursor-pointer leading-tight font-semibold",
-                          STATUS_STYLE[goal.status].title,
-                        )}
-                        onClick={() => toggleGoal(goal.id)}
-                      >
-                        {goal.title}
-                      </h4>
-                      {(!canManage || !goal.isActive || !isLeaf) && (
-                        <StatusBadge status={goal.status} />
-                      )}
-                      {!goal.isActive && (
-                        <span className="border-border text-muted-foreground rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
-                          Deactivated
-                        </span>
-                      )}
-                      {goal.overdue && (
-                        <span className="text-destructive inline-flex items-center gap-1 text-[11px] font-medium">
-                          <TriangleAlert className="h-3 w-3" /> Past target
-                        </span>
-                      )}
-                      {/* Beside "Past target", not instead: a goal can be both overdue and slipping. */}
-                      {goal.slipping && <SlippingChip />}
-                      {verdictChip(goal, true)}
-                      {goal.seriesId && (
-                        <span
-                          className="text-muted-foreground border-border inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium"
-                          title="Repeats every month; each month is judged on its own"
-                        >
-                          <Repeat className="h-3 w-3" />
-                          {formatMonth(goal.periodStart)}
-                          {seriesOf(goal.seriesId)?.stoppedAt && " · stopped repeating"}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-muted-foreground mt-1 text-xs tabular-nums">
-                      {[
-                        goal.children.length > 0 &&
-                          `${goal.children.length} sub-goal${goal.children.length === 1 ? "" : "s"}`,
-                        taskCount > 0 && `${taskCount} task${taskCount === 1 ? "" : "s"}`,
-                        goal.targets.length > 0 &&
-                          `${goal.targets.length} target${goal.targets.length === 1 ? "" : "s"}`,
-                        !isLeaf && `${goal.doneChildren} of ${goal.countableChildren} done`,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "nothing under it yet"}
-                    </p>
-                    {isOpen && (
-                      <>
-                        <p className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs empty:hidden">
+                <div className="flex">
+                  <span aria-hidden className={cn("w-1 shrink-0", STATUS_STYLE[goal.status].dot)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-start gap-x-6 gap-y-3 p-4 sm:p-5">
+                      <div className="min-w-56 flex-1 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Rung n={String(gi + 1)} />
+                          <button
+                            type="button"
+                            onClick={() => toggleGoal(goal.id)}
+                            className={cn(
+                              "text-left text-base leading-snug font-semibold hover:underline",
+                              titleTone(goal.status),
+                            )}
+                            title={isOpen ? "Hide details" : "Show details"}
+                          >
+                            {goal.title}
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {(!canManage || !goal.isActive || !isLeaf) && (
+                            <StatusBadge status={goal.status} />
+                          )}
+                          {verdictChip(goal, true)}
+                          {!goal.isActive && (
+                            <span className="border-border text-muted-foreground rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
+                              Deactivated
+                            </span>
+                          )}
+                          {goal.overdue && (
+                            <span className="text-destructive inline-flex items-center gap-1 text-[11px] font-medium">
+                              <TriangleAlert className="h-3 w-3" /> Past target
+                            </span>
+                          )}
+                          {/* Beside "Past target", not instead: a goal can be both overdue and slipping. */}
+                          {goal.slipping && <SlippingChip />}
+                          {goal.seriesId && (
+                            <span
+                              className="text-muted-foreground border-border inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium"
+                              title="Repeats every month; each month is judged on its own"
+                            >
+                              <Repeat className="h-3 w-3" />
+                              {formatMonth(goal.periodStart)}
+                              {seriesOf(goal.seriesId)?.stoppedAt && " · stopped repeating"}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                          <span
+                            className="inline-flex items-center gap-1.5"
+                            title="Accountable for this goal landing"
+                          >
+                            <UserRound className="h-3.5 w-3.5" />
+                            {goal.ownerName ??
+                              (amName ? `${amName} (account manager)` : "Account manager")}
+                          </span>
                           {goal.targetDate && (
-                            <span className="inline-flex items-center gap-1">
-                              <CalendarDays className="h-3 w-3" />
-                              {fmtDate(goal.targetDate)}
+                            <span className="inline-flex items-center gap-1.5">
+                              <CalendarDays className="h-3.5 w-3.5" />
+                              Target {fmtDate(goal.targetDate)}
                             </span>
                           )}
-                          {hiddenHere > 0 && (
-                            <span className="italic">
-                              {hiddenHere} sub-goal{hiddenHere === 1 ? "" : "s"} hidden by filters
-                            </span>
-                          )}
-                          {goal.ownerName && (
-                            <span title="Accountable for this goal landing">
-                              owner {goal.ownerName}
+                          {!isLeaf && goal.children.length > 0 && (
+                            <span className="tabular-nums">
+                              {goal.doneChildren} of {goal.countableChildren} sub-goals done
                             </span>
                           )}
                         </p>
@@ -1143,231 +1201,282 @@ export function GoalsTab({
                           tags={goal.tags}
                           activeTags={filters.tags}
                           onToggle={toggleTag}
-                          className="mt-1.5"
                         />
                         {goal.statusReason && (
-                          <p className="text-muted-foreground border-border/60 mt-2 border-l-2 pl-2 text-xs italic">
+                          <p className="text-muted-foreground border-border/60 border-l-2 pl-2 text-xs italic">
                             {goal.statusReason}
                           </p>
                         )}
+                      </div>
+
+                      <div className="flex items-start gap-1">
+                        {goal.targetValue !== null ? (
+                          <GoalNumber goal={goal} />
+                        ) : isLeaf ? (
+                          statusControl(goal)
+                        ) : (
+                          <div className="w-44 shrink-0">
+                            <div className="flex items-baseline justify-between">
+                              <span className="text-muted-foreground text-[10px] tracking-widest uppercase">
+                                {goal.targets.length > 0 ? "Delivered" : "Progress"}
+                              </span>
+                              <span className="text-lg font-semibold tabular-nums">
+                                {goal.progress}%
+                              </span>
+                            </div>
+                            <ProgressBar value={goal.progress} className="mt-1.5" />
+                            {/* With targets the bar shows output; task progress goes underneath. */}
+                            {goal.targets.length > 0 && goal.taskProgress !== null && (
+                              <p
+                                className="text-muted-foreground mt-1 text-[10px] tabular-nums"
+                                title="How much of the linked work is done"
+                              >
+                                tasks {goal.taskProgress}%
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        {rowActions(goal, true)}
+                      </div>
+                    </div>
+
+                    {/* The parts are the goal's substance, so they are always on show. */}
+                    {goal.children.length > 0 && (
+                      <div className="border-border/60 border-t">
+                        <p className="text-muted-foreground px-4 pt-3 text-[11px] font-medium tracking-wide uppercase sm:px-5">
+                          Sub-goals
+                          {hiddenHere > 0 && (
+                            <span className="ml-2 tracking-normal normal-case italic">
+                              {hiddenHere} hidden by filters
+                            </span>
+                          )}
+                        </p>
+                        <ul className="divide-border/60 divide-y">
+                          {goal.children.map((sub, si) => (
+                            <li key={sub.id}>
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
+                                <span
+                                  aria-hidden
+                                  className={cn(
+                                    "h-2.5 w-2.5 shrink-0 rounded-full",
+                                    STATUS_STYLE[sub.status].dot,
+                                  )}
+                                />
+                                <div className="min-w-44 flex-1">
+                                  <p className="flex flex-wrap items-center gap-2 text-sm">
+                                    <Rung sub n={`${gi + 1}.${si + 1}`} />
+                                    {sub.service && (
+                                      <span className="bg-primary/10 text-primary rounded-sm px-1.5 py-0.5 text-[10px] font-semibold">
+                                        {serviceInfo(sub.service)?.label ?? sub.service}
+                                      </span>
+                                    )}
+                                    <span className={cn("font-medium", titleTone(sub.status))}>
+                                      {sub.title}
+                                    </span>
+                                    {sub.targetValue !== null && verdictChip(sub, false)}
+                                    {sub.overdue && (
+                                      <span className="text-destructive text-[11px] font-medium">
+                                        past target
+                                      </span>
+                                    )}
+                                    {sub.slipping && <SlippingChip />}
+                                  </p>
+                                  <p className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs empty:hidden">
+                                    {(sub.targetValue !== null || sub.ownerName) && (
+                                      <span
+                                        className="inline-flex items-center gap-1"
+                                        title="Accountable for this part"
+                                      >
+                                        <UserRound className="h-3 w-3" />
+                                        {sub.ownerName ?? "no owner - the account manager"}
+                                      </span>
+                                    )}
+                                    {sub.targetDate && (
+                                      <span className="inline-flex items-center gap-1">
+                                        <CalendarDays className="h-3 w-3" />
+                                        {fmtDate(sub.targetDate)}
+                                      </span>
+                                    )}
+                                    <GoalTagList
+                                      tags={sub.tags}
+                                      activeTags={filters.tags}
+                                      onToggle={toggleTag}
+                                    />
+                                  </p>
+                                  {sub.statusReason && (
+                                    <p className="text-muted-foreground border-border/60 mt-1 border-l-2 pl-2 text-[11px] italic">
+                                      {sub.statusReason}
+                                    </p>
+                                  )}
+                                  {isOpen && (
+                                    <GoalTargets
+                                      projectId={projectId}
+                                      goal={sub}
+                                      canManage={canManage}
+                                      className="mt-2"
+                                      adding={targetFor === sub.id}
+                                      onAddingChange={(v) => setTargetFor(v ? sub.id : null)}
+                                    />
+                                  )}
+                                </div>
+                                {sub.targetValue !== null ? (
+                                  <>
+                                    <GoalNumber goal={sub} compact />
+                                    {sub.isActive &&
+                                      canEnterResults(sub) &&
+                                      sub.actualSource === "MANUAL" && (
+                                        <Button
+                                          variant="outline"
+                                          className="h-8 px-2.5 text-xs"
+                                          onClick={() => setResultsFor(sub)}
+                                        >
+                                          <ClipboardPen className="h-3.5 w-3.5" /> Enter results
+                                        </Button>
+                                      )}
+                                  </>
+                                ) : (
+                                  statusControl(sub)
+                                )}
+                                {rowActions(sub, false, goal)}
+                              </div>
+                              {isOpen && (
+                                <>
+                                  <GoalWork
+                                    projectId={projectId}
+                                    plan={plans[sub.id]}
+                                    compact
+                                    needsPlan={sub.isActive && sub.targetValue !== null}
+                                    onPlan={
+                                      canManage && sub.isActive
+                                        ? () => planWork(sub, goal)
+                                        : undefined
+                                    }
+                                    className="pb-3"
+                                  />
+                                  <GoalTasks
+                                    projectId={projectId}
+                                    goal={sub}
+                                    canStaff={canStaff}
+                                    teams={myTeams}
+                                    compact
+                                    adding={taskFor === sub.id}
+                                    onAddingChange={(v) => setTaskFor(v ? sub.id : null)}
+                                    linking={linkFor === sub.id}
+                                    onLinkingChange={(v) => setLinkFor(v ? sub.id : null)}
+                                  />
+                                </>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {isOpen && (
+                      <div className="border-border/60 space-y-3 border-t py-4">
                         <GoalTargets
                           projectId={projectId}
                           goal={goal}
                           canManage={canManage}
-                          className="mt-2"
+                          className="px-4 sm:px-5"
                           adding={targetFor === goal.id}
                           onAddingChange={(v) => setTargetFor(v ? goal.id : null)}
                         />
-                      </>
-                    )}
-                  </div>
-
-                  {goal.targetValue !== null ? (
-                    <GoalNumber goal={goal} />
-                  ) : isLeaf ? (
-                    statusControl(goal)
-                  ) : (
-                    <div className="w-36 shrink-0">
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-muted-foreground text-[10px] tracking-widest uppercase">
-                          {goal.targets.length > 0 ? "Delivered" : "Progress"}
-                        </span>
-                        <span className="text-sm font-semibold tabular-nums">{goal.progress}%</span>
-                      </div>
-                      <ProgressBar value={goal.progress} className="mt-1.5" />
-                      {/* With targets the bar shows output; task progress goes underneath. */}
-                      {goal.targets.length > 0 && goal.taskProgress !== null && (
-                        <p
-                          className="text-muted-foreground mt-1 text-[10px] tabular-nums"
-                          title="How much of the linked work is done"
-                        >
-                          tasks {goal.taskProgress}%
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {rowActions(goal, true)}
-                </div>
-
-                {isOpen && goal.children.length > 0 && (
-                  <div className="border-border/60 bg-muted/30 divide-border/60 divide-y border-t">
-                    {goal.children.map((sub, si) => (
-                      <div key={sub.id}>
-                        <div className="border-primary/25 relative ml-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-l-2 py-2.5 pr-4 pl-4 sm:ml-6">
-                          <span
-                            aria-hidden
-                            className={cn(
-                              "h-2 w-2 shrink-0 rounded-full ring-2",
-                              STATUS_STYLE[sub.status].dot,
-                              "ring-background",
-                            )}
-                          />
-                          <div className="min-w-36 flex-1">
-                            <p
-                              className={cn(
-                                "flex items-center gap-2 text-sm",
-                                STATUS_STYLE[sub.status].title,
-                              )}
-                            >
-                              <Rung sub n={`${gi + 1}.${si + 1}`} />
-                              {sub.service && (
-                                <span className="bg-primary/10 text-primary rounded-sm px-1.5 py-0.5 text-[10px] font-semibold">
-                                  {serviceInfo(sub.service)?.label ?? sub.service}
-                                </span>
-                              )}
-                              {sub.title}
-                            </p>
-                            <p className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-2 text-[11px] empty:hidden">
-                              {sub.targetValue !== null && (
-                                <span title="Accountable for this part">
-                                  {sub.ownerName ?? "no owner - the account manager"}
-                                </span>
-                              )}
-                              {sub.targetDate && (
-                                <span className="inline-flex items-center gap-1">
-                                  <CalendarDays className="h-3 w-3" />
-                                  {fmtDate(sub.targetDate)}
-                                </span>
-                              )}
-                              {sub.overdue && (
-                                <span className="text-destructive font-medium">past target</span>
-                              )}
-                              {sub.slipping && <SlippingChip />}
-                              {sub.targetValue !== null && verdictChip(sub, false)}
-                              <GoalTagList
-                                tags={sub.tags}
-                                activeTags={filters.tags}
-                                onToggle={toggleTag}
-                              />
-                            </p>
-                            {sub.statusReason && (
-                              <p className="text-muted-foreground border-border/60 mt-1 border-l-2 pl-2 text-[11px] italic">
-                                {sub.statusReason}
-                              </p>
-                            )}
-                            <GoalTargets
-                              projectId={projectId}
-                              goal={sub}
-                              canManage={canManage}
-                              className="mt-1.5"
-                              adding={targetFor === sub.id}
-                              onAddingChange={(v) => setTargetFor(v ? sub.id : null)}
-                            />
-                          </div>
-                          {sub.targetValue !== null ? (
-                            <>
-                              <GoalNumber goal={sub} compact />
-                              {sub.isActive &&
-                                canEnterResults(sub) &&
-                                sub.actualSource === "MANUAL" && (
-                                  <Button
-                                    variant="outline"
-                                    className="h-7 px-2 text-[11px]"
-                                    onClick={() => setResultsFor(sub)}
-                                  >
-                                    Enter results
-                                  </Button>
-                                )}
-                            </>
-                          ) : (
-                            statusControl(sub)
-                          )}
-                          {rowActions(sub, false, goal)}
-                        </div>
                         <GoalWork
                           projectId={projectId}
-                          plan={full.plans?.[sub.id]}
-                          compact
-                          needsPlan={sub.isActive && sub.targetValue !== null}
-                          onPlan={canManage && sub.isActive ? () => planWork(sub, goal) : undefined}
-                          className="pb-2"
-                        />
-                        <GoalTasks
-                          projectId={projectId}
-                          goal={sub}
-                          canStaff={canStaff}
-                          teams={myTeams}
-                          compact
-                          adding={taskFor === sub.id}
-                          onAddingChange={(v) => setTaskFor(v ? sub.id : null)}
-                          linking={linkFor === sub.id}
-                          onLinkingChange={(v) => setLinkFor(v ? sub.id : null)}
+                          plan={plans[goal.id]}
+                          onPlan={canManage && goal.isActive ? () => planWork(goal) : undefined}
                         />
                       </div>
-                    ))}
-                  </div>
-                )}
+                    )}
 
-                {isOpen && (
-                  <GoalWork
-                    projectId={projectId}
-                    plan={full.plans?.[goal.id]}
-                    onPlan={canManage && goal.isActive ? () => planWork(goal) : undefined}
-                    className="pb-3"
-                  />
-                )}
+                    {/* Progress derives from these tasks once any exist. */}
+                    {isOpen && (
+                      <GoalTasks
+                        projectId={projectId}
+                        goal={goal}
+                        canStaff={canStaff}
+                        teams={myTeams}
+                        adding={taskFor === goal.id}
+                        onAddingChange={(v) => setTaskFor(v ? goal.id : null)}
+                        linking={linkFor === goal.id}
+                        onLinkingChange={(v) => setLinkFor(v ? goal.id : null)}
+                      />
+                    )}
 
-                {/* Progress derives from these tasks once any exist. */}
-                {isOpen && (
-                  <GoalTasks
-                    projectId={projectId}
-                    goal={goal}
-                    canStaff={canStaff}
-                    teams={myTeams}
-                    adding={taskFor === goal.id}
-                    onAddingChange={(v) => setTaskFor(v ? goal.id : null)}
-                    linking={linkFor === goal.id}
-                    onLinkingChange={(v) => setLinkFor(v ? goal.id : null)}
-                  />
-                )}
-
-                {isOpen && canManage && goal.isActive && (
-                  <div className="border-border/60 border-t px-4 py-2.5 sm:px-5">
-                    <div className="flex flex-wrap gap-1">
+                    <div className="border-border/60 bg-muted/20 flex flex-wrap items-center gap-1 border-t px-2 py-1.5 sm:px-3">
                       <Button
                         variant="ghost"
-                        className="text-muted-foreground"
-                        onClick={() => {
-                          setSubFor(goal.id)
-                          setSubTitle("")
-                          setSubDate("")
-                          setSubTags([])
-                        }}
+                        className="h-8 gap-1.5 px-2.5 text-xs font-medium"
+                        onClick={() => toggleGoal(goal.id)}
+                        aria-expanded={isOpen}
                       >
-                        <Plus className="h-3.5 w-3.5" /> Sub-goal
+                        <ChevronDown
+                          className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")}
+                        />
+                        {isOpen ? "Hide details" : "Show details"}
+                        {!isOpen && detailBits.length > 0 && (
+                          <span className="text-muted-foreground font-normal">
+                            · {detailBits.join(" · ")}
+                          </span>
+                        )}
                       </Button>
-                      <Button
-                        variant="ghost"
-                        className="text-muted-foreground"
-                        onClick={() => setTaskFor(goal.id)}
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Task
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="text-muted-foreground"
-                        onClick={() => setLinkFor(goal.id)}
-                      >
-                        <ListChecks className="h-3.5 w-3.5" /> Link tasks
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="text-muted-foreground"
-                        onClick={() => setTargetFor(goal.id)}
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Target
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="text-muted-foreground"
-                        onClick={() => planWork(goal)}
-                      >
-                        <CalendarPlus className="h-3.5 w-3.5" /> Plan work
-                      </Button>
+                      {canManage && goal.isActive && (
+                        <div className="ml-auto flex flex-wrap gap-0.5">
+                          <Button
+                            variant="ghost"
+                            className="text-muted-foreground h-8 px-2.5 text-xs"
+                            onClick={() => {
+                              setSubFor(goal.id)
+                              setSubTitle("")
+                              setSubDate("")
+                              setSubTags([])
+                            }}
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Sub-goal
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="text-muted-foreground h-8 px-2.5 text-xs"
+                            onClick={() => {
+                              openGoal(goal.id)
+                              setTaskFor(goal.id)
+                            }}
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Task
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="text-muted-foreground h-8 px-2.5 text-xs"
+                            onClick={() => {
+                              openGoal(goal.id)
+                              setLinkFor(goal.id)
+                            }}
+                          >
+                            <ListChecks className="h-3.5 w-3.5" /> Link tasks
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="text-muted-foreground h-8 px-2.5 text-xs"
+                            onClick={() => {
+                              openGoal(goal.id)
+                              setTargetFor(goal.id)
+                            }}
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Target
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="text-muted-foreground h-8 px-2.5 text-xs"
+                            onClick={() => planWork(goal)}
+                          >
+                            <CalendarPlus className="h-3.5 w-3.5" /> Plan work
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
+                </div>
               </Card>
             )
           })}
@@ -1579,37 +1688,49 @@ function Rung({ n, sub }: { n: string; sub?: boolean }) {
   )
 }
 
-function Stat({
+/** Titles read in the foreground; the status has its own badge. Finished ones are struck through. */
+function titleTone(status: Status): string {
+  return status === "DONE" || status === "DISCARDED"
+    ? "text-muted-foreground line-through"
+    : "text-foreground"
+}
+
+function KpiTile({
   label,
   value,
   suffix,
-  accent,
   tone,
+  bar,
+  hint,
   small,
 }: {
   label: string
   value: string
   suffix?: string
-  accent?: boolean
-  tone?: "bad" | "warn" | "muted"
+  tone?: "primary" | "good" | "warn" | "bad" | "muted"
+  /** 0-100: a thin bar under the number. */
+  bar?: number
+  hint?: string
   small?: boolean
 }) {
   return (
-    <div>
-      <p className="text-muted-foreground text-[10px] tracking-widest uppercase">{label}</p>
+    <div className="bg-muted/20 rounded-sm border px-3.5 py-3" title={hint}>
+      <p className="text-muted-foreground text-[11px] font-medium">{label}</p>
       <p
         className={cn(
-          "font-bold tabular-nums",
-          small ? "text-sm" : "text-xl",
-          accent && "text-primary",
+          "mt-1 font-semibold tabular-nums",
+          small ? "text-base" : "text-2xl leading-none",
+          tone === "primary" && "text-primary",
+          tone === "good" && "text-emerald-600 dark:text-emerald-400",
+          tone === "warn" && "text-amber-600 dark:text-amber-400",
           tone === "bad" && "text-destructive",
-          tone === "warn" && "text-amber-500",
           tone === "muted" && "text-muted-foreground",
         )}
       >
         {value}
-        {suffix && <span className="text-muted-foreground text-sm font-normal"> {suffix}</span>}
+        {suffix && <span className="text-muted-foreground ml-1 text-sm font-normal">{suffix}</span>}
       </p>
+      {bar !== undefined && <ProgressBar value={bar} className="mt-2" />}
     </div>
   )
 }

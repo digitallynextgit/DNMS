@@ -36,8 +36,8 @@ export const projectGoalsGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Open the project and click the Goals tab (or Open goals on the Overview). The Project goals card (1) at the top shows the Overall percentage, how many goals are Done, how many are Overdue, how many are Slipping (only when some are), and the Next target date.",
-            hi: "प्रोजेक्ट खोलें और Goals टैब पर क्लिक करें (या Overview पर Open goals)। ऊपर Project goals कार्ड (1) में Overall प्रतिशत, कितने goals Done हैं, कितने Overdue हैं, कितने Slipping हैं (सिर्फ़ तब जब कोई हो), और अगली Next target तारीख दिखती है।",
+            en: "Open the project and click the Goals tab (or Open goals on the Overview). The Goals card (1) at the top shows five boxes: Overall progress, Goals done, Need attention (behind, at risk, unplanned or not reported), Past target, and the Next target date.",
+            hi: "प्रोजेक्ट खोलें और Goals टैब पर क्लिक करें (या Overview पर Open goals)। ऊपर Goals कार्ड (1) में पाँच बॉक्स हैं: Overall progress, Goals done, Need attention (पीछे, at risk, बिना प्लान या बिना रिपोर्ट वाले), Past target, और अगली Next target तारीख।",
           },
           shot: {
             id: "project-goals-board",
@@ -45,16 +45,16 @@ export const projectGoalsGuide: HelpGuide = {
             path: "/projects/sunmeadow-organics-launch?tab=goals",
             highlight: [
               // The whole summary card, not just its heading.
-              { css: 'div:has(> div > div > div > h3:text-is("Project goals"))' },
-              { role: "button", name: "Expand all" },
+              { css: 'div:has(> div > div > div > h3:text-is("Goals"))' },
+              { role: "button", name: "Show all details" },
               { role: "button", name: "Add goal" },
             ],
           },
         },
         {
           text: {
-            en: "Goals are listed below, numbered 1, 2, 3 (sub-goals are 1.1, 1.2). They start folded. Click a goal's title to open it, or click Expand all (2) to open every goal.",
-            hi: "नीचे goals की लिस्ट है, 1, 2, 3 नंबर के साथ (sub-goals 1.1, 1.2)। शुरू में सब बंद होते हैं। किसी goal को खोलने के लिए उसके टाइटल पर क्लिक करें, या सब खोलने के लिए Expand all (2) पर क्लिक करें।",
+            en: "Goals are listed below, numbered 1, 2, 3, each with its sub-goals (1.1, 1.2) always showing underneath. A goal's work, tasks and targets are tucked away: click Show details at the bottom of a goal, or Show all details (2) to open every goal.",
+            hi: "नीचे goals की लिस्ट है, 1, 2, 3 नंबर के साथ, और हर goal के नीचे उसके sub-goals (1.1, 1.2) हमेशा दिखते हैं। goal का काम, tasks और targets छिपे रहते हैं: goal के नीचे Show details पर क्लिक करें, या सब goals खोलने के लिए Show all details (2) पर क्लिक करें।",
           },
         },
         {
@@ -109,14 +109,14 @@ export const projectGoalsGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Open the goal. Its bottom row has Sub-goal (1), Task (2), Link tasks (3) and Target (4). Click Sub-goal to break the goal into steps, each with its own date.",
-            hi: "goal खोलें। उसकी नीचे वाली लाइन में Sub-goal (1), Task (2), Link tasks (3) और Target (4) हैं। goal को स्टेप्स में बाँटने के लिए Sub-goal पर क्लिक करें, हर स्टेप की अपनी तारीख होती है।",
+            en: "Every goal's bottom row has Sub-goal (1), Task (2), Link tasks (3) and Target (4). Click Sub-goal to break the goal into steps, each with its own date.",
+            hi: "हर goal की नीचे वाली लाइन में Sub-goal (1), Task (2), Link tasks (3) और Target (4) हैं। goal को स्टेप्स में बाँटने के लिए Sub-goal पर क्लिक करें, हर स्टेप की अपनी तारीख होती है।",
           },
           shot: {
             id: "project-goals-footer",
             as: "manager",
             path: "/projects/sunmeadow-organics-launch?tab=goals",
-            actions: [{ click: { role: "button", name: "Expand all" } }],
+            actions: [{ click: { role: "button", name: "Show all details" } }],
             // Goal 1's footer row (it comes first on the board), cropped to goal 1.
             highlight: [
               { role: "button", name: "Sub-goal" },
@@ -125,7 +125,7 @@ export const projectGoalsGuide: HelpGuide = {
               { role: "button", name: "Target", exact: true },
             ],
             crop: {
-              css: 'div:has(> div > div > div > h4:text-is("Launch the millet range online"))',
+              css: 'div:has(> div > div > div > div > div > button:text-is("Launch the millet range online"))',
             },
           },
         },
@@ -151,7 +151,7 @@ export const projectGoalsGuide: HelpGuide = {
             as: "manager",
             path: "/projects/sunmeadow-organics-launch?tab=goals",
             // Both boxes on the same goal: the first one with nothing under it,
-            // so it has a status box. The board stays folded, one row per goal.
+            // so it has a status box. Details stay hidden, so each goal is its head and sub-goals.
             highlight: [
               { role: "combobox", name: "Status for Grow Instagram to 25k followers" },
               { role: "button", name: "Actions for Grow Instagram to 25k followers" },
@@ -188,8 +188,8 @@ export const projectGoalsGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Open a goal and click Task, or pick Add task from the goal's three-dot button (team managers use the three-dot button). Type what needs doing, pick who it is for and the team, and click Add. The task is linked to the goal from the start.",
-            hi: "goal खोलें और Task पर क्लिक करें, या goal के तीन-डॉट बटन से Add task चुनें (टीम मैनेजर तीन-डॉट बटन इस्तेमाल करते हैं)। लिखें क्या करना है, किसे देना है और कौन सी टीम, फिर Add पर क्लिक करें। Task शुरू से ही goal से जुड़ा रहता है।",
+            en: "Click Task at the bottom of a goal, or pick Add task from the goal's three-dot button (team managers use the three-dot button). Type what needs doing, pick who it is for and the team, and click Add. The task is linked to the goal from the start.",
+            hi: "goal के नीचे Task पर क्लिक करें, या goal के तीन-डॉट बटन से Add task चुनें (टीम मैनेजर तीन-डॉट बटन इस्तेमाल करते हैं)। लिखें क्या करना है, किसे देना है और कौन सी टीम, फिर Add पर क्लिक करें। Task शुरू से ही goal से जुड़ा रहता है।",
           },
         },
         {
@@ -222,8 +222,8 @@ export const projectGoalsGuide: HelpGuide = {
         },
         {
           text: {
-            en: "To bring it back, click Show deactivated in the Project goals card, open the goal's three-dot button and pick Restore.",
-            hi: "वापस लाने के लिए Project goals कार्ड में Show deactivated पर क्लिक करें, goal का तीन-डॉट बटन खोलें और Restore चुनें।",
+            en: "To bring it back, click Show deactivated in the Goals card, open the goal's three-dot button and pick Restore.",
+            hi: "वापस लाने के लिए Goals कार्ड में Show deactivated पर क्लिक करें, goal का तीन-डॉट बटन खोलें और Restore चुनें।",
           },
         },
       ],
