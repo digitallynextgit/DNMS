@@ -2,10 +2,10 @@ import { HydrationBoundary, dehydrate } from "@tanstack/react-query"
 
 import { auth } from "@/server/auth"
 import { getQueryClient } from "@/lib/query-server"
-import { hasPermission } from "@/lib/permissions"
-import { PERMISSIONS } from "@/lib/constants"
+import { SYSTEM_ROLES } from "@/lib/constants"
 import { serialize } from "@/server/action-result"
-import { getDashboardStats, getMyDashboard } from "@/features/dashboard/server/dashboard.queries"
+import { getMyDashboard } from "@/features/dashboard/server/dashboard.queries"
+import { getLeadershipDashboard } from "@/features/dashboard/server/leadership.queries"
 
 import { DashboardClient } from "./dashboard-client"
 
@@ -15,22 +15,15 @@ export default async function DashboardPage() {
   const session = await auth()
 
   if (session) {
-    // Mirrors DashboardClient: employee:read → the org-wide HR panel.
-    const isManager = hasPermission(session, PERMISSIONS.EMPLOYEE_READ)
+    // Mirrors DashboardClient: admins get the company view, everyone else their own.
+    const roles = session.user.roles ?? []
+    const isAdmin = roles.includes(SYSTEM_ROLES.ADMIN) || roles.includes(SYSTEM_ROLES.ADMIN_)
     try {
-      if (isManager) {
-        // The API also needs dashboard:read; without it, don't seed a cache entry.
-        if (hasPermission(session, PERMISSIONS.DASHBOARD_READ)) {
-          await queryClient.prefetchQuery({
-            queryKey: ["dashboard-stats"],
-            // `normalize()` in the API layer adds `success: true` alongside the
-            // handler's own keys, and the client's queryFn caches the whole body.
-            queryFn: async () => ({
-              success: true,
-              ...serialize(await getDashboardStats(session.user.id)),
-            }),
-          })
-        }
+      if (isAdmin) {
+        await queryClient.prefetchQuery({
+          queryKey: ["dashboard-leadership"],
+          queryFn: async () => serialize(await getLeadershipDashboard(session)),
+        })
       } else {
         await queryClient.prefetchQuery({
           queryKey: ["dashboard-me"],

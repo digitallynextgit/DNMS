@@ -4,7 +4,7 @@ import { useSession } from "next-auth/react"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
-import { EmployeeDashboard } from "@/features/dashboard"
+import { EmployeeDashboard, LeadershipDashboard } from "@/features/dashboard"
 import { AnnouncementsCard, PhotoGalleryCard, BirthdaysCard } from "@/features/noticeboard"
 
 export function DashboardClient() {
@@ -18,7 +18,7 @@ export function DashboardClient() {
     day: "numeric",
   })
 
-  // One personal home page for every role; company-wide numbers live on Analytics.
+  // Admins aren't regular employees: they get the company today. Everyone else, their own work.
   const roles = session?.user.roles ?? []
   const isAdmin = roles.includes("admin") || roles.includes("admin_")
   const firstName = session?.user.firstName
@@ -31,7 +31,13 @@ export function DashboardClient() {
         description={dateString}
       />
 
-      {isLoading ? <CardGridSkeleton count={4} /> : <EmployeeDashboard showRating={!isAdmin} />}
+      {isLoading ? (
+        <CardGridSkeleton count={4} />
+      ) : isAdmin ? (
+        <LeadershipDashboard />
+      ) : (
+        <EmployeeDashboard />
+      )}
 
       {/* Company-wide noticeboard. */}
       {!isLoading && (

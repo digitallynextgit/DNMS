@@ -125,6 +125,18 @@ export const PEOPLE_COMPANY: DescriptionMap = {
       "The signed-in person's own dashboard: this month's attendance summary, leave balances, latest payslip (net pay), pending leave/WFH request counts, next holidays, unread notification count, and task workload (due today, overdue, running, hours this week).",
     keywords: ["my dashboard", "my summary", "my overview", "my day", "home page"],
   },
+  "GET /api/dashboard/leadership": {
+    summary:
+      "The admin home page in one call: today's people (working, away, working from home, not checked in, birthdays, holiday), attendance in vs expected, approvals waiting (leave, WFH, resignations), active projects with overdue tasks and late deliverables, the projects needing a look worst first, goals needing attention, this month's delivery scores (average, best and could-use-support), and joiners, onboarding, serving notice, open jobs and last payroll. Admin and admin_ only.",
+    keywords: [
+      "admin dashboard",
+      "leadership dashboard",
+      "company today",
+      "who is in today",
+      "projects at risk",
+      "company overview",
+    ],
+  },
   "GET /api/dashboard/stats": {
     summary:
       "Org-wide HR dashboard numbers: active headcount, joiners in the last 30 days, headcount by status and by department, total company documents, unread notifications across everyone, and the 5 most recent joiners. Needs dashboard:read.",

@@ -32,8 +32,8 @@ export const dashboardGuide: HelpGuide = {
       id: "your-day",
       title: { en: "Your day at a glance", hi: "आपका दिन एक नज़र में" },
       intro: {
-        en: "The Dashboard is the first page you see after signing in. Click Dashboard in the sidebar (Home on a phone) to come back to it. Everyone - employees, team leads, HR and admins - sees their own work here, with Welcome back and your name at the top.",
-        hi: "साइन इन करने के बाद सबसे पहले Dashboard ही दिखता है। यहाँ वापस आने के लिए साइडबार में Dashboard पर (फ़ोन पर Home पर) क्लिक करें। हर कोई - कर्मचारी, टीम लीड, HR और एडमिन - यहाँ अपना काम देखता है, और ऊपर Welcome back के साथ आपका नाम होता है।",
+        en: "The Dashboard is the first page you see after signing in. Click Dashboard in the sidebar (Home on a phone) to come back to it. Employees, team leads and HR see their own work here, with Welcome back and your name at the top.",
+        hi: "साइन इन करने के बाद सबसे पहले Dashboard ही दिखता है। यहाँ वापस आने के लिए साइडबार में Dashboard पर (फ़ोन पर Home पर) क्लिक करें। कर्मचारी, टीम लीड और HR यहाँ अपना काम देखते हैं, और ऊपर Welcome back के साथ आपका नाम होता है।",
       },
       steps: [
         {
@@ -176,6 +176,34 @@ export const dashboardGuide: HelpGuide = {
           text: {
             en: "Employee Birthdays (2) lists birthdays in the next 30 days. On someone's birthday, click Send wishes to send them your greetings.",
             hi: "Employee Birthdays (2) में अगले 30 दिनों के जन्मदिन दिखते हैं। किसी के जन्मदिन वाले दिन Send wishes पर क्लिक करके उन्हें शुभकामनाएँ भेजें।",
+          },
+        },
+      ],
+    },
+    {
+      id: "admin-dashboard",
+      title: { en: "For admins: the company today", hi: "एडमिन के लिए: आज की कंपनी" },
+      intro: {
+        en: "Admins aren't regular employees, so their Dashboard shows the company instead of their own work.",
+        hi: "एडमिन आम कर्मचारी नहीं होते, इसलिए उनका Dashboard उनके अपने काम की जगह पूरी कंपनी दिखाता है।",
+      },
+      steps: [
+        {
+          text: {
+            en: "The six boxes at the top: In today (who has checked in, of those expected), Away today, Waiting for a decision (leave, WFH and resignations), Active projects with their overdue tasks and late deliverables, Goals needing attention, and the company's average Delivery score. Click a box to open where its number comes from.",
+            hi: "ऊपर के छह बॉक्स: In today (जिन्हें आना था उनमें से कितने आ गए), Away today, Waiting for a decision (leave, WFH और resignations), Active projects और उनके overdue tasks व late deliverables, Goals needing attention, और कंपनी का औसत Delivery score। किसी बॉक्स पर क्लिक करें, उसका नंबर जहाँ से आता है वो पेज खुल जाएगा।",
+          },
+        },
+        {
+          text: {
+            en: "Projects needing a look lists the projects with goals at risk, overdue tasks or late deliverables, worst first - click a number to open it. Today shows who is away, working from home, not in yet, and birthdays.",
+            hi: "Projects needing a look में वो प्रोजेक्ट हैं जिनके goals at risk हैं, tasks overdue हैं या deliverables late हैं, सबसे खराब पहले - खोलने के लिए नंबर पर क्लिक करें। Today में दिखता है कि कौन छुट्टी पर है, घर से काम कर रहा है, अभी तक नहीं आया, और किसका जन्मदिन है।",
+          },
+        },
+        {
+          text: {
+            en: "Delivery this month shows who is doing best and who could use support. People and hiring has joiners, onboarding, people serving notice, open jobs and the last payroll.",
+            hi: "Delivery this month में दिखता है कि कौन सबसे अच्छा कर रहा है और किसे मदद चाहिए। People and hiring में नए लोग, onboarding, notice पर चल रहे लोग, खुली jobs और पिछला payroll है।",
           },
         },
       ],
