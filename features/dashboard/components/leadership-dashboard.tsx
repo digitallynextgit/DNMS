@@ -14,6 +14,7 @@ import {
   LogOut,
   PartyPopper,
   Target,
+  TriangleAlert,
   UserPlus,
   UserRoundPlus,
   Wallet,
@@ -417,8 +418,8 @@ export function LeadershipDashboard() {
   if (isLoading || !data) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          {Array.from({ length: 6 }).map((_, i) => (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-sm" />
           ))}
         </div>
@@ -443,7 +444,8 @@ export function LeadershipDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      {/* Two rows of four: the people today, then the work. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile
           href="/attendance/attendance-directory"
           title="In today"
@@ -458,8 +460,15 @@ export function LeadershipDashboard() {
           title="Away today"
           value={fullAway}
           suffix={`of ${people.working}`}
-          sub={`${people.wfh.length} working from home`}
+          sub={fullAway === 0 ? "Nobody is on leave" : "On leave or a holiday"}
           icon={CalendarOff}
+        />
+        <Tile
+          href="/wfh/requests"
+          title="Working from home"
+          value={people.wfh.length}
+          sub={people.wfh.length === 0 ? "Everyone is at the office" : "Approved for today"}
+          icon={Home}
         />
         <Tile
           href={
@@ -475,8 +484,16 @@ export function LeadershipDashboard() {
           href="/projects/my-projects"
           title="Active projects"
           value={projects.active}
-          sub={`${projects.overdueTasks} overdue tasks · ${projects.lateDeliverables} late deliverables`}
+          sub={`${projects.attention.length} need a look`}
           icon={FolderKanban}
+        />
+        <Tile
+          href="/projects/my-projects"
+          title="Overdue work"
+          value={projects.overdueTasks + projects.lateDeliverables}
+          sub={`${projects.overdueTasks} tasks · ${projects.lateDeliverables} deliverables`}
+          icon={TriangleAlert}
+          tone={projects.overdueTasks + projects.lateDeliverables > 0 ? "bad" : "good"}
         />
         <Tile
           href="/projects/progress"
@@ -492,7 +509,7 @@ export function LeadershipDashboard() {
           title="Delivery score"
           value={performance.average ?? "-"}
           suffix={performance.average !== null ? "/100" : undefined}
-          sub={`average of ${performance.scored} people this month`}
+          sub={`Average of ${performance.scored} people this month`}
           icon={Gauge}
           tone={performance.average === null ? undefined : scoreToneOf(performance.average)}
         />

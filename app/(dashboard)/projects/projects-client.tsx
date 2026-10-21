@@ -457,24 +457,24 @@ type AmView = "P" | "S"
 
 const AM_VIEW_LABEL: Record<AmView, string> = { P: "Primary", S: "Secondary" }
 
-/** "(Primary) v" beside the Account Manager header: show the primary or the secondary. */
+/** A "Primary v" chip beside the Account Manager header: show the primary or the secondary. */
 function AmViewSwitch({ value, onChange }: { value: AmView; onChange: (v: AmView) => void }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 text-[11px] font-normal"
+          className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex h-5 items-center gap-0.5 rounded-sm border px-1.5 text-[11px] leading-none font-medium"
           aria-label="Show the primary or the secondary Account Manager"
         >
-          ({AM_VIEW_LABEL[value]})
+          {AM_VIEW_LABEL[value]}
           <ChevronDown className="h-3 w-3" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuRadioGroup value={value} onValueChange={(v) => onChange(v as AmView)}>
-          <DropdownMenuRadioItem value="P">P · Primary</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="S">S · Secondary</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="P">Primary</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="S">Secondary</DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>

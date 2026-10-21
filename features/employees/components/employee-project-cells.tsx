@@ -88,7 +88,7 @@ export function projectRolesText(e: EmployeeListItem): string {
     .join("; ")
 }
 
-/** "(Primary) v" beside the column header, as on the Projects list. */
+/** A "Primary v" chip beside the column header, as on the Projects list. */
 export function AmViewSwitch({
   value,
   onChange,
@@ -101,17 +101,17 @@ export function AmViewSwitch({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 text-[11px] font-normal"
+          className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex h-5 items-center gap-0.5 rounded-sm border px-1.5 text-[11px] leading-none font-medium"
           aria-label="Show the projects they run as primary or as secondary account manager"
         >
-          ({AM_VIEW_LABEL[value]})
+          {AM_VIEW_LABEL[value]}
           <ChevronDown className="h-3 w-3" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuRadioGroup value={value} onValueChange={(v) => onChange(v as AmView)}>
-          <DropdownMenuRadioItem value="P">P · Primary</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="S">S · Secondary</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="P">Primary</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="S">Secondary</DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
