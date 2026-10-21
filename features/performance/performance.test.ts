@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { BANDS_LOW_TO_HIGH, bandForPercent, scalePosition, scorePercent } from "./performance"
+import {
+  BANDS_LOW_TO_HIGH,
+  bandForPercent,
+  latestScored,
+  scalePosition,
+  scorePercent,
+} from "./performance"
 
 describe("scorePercent", () => {
   it("scales a 1 to 5 rating and keeps a 0 to 100 score", () => {
@@ -27,5 +33,23 @@ describe("scalePosition", () => {
   it("clamps scores outside 0 to 100", () => {
     expect(scalePosition(-5)).toBe(0)
     expect(scalePosition(120)).toBe(100)
+  })
+})
+
+describe("latestScored", () => {
+  it("takes the newest review the manager has scored, before the self-review is in", () => {
+    const evals = [
+      { id: "oct", status: "MANAGER_DONE", finalScore: 92 },
+      { id: "jul", status: "COMPLETED", finalScore: 98.4 },
+    ]
+    expect(latestScored(evals)?.id).toBe("oct")
+  })
+  it("skips reviews nobody has scored yet", () => {
+    const evals = [
+      { id: "jan", status: "PENDING", finalScore: null },
+      { id: "oct", status: "COMPLETED", finalScore: 92 },
+    ]
+    expect(latestScored(evals)?.id).toBe("oct")
+    expect(latestScored([{ finalScore: null }])).toBeNull()
   })
 })

@@ -66,6 +66,17 @@ export interface PerformanceAction {
   tone: PerformanceTone
 }
 
+/**
+ * Someone's current rating: their newest evaluation with a score. The manager's score is the
+ * official one, so a review counts once the manager has scored it, before the self-review is in.
+ * `evaluations` newest first, as the API returns them.
+ */
+export function latestScored<E extends { finalScore: number | null }>(
+  evaluations: readonly E[],
+): E | null {
+  return evaluations.find((ev) => ev.finalScore != null) ?? null
+}
+
 /** A 1 to 5 rating or a 0 to 100 score, as a 0 to 100 percentage. */
 export function scorePercent(score: number): number {
   return score <= 5 ? score * 20 : score

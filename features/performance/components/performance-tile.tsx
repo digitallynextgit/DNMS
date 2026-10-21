@@ -10,6 +10,7 @@ import { useEvaluations } from "../hooks/use-evaluations"
 import {
   BANDS_LOW_TO_HIGH,
   bandForPercent,
+  latestScored,
   scalePosition,
   scorePercent,
   type PerformanceTone,
@@ -33,8 +34,8 @@ const TONE_BAR: Record<PerformanceTone, string> = {
 export function PerformanceTile({ className }: { className?: string }) {
   const { data, isLoading } = useEvaluations({ mine: true, limit: 20 })
   const mine = data?.data ?? []
-  // Newest first. Only signed-off reviews count: a score can exist before the final sign-off.
-  const latest = mine.find((ev) => ev.status === "COMPLETED" && ev.finalScore != null)
+  // The newest review the manager has scored - as My Performance shows it.
+  const latest = latestScored(mine)
   const pct = latest ? scorePercent(latest.finalScore!) : null
   const band = pct != null ? bandForPercent(pct) : null
   const inProgress = mine.some((ev) => ev.status !== "COMPLETED")

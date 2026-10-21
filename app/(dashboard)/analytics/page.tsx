@@ -11,12 +11,18 @@ import {
   CheckSquare,
   Building2,
   Clock,
+  FileText,
 } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
 import { StatCardsSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatCurrency } from "@/lib/utils"
+import {
+  HrQuickActions,
+  RecentJoinersCard,
+  type RecentJoiner,
+} from "@/features/analytics/components/analytics-people"
 
 // Charts are code-split: recharts only downloads once the analytics data is in.
 const AnalyticsCharts = dynamic(
@@ -36,6 +42,9 @@ const AnalyticsCharts = dynamic(
 interface AnalyticsData {
   employees: { total: number; active: number; newThisMonth: number; newLastMonth: number }
   departments: { name: string; count: number }[]
+  unassigned: number
+  documents: { total: number }
+  recentJoiners: RecentJoiner[]
   leave: { pending: number; approvedThisMonth: number }
   attendance: Record<string, number>
   payroll: {
@@ -96,7 +105,7 @@ export default function AnalyticsPage() {
         <StatCard
           title="Total Employees"
           value={d.employees.total}
-          description={`${d.employees.active} active`}
+          description={`${d.employees.active} working now`}
           icon={Users}
           trend={{ value: hireDelta, label: "vs last month" }}
         />
@@ -141,12 +150,23 @@ export default function AnalyticsPage() {
         <StatCard
           title="Departments"
           value={d.departments.length}
-          description="across organisation"
+          description={`${d.departments.filter((x) => x.count > 0).length} with people in them`}
           icon={Building2}
+        />
+        <StatCard
+          title="Documents"
+          value={d.documents.total}
+          description="uploaded company documents"
+          icon={FileText}
         />
       </div>
 
       <AnalyticsCharts d={d} />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <RecentJoinersCard joiners={d.recentJoiners} />
+        <HrQuickActions />
+      </div>
     </div>
   )
 }

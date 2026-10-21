@@ -6,7 +6,7 @@ import { Link } from "@/components/tenant-link"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useEvaluations } from "../hooks/use-evaluations"
-import { bandForPercent, scorePercent, type PerformanceTone } from "../performance"
+import { bandForPercent, latestScored, scorePercent, type PerformanceTone } from "../performance"
 
 // A soft wash in the band's colour, no border - it sits among borderless icon buttons.
 const TONE: Record<PerformanceTone, string> = {
@@ -23,8 +23,8 @@ export function RatingChip() {
   const { data, isLoading } = useEvaluations({ mine: true, limit: 20 })
   if (isLoading) return null
   const mine = data?.data ?? []
-  // Newest first. Only signed-off reviews count: a score can exist before the final sign-off.
-  const latest = mine.find((ev) => ev.status === "COMPLETED" && ev.finalScore != null)
+  // The newest review the manager has scored - as My Performance shows it.
+  const latest = latestScored(mine)
   const pct = latest ? Math.round(scorePercent(latest.finalScore!) * 10) / 10 : null
   const band = pct != null ? bandForPercent(pct) : null
   const inProgress = mine.some((ev) => ev.status !== "COMPLETED")

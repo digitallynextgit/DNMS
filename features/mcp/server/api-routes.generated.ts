@@ -10,7 +10,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         permissions: ["analytics:read"],
         guard: "withAuth",
-        doc: "Company-wide executive analytics: headcount (total, active, new this month vs last), headcount by department, pending/approved leave, attendance status counts this month, last month's payroll totals, open jobs and applicants by stage, active projects, tasks completed, 6-month hiring trend. Needs analytics:read. Note: payroll covers the PREVIOUS month even though payroll.periodLabel shows the current month name. Figures can be up to a minute old.",
+        doc: "Company-wide executive analytics: headcount (total including leavers, working now, new this month vs last), headcount of people working now by department plus those with no department, pending/approved leave, attendance status counts this month, last month's payroll totals, open jobs and applicants by stage, active projects, tasks completed, 6-month hiring trend, total documents and the most recent joiners. Needs analytics:read. Note: payroll covers the PREVIOUS month even though payroll.periodLabel shows the current month name. Figures can be up to a minute old.",
         keywords: [
           "company analytics",
           "HR metrics",

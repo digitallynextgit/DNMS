@@ -82,7 +82,7 @@ export const PEOPLE_COMPANY: DescriptionMap = {
   },
   "GET /api/analytics": {
     summary:
-      "Company-wide executive analytics: headcount (total, active, new this month vs last), headcount by department, pending/approved leave, attendance status counts this month, last month's payroll totals, open jobs and applicants by stage, active projects, tasks completed, 6-month hiring trend. Needs analytics:read.",
+      "Company-wide executive analytics: headcount (total including leavers, working now, new this month vs last), headcount of people working now by department plus those with no department, pending/approved leave, attendance status counts this month, last month's payroll totals, open jobs and applicants by stage, active projects, tasks completed, 6-month hiring trend, total documents and the most recent joiners. Needs analytics:read.",
     keywords: [
       "company analytics",
       "HR metrics",

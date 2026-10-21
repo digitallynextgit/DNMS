@@ -1,5 +1,4 @@
 import { LayoutDashboard } from "lucide-react"
-import { PERMISSIONS } from "@/lib/constants"
 import type { HelpGuide } from "../../types"
 
 export const dashboardGuide: HelpGuide = {
@@ -22,7 +21,6 @@ export const dashboardGuide: HelpGuide = {
     "holidays",
     "birthday",
     "announcements",
-    "headcount",
     "होम",
     "डैशबोर्ड",
     "आज का काम",
@@ -34,14 +32,14 @@ export const dashboardGuide: HelpGuide = {
       id: "your-day",
       title: { en: "Your day at a glance", hi: "आपका दिन एक नज़र में" },
       intro: {
-        en: "The Dashboard is the first page you see after signing in. Click Dashboard in the sidebar (Home on a phone) to come back to it. Employees and team leads see their own work here, with Welcome back and your name at the top.",
-        hi: "साइन इन करने के बाद सबसे पहले Dashboard ही दिखता है। यहाँ वापस आने के लिए साइडबार में Dashboard पर (फ़ोन पर Home पर) क्लिक करें। कर्मचारी और टीम लीड यहाँ अपना काम देखते हैं, और ऊपर Welcome back के साथ आपका नाम होता है।",
+        en: "The Dashboard is the first page you see after signing in. Click Dashboard in the sidebar (Home on a phone) to come back to it. Everyone - employees, team leads, HR and admins - sees their own work here, with Welcome back and your name at the top.",
+        hi: "साइन इन करने के बाद सबसे पहले Dashboard ही दिखता है। यहाँ वापस आने के लिए साइडबार में Dashboard पर (फ़ोन पर Home पर) क्लिक करें। हर कोई - कर्मचारी, टीम लीड, HR और एडमिन - यहाँ अपना काम देखता है, और ऊपर Welcome back के साथ आपका नाम होता है।",
       },
       steps: [
         {
           text: {
-            en: "The five boxes at the top: Due Today (1) and Overdue (2) are your open tasks. Present This Month (3) is your attendance. Leave Available adds up all your leave, and says how many of your leave and WFH requests are still waiting for approval. My Rating (4) is the score from your latest finished review, with a dot showing where it sits on the rating scale - click it to open My Performance.",
-            hi: "ऊपर के पाँच बॉक्स: Due Today (1) और Overdue (2) आपके खुले टास्क हैं। Present This Month (3) आपकी हाज़िरी है। Leave Available आपकी सारी छुट्टियों का जोड़ है, और ये भी बताता है कि आपकी कितनी leave और WFH रिक्वेस्ट की मंज़ूरी बाकी है। My Rating (4) आपके पिछले पूरे हुए review का स्कोर है, और एक बिंदु दिखाता है कि वो rating scale पर कहाँ है - My Performance खोलने के लिए उस पर क्लिक करें।",
+            en: "The five boxes at the top: Due Today (1) and Overdue (2) are your open tasks. Present This Month (3) is your attendance. Leave Available adds up all your leave, and says how many of your leave and WFH requests are still waiting for approval. My Rating (4) is the score from your latest review your manager has scored, with a dot showing where it sits on the rating scale - click it to open My Performance. The same score sits in the top bar on every page.",
+            hi: "ऊपर के पाँच बॉक्स: Due Today (1) और Overdue (2) आपके खुले टास्क हैं। Present This Month (3) आपकी हाज़िरी है। Leave Available आपकी सारी छुट्टियों का जोड़ है, और ये भी बताता है कि आपकी कितनी leave और WFH रिक्वेस्ट की मंज़ूरी बाकी है। My Rating (4) आपके सबसे नए review का स्कोर है जिसे आपके मैनेजर ने भर दिया है, और एक बिंदु दिखाता है कि वो rating scale पर कहाँ है - My Performance खोलने के लिए उस पर क्लिक करें। यही स्कोर हर पेज पर ऊपर की बार में भी दिखता है।",
           },
           shot: {
             id: "dashboard-employee-top",
@@ -179,56 +177,6 @@ export const dashboardGuide: HelpGuide = {
             en: "Employee Birthdays (2) lists birthdays in the next 30 days. On someone's birthday, click Send wishes to send them your greetings.",
             hi: "Employee Birthdays (2) में अगले 30 दिनों के जन्मदिन दिखते हैं। किसी के जन्मदिन वाले दिन Send wishes पर क्लिक करके उन्हें शुभकामनाएँ भेजें।",
           },
-        },
-      ],
-    },
-    {
-      id: "hr-dashboard",
-      title: {
-        en: "For HR and admins: the company dashboard",
-        hi: "HR और एडमिन के लिए: कंपनी का डैशबोर्ड",
-      },
-      permission: PERMISSIONS.EMPLOYEE_READ,
-      intro: {
-        en: "If you can open the employee directory, the Dashboard shows the whole company instead of your own work.",
-        hi: "अगर आप employee directory खोल सकते हैं, तो Dashboard आपके अपने काम की जगह पूरी कंपनी का हाल दिखाता है।",
-      },
-      steps: [
-        {
-          text: {
-            en: "The boxes at the top show Total Employees (1), New This Month, Total Documents and Unread Notifications.",
-            hi: "ऊपर के बॉक्स Total Employees (1), New This Month, Total Documents और Unread Notifications दिखाते हैं।",
-          },
-          shot: {
-            id: "dashboard-hr",
-            as: "hr",
-            path: "/dashboard",
-            highlight: [
-              { text: "Total Employees" },
-              { text: "Department Headcount" },
-              { text: "Employee Status", exact: true },
-              { text: "Recent Joiners" },
-              { text: "Quick Actions" },
-            ],
-          },
-        },
-        {
-          text: {
-            en: "Department Headcount (2) shows how many people work in each department. Employee Status (3) shows how many people are in each status, such as Active, On Leave or Resigned.",
-            hi: "Department Headcount (2) बताता है कि हर डिपार्टमेंट में कितने लोग हैं। Employee Status (3) बताता है कि हर स्टेटस में कितने लोग हैं, जैसे Active, On Leave या Resigned।",
-          },
-        },
-        {
-          text: {
-            en: "Recent Joiners (4) lists the newest people with their joining date. Quick Actions (5) has shortcuts to Add New Employee, Upload Document and View Audit Log.",
-            hi: "Recent Joiners (4) में सबसे नए लोग उनकी joining date के साथ दिखते हैं। Quick Actions (5) में Add New Employee, Upload Document और View Audit Log के शॉर्टकट हैं।",
-          },
-        },
-      ],
-      tips: [
-        {
-          en: "Your own leave, tasks and payslips are not on this view. Open them from the Employee section of the sidebar, like My Leave or My Payslips.",
-          hi: "आपकी अपनी छुट्टी, टास्क और सैलरी स्लिप इस व्यू में नहीं हैं। उन्हें साइडबार के Employee हिस्से से खोलें, जैसे My Leave या My Payslips।",
         },
       ],
     },

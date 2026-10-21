@@ -37,7 +37,7 @@ export const analyticsGuide: HelpGuide = {
             id: "analytics-cards",
             as: "hr",
             path: "/analytics",
-            actions: [{ waitFor: { text: "Headcount by Department" } }],
+            actions: [{ waitFor: { text: "Department Headcount" } }],
             highlight: [
               { text: "Total Employees", exact: true },
               { text: "Pending Leaves", exact: true },
@@ -59,8 +59,8 @@ export const analyticsGuide: HelpGuide = {
       title: { en: "What each card means", hi: "हर कार्ड का मतलब" },
       tips: [
         {
-          en: "Total Employees: everyone in DNMS, including people who have left. Below it, how many are active. The small up or down number compares this month's new people with last month's.",
-          hi: "Total Employees: DNMS में सभी लोग, कंपनी छोड़ चुके लोग भी। नीचे लिखा है कि कितने active हैं। छोटा ऊपर या नीचे वाला नंबर इस महीने जुड़े लोगों की तुलना पिछले महीने से करता है।",
+          en: "Total Employees: everyone in DNMS, including people who have left. Below it, how many are working here now. The small up or down number compares this month's new people with last month's.",
+          hi: "Total Employees: DNMS में सभी लोग, कंपनी छोड़ चुके लोग भी। नीचे लिखा है कि अभी कितने लोग यहाँ काम कर रहे हैं। छोटा ऊपर या नीचे वाला नंबर इस महीने जुड़े लोगों की तुलना पिछले महीने से करता है।",
         },
         {
           en: "New Hires This Month: people added to DNMS this month, with last month's number below.",
@@ -87,8 +87,12 @@ export const analyticsGuide: HelpGuide = {
           hi: "Last Payroll Net: पिछले महीने की पेस्लिप्स की कुल हाथ में मिलने वाली सैलरी, और कितनी पेस्लिप हैं। यह तभी दिखता है जब पिछले महीने का पेरोल generate हो चुका हो।",
         },
         {
-          en: "Departments: how many departments the company has.",
-          hi: "Departments: कंपनी में कितने डिपार्टमेंट हैं।",
+          en: "Departments: how many departments the company has, and how many have people in them.",
+          hi: "Departments: कंपनी में कितने डिपार्टमेंट हैं, और कितनों में लोग हैं।",
+        },
+        {
+          en: "Documents: how many company documents have been uploaded.",
+          hi: "Documents: कंपनी के कितने डॉक्यूमेंट अपलोड हुए हैं।",
         },
       ],
       faq: [
@@ -110,8 +114,8 @@ export const analyticsGuide: HelpGuide = {
       steps: [
         {
           text: {
-            en: "Monthly Hires (6 months) (1) shows how many people were added each month. Headcount by Department (2) shows the active people in the 8 biggest departments.",
-            hi: "Monthly Hires (6 months) (1) दिखाता है कि हर महीने कितने लोग जुड़े। Headcount by Department (2) सबसे बड़े 8 डिपार्टमेंट्स में active लोगों की गिनती दिखाता है।",
+            en: "Monthly Hires (6 months) (1) shows how many people were added each month. Department Headcount (2) shows the people working here now in every department, biggest first, with the number at the end of each bar - and anyone with no department.",
+            hi: "Monthly Hires (6 months) (1) दिखाता है कि हर महीने कितने लोग जुड़े। Department Headcount (2) हर डिपार्टमेंट में अभी काम कर रहे लोगों की गिनती दिखाता है, सबसे बड़ा पहले, हर बार के आखिर में नंबर के साथ - और वो लोग भी जिनका कोई डिपार्टमेंट नहीं है।",
           },
           shot: {
             id: "analytics-charts",
@@ -121,7 +125,7 @@ export const analyticsGuide: HelpGuide = {
             actions: [{ waitFor: { text: "Recruitment Pipeline" } }, { wait: 1500 }],
             highlight: [
               { text: "Monthly Hires (6 months)" },
-              { text: "Headcount by Department" },
+              { text: "Department Headcount" },
               { text: "Employee Status Distribution" },
               { text: "Recruitment Pipeline" },
             ],
@@ -138,6 +142,12 @@ export const analyticsGuide: HelpGuide = {
           text: {
             en: "Point at a bar or a slice to see its exact number.",
             hi: "किसी बार या हिस्से पर माउस ले जाएँ, उसका सही नंबर दिख जाएगा।",
+          },
+        },
+        {
+          text: {
+            en: "Below the charts, Recent Joiners lists the newest people with their role and joining date - click a name to open their profile. Quick Actions has shortcuts to Add New Employee, Upload Document and View Audit Log, for whoever may use them.",
+            hi: "चार्ट्स के नीचे Recent Joiners में सबसे नए लोग उनके role और joining date के साथ दिखते हैं - प्रोफ़ाइल खोलने के लिए नाम पर क्लिक करें। Quick Actions में Add New Employee, Upload Document और View Audit Log के शॉर्टकट हैं, उनके लिए जिन्हें ये इस्तेमाल करने की अनुमति है।",
           },
         },
       ],

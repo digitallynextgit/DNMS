@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
-import { PERMISSIONS } from "@/lib/constants"
-import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
+import { HIDDEN_ROLES, PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
+import { EMPLOYEE_SUMMARY_SELECT, VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import type { Session } from "next-auth"
 
 export const GET = withAuth(
@@ -37,9 +37,14 @@ export const GET = withAuth(
         tasksCompleted,
         hireTrendCounts,
         statusDistribution,
+        unassigned,
+        totalDocuments,
+        recentJoiners,
       ] = await Promise.all([
         db.employee.count({ where: { ...VISIBLE_EMPLOYEE_FILTER } }),
-        db.employee.count({ where: { status: "ACTIVE", ...VISIBLE_EMPLOYEE_FILTER } }),
+        db.employee.count({
+          where: { status: "ACTIVE", isActive: true, ...VISIBLE_EMPLOYEE_FILTER },
+        }),
         db.employee.count({
           where: { createdAt: { gte: startOfMonth }, ...VISIBLE_EMPLOYEE_FILTER },
         }),
@@ -50,7 +55,11 @@ export const GET = withAuth(
           select: {
             name: true,
             _count: {
-              select: { employees: { where: { status: "ACTIVE", ...VISIBLE_EMPLOYEE_FILTER } } },
+              select: {
+                employees: {
+                  where: { status: "ACTIVE", isActive: true, ...VISIBLE_EMPLOYEE_FILTER },
+                },
+              },
             },
           },
           orderBy: { employees: { _count: "desc" } },
@@ -87,6 +96,34 @@ export const GET = withAuth(
           where: { ...VISIBLE_EMPLOYEE_FILTER },
           _count: { id: true },
         }),
+        // People working here with no department set, so the headcount adds up.
+        db.employee.count({
+          where: {
+            status: "ACTIVE",
+            isActive: true,
+            departmentId: null,
+            ...VISIBLE_EMPLOYEE_FILTER,
+          },
+        }),
+        db.document.count(),
+        // Leadership isn't listed as joiners; a joiner needs a joining date (nulls sort first).
+        db.employee.findMany({
+          where: {
+            isActive: true,
+            dateOfJoining: { not: null },
+            employeeRoles: {
+              none: { role: { name: { in: [...HIDDEN_ROLES, SYSTEM_ROLES.ADMIN] } } },
+            },
+          },
+          orderBy: { dateOfJoining: "desc" },
+          take: 6,
+          select: {
+            ...EMPLOYEE_SUMMARY_SELECT,
+            dateOfJoining: true,
+            designation: { select: { title: true } },
+            department: { select: { name: true } },
+          },
+        }),
       ])
 
       const hireTrend = hireTrendMonths.map(({ d }, i) => ({
@@ -114,6 +151,17 @@ export const GET = withAuth(
               newLastMonth,
             },
             departments: deptHeadcount.map((d) => ({ name: d.name, count: d._count.employees })),
+            unassigned,
+            documents: { total: totalDocuments },
+            recentJoiners: recentJoiners.map((e) => ({
+              id: e.id,
+              firstName: e.firstName,
+              lastName: e.lastName,
+              profilePhoto: e.profilePhoto,
+              designation: e.designation?.title ?? null,
+              department: e.department?.name ?? null,
+              dateOfJoining: e.dateOfJoining?.toISOString().slice(0, 10) ?? null,
+            })),
             leave: { pending: pendingLeaves, approvedThisMonth: approvedLeavesThisMonth },
             attendance: attendanceThisMonth.reduce(
               (acc, g) => ({ ...acc, [g.status]: g._count.id }),

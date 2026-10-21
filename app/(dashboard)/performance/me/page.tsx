@@ -22,7 +22,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EVALUATION_STATUS_COLORS, EVALUATION_STATUS_LABELS } from "@/lib/constants"
-import { useEvaluations, type Evaluation, PerformanceScale } from "@/features/performance"
+import {
+  latestScored,
+  useEvaluations,
+  type Evaluation,
+  PerformanceScale,
+} from "@/features/performance"
 
 const STATUS_ORDER = Object.keys(EVALUATION_STATUS_LABELS)
 
@@ -58,7 +63,7 @@ export default function MyPerformancePage() {
   ).length
 
   // Highlight the employee's band using their most recent scored evaluation.
-  const latestScore = mine.find((ev) => ev.finalScore != null)?.finalScore ?? null
+  const latestScore = latestScored(mine)?.finalScore ?? null
 
   const mineColumns: DataTableColumn<Evaluation>[] = [
     {

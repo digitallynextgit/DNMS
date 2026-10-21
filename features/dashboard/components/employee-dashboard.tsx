@@ -115,7 +115,8 @@ async function fetchEmployeeDashboard(): Promise<EmployeeDashboardData> {
   return res.json()
 }
 
-export function EmployeeDashboard() {
+/** Everyone's home page, HR and admins included; admins aren't reviewed, so `showRating` is off. */
+export function EmployeeDashboard({ showRating = true }: { showRating?: boolean }) {
   const { data, isLoading, isError, error } = useQuery<EmployeeDashboardData, Error>({
     queryKey: ["dashboard-me"],
     queryFn: fetchEmployeeDashboard,
@@ -134,7 +135,9 @@ export function EmployeeDashboard() {
       )}
 
       {/* Five at a glance; the rest (running clock, request detail) lives in the panels below. */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div
+        className={cn("grid grid-cols-2 gap-3", showRating ? "lg:grid-cols-5" : "lg:grid-cols-4")}
+      >
         <StatCard
           title="Due Today"
           value={work?.counts.dueToday ?? 0}
@@ -169,7 +172,7 @@ export function EmployeeDashboard() {
           loading={isLoading}
         />
         {/* Full width on phones, where the six tiles above fill three rows of two. */}
-        <PerformanceTile className="col-span-2 lg:col-span-1" />
+        {showRating && <PerformanceTile className="col-span-2 lg:col-span-1" />}
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
