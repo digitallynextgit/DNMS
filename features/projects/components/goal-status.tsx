@@ -4,6 +4,7 @@ import { TrendingDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import type { GoalNode, GoalSeriesInfo } from "../lib/goal-derivation"
+import type { GoalPlans } from "../lib/goal-plan"
 
 // Shared goal vocabulary. Types mirror ProjectGoalsSummary in ../server/goals.service.ts.
 
@@ -50,6 +51,8 @@ export interface GoalsSummary {
   month?: string
   /** The project's recurring goals, for the month switcher and the growth chart. */
   series?: GoalSeriesInfo[]
+  /** The deliverables serving each goal, by team. */
+  plans?: GoalPlans
 }
 
 /** Used before the first response and on failure, instead of null checks everywhere. */

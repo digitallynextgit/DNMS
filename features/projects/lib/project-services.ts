@@ -1,3 +1,5 @@
+import type { ProjectTeamName } from "./project-teams"
+
 /**
  * Services a project can include, in the order they are listed everywhere. Each ticked service gets
  * its own monthly calendar (`calendar`), managed by the service's owner.
@@ -97,6 +99,26 @@ export function normaliseServices(input: unknown): ProjectServiceCode[] {
 
 export function serviceInfo(code: string) {
   return PROJECT_SERVICES.find((s) => s.code === code)
+}
+
+/** The teams (PROJECT_TEAMS names) that usually make a service's work - suggestions, not rules. */
+export const SERVICE_TEAMS: Record<ProjectServiceCode, readonly ProjectTeamName[]> = {
+  SMO: ["SMO", "DESIGN", "VIDEO", "CONTENT"],
+  SEO: ["SEO", "CONTENT", "WEB"],
+  PM: ["PERFORMANCE", "DESIGN", "VIDEO"],
+  MSG: ["CONTENT", "DESIGN"],
+  INF: ["SMO", "VIDEO", "CONTENT"],
+  ALL: ["ALLIANCES & PARTNERSHIPS"],
+  DPR: ["PR", "CONTENT"],
+  WEB: ["WEB", "DESIGN", "CONTENT"],
+  CAMP: ["AM", "DESIGN", "CONTENT"],
+  OFF: ["DESIGN", "AM"],
+  BD: ["AM"],
+  BRAND: ["DESIGN"],
+}
+
+export function serviceTeams(code: string | null | undefined): readonly string[] {
+  return isProjectService(code) ? SERVICE_TEAMS[code] : []
 }
 
 /** The person answering for one service on a project. */

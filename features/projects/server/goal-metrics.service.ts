@@ -14,7 +14,13 @@ import {
   type GoalActualMap,
   type GoalSeriesInfo,
 } from "../lib/goal-derivation"
-import { periodKey, planMonthPeriod, type GoalPeriod } from "../lib/goal-periods"
+import {
+  monthPeriod,
+  periodKey,
+  planMonthPeriod,
+  shiftPlanWindow,
+  type GoalPeriod,
+} from "../lib/goal-periods"
 import { formatMonth } from "../lib/calendar-months"
 import { projectHref } from "../lib/project-href"
 import { canManageProject } from "./project-access"
@@ -275,6 +281,7 @@ const EDITION_SELECT = {
     where: { isActive: true },
     orderBy: GOAL_ORDER,
     select: {
+      id: true,
       title: true,
       description: true,
       tags: true,
@@ -291,9 +298,10 @@ const EDITION_SELECT = {
 
 /**
  * Every repeating goal gets this month's edition, copied from its latest: the goal, its parts (owned
- * by each service's owner now) and their deliverable targets, moved to the new month. Results,
- * tasks and deliverables are not copied - each month is judged on its own. Safe to run any time:
- * the database allows one main goal per series per month. Returns the editions created.
+ * by each service's owner now), their deliverable targets and their planned work (owed again,
+ * unclaimed), moved to the new month. Results and tasks are not copied - each month is judged on its
+ * own. Safe to run any time: the database allows one main goal per series per month. Returns the
+ * editions created.
  */
 export async function ensureGoalEditions(
   opts: { projectId?: string; now?: Date } = {},
@@ -335,9 +343,33 @@ export async function ensureGoalEditions(
         periodEnd: t.periodStart ? month.end : null,
       }))
     const from = latest.periodStart ? formatMonth(ymd(latest.periodStart)) : "the last month"
+    // The work planned for last month's edition is owed again, each window moved into the new month.
+    const fromMonth = latest.periodStart ? monthPeriod(periodKey(latest.periodStart)) : null
+    const planned = fromMonth
+      ? await db.projectDeliverable.findMany({
+          where: {
+            goalId: { in: [latest.id, ...latest.children.map((c) => c.id)] },
+            status: { not: "DISCARDED" },
+            teamId: { not: null },
+            periodStart: { not: null },
+            periodEnd: { not: null },
+          },
+          select: {
+            goalId: true,
+            teamId: true,
+            type: true,
+            title: true,
+            quantity: true,
+            notes: true,
+            periodStart: true,
+            periodEnd: true,
+          },
+        })
+      : []
 
     try {
       const goalId = await db.$transaction(async (tx) => {
+        const newIds = new Map<string, string>()
         const goal = await tx.projectGoal.create({
           data: {
             projectId: s.projectId,
@@ -356,6 +388,7 @@ export async function ensureGoalEditions(
           },
           select: { id: true },
         })
+        newIds.set(latest.id, goal.id)
         await tx.projectGoalEvent.create({
           data: {
             goalId: goal.id,
@@ -388,6 +421,7 @@ export async function ensureGoalEditions(
             },
             select: { id: true },
           })
+          newIds.set(c.id, child.id)
           await tx.projectGoalEvent.create({
             data: {
               goalId: child.id,
@@ -399,6 +433,46 @@ export async function ensureGoalEditions(
           for (const t of moveTargets(c.targets)) {
             await tx.projectGoalTarget.create({ data: { goalId: child.id, ...t } })
           }
+        }
+
+        const copies = planned.flatMap((r) => {
+          const window = shiftPlanWindow(
+            { start: r.periodStart!, end: r.periodEnd! },
+            fromMonth!,
+            month,
+          )
+          const forGoal = r.goalId ? newIds.get(r.goalId) : undefined
+          if (!window || !forGoal) return []
+          // Owed by the team again and unclaimed: whoever picks it up this month claims it.
+          return [
+            {
+              projectId: s.projectId,
+              teamId: r.teamId,
+              goalId: forGoal,
+              type: r.type,
+              title: r.title,
+              quantity: r.quantity,
+              notes: r.notes,
+              status: "PLANNED" as const,
+              dueOn: window.end,
+              periodStart: window.start,
+              periodEnd: window.end,
+            },
+          ]
+        })
+        if (copies.length > 0) {
+          const made = await tx.projectDeliverable.createManyAndReturn({
+            data: copies,
+            select: { id: true },
+          })
+          await tx.projectDeliverableEvent.createMany({
+            data: made.map((r) => ({
+              deliverableId: r.id,
+              type: "CREATED" as const,
+              toStatus: "PLANNED" as const,
+              reason: `Planned again from ${from}`,
+            })),
+          })
         }
         return goal.id
       })

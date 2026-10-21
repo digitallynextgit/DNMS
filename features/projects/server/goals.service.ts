@@ -20,6 +20,7 @@ import {
   type ProjectGoalsSummary,
 } from "../lib/goal-derivation"
 import { monthPeriod, periodKey, planMonthPeriod } from "../lib/goal-periods"
+import { groupGoalPlans, type GoalPlans } from "../lib/goal-plan"
 import { isProjectService, serviceInfo } from "../lib/project-services"
 import {
   ensureGoalEditions,
@@ -142,18 +143,79 @@ export async function getProjectGoals(
     orderBy: GOAL_ORDER,
     select: GOAL_SELECT,
   })
-  const [outputs, unlinkedOpenTasks, actuals, series] = await Promise.all([
+  const [outputs, unlinkedOpenTasks, actuals, series, plans] = await Promise.all([
     loadGoalOutputs([projectId], targetTypeKeys(rows)),
     countUnlinkedOpenTasks(projectId),
     loadMetaActuals(projectId, rows),
     goalSeriesInfo(projectId),
+    loadGoalPlans(
+      projectId,
+      rows.map((r) => r.id),
+    ),
   ])
   return {
     ...summariseGoalRows(rows, todayUtc(), outputs, actuals),
     unlinkedOpenTasks,
     month: periodKey(period.start),
     series,
+    plans,
   }
+}
+
+/** The deliverables serving these goals (directly or through their task), grouped by team. */
+export async function loadGoalPlans(projectId: string, goalIds: string[]): Promise<GoalPlans> {
+  if (goalIds.length === 0) return {}
+  const rows = await db.projectDeliverable.findMany({
+    where: {
+      projectId,
+      status: { not: "DISCARDED" },
+      OR: [
+        { goalId: { in: goalIds } },
+        { goalId: null, task: { is: { goalId: { in: goalIds } } } },
+      ],
+    },
+    select: {
+      id: true,
+      goalId: true,
+      teamId: true,
+      team: { select: { name: true } },
+      type: true,
+      title: true,
+      quantity: true,
+      deliveredQuantity: true,
+      status: true,
+      dueOn: true,
+      employeeId: true,
+      employee: { select: { firstName: true, lastName: true } },
+      task: { select: { goalId: true } },
+    },
+  })
+  return groupGoalPlans(
+    rows.flatMap((r) => {
+      // Single attribution, as with outputs: the row's goal wins over its task's.
+      const goalId = r.goalId ?? r.task?.goalId
+      if (!goalId) return []
+      return [
+        {
+          id: r.id,
+          goalId,
+          teamId: r.teamId,
+          teamName: r.team?.name ?? null,
+          type: r.type,
+          title: r.title,
+          quantity: r.quantity,
+          deliveredQuantity: r.deliveredQuantity,
+          status: r.status,
+          dueOn: r.dueOn,
+          employeeId: r.employeeId,
+          employeeName: r.employee
+            ? `${r.employee.firstName} ${r.employee.lastName ?? ""}`.trim()
+            : null,
+        },
+      ]
+    }),
+    todayUtc(),
+  )
 }
 
 /** Open tasks on a project that serve no goal - the manager's list to sort. */

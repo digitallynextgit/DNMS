@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client"
 import { todayUtc, daysBetween, startOfDayUTC } from "@/lib/dates"
 import { typeKey } from "./deliverable-types"
 import { elapsedShare } from "./goal-periods"
+import type { GoalPlans } from "./goal-plan"
 
 // Goal maths, PURE (type-only Prisma import) so the Goals tab, Progress page and tests share it.
 // Progress, in order of authority: a number reached (actual / target), else targets met, else linked
@@ -229,6 +230,8 @@ export interface ProjectGoalsSummary {
   month?: string
   /** One project's board only: its recurring goals. */
   series?: GoalSeriesInfo[]
+  /** One project's board only: the deliverables serving each goal, by team. */
+  plans?: GoalPlans
 }
 
 /** Exported so the portfolio query selects EXACTLY this shape - a second select would drift. */

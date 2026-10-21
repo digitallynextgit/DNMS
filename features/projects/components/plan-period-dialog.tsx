@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { CalendarDays, Check, ChevronLeft, Plus, Trash2, Users } from "lucide-react"
+import { CalendarDays, Check, ChevronLeft, Plus, Target, Trash2, Users } from "lucide-react"
 import { toast } from "sonner"
 
 import { apiFetch } from "@/lib/api-fetch"
@@ -20,8 +20,17 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { DateField } from "@/components/shared/date-field"
 import { useProjectTeams } from "../hooks/use-projects"
+import { useProjectGoals } from "../hooks/use-goals"
+import { serviceInfo, serviceTeams } from "../lib/project-services"
 import {
   daysIn,
   formatPeriod,
@@ -41,6 +50,19 @@ interface FixedPeriod {
   start: string
   end: string
 }
+
+/** The goal a plan serves: every item counts towards it. */
+export interface PlanGoal {
+  id: string
+  title: string
+  /** A service part's code; its usual teams are ticked for you. */
+  service: string | null
+  /** yyyy-MM-dd. A monthly edition's month, offered as the period. */
+  periodStart: string | null
+  periodEnd: string | null
+}
+
+const NO_GOAL = "__none"
 
 /** A week already on the board: its start (yyyy-MM-dd) and the items it holds. */
 interface ExistingPeriod {
@@ -107,6 +129,7 @@ export function PlanPeriodDialog({
   onOpenChange,
   period,
   existing,
+  goal,
 }: {
   projectId: string
   open: boolean
@@ -115,6 +138,8 @@ export function PlanPeriodDialog({
   period?: FixedPeriod
   /** Lets a week that already has items say so; planning it again adds to it. */
   existing?: readonly ExistingPeriod[]
+  /** Planning from a goal: it is fixed, and its month is offered first. */
+  goal?: PlanGoal
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -125,6 +150,7 @@ export function PlanPeriodDialog({
             projectId={projectId}
             fixed={period}
             existing={existing}
+            goal={goal}
             onClose={() => onOpenChange(false)}
           />
         )}
@@ -133,26 +159,112 @@ export function PlanPeriodDialog({
   )
 }
 
+/** This month's open goals and their parts, for the "counts towards" pick. */
+function useGoalChoices(projectId: string, skip: boolean): PlanGoal[] {
+  const goals = useProjectGoals(skip ? "" : projectId)
+  return React.useMemo(() => {
+    const open = (g: { isActive: boolean; status: string }) =>
+      g.isActive && g.status !== "DONE" && g.status !== "DISCARDED"
+    const out: PlanGoal[] = []
+    for (const g of goals.data?.goals ?? []) {
+      if (!open(g)) continue
+      out.push({
+        id: g.id,
+        title: g.title,
+        service: g.service,
+        periodStart: g.periodStart,
+        periodEnd: g.periodEnd,
+      })
+      for (const c of g.children) {
+        if (!open(c)) continue
+        out.push({
+          id: c.id,
+          title: `${g.title} › ${c.title}`,
+          service: c.service,
+          periodStart: c.periodStart,
+          periodEnd: c.periodEnd,
+        })
+      }
+    }
+    return out
+  }, [goals.data])
+}
+
+function GoalPick({
+  fixedGoal,
+  choices,
+  value,
+  onChange,
+}: {
+  fixedGoal?: PlanGoal
+  choices: PlanGoal[]
+  value: string | null
+  onChange: (id: string | null) => void
+}) {
+  if (fixedGoal) {
+    return (
+      <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+        <Target className="h-3.5 w-3.5 shrink-0" />
+        Counts towards <span className="text-foreground font-medium">{fixedGoal.title}</span>
+      </p>
+    )
+  }
+  if (choices.length === 0) return null
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-muted-foreground text-[11px]">Counts towards a goal</Label>
+      <Select value={value ?? NO_GOAL} onValueChange={(v) => onChange(v === NO_GOAL ? null : v)}>
+        <SelectTrigger className="h-9 text-sm" aria-label="Counts towards a goal">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NO_GOAL}>No goal</SelectItem>
+          {choices.map((g) => (
+            <SelectItem key={g.id} value={g.id}>
+              {g.title}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
 function Body({
   projectId,
   fixed,
   existing,
+  goal,
   onClose,
 }: {
   projectId: string
   fixed?: FixedPeriod
   existing?: readonly ExistingPeriod[]
+  goal?: PlanGoal
   onClose: () => void
 }) {
   const qc = useQueryClient()
   const teams = useProjectTeams(projectId)
   const teamList = React.useMemo(() => teams.data?.data ?? [], [teams.data])
 
+  const goalChoices = useGoalChoices(projectId, Boolean(goal))
+  const [goalId, setGoalId] = React.useState<string | null>(goal?.id ?? null)
+  const chosenGoal = goal ?? goalChoices.find((g) => g.id === goalId) ?? null
+  const goalFrom = chosenGoal?.periodStart ?? null
+  const goalTo = chosenGoal?.periodEnd ?? null
+  const goalMonth = React.useMemo(() => {
+    const a = parseDay(goalFrom)
+    const b = parseDay(goalTo)
+    return a && b ? periodFor("range", a, b) : null
+  }, [goalFrom, goalTo])
+
   const [step, setStep] = React.useState<Step>(fixed ? "who" : "when")
 
   const [presetIdx, setPresetIdx] = React.useState(0)
-  /** "preset" = this/next week, "week" = another week, "range" = two dates. */
-  const [mode, setMode] = React.useState<"preset" | "week" | "range">("preset")
+  /** "preset" = this/next week, "week" = another week, "range" = two dates, "month" = the goal's. */
+  const [mode, setMode] = React.useState<"preset" | "week" | "range" | "month">(
+    goal?.periodStart ? "month" : "preset",
+  )
   // Any day of the week wanted - it is read as that week's Monday to Friday.
   const [anyDay, setAnyDay] = React.useState("")
   const [rangeFrom, setRangeFrom] = React.useState("")
@@ -165,6 +277,7 @@ function Body({
       const b = parseDay(fixed.end)
       return a && b ? periodFor("range", a, b) : null
     }
+    if (mode === "month") return goalMonth
     if (mode === "preset") return presetPeriod("week", preset.offset)
     if (mode === "range") {
       const a = parseDay(rangeFrom)
@@ -174,7 +287,7 @@ function Body({
     }
     const d = parseDay(anyDay)
     return d ? weekOf(d) : null
-  }, [fixed, mode, preset, anyDay, rangeFrom, rangeTo])
+  }, [fixed, mode, preset, anyDay, rangeFrom, rangeTo, goalMonth])
 
   const alreadyPlanned = React.useMemo(() => {
     const m = new Map<string, number>()
@@ -218,6 +331,24 @@ function Body({
   const setLine = (key: string, patch: Partial<Line>) =>
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)))
 
+  /** A service's usual teams arrive ticked - only while nothing is ticked, so a choice is kept. */
+  const suggestTeams = (g: PlanGoal | null) => {
+    if (!g?.service || chosenTeams.size > 0) return
+    const names = new Set(serviceTeams(g.service))
+    const picks = teamList.filter((t) => names.has(t.name))
+    if (picks.length === 0) return
+    setChosenTeams(new Set(picks.map((t) => t.id)))
+    setLines((ls) => [...ls, ...picks.map((t) => newLine(t.id))])
+  }
+
+  const pickGoal = (id: string | null) => {
+    setGoalId(id)
+    const g = goalChoices.find((x) => x.id === id) ?? null
+    if (mode === "month" && !g?.periodStart) setMode("preset")
+    if (step === "who") suggestTeams(g)
+  }
+  const usualTeams = chosenGoal?.service ? serviceTeams(chosenGoal.service) : []
+
   const filled = lines.filter((l) => l.type.trim() && l.title.trim())
   const totalRows = filled.length
 
@@ -231,6 +362,7 @@ function Body({
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: ["deliverables"] })
       void qc.invalidateQueries({ queryKey: ["my-owed-deliverables"] })
+      void qc.invalidateQueries({ queryKey: ["project-goals", projectId] })
       const { created } = res.data
       toast.success(
         fixed
@@ -252,6 +384,7 @@ function Body({
         type: l.type.trim(),
         title: l.title.trim(),
         quantity: Math.max(1, Number(l.quantity) || 1),
+        goalId: chosenGoal?.id ?? null,
       })),
     })
   }
@@ -307,6 +440,20 @@ function Body({
       <div className="max-h-[55vh] space-y-4 overflow-y-auto px-1 py-1">
         {step === "when" && (
           <>
+            <GoalPick fixedGoal={goal} choices={goalChoices} value={goalId} onChange={pickGoal} />
+
+            {goalMonth && (
+              <PresetCard
+                label="The goal's month"
+                detail={withPlanned(
+                  formatPeriod(goalMonth.start, goalMonth.end),
+                  alreadyPlanned.get(ymd(goalMonth.start)),
+                )}
+                active={mode === "month"}
+                onClick={() => setMode("month")}
+              />
+            )}
+
             <div className="grid gap-2 sm:grid-cols-2">
               {PRESETS.map((p, i) => {
                 const pp = presetPeriod("week", p.offset)
@@ -405,6 +552,15 @@ function Body({
 
         {step === "who" && (
           <>
+            {fixed && (
+              <GoalPick fixedGoal={goal} choices={goalChoices} value={goalId} onChange={pickGoal} />
+            )}
+            {usualTeams.length > 0 && (
+              <p className="text-muted-foreground text-[11px]">
+                {serviceInfo(chosenGoal!.service!)?.name ?? "This service"} work is usually made by{" "}
+                {usualTeams.join(", ")} - ticked for you; change it freely.
+              </p>
+            )}
             {teamList.length > 1 && (
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted-foreground text-[11px]">
@@ -519,7 +675,13 @@ function Body({
             </Button>
           )}
           {step === "when" && (
-            <Button onClick={() => setStep("who")} disabled={!period}>
+            <Button
+              onClick={() => {
+                suggestTeams(chosenGoal)
+                setStep("who")
+              }}
+              disabled={!period}
+            >
               Next
             </Button>
           )}

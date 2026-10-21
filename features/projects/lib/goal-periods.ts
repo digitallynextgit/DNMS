@@ -40,3 +40,26 @@ export function elapsedShare(start: Date, end: Date, today: Date): number {
   const done = Math.round((today.getTime() - start.getTime()) / DAY) + 1
   return Math.min(1, Math.max(0, done / total))
 }
+
+/**
+ * Where a planned window lands in the next edition: the whole month stays the whole month; anything
+ * else keeps its day of the month and its length, and a window that began on a Monday (a week) moves
+ * back to the Monday of its new week. Null when it would fall outside the new month.
+ */
+export function shiftPlanWindow(
+  window: GoalPeriod,
+  from: GoalPeriod,
+  to: GoalPeriod,
+): GoalPeriod | null {
+  const same = (a: Date, b: Date) => a.getTime() === b.getTime()
+  if (same(window.start, from.start) && same(window.end, from.end)) return to
+  const offset = Math.round((window.start.getTime() - from.start.getTime()) / DAY)
+  const length = Math.round((window.end.getTime() - window.start.getTime()) / DAY)
+  let start = new Date(to.start.getTime() + offset * DAY)
+  if (window.start.getUTCDay() === 1) {
+    start = new Date(start.getTime() - ((start.getUTCDay() + 6) % 7) * DAY)
+  }
+  const end = new Date(start.getTime() + length * DAY)
+  if (start > to.end || end < to.start) return null
+  return { start, end }
+}

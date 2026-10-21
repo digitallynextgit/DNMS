@@ -20,6 +20,7 @@ import {
   CircleStop,
   ChevronLeft,
   ClipboardPen,
+  CalendarPlus,
 } from "lucide-react"
 
 import { apiFetch } from "@/lib/api-fetch"
@@ -89,6 +90,8 @@ import {
 import { GoalTagInput, GoalTagList } from "./goal-tag-input"
 import { GoalTasks } from "./goal-tasks"
 import { GoalTargets } from "./goal-targets"
+import { GoalWork } from "./goal-work"
+import { PlanPeriodDialog, type PlanGoal } from "./plan-period-dialog"
 
 /** Radix Select cannot carry "" as a value; this stands in for "no owner". */
 const NO_OWNER = "__none__"
@@ -600,6 +603,16 @@ export function GoalsTab({
   const [adding, setAdding] = React.useState(false)
   const [resultsFor, setResultsFor] = React.useState<GoalNode | null>(null)
   const [growthFor, setGrowthFor] = React.useState<string | null>(null)
+  const [planFor, setPlanFor] = React.useState<PlanGoal | null>(null)
+  /** A part is planned as "Goal › Part", so the dialog says which goal it counts towards. */
+  const planWork = (goal: GoalNode, parent?: GoalNode) =>
+    setPlanFor({
+      id: goal.id,
+      title: parent ? `${parent.title} › ${goal.title}` : goal.title,
+      service: goal.service,
+      periodStart: goal.periodStart,
+      periodEnd: goal.periodEnd,
+    })
   /** Which goal is having a target added, so the button can live in its footer. */
   const [targetFor, setTargetFor] = React.useState<string | null>(null)
   /** Same for work: the card offers these once, not once per row. */
@@ -719,7 +732,7 @@ export function GoalsTab({
     )
 
   /** One menu, not four icons per row. */
-  const rowActions = (goal: GoalNode, main = false) => {
+  const rowActions = (goal: GoalNode, main = false, parent?: GoalNode) => {
     const canEdit = canManage && goal.isActive
     const series = main ? seriesOf(goal.seriesId) : null
     return (
@@ -739,6 +752,11 @@ export function GoalsTab({
           {canEdit && (
             <DropdownMenuItem onClick={() => setEditing(goal)}>
               <Pencil className="mr-2 h-3.5 w-3.5" /> Edit goal
+            </DropdownMenuItem>
+          )}
+          {canEdit && (
+            <DropdownMenuItem onClick={() => planWork(goal, parent)}>
+              <CalendarPlus className="mr-2 h-3.5 w-3.5" /> Plan work
             </DropdownMenuItem>
           )}
           {goal.isActive && canEnterResults(goal) && (
@@ -1222,8 +1240,15 @@ export function GoalsTab({
                           ) : (
                             statusControl(sub)
                           )}
-                          {rowActions(sub)}
+                          {rowActions(sub, false, goal)}
                         </div>
+                        <GoalWork
+                          plan={full.plans?.[sub.id]}
+                          compact
+                          needsPlan={sub.isActive && sub.targetValue !== null}
+                          onPlan={canManage && sub.isActive ? () => planWork(sub, goal) : undefined}
+                          className="pb-2"
+                        />
                         <GoalTasks
                           projectId={projectId}
                           goal={sub}
@@ -1238,6 +1263,14 @@ export function GoalsTab({
                       </div>
                     ))}
                   </div>
+                )}
+
+                {isOpen && (
+                  <GoalWork
+                    plan={full.plans?.[goal.id]}
+                    onPlan={canManage && goal.isActive ? () => planWork(goal) : undefined}
+                    className="pb-3"
+                  />
                 )}
 
                 {/* Progress derives from these tasks once any exist. */}
@@ -1289,6 +1322,13 @@ export function GoalsTab({
                         onClick={() => setTargetFor(goal.id)}
                       >
                         <Plus className="h-3.5 w-3.5" /> Target
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="text-muted-foreground"
+                        onClick={() => planWork(goal)}
+                      >
+                        <CalendarPlus className="h-3.5 w-3.5" /> Plan work
                       </Button>
                     </div>
                   </div>
@@ -1458,6 +1498,12 @@ export function GoalsTab({
         projectId={projectId}
         seriesId={growthFor}
         onClose={() => setGrowthFor(null)}
+      />
+      <PlanPeriodDialog
+        projectId={projectId}
+        open={planFor !== null}
+        onOpenChange={(o) => !o && setPlanFor(null)}
+        goal={planFor ?? undefined}
       />
       <ReasonDialog
         open={Boolean(reasonFor)}
