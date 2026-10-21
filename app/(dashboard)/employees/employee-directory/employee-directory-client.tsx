@@ -38,12 +38,19 @@ import { useDebounce } from "@/hooks/use-debounce"
 import { formatDate, employeeSlug } from "@/lib/utils"
 import {
   AccountManagerCell,
+  AmViewSwitch,
+  EmployeeProjectsDialog,
   ProjectRolesCell,
   accountManagerText,
   designationLevel,
   isOnProbation,
   projectRolesText,
+  type AmView,
 } from "@/features/employees"
+import {
+  DIRECTORY_PAGE_SIZES,
+  directoryPageSize,
+} from "@/features/employees/lib/directory-page-size"
 import {
   ACTIVE_STATUS_COLORS,
   ACTIVE_STATUS_LABELS,
@@ -72,6 +79,9 @@ export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employe
   const queryClient = useQueryClient()
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
+  // Account manager column: the projects they run as primary, or as secondary.
+  const [amView, setAmView] = useState<AmView>("P")
+  const [projectsOf, setProjectsOf] = useState<EmployeeListItem | null>(null)
 
   // The URL is the single source of truth for filters, page and view; setParams is the only writer.
   const departmentId = searchParams.get("departmentId") ?? ""
@@ -81,6 +91,7 @@ export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employe
   // Card view is ?view=card, not localStorage, so a remembered "card" can't stick for good.
   const viewMode: ViewMode = searchParams.get("view") === "card" ? "card" : "table"
   const page = Math.max(1, Number(searchParams.get("page") ?? "1"))
+  const limit = directoryPageSize(searchParams.get("limit"))
 
   // Local state for responsive typing; the debounced value goes to the URL.
   const [search, setSearch] = useState(searchParams.get("search") ?? "")
@@ -95,6 +106,7 @@ export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employe
           value === "" ||
           (key === "status" && value === "ACTIVE") ||
           (key === "view" && value === "table") ||
+          (key === "limit" && value === "10") ||
           (key === "page" && value === "1")
         if (isDefault) params.delete(key)
         else params.set(key, value)
@@ -133,7 +145,7 @@ export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employe
     employmentType: isIntern ? "INTERN" : undefined,
     excludeEmploymentType: isIntern ? undefined : "INTERN",
     page,
-    limit: 10,
+    limit,
   })
 
   const employees = data?.data ?? []
@@ -207,6 +219,17 @@ export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employe
       ),
     },
     {
+      header: "Account manager",
+      headerAction: <AmViewSwitch value={amView} onChange={setAmView} />,
+      exportValue: accountManagerText,
+      cell: (emp) => <AccountManagerCell employee={emp} view={amView} />,
+    },
+    {
+      header: "Project roles",
+      exportValue: projectRolesText,
+      cell: (emp) => <ProjectRolesCell employee={emp} onOpen={() => setProjectsOf(emp)} />,
+    },
+    {
       header: "Employee No",
       defaultHidden: true,
       className: "text-muted-foreground font-mono text-xs",
@@ -231,14 +254,13 @@ export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employe
       className: "text-muted-foreground",
       exportValue: (emp) => {
         const level = designationLevel(emp.designation)
-        return emp.designation ? `${emp.designation.title}${level ? ` (${level})` : ""}` : ""
+        return emp.designation ? `${level ? `${level} ` : ""}${emp.designation.title}` : ""
       },
       cell: (emp) => {
         if (!emp.designation) return "-"
         const level = designationLevel(emp.designation)
         return (
           <span className="inline-flex items-center gap-1.5">
-            {emp.designation.title}
             {level && (
               <span
                 className="text-foreground rounded-sm border px-1 py-px text-[10px] font-semibold tabular-nums"
@@ -247,19 +269,10 @@ export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employe
                 {level}
               </span>
             )}
+            {emp.designation.title}
           </span>
         )
       },
-    },
-    {
-      header: "Account manager",
-      exportValue: accountManagerText,
-      cell: (emp) => <AccountManagerCell employee={emp} />,
-    },
-    {
-      header: "Project roles",
-      exportValue: projectRolesText,
-      cell: (emp) => <ProjectRolesCell employee={emp} />,
     },
     {
       header: "Status",
@@ -513,8 +526,12 @@ export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employe
           onPageChange={setPage}
           itemLabel={noun}
           pageSize={pagination.limit}
+          pageSizes={DIRECTORY_PAGE_SIZES}
+          onPageSizeChange={(n) => setParams({ limit: String(n), page: "1" })}
         />
       )}
+
+      <EmployeeProjectsDialog employee={projectsOf} onClose={() => setProjectsOf(null)} />
 
       <ConfirmDialog
         open={!!hardDeleteId}

@@ -1,6 +1,7 @@
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query"
 
 import { getQueryClient } from "@/lib/query-server"
+import { directoryPageSize } from "@/features/employees/lib/directory-page-size"
 import { getEmployees } from "@/features/employees/server/employees.service"
 
 import { EmployeeDirectoryClient } from "./employee-directory-client"
@@ -28,6 +29,7 @@ export default async function EmployeeDirectoryPage({
   const statusParam = first(sp.status) ?? "ACTIVE"
   const status = statusParam === "all" ? "" : statusParam
   const page = Math.max(1, Number(first(sp.page) ?? "1"))
+  const limit = directoryPageSize(first(sp.limit))
 
   const filters = {
     search,
@@ -36,7 +38,7 @@ export default async function EmployeeDirectoryPage({
     // Interns are listed in the Intern Directory instead.
     excludeEmploymentType: "INTERN",
     page,
-    limit: 10,
+    limit,
   }
 
   const queryClient = getQueryClient()
