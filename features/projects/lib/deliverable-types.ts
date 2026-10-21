@@ -11,6 +11,15 @@ const BY_TEAM: { match: RegExp; types: string[] }[] = [
     match: /^data$|analytic|insight/i,
     types: ["Dashboard", "Report", "Tracking setup", "Data audit", "Insight deck"],
   },
+  // Ahead of video: "promotion" contains "motion".
+  {
+    match: /seo|search|organic/i,
+    types: ["Keyword set", "On-page fix", "Blog", "Backlink", "Audit"],
+  },
+  {
+    match: /map|marketing|ads|performance|growth|paid/i,
+    types: ["Ad creative", "Campaign", "Landing page", "Report", "Audit"],
+  },
   {
     match: /video|reel|motion|edit|film/i,
     types: ["Video", "Reel", "Short", "Thumbnail", "Motion graphic", "Edit"],
@@ -28,16 +37,8 @@ const BY_TEAM: { match: RegExp; types: string[] }[] = [
     types: ["Post", "Story", "Carousel", "Campaign", "Caption set"],
   },
   {
-    match: /seo|search/i,
-    types: ["Keyword set", "On-page fix", "Blog", "Backlink", "Audit"],
-  },
-  {
     match: /content|copy|blog|writ/i,
     types: ["Blog", "Script", "Copy", "Article", "Keyword set"],
-  },
-  {
-    match: /map|marketing|ads|performance|growth/i,
-    types: ["Ad creative", "Campaign", "Landing page", "Report", "Audit"],
   },
   {
     match: /^pr$|press|public relation/i,

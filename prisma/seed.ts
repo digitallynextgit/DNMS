@@ -2302,7 +2302,7 @@ async function main() {
 
   await createTeamWithMembers(
     project2.id,
-    "PERFORMANCE",
+    "PAID PROMOTION",
     "Google Ads, Meta Ads, LinkedIn campaigns",
     hemantId, // Manager
     [shivamId, jatinId], // Members

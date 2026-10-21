@@ -4627,7 +4627,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         keywords: ["team manager", "change team lead", "set team manager"],
       },
       DELETE: {
-        doc: "Always refused (405): every project has the same fixed teams (AM, WEB, DESIGN, VIDEO, CONTENT, SMO, SEO, PERFORMANCE, DATA, PR, ALLIANCES & PARTNERSHIPS, ADMIN). Remove people instead with DELETE /api/projects/[id]/teams/[teamId]/members/[memberId].",
+        doc: "Always refused (405): every project has the same fixed teams (AM, WEB, DESIGN, VIDEO, CONTENT, SMO, ORGANIC PROMOTION, PAID PROMOTION, DATA, PR, ALLIANCES & PARTNERSHIPS, ADMIN). Remove people instead with DELETE /api/projects/[id]/teams/[teamId]/members/[memberId].",
         keywords: ["delete team", "remove team"],
       },
     },
@@ -4655,7 +4655,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withProjectAccess",
-        doc: "A project's teams (fixed set: AM, WEB, DESIGN, VIDEO, CONTENT, SMO, SEO, PERFORMANCE, DATA, PR, ALLIANCES & PARTNERSHIPS, ADMIN) with each team's manager, members and task count. Anyone with access to the project. Note: teams[].id is the [teamId]; teams[].members[].id is the membership id used as [memberId] for remove/promote (employeeId is the person).",
+        doc: "A project's teams (fixed set: AM, WEB, DESIGN, VIDEO, CONTENT, SMO, ORGANIC PROMOTION, PAID PROMOTION, DATA, PR, ALLIANCES & PARTNERSHIPS, ADMIN) with each team's manager, members and task count. Anyone with access to the project. Note: teams[].id is the [teamId]; teams[].members[].id is the membership id used as [memberId] for remove/promote (employeeId is the person).",
         keywords: ["project teams", "team manager", "team members", "team id"],
       },
       POST: {

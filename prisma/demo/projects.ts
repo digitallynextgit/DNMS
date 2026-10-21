@@ -41,14 +41,14 @@ const TEAMS: Record<
     VIDEO: { manager: "arjun", members: [] },
     CONTENT: { manager: "vikram", members: ["ananya"] },
     SMO: { manager: "sneha", members: [] },
-    SEO: { manager: "vikram", members: ["ananya"] },
+    "ORGANIC PROMOTION": { manager: "vikram", members: ["ananya"] },
   },
   urbannest: {
     AM: { manager: "rohan", members: [] },
     WEB: { manager: "karthik", members: [] },
     DESIGN: { manager: "rohan", members: ["priya"] },
     CONTENT: { manager: "vikram", members: ["ananya"] },
-    SEO: { manager: "vikram", members: [] },
+    "ORGANIC PROMOTION": { manager: "vikram", members: [] },
   },
   fitlife: {
     AM: { manager: "aarav", members: [] },

@@ -59,8 +59,8 @@ const WORKS_ON: Record<string, [string, string][]> = {
     ["internal", "CONTENT"],
   ],
   vikram: [
-    ["sunrise", "SEO"],
-    ["urbannest", "SEO"],
+    ["sunrise", "ORGANIC PROMOTION"],
+    ["urbannest", "ORGANIC PROMOTION"],
   ],
   sneha: [
     ["sunrise", "SMO"],

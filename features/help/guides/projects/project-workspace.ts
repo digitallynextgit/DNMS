@@ -144,8 +144,8 @@ export const projectWorkspaceGuide: HelpGuide = {
       id: "teams",
       title: { en: "See and staff the teams", hi: "टीमें देखें और लोग जोड़ें" },
       intro: {
-        en: "Every project has the same 12 teams: AM, WEB, DESIGN, VIDEO, CONTENT, SMO, SEO, PERFORMANCE, DATA, PR, ALLIANCES & PARTNERSHIPS and ADMIN. The AM team holds the project's Account Manager. The teams themselves never change - only the people on them do.",
-        hi: "हर प्रोजेक्ट में वही 12 टीमें होती हैं: AM, WEB, DESIGN, VIDEO, CONTENT, SMO, SEO, PERFORMANCE, DATA, PR, ALLIANCES & PARTNERSHIPS और ADMIN। AM टीम में प्रोजेक्ट का Account Manager होता है। टीमें कभी नहीं बदलतीं - सिर्फ़ उनमें के लोग बदलते हैं।",
+        en: "Every project has the same 12 teams: AM, WEB, DESIGN, VIDEO, CONTENT, SMO, ORGANIC PROMOTION, PAID PROMOTION, DATA, PR, ALLIANCES & PARTNERSHIPS and ADMIN. The AM team holds the project's Account Manager. The teams themselves never change - only the people on them do.",
+        hi: "हर प्रोजेक्ट में वही 12 टीमें होती हैं: AM, WEB, DESIGN, VIDEO, CONTENT, SMO, ORGANIC PROMOTION, PAID PROMOTION, DATA, PR, ALLIANCES & PARTNERSHIPS और ADMIN। AM टीम में प्रोजेक्ट का Account Manager होता है। टीमें कभी नहीं बदलतीं - सिर्फ़ उनमें के लोग बदलते हैं।",
       },
       steps: [
         {

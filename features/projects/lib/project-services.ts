@@ -110,8 +110,8 @@ export function serviceInfo(code: string) {
 /** The teams (PROJECT_TEAMS names) that usually make a service's work - suggestions, not rules. */
 export const SERVICE_TEAMS: Record<ProjectServiceCode, readonly ProjectTeamName[]> = {
   SMO: ["SMO", "DESIGN", "VIDEO", "CONTENT"],
-  SEO: ["SEO", "CONTENT", "WEB"],
-  PM: ["PERFORMANCE", "DESIGN", "VIDEO"],
+  SEO: ["ORGANIC PROMOTION", "CONTENT", "WEB"],
+  PM: ["PAID PROMOTION", "DESIGN", "VIDEO"],
   DA: ["DATA", "WEB"],
   MSG: ["CONTENT", "DESIGN"],
   INF: ["SMO", "VIDEO", "CONTENT"],
