@@ -34,14 +34,14 @@ export const progressGuide: HelpGuide = {
       id: "what",
       title: { en: "What this page shows", hi: "ये पेज क्या दिखाता है" },
       intro: {
-        en: "The Progress tab counts deliverables - the things planned for each client, like a reel, a blog post or a banner - not tasks. The sidebar calls the page Progress & Performance if you manage projects, and My Progress for everyone else.",
-        hi: "Progress टैब deliverables गिनता है - हर क्लाइंट के लिए प्लान की गई चीज़ें, जैसे reel, blog post या banner - tasks नहीं। अगर आप प्रोजेक्ट्स संभालते हैं तो साइडबार में इस पेज का नाम Progress & Performance है, बाकी सबके लिए My Progress।",
+        en: "The Progress tab counts deliverables - the things planned for each client, like a reel, a blog post or a banner - not tasks. The sidebar calls the page Progress if you manage projects, and My Progress for everyone else.",
+        hi: "Progress टैब deliverables गिनता है - हर क्लाइंट के लिए प्लान की गई चीज़ें, जैसे reel, blog post या banner - tasks नहीं। अगर आप प्रोजेक्ट्स संभालते हैं तो साइडबार में इस पेज का नाम Progress है, बाकी सबके लिए My Progress।",
       },
       steps: [
         {
           text: {
-            en: "Click Progress & Performance or My Progress in the sidebar. The line at the top left says whose work you are looking at: Your own deliverables, Your team, The projects you own, or Everything in the company.",
-            hi: "साइडबार में Progress & Performance या My Progress पर क्लिक करें। ऊपर बाईं ओर की लाइन बताती है कि आप किसका काम देख रहे हैं: Your own deliverables, Your team, The projects you own, या Everything in the company।",
+            en: "Click Progress or My Progress in the sidebar. The line at the top left says whose work you are looking at: Your own deliverables, Your team, The projects you own, or Everything in the company.",
+            hi: "साइडबार में Progress या My Progress पर क्लिक करें। ऊपर बाईं ओर की लाइन बताती है कि आप किसका काम देख रहे हैं: Your own deliverables, Your team, The projects you own, या Everything in the company।",
           },
         },
         {

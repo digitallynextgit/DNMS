@@ -112,7 +112,8 @@ export function projectItems(canManageProjects: boolean): NavItem[] {
     ...PROJECT_ITEMS,
     {
       // Progress and Team Performance, as two tabs; scoped server-side (a member sees their own).
-      label: canManageProjects ? "Progress & Performance" : "My Progress",
+      // Short, so it fits the sidebar on one line.
+      label: canManageProjects ? "Progress" : "My Progress",
       href: "/projects/progress",
       icon: TrendingUp,
     },
