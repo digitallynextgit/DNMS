@@ -11,6 +11,9 @@ import {
   TrendingUp,
   Users,
   ExternalLink,
+  LayoutDashboard,
+  Target,
+  CalendarDays,
 } from "lucide-react"
 import {
   ResponsiveContainer,
@@ -40,22 +43,46 @@ import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_LABEL_STYLE } from "@/lib/chart-them
 import { FacebookIcon, inr, compact, CAMPAIGN_STATUS_COLORS } from "./meta-shared"
 import { DateRangePicker, type DayRange } from "./date-range-picker"
 import { useProjectIntegration, useSyncMeta } from "../hooks/use-integration"
+import {
+  AnalyticsCalendars,
+  AnalyticsGoals,
+  AnalyticsOverview,
+  AnalyticsPeople,
+} from "./project-analytics"
 
 export function InsightsTab({ projectId, canManage }: { projectId: string; canManage: boolean }) {
   const [connections, setConnections] = useState(false)
   return (
-    <Tabs defaultValue="meta" className="mt-4 space-y-4">
+    <Tabs defaultValue="overview" className="mt-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <TabsBar
           spacing="none"
           variant="underline"
           className="w-auto flex-1"
-          items={[{ value: "meta", label: "Meta Ads", icon: MetaAdsIcon }]}
+          items={[
+            { value: "overview", label: "Overview", icon: LayoutDashboard },
+            { value: "goals", label: "Goals & growth", icon: Target },
+            { value: "people", label: "Teams & people", icon: Users },
+            { value: "calendars", label: "Calendars", icon: CalendarDays },
+            { value: "meta", label: "Meta Ads", icon: MetaAdsIcon },
+          ]}
         />
         <Button variant="outline" className="gap-1.5" onClick={() => setConnections(true)}>
           <Plug className="h-3.5 w-3.5" /> Connections
         </Button>
       </div>
+      <TabsContent value="overview">
+        <AnalyticsOverview projectId={projectId} canManage={canManage} />
+      </TabsContent>
+      <TabsContent value="goals">
+        <AnalyticsGoals projectId={projectId} />
+      </TabsContent>
+      <TabsContent value="people">
+        <AnalyticsPeople projectId={projectId} />
+      </TabsContent>
+      <TabsContent value="calendars">
+        <AnalyticsCalendars projectId={projectId} />
+      </TabsContent>
       <TabsContent value="meta">
         <MetaInsights projectId={projectId} canManage={canManage} />
       </TabsContent>

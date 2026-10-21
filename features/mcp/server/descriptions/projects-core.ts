@@ -211,6 +211,13 @@ export const PROJECTS_CORE: DescriptionMap = {
       "Active members of one project team, earliest joined first. Each row's id is the membership id ([memberId] for remove/promote); employee.id is the person. Anyone with access to the project.",
     keywords: ["team members", "who is on the team", "team roster"],
   },
+  "GET /api/projects/[id]/calendar-overview": {
+    summary:
+      "A project's calendars for a month (Analytics > Calendars): each calendar's manager and secondary, its service, the teams on its plan with their people, status, handed-in of promised and due day, its progress (teams done, items handed in, next due) and how many rows each tab holds. Anyone on the project.",
+    query: "month?: YYYY-MM (default this month); undated calendars are included",
+    keywords: ["calendar overview", "who owns which calendar", "calendar progress", "content calendar status"],
+    notes: "Returns { month, calendars: [{ id, name, service, owner, secondary, progress, teams, tabs }] }.",
+  },
   "GET /api/projects/delivery-scores": {
     summary:
       "Delivery scores for a month (Team Performance): one 0-100 score per person and per team with its parts - goals they own (40%, reached vs expected by now, capped), deliverables made by their due day (35%) and tasks done by their due day (25%); a part with nothing in it is left out and the rest rescaled. Held and discarded tasks don't count. Scoped like Progress: admins everyone, account managers their projects, team managers their teams and reports, members only themselves.",
