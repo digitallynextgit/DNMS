@@ -245,8 +245,8 @@ export const myProjectsGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Click Create Project (4). The project gets the 12 standard teams straight away - AM, WEB, DESIGN, VIDEO, CONTENT, SMO, ORGANIC PROMOTION, PAID PROMOTION, DATA, PR, ALLIANCES & PARTNERSHIPS and ADMIN - with the Account Manager already on the AM team, so you can start adding people.",
-            hi: "Create Project (4) पर क्लिक करें। प्रोजेक्ट में तुरंत 12 तय टीमें बन जाती हैं - AM, WEB, DESIGN, VIDEO, CONTENT, SMO, ORGANIC PROMOTION, PAID PROMOTION, DATA, PR, ALLIANCES & PARTNERSHIPS और ADMIN - और Account Manager पहले से AM टीम में होते हैं, ताकि आप लोगों को जोड़ना शुरू कर सकें।",
+            en: "Click Create Project (4). The project gets the 12 standard teams straight away - AM, WEB, DESIGN, VIDEO, CONTENT, SMO, ORGANIC PROMOTION, PAID PROMOTION, DATA ANALYTICS, PR, ALLIANCES & PARTNERSHIPS and ADMIN - with the Account Manager already on the AM team, so you can start adding people.",
+            hi: "Create Project (4) पर क्लिक करें। प्रोजेक्ट में तुरंत 12 तय टीमें बन जाती हैं - AM, WEB, DESIGN, VIDEO, CONTENT, SMO, ORGANIC PROMOTION, PAID PROMOTION, DATA ANALYTICS, PR, ALLIANCES & PARTNERSHIPS और ADMIN - और Account Manager पहले से AM टीम में होते हैं, ताकि आप लोगों को जोड़ना शुरू कर सकें।",
           },
         },
       ],

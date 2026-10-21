@@ -8,7 +8,7 @@ export const PROJECT_TEAMS = [
   "SMO",
   "ORGANIC PROMOTION",
   "PAID PROMOTION",
-  "DATA",
+  "DATA ANALYTICS",
   "PR",
   "ALLIANCES & PARTNERSHIPS",
   "ADMIN",

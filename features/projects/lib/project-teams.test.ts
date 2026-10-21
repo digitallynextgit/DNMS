@@ -18,7 +18,7 @@ describe("project team catalogue", () => {
       "SMO",
       "ORGANIC PROMOTION",
       "PAID PROMOTION",
-      "DATA",
+      "DATA ANALYTICS",
       "PR",
       "ALLIANCES & PARTNERSHIPS",
       "ADMIN",

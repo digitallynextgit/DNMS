@@ -112,7 +112,7 @@ export const SERVICE_TEAMS: Record<ProjectServiceCode, readonly ProjectTeamName[
   SMO: ["SMO", "DESIGN", "VIDEO", "CONTENT"],
   SEO: ["ORGANIC PROMOTION", "CONTENT", "WEB"],
   PM: ["PAID PROMOTION", "DESIGN", "VIDEO"],
-  DA: ["DATA", "WEB"],
+  DA: ["DATA ANALYTICS", "WEB"],
   MSG: ["CONTENT", "DESIGN"],
   INF: ["SMO", "VIDEO", "CONTENT"],
   ALL: ["ALLIANCES & PARTNERSHIPS"],
