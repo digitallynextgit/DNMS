@@ -5,6 +5,7 @@ import { ListChecks, Package, UserRound, Inbox, Sparkles } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Link } from "@/components/tenant-link"
 import {
   Dialog,
   DialogContent,
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import type { GoalVerdict, VerdictTone } from "../lib/goal-accountability"
 import { useAiSuggest, useProjectAi } from "../hooks/use-project-ai"
+import { projectHref } from "../lib/project-href"
 
 const TONE_CHIP: Record<VerdictTone, string> = {
   good: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
@@ -50,7 +52,15 @@ export function VerdictChip({
 
 const ITEM_ICON = { deliverable: Package, task: ListChecks, requirement: Inbox } as const
 
-function Reasons({ verdict }: { verdict: GoalVerdict }) {
+/** Where an item lives on its project: the deliverable's tasks, the task, the client requests. */
+function itemHref(projectId: string, kind: "deliverable" | "task" | "requirement", id: string) {
+  if (kind === "deliverable")
+    return projectHref({ id: projectId }, "deliverables", { deliverable: id })
+  if (kind === "task") return projectHref({ id: projectId }, "tasks", { task: id })
+  return projectHref({ id: projectId }, "requirements")
+}
+
+function Reasons({ verdict, projectId }: { verdict: GoalVerdict; projectId?: string }) {
   return (
     <div className="space-y-3">
       <p className="text-sm">{verdict.summary}</p>
@@ -82,7 +92,17 @@ function Reasons({ verdict }: { verdict: GoalVerdict }) {
                 <li key={`${i.kind}-${i.id}`} className="flex items-start gap-2 px-2.5 py-1.5">
                   <Icon className="text-muted-foreground mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span className="min-w-0">
-                    <span className="font-medium">{i.title}</span>
+                    {projectId ? (
+                      <Link
+                        href={itemHref(projectId, i.kind, i.id)}
+                        className="font-medium hover:underline"
+                        title="Open it"
+                      >
+                        {i.title}
+                      </Link>
+                    ) : (
+                      <span className="font-medium">{i.title}</span>
+                    )}
                     <span className="text-muted-foreground block text-[11px]">{i.detail}</span>
                   </span>
                 </li>
@@ -105,7 +125,7 @@ export function VerdictDialog({
   title: string
   verdict: GoalVerdict | null
   onClose: () => void
-  /** Offer an AI explanation of the verdict (it never changes it). */
+  /** The goal on its project: its items link there, and AI may explain it (never change it). */
   explain?: { projectId: string; goalId: string }
 }) {
   const aiReady = useProjectAi(explain?.projectId ?? "")
@@ -126,7 +146,7 @@ export function VerdictDialog({
                 Worked out from the numbers, the plan and the work - the same rules for everyone.
               </DialogDescription>
             </DialogHeader>
-            <Reasons verdict={verdict} />
+            <Reasons verdict={verdict} projectId={explain?.projectId} />
             {explain && aiReady && (
               <div className="bg-muted/30 space-y-1.5 rounded-sm border p-2.5">
                 {shown ? (
@@ -165,7 +185,7 @@ export function VerdictDialog({
                         className="pointer-events-none"
                       />
                     </p>
-                    <Reasons verdict={p.verdict} />
+                    <Reasons verdict={p.verdict} projectId={explain?.projectId} />
                   </div>
                 ))}
               </div>

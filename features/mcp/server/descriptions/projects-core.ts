@@ -212,7 +212,8 @@ export const PROJECTS_CORE: DescriptionMap = {
     keywords: ["team members", "who is on the team", "team roster"],
   },
   "GET /api/projects/[id]/ai": {
-    summary: "Whether AI planning drafts are available for this project (AI configured on the server).",
+    summary:
+      "Whether AI planning drafts are available for this project (AI configured on the server).",
     keywords: ["ai available", "ai planning status"],
     notes: "Returns { available }.",
   },
@@ -241,8 +242,14 @@ export const PROJECTS_CORE: DescriptionMap = {
     summary:
       "A project's calendars for a month (Analytics > Calendars): each calendar's manager and secondary, its service, the teams on its plan with their people, status, handed-in of promised and due day, its progress (teams done, items handed in, next due) and how many rows each tab holds. Anyone on the project.",
     query: "month?: YYYY-MM (default this month); undated calendars are included",
-    keywords: ["calendar overview", "who owns which calendar", "calendar progress", "content calendar status"],
-    notes: "Returns { month, calendars: [{ id, name, service, owner, secondary, progress, teams, tabs }] }.",
+    keywords: [
+      "calendar overview",
+      "who owns which calendar",
+      "calendar progress",
+      "content calendar status",
+    ],
+    notes:
+      "Returns { month, calendars: [{ id, name, service, owner, secondary, progress, teams, tabs }] }.",
   },
   "GET /api/projects/delivery-scores": {
     summary:
@@ -258,6 +265,14 @@ export const PROJECTS_CORE: DescriptionMap = {
     ],
     notes:
       "Returns { month, role, people: [{ id, name, designation, score }], teams: [{ id, name, projectName, score }] }; score = { score, goals: { score, count }, deliverables: { score, onTime, due }, tasks: { score, onTime, due }, basedOn }.",
+  },
+  "GET /api/projects/delivery-scores/items": {
+    summary:
+      "One person's or one team's month on Team Performance, item by item: the goals they own (reached, target, expected by now, achievement), and every deliverable and task due in the month with how it counted (on time, late, not due yet, not counted), each with its project for linking. Same scope as the list.",
+    query: "month?: YYYY-MM; projectId?; personId or teamId (one is required)",
+    keywords: ["score breakdown", "why is my score", "performance details", "late items"],
+    notes:
+      "Returns { month, title, score, goals: [...], deliverables: [{ id, title, project, dueOn, result }], tasks: [{ id, title, project, dueDate, result }] }. 403 for someone outside the caller's scope.",
   },
   "GET /api/projects/[id]/teams/[teamId]/assignable": {
     summary:
@@ -560,7 +575,8 @@ export const PROJECTS_CORE: DescriptionMap = {
     summary:
       "The tasks a planned deliverable is split into (title, assignee, status, due, hours, units logged), whom the caller may give a new one to, and whether they may split it. Anyone on the project.",
     keywords: ["deliverable tasks", "split tasks", "who is working on this deliverable"],
-    notes: "Returns { tasks, assignable: [{ id, name }], canSplit }.",
+    notes:
+      "Returns { deliverable: { id, title, type, quantity, made, status, dueOn, teamName, goal }, tasks, assignable: [{ id, name }], canSplit }.",
   },
   "POST /api/projects/[id]/deliverables/[deliverableId]/tasks": {
     summary:

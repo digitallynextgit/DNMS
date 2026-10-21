@@ -26,6 +26,7 @@ import {
 } from "../lib/calendar-months"
 import { SCORE_WEIGHTS, type DeliveryScore } from "../lib/delivery-score"
 import type { DeliveryScores } from "../server/delivery-score.queries"
+import { DeliveryScoreDialog, type ScoreSubject } from "./delivery-score-dialog"
 
 const ALL = "all"
 
@@ -74,9 +75,12 @@ function Breakdown({ s }: { s: DeliveryScore }) {
 function ScoreTable({
   title,
   rows,
+  onOpen,
 }: {
   title: string
   rows: { id: string; name: string; sub: string | null; score: DeliveryScore }[]
+  /** Opens the row's items. */
+  onOpen: (row: { id: string; name: string }) => void
 }) {
   return (
     <Card>
@@ -91,7 +95,20 @@ function ScoreTable({
         ) : (
           <ol className="divide-y">
             {rows.map((r, i) => (
-              <li key={r.id} className="flex items-center gap-3 px-4 py-2.5">
+              <li
+                key={r.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpen(r)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    onOpen(r)
+                  }
+                }}
+                title="See the goals, deliverables and tasks behind this score"
+                className="hover:bg-muted/40 focus-visible:ring-primary/60 flex cursor-pointer items-center gap-3 px-4 py-2.5 outline-none focus-visible:ring-2"
+              >
                 <span className="text-muted-foreground w-5 shrink-0 text-right text-xs tabular-nums">
                   {i + 1}
                 </span>
@@ -130,6 +147,7 @@ export function DeliveryScoresView() {
   const [projectId, setProjectId] = React.useState(ALL)
   const projects = useScopeProjects()
   const { data, isLoading } = useDeliveryScores(month, projectId)
+  const [open, setOpen] = React.useState<ScoreSubject | null>(null)
 
   const ym = parseMonth(`${month}-01`)!
   const step = (by: number) => {
@@ -199,6 +217,7 @@ export function DeliveryScoresView() {
               sub: p.designation,
               score: p.score,
             }))}
+            onOpen={(r) => setOpen({ kind: "person", id: r.id, name: r.name })}
           />
           {data.role !== "member" && (
             <ScoreTable
@@ -209,10 +228,17 @@ export function DeliveryScoresView() {
                 sub: projectId === ALL ? t.projectName : null,
                 score: t.score,
               }))}
+              onOpen={(r) => setOpen({ kind: "team", id: r.id, name: r.name })}
             />
           )}
         </div>
       )}
+      <DeliveryScoreDialog
+        subject={open}
+        month={month}
+        projectId={projectId === ALL ? null : projectId}
+        onClose={() => setOpen(null)}
+      />
     </div>
   )
 }

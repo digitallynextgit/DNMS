@@ -37,6 +37,18 @@ export interface DeliverableTaskRow {
 }
 
 export interface DeliverableTasks {
+  /** The deliverable itself, so a link to it can open with nothing else loaded. */
+  deliverable: {
+    id: string
+    title: string
+    type: string
+    quantity: number
+    made: number
+    status: string
+    dueOn: string | null
+    teamName: string | null
+    goal: { id: string; title: string } | null
+  }
   tasks: DeliverableTaskRow[]
   /** Whom the caller may give a task on this deliverable to. Empty when they can't split it. */
   assignable: { id: string; name: string }[]
@@ -56,6 +68,11 @@ async function loadDeliverable(projectId: string, id: string) {
       employeeId: true,
       goalId: true,
       dueOn: true,
+      type: true,
+      quantity: true,
+      deliveredQuantity: true,
+      team: { select: { name: true } },
+      goal: { select: { id: true, title: true } },
     },
   })
   if (!row) throw new NotFoundError("Deliverable")
@@ -107,6 +124,17 @@ export async function getDeliverableTasks(
         ? assignableIds(ctx).map((id) => ({ id, name: ctx.memberNames.get(id) ?? "Member" }))
         : [],
     canSplit,
+    deliverable: {
+      id: d.id,
+      title: d.title,
+      type: d.type,
+      quantity: d.quantity,
+      made: d.deliveredQuantity,
+      status: d.status,
+      dueOn: ymd(d.dueOn),
+      teamName: d.team?.name ?? null,
+      goal: d.goal,
+    },
   }
 }
 

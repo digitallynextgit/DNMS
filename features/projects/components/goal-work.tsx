@@ -4,19 +4,24 @@ import * as React from "react"
 import { CalendarPlus, ChevronRight, Package } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Link } from "@/components/tenant-link"
 import { Button } from "@/components/ui/button"
 import { DELIVERABLE_STATUS_LABELS } from "../lib/deliverable-lifecycle"
 import type { GoalPlanTeam } from "../lib/goal-plan"
+import { projectHref } from "../lib/project-href"
 import { fmtDate } from "./goal-status"
 
 /** What each team owes towards a goal and how much is made; opens to the items. */
 export function GoalWork({
+  projectId,
   plan,
   compact,
   needsPlan,
   onPlan,
   className,
 }: {
+  /** Each item links to its deliverable's tasks on this project. */
+  projectId: string
   plan: GoalPlanTeam[] | undefined
   compact?: boolean
   /** A numbered part with nothing planned says so - its owner can't move the number alone. */
@@ -98,7 +103,15 @@ export function GoalWork({
                         className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]"
                       >
                         <span className="text-muted-foreground">{i.type}</span>
-                        <span className="min-w-0 truncate">{i.title}</span>
+                        <Link
+                          href={projectHref({ id: projectId }, "deliverables", {
+                            deliverable: i.id,
+                          })}
+                          className="min-w-0 truncate hover:underline"
+                          title="Open its tasks"
+                        >
+                          {i.title}
+                        </Link>
                         <span className="tabular-nums">
                           {i.made}/{i.quantity}
                         </span>

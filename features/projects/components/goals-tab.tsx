@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useSearchParams } from "next/navigation"
 import {
   Plus,
   MoreHorizontal,
@@ -518,7 +519,11 @@ export function GoalsTab({
   const qc = useQueryClient()
   const [showInactive, setShowInactive] = React.useState(false)
   /** "2026-10": which edition of each repeating goal is on the board. Null = this month. */
-  const [month, setMonth] = React.useState<string | null>(null)
+  // ?month=2026-10 (links from Team Performance and Analytics) opens that month's editions.
+  const linkedMonth = useSearchParams().get("month")
+  const [month, setMonth] = React.useState<string | null>(
+    linkedMonth && /^\d{4}-\d{2}$/.test(linkedMonth) ? linkedMonth : null,
+  )
   const { data, isLoading } = useProjectGoals(projectId, showInactive, month)
 
   // The services a goal can be split across, and who owns each - accountable for its part.
@@ -1271,6 +1276,7 @@ export function GoalsTab({
                           {rowActions(sub, false, goal)}
                         </div>
                         <GoalWork
+                          projectId={projectId}
                           plan={full.plans?.[sub.id]}
                           compact
                           needsPlan={sub.isActive && sub.targetValue !== null}
@@ -1295,6 +1301,7 @@ export function GoalsTab({
 
                 {isOpen && (
                   <GoalWork
+                    projectId={projectId}
                     plan={full.plans?.[goal.id]}
                     onPlan={canManage && goal.isActive ? () => planWork(goal) : undefined}
                     className="pb-3"

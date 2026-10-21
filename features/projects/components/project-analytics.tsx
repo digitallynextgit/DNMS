@@ -14,6 +14,7 @@ import {
 
 import { apiFetch } from "@/lib/api-fetch"
 import { cn } from "@/lib/utils"
+import { Link } from "@/components/tenant-link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -34,6 +35,7 @@ import {
 import { mainGoalVerdict, type GoalVerdict } from "../lib/goal-accountability"
 import type { GoalNode } from "../lib/goal-derivation"
 import { serviceInfo } from "../lib/project-services"
+import { projectHref } from "../lib/project-href"
 import type { CalendarOverview } from "../server/calendar-overview.queries"
 import { GoalGrowthDialog } from "./goal-growth-dialog"
 import { GoalNumber } from "./goal-number"
@@ -122,7 +124,13 @@ function GoalStanding({ projectId, month }: { projectId: string; month: string }
               <li key={goal.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5">
                 <div className="min-w-48 flex-1">
                   <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                    {goal.title}
+                    <Link
+                      href={projectHref({ id: projectId }, "goals", { month })}
+                      className="hover:underline"
+                      title="Open on the Goals tab"
+                    >
+                      {goal.title}
+                    </Link>
                     {verdict && (
                       <VerdictChip
                         verdict={verdict}
@@ -229,7 +237,13 @@ export function AnalyticsGoals({
             <ul className="divide-y">
               {oneTime.map((g) => (
                 <li key={g.id} className="flex flex-wrap items-center gap-3 py-2.5">
-                  <span className="min-w-0 flex-1 text-sm">{g.title}</span>
+                  <Link
+                    href={projectHref({ id: projectId }, "goals")}
+                    className="min-w-0 flex-1 text-sm hover:underline"
+                    title="Open on the Goals tab"
+                  >
+                    {g.title}
+                  </Link>
                   <StatusBadge status={g.status} />
                   {g.targetValue !== null ? (
                     <GoalNumber goal={g} compact />
@@ -427,6 +441,12 @@ function CalendarCard({ c, projectId }: { c: CalendarOverview; projectId: string
         </button>
         {open && (
           <div className="grid gap-4 border-t px-4 py-3 text-xs md:grid-cols-2">
+            <Link
+              href={projectHref({ id: projectId }, "calendar", { calendar: c.id })}
+              className="text-primary text-xs font-medium hover:underline md:col-span-2"
+            >
+              Open this calendar →
+            </Link>
             <div className="space-y-1.5">
               <p className="text-muted-foreground text-[10px] tracking-widest uppercase">Teams</p>
               {c.teams.length === 0 ? (

@@ -53,8 +53,9 @@ import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { TabsBar } from "@/components/shared/tabs-bar"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
-import { useTenantPath } from "@/components/tenant-link"
-import { useRouter } from "next/navigation"
+import { Link, useTenantPath } from "@/components/tenant-link"
+import { useRouter, useSearchParams } from "next/navigation"
+import { replaceUrlParams } from "@/hooks/use-url-state"
 import { useRowSelection } from "@/hooks/use-row-selection"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -76,6 +77,7 @@ import {
   type DeliverableStatus,
 } from "../hooks/use-deliverables"
 import { isOpenStatus, periodClosesOn } from "../lib/deliverable-lifecycle"
+import { projectHref } from "../lib/project-href"
 import { formatPeriod } from "../lib/delivery-period"
 import {
   UNPLANNED_KEY,
@@ -514,9 +516,13 @@ export function DeliverableRowView({
             </span>
           )}
           {r.goal && (
-            <span className="inline-flex items-center gap-1" title="Counts towards this goal">
+            <Link
+              href={projectHref(r.project, "goals")}
+              className="inline-flex items-center gap-1 hover:underline"
+              title="Counts towards this goal - open it"
+            >
               <Target className="h-3 w-3" /> {r.goal.title}
-            </span>
+            </Link>
           )}
           {r.hoursPerUnit !== null && (
             <span title="Share of the task's logged hours, per unit">
@@ -535,7 +541,15 @@ export function DeliverableRowView({
               sent back by {r.sentBack.by ?? (r.sentBack.byClient ? "the client" : "a manager")}
             </span>
           )}
-          {r.task && <span>from task: {r.task.title}</span>}
+          {r.task && (
+            <Link
+              href={projectHref(r.project, "tasks", { task: r.task.id })}
+              className="hover:underline"
+              title="Open the task"
+            >
+              from task: {r.task.title}
+            </Link>
+          )}
           {r.loggedByName && r.loggedByName !== r.employee?.name && (
             <span>
               {r.plannedByClient ? "asked for by" : "logged by"} {r.loggedByName}
@@ -1236,7 +1250,21 @@ export function DeliverablesTab({
   const [range, setRange] = React.useState<DateRangeValue>({ preset: "all", from: null, to: null })
   const [editingItem, setEditingItem] = React.useState<DeliverableRow | null>(null)
   const [logging, setLogging] = React.useState<DeliverableRow | null>(null)
-  const [splitting, setSplitting] = React.useState<DeliverableRow | null>(null)
+  // ?deliverable=<id> (links from goals, verdicts and Team Performance) opens that item's tasks.
+  const linkedDeliverable = useSearchParams().get("deliverable")
+  const [splitting, setSplitting] = React.useState<string | null>(null)
+  const [openedLink, setOpenedLink] = React.useState<string | null>(null)
+  if (linkedDeliverable && openedLink !== linkedDeliverable) {
+    setOpenedLink(linkedDeliverable)
+    setSplitting(linkedDeliverable)
+  }
+  const closeSplit = () => {
+    setSplitting(null)
+    if (linkedDeliverable) {
+      replaceUrlParams({ deliverable: null })
+      setOpenedLink(null)
+    }
+  }
   const [assigning, setAssigning] = React.useState<DeliverableRow | null>(null)
   const [deletingPeriods, setDeletingPeriods] = React.useState<Period[] | null>(null)
 
@@ -1423,7 +1451,7 @@ export function DeliverablesTab({
         : undefined,
     onSplit:
       r.team && isOpenStatus(r.status) && actorFor(r) !== "none"
-        ? () => setSplitting(r)
+        ? () => setSplitting(r.id)
         : undefined,
   })
 
@@ -1559,9 +1587,9 @@ export function DeliverablesTab({
       <LogWorkDialog projectId={projectId} row={loggingRow} onClose={() => setLogging(null)} />
       <DeliverableSplitDialog
         projectId={projectId}
-        row={splitting}
+        deliverableId={splitting}
         currentUserId={currentUserId}
-        onClose={() => setSplitting(null)}
+        onClose={closeSplit}
       />
 
       {assigning && (

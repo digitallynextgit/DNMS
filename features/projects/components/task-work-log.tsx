@@ -4,6 +4,7 @@ import * as React from "react"
 import { ClipboardList, Link2, Package, Target, Trash2 } from "lucide-react"
 
 import { formatDate } from "@/lib/utils"
+import { Link } from "@/components/tenant-link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -11,6 +12,7 @@ import { DateField } from "@/components/shared/date-field"
 import { isOpenStatus, type DeliverableStatus } from "../lib/deliverable-lifecycle"
 import { isSafeHttpUrl } from "../lib/task-links"
 import { serviceInfo } from "../lib/project-services"
+import { projectHref } from "../lib/project-href"
 import { useTaskWork, useTaskWorkLogMutations } from "../hooks/use-task-work"
 
 /** Today as yyyy-MM-dd in the viewer's own calendar. */
@@ -65,7 +67,17 @@ export function TaskWorkLog({ taskId }: { taskId: string }) {
                 {chain.goal.parentTitle && `${chain.goal.parentTitle} › `}
                 {chain.goal.service &&
                   `${serviceInfo(chain.goal.service)?.name ?? chain.goal.service}: `}
-                <span className="text-foreground">{chain.goal.title}</span>
+                {chain.project ? (
+                  <Link
+                    href={projectHref(chain.project, "goals")}
+                    className="text-foreground hover:underline"
+                    title="Open the goal"
+                  >
+                    {chain.goal.title}
+                  </Link>
+                ) : (
+                  <span className="text-foreground">{chain.goal.title}</span>
+                )}
               </span>
             </p>
           )}
@@ -73,7 +85,19 @@ export function TaskWorkLog({ taskId }: { taskId: string }) {
             <p className="flex items-center gap-1.5">
               <Package className="h-3 w-3 shrink-0" />
               <span className="truncate">
-                {d.type} · <span className="text-foreground">{d.title}</span> ·{" "}
+                {d.type} ·{" "}
+                {chain.project ? (
+                  <Link
+                    href={projectHref(chain.project, "deliverables", { deliverable: d.id })}
+                    className="text-foreground hover:underline"
+                    title="Open the deliverable and its tasks"
+                  >
+                    {d.title}
+                  </Link>
+                ) : (
+                  <span className="text-foreground">{d.title}</span>
+                )}{" "}
+                ·{" "}
                 <span className="tabular-nums">
                   {d.made} of {d.quantity} made
                 </span>

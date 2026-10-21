@@ -18,7 +18,7 @@ import {
   monthPeriod,
   periodKey,
   planMonthPeriod,
-  shiftPlanWindow,
+  copyPlanWindows,
   type GoalPeriod,
 } from "../lib/goal-periods"
 import { formatMonth } from "../lib/calendar-months"
@@ -436,29 +436,27 @@ export async function ensureGoalEditions(
         }
 
         const copies = planned.flatMap((r) => {
-          const window = shiftPlanWindow(
+          const forGoal = r.goalId ? newIds.get(r.goalId) : undefined
+          if (!forGoal) return []
+          // Owed by the team again and unclaimed: whoever picks it up this month claims it. A week
+          // can land on more than one week, so a longer month is planned in full.
+          return copyPlanWindows(
             { start: r.periodStart!, end: r.periodEnd! },
             fromMonth!,
             month,
-          )
-          const forGoal = r.goalId ? newIds.get(r.goalId) : undefined
-          if (!window || !forGoal) return []
-          // Owed by the team again and unclaimed: whoever picks it up this month claims it.
-          return [
-            {
-              projectId: s.projectId,
-              teamId: r.teamId,
-              goalId: forGoal,
-              type: r.type,
-              title: r.title,
-              quantity: r.quantity,
-              notes: r.notes,
-              status: "PLANNED" as const,
-              dueOn: window.end,
-              periodStart: window.start,
-              periodEnd: window.end,
-            },
-          ]
+          ).map((window) => ({
+            projectId: s.projectId,
+            teamId: r.teamId,
+            goalId: forGoal,
+            type: r.type,
+            title: r.title,
+            quantity: r.quantity,
+            notes: r.notes,
+            status: "PLANNED" as const,
+            dueOn: window.end,
+            periodStart: window.start,
+            periodEnd: window.end,
+          }))
         })
         if (copies.length > 0) {
           const made = await tx.projectDeliverable.createManyAndReturn({

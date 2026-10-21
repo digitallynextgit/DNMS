@@ -37,6 +37,8 @@ export interface TaskWorkLogEntry {
 
 /** Where the task sits: goal (and its parent) › deliverable. */
 export interface TaskChain {
+  /** The task's project, for links; null on adhoc work. */
+  project: { id: string; slug: string | null } | null
   goal: { id: string; title: string; parentTitle: string | null; service: string | null } | null
   deliverable: {
     id: string
@@ -81,6 +83,7 @@ async function taskAccess(session: Session, taskId: string) {
       teamId: true,
       assigneeId: true,
       creatorId: true,
+      project: { select: { id: true, slug: true } },
       team: { select: { managerId: true } },
       assignee: { select: { managerId: true } },
       goal: {
@@ -137,6 +140,7 @@ export async function getTaskWork(session: Session, taskId: string): Promise<Tas
   const d = task.deliverable
   return {
     chain: {
+      project: task.project,
       goal: task.goal
         ? {
             id: task.goal.id,

@@ -211,7 +211,17 @@ export default function ProjectDetailPage() {
     const next = new URLSearchParams(Array.from(searchParams.entries()))
     next.set("tab", value)
     // Links to one item (from notifications) belong to the tab they opened.
-    for (const key of ["task", "team", "thread", "reply", "site", "report", "section"])
+    for (const key of [
+      "task",
+      "team",
+      "thread",
+      "reply",
+      "site",
+      "report",
+      "section",
+      "deliverable",
+      "month",
+    ])
       next.delete(key)
     router.replace(`${pathname}?${next.toString()}`, { scroll: false })
   }

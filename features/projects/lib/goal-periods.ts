@@ -63,3 +63,50 @@ export function shiftPlanWindow(
   if (start > to.end || end < to.start) return null
   return { start, end }
 }
+
+/**
+ * The Monday-to-Friday weeks a month plans in: every week whose Thursday falls in it, so each week
+ * belongs to exactly one month (a week split across two goes where most of its days are).
+ */
+export function weeksOfMonth(month: GoalPeriod): GoalPeriod[] {
+  // The Monday of the week holding the 1st; step back further if that week's Thursday is earlier.
+  const first = new Date(month.start.getTime() - ((month.start.getUTCDay() + 6) % 7) * DAY)
+  const weeks: GoalPeriod[] = []
+  for (let monday = first; ; monday = new Date(monday.getTime() + 7 * DAY)) {
+    const thursday = new Date(monday.getTime() + 3 * DAY)
+    if (thursday > month.end) break
+    if (thursday >= month.start) {
+      weeks.push({ start: monday, end: new Date(monday.getTime() + 4 * DAY) })
+    }
+  }
+  return weeks
+}
+
+/** A Monday-to-Friday window - how the plan dialog plans a week. */
+export function isWeekWindow(w: GoalPeriod): boolean {
+  return w.start.getUTCDay() === 1 && Math.round((w.end.getTime() - w.start.getTime()) / DAY) === 4
+}
+
+/**
+ * Where one planned window lands in the next month's edition. A week maps to the same week of the
+ * new month, and the last week of the old month also fills any weeks the new month has beyond it - so
+ * a 5-week month gets five weeks of work from a 4-week one. A longer month's extra week has no place
+ * in a shorter one and is left out. The whole month stays whole; other ranges move by day of month.
+ */
+export function copyPlanWindows(
+  window: GoalPeriod,
+  from: GoalPeriod,
+  to: GoalPeriod,
+): GoalPeriod[] {
+  if (isWeekWindow(window)) {
+    const fromWeeks = weeksOfMonth(from)
+    const i = fromWeeks.findIndex((w) => w.start.getTime() === window.start.getTime())
+    if (i >= 0) {
+      const toWeeks = weeksOfMonth(to)
+      const last = fromWeeks.length - 1
+      return toWeeks.filter((_, j) => Math.min(j, last) === i)
+    }
+  }
+  const one = shiftPlanWindow(window, from, to)
+  return one ? [one] : []
+}

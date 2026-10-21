@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Plus, Sparkles, Trash2 } from "lucide-react"
+import { Link } from "@/components/tenant-link"
+import { Plus, Sparkles, Target, Trash2 } from "lucide-react"
 
 import { formatDate } from "@/lib/utils"
 import { TASK_STATUS_LABELS } from "@/lib/constants"
@@ -28,6 +29,7 @@ import { DateField } from "@/components/shared/date-field"
 import { useDeliverableTasks, useSplitDeliverable } from "../hooks/use-task-work"
 import type { DeliverableTasks } from "../server/deliverable-tasks.service"
 import { markAiSuggestionUsed, useAiSuggest, useProjectAi } from "../hooks/use-project-ai"
+import { projectHref } from "../lib/project-href"
 
 export interface SplitTarget {
   id: string
@@ -47,26 +49,26 @@ interface Line {
 
 const key = () => Math.random().toString(36).slice(2)
 
-/** The tasks a deliverable is split into, and splitting it further. */
+/** The tasks a deliverable is split into, and splitting it further. Opens from just its id. */
 export function DeliverableSplitDialog({
   projectId,
-  row,
+  deliverableId,
   currentUserId,
   onClose,
 }: {
   projectId: string
-  row: SplitTarget | null
+  deliverableId: string | null
   currentUserId?: string
   onClose: () => void
 }) {
   return (
-    <Dialog open={row !== null} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={deliverableId !== null} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        {row && (
+        {deliverableId && (
           <Body
-            key={row.id}
+            key={deliverableId}
             projectId={projectId}
-            row={row}
+            deliverableId={deliverableId}
             currentUserId={currentUserId}
             onClose={onClose}
           />
@@ -78,26 +80,36 @@ export function DeliverableSplitDialog({
 
 function Body({
   projectId,
-  row,
+  deliverableId,
   currentUserId,
   onClose,
 }: {
   projectId: string
-  row: SplitTarget
+  deliverableId: string
   currentUserId?: string
   onClose: () => void
 }) {
-  const { data, isLoading } = useDeliverableTasks(projectId, row.id)
+  const { data, isLoading, error } = useDeliverableTasks(projectId, deliverableId)
   if (isLoading || !data) {
     return (
       <>
         <DialogHeader>
-          <DialogTitle>Tasks · {row.title}</DialogTitle>
-          <DialogDescription>Loading its tasks…</DialogDescription>
+          <DialogTitle>Tasks</DialogTitle>
+          <DialogDescription>
+            {error ? "That deliverable could not be opened." : "Loading its tasks…"}
+          </DialogDescription>
         </DialogHeader>
-        <Skeleton className="h-32 rounded-sm" />
+        {!error && <Skeleton className="h-32 rounded-sm" />}
       </>
     )
+  }
+  const d = data.deliverable
+  const row: SplitTarget = {
+    id: d.id,
+    title: d.title,
+    quantity: d.quantity,
+    dueOn: d.dueOn,
+    team: d.teamName ? { name: d.teamName } : null,
   }
   return (
     <SplitForm
@@ -198,6 +210,7 @@ function SplitForm({
       <DialogHeader>
         <DialogTitle>Tasks · {row.title}</DialogTitle>
         <DialogDescription>
+          {data.deliverable.made > 0 && `${data.deliverable.made} of `}
           {row.quantity > 1 ? `${row.quantity} to make` : "One to make"}
           {row.team ? ` · owed by ${row.team.name}` : ""}. Each task is part of this deliverable;
           what its person logs (and how many they made) adds to the count.
@@ -205,11 +218,25 @@ function SplitForm({
       </DialogHeader>
 
       <div className="space-y-4">
+        {data.deliverable.goal && (
+          <Link
+            href={projectHref({ id: projectId }, "goals")}
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-xs hover:underline"
+          >
+            <Target className="h-3.5 w-3.5" /> Counts towards {data.deliverable.goal.title}
+          </Link>
+        )}
         {tasks.length > 0 && (
           <ul className="divide-y rounded-sm border text-xs">
             {tasks.map((t) => (
               <li key={t.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2">
-                <span className="min-w-0 flex-1 truncate font-medium">{t.title}</span>
+                <Link
+                  href={projectHref({ id: projectId }, "tasks", { task: t.id })}
+                  className="min-w-0 flex-1 truncate font-medium hover:underline"
+                  title="Open this task"
+                >
+                  {t.title}
+                </Link>
                 <span className="text-muted-foreground">{t.assigneeName ?? "unassigned"}</span>
                 <span className="text-muted-foreground">
                   {TASK_STATUS_LABELS[t.status as keyof typeof TASK_STATUS_LABELS] ?? t.status}
