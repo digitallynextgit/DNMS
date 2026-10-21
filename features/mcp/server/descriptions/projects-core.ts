@@ -211,6 +211,32 @@ export const PROJECTS_CORE: DescriptionMap = {
       "Active members of one project team, earliest joined first. Each row's id is the membership id ([memberId] for remove/promote); employee.id is the person. Anyone with access to the project.",
     keywords: ["team members", "who is on the team", "team roster"],
   },
+  "GET /api/projects/[id]/ai": {
+    summary: "Whether AI planning drafts are available for this project (AI configured on the server).",
+    keywords: ["ai available", "ai planning status"],
+    notes: "Returns { available }.",
+  },
+  "POST /api/projects/[id]/ai": {
+    summary:
+      "Ask AI for a planning DRAFT - nothing is saved to the plan. Kinds: goal_split (split a number across services, or propose next month's), deliverables (the work a goal needs, by team), tasks (split a deliverable into tasks), explain_goal (a goal's verdict in plain words), calendar (summarise a calendar, cached until it changes). No people's names are sent to the AI.",
+    body: "{ kind (required): goal_split|deliverables|tasks|explain_goal|calendar; goal_split: metricLabel?, targetValue?, services?: codes, seriesId?; deliverables/explain_goal: goalId; tasks: deliverableId; calendar: workbookId, refresh?: true to read it again }",
+    keywords: [
+      "suggest split",
+      "ai plan",
+      "suggest deliverables",
+      "suggest tasks",
+      "explain goal",
+      "summarise calendar",
+      "next month target",
+    ],
+    notes:
+      "Who may ask: goal_split and deliverables the Account Manager; tasks the owing team or its managers; explain_goal and calendar anyone on the project. goal_split returns { id, total, parts: [{ service, target, reason }], reason } with parts adding up to the total (with seriesId and no targetValue it proposes the total); deliverables { id, lines: [{ teamId, teamName, type, title, quantity, reason }] }; tasks { id, tasks: [{ title, estimatedHours, logHint }] }; explain_goal { id, text, verdict }; calendar { summary: { headline, counts, upcoming, gaps }, generatedAt, cached }. 503 when AI is not set up.",
+  },
+  "POST /api/projects/[id]/ai/[suggestionId]": {
+    summary:
+      "Record that an AI draft was used to fill a form (for the history of what AI suggested and what people took). No body.",
+    keywords: ["accept ai suggestion", "use ai draft"],
+  },
   "GET /api/projects/[id]/calendar-overview": {
     summary:
       "A project's calendars for a month (Analytics > Calendars): each calendar's manager and secondary, its service, the teams on its plan with their people, status, handed-in of promised and due day, its progress (teams done, items handed in, next due) and how many rows each tab holds. Anyone on the project.",

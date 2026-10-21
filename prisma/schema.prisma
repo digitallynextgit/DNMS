@@ -710,6 +710,8 @@ model Employee {
   goalEvents           ProjectGoalEvent[]        @relation("GoalEventActor")
   goalResultsEntered   ProjectGoalResult[]       @relation("GoalResultEnteredBy")
   taskWorkLogs         TaskWorkLog[]             @relation("TaskWorkLogAuthor")
+  aiSuggestionsAsked   ProjectAiSuggestion[]     @relation("AiSuggestionRequester")
+  aiSuggestionsUsed    ProjectAiSuggestion[]     @relation("AiSuggestionAcceptor")
 
   @@unique([tenantId, employeeNo])
   @@index([managerId])
@@ -1750,6 +1752,7 @@ model Project {
   projectMailerAssets ProjectMailerAsset[]
   projectGoals        ProjectGoal[]
   goalSeries          ProjectGoalSeries[]
+  aiSuggestions       ProjectAiSuggestion[]
 
   @@unique([tenantId, code])
   @@unique([tenantId, slug])
@@ -2001,6 +2004,7 @@ model ProjectWorkbook {
   secondaryAssignedTo Employee?             @relation("WorkbookSecondaryAssignee", fields: [secondaryAssignedToId], references: [id], onDelete: SetNull)
   sheets              ProjectSheet[]
   teams               ProjectWorkbookTeam[]
+  aiSummary           ProjectWorkbookSummary?
 
   /// One calendar of a given name per month (dated editions). Also serves the month picker's ordered read.
   @@unique([projectId, name, periodMonth])
@@ -4885,6 +4889,44 @@ model ProjectGoalResult {
   @@index([goalId, recordedFor])
   @@index([tenantId])
   @@map("project_goal_results")
+}
+
+/// An AI suggestion made while planning (goal split, next month's numbers, deliverables, tasks):
+/// what it was asked, what it said, and whether a person used it. Nothing saves from it directly.
+model ProjectAiSuggestion {
+  tenantId      String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id            String    @id @default(uuid()) @map("id")
+  projectId     String    @map("project_id")
+  kind          String    @map("kind")
+  input         Json      @map("input")
+  output        Json      @map("output")
+  requestedById String?   @map("requested_by_id")
+  acceptedById  String?   @map("accepted_by_id")
+  acceptedAt    DateTime? @map("accepted_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requestedBy Employee? @relation("AiSuggestionRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+  acceptedBy  Employee? @relation("AiSuggestionAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, kind, createdAt])
+  @@index([tenantId])
+  @@map("project_ai_suggestions")
+}
+
+/// A calendar's AI summary, kept until what is in the calendar changes (contentHash).
+model ProjectWorkbookSummary {
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String   @id @default(uuid()) @map("id")
+  workbookId  String   @unique @map("workbook_id")
+  contentHash String   @map("content_hash")
+  summary     Json     @map("summary")
+  generatedAt DateTime @default(now()) @map("generated_at")
+
+  workbook ProjectWorkbook @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("project_workbook_summaries")
 }
 
 /// What was done on a task, day by day. The assignee can always add one, whoever raised the task;

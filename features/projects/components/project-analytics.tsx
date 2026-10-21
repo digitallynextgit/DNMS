@@ -3,7 +3,14 @@
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useSession } from "next-auth/react"
-import { CalendarDays, ChevronLeft, ChevronRight, TrendingUp } from "lucide-react"
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react"
 
 import { apiFetch } from "@/lib/api-fetch"
 import { cn } from "@/lib/utils"
@@ -15,6 +22,8 @@ import { SegmentedControl } from "@/components/shared/segmented-control"
 import { useProject } from "../hooks/use-projects"
 import type { MemberProgress } from "../hooks/use-projects"
 import { useProjectGoals } from "../hooks/use-goals"
+import { useAiSuggest, useProjectAi } from "../hooks/use-project-ai"
+import type { CalendarSummary } from "../server/ai-planning.service"
 import {
   currentPlanMonth,
   formatMonth,
@@ -73,7 +82,11 @@ function GoalStanding({ projectId, month }: { projectId: string; month: string }
   const project = useProject(projectId)
   const owner = project.data?.data?.owner
   const amName = owner ? `${owner.firstName} ${owner.lastName ?? ""}`.trim() : null
-  const [why, setWhy] = React.useState<{ title: string; verdict: GoalVerdict } | null>(null)
+  const [why, setWhy] = React.useState<{
+    goalId: string
+    title: string
+    verdict: GoalVerdict
+  } | null>(null)
 
   if (isLoading) return <Skeleton className="h-40 rounded-sm" />
   const today = todayUtc()
@@ -113,7 +126,7 @@ function GoalStanding({ projectId, month }: { projectId: string; month: string }
                     {verdict && (
                       <VerdictChip
                         verdict={verdict}
-                        onClick={() => setWhy({ title: goal.title, verdict })}
+                        onClick={() => setWhy({ goalId: goal.id, title: goal.title, verdict })}
                       />
                     )}
                   </p>
@@ -131,6 +144,7 @@ function GoalStanding({ projectId, month }: { projectId: string; month: string }
         title={why?.title ?? ""}
         verdict={why?.verdict ?? null}
         onClose={() => setWhy(null)}
+        explain={why ? { projectId, goalId: why.goalId } : undefined}
       />
     </Card>
   )
@@ -159,7 +173,13 @@ export function AnalyticsOverview({
 }
 
 /** Every repeating goal, and the plain numbers of each month's edition, with the growth chart a click away. */
-export function AnalyticsGoals({ projectId }: { projectId: string }) {
+export function AnalyticsGoals({
+  projectId,
+  canManage,
+}: {
+  projectId: string
+  canManage: boolean
+}) {
   const { data, isLoading } = useProjectGoals(projectId)
   const [growth, setGrowth] = React.useState<string | null>(null)
   if (isLoading) return <Skeleton className="h-40 rounded-sm" />
@@ -224,7 +244,12 @@ export function AnalyticsGoals({ projectId }: { projectId: string }) {
           )}
         </CardContent>
       </Card>
-      <GoalGrowthDialog projectId={projectId} seriesId={growth} onClose={() => setGrowth(null)} />
+      <GoalGrowthDialog
+        projectId={projectId}
+        seriesId={growth}
+        canManage={canManage}
+        onClose={() => setGrowth(null)}
+      />
     </div>
   )
 }
@@ -278,7 +303,88 @@ const TEAM_STATUS: Record<string, string> = {
   DISCARDED: "Discarded",
 }
 
-function CalendarCard({ c }: { c: CalendarOverview }) {
+/** What the calendar holds, read by AI and kept until the calendar changes. */
+function CalendarAiSummary({ projectId, workbookId }: { projectId: string; workbookId: string }) {
+  const aiReady = useProjectAi(projectId)
+  const ask = useAiSuggest(projectId, "calendar")
+  const [got, setGot] = React.useState<{ summary: CalendarSummary; generatedAt: string } | null>(
+    null,
+  )
+  if (!aiReady) return null
+  const run = (refresh: boolean) =>
+    ask.mutate({ workbookId, refresh }, { onSuccess: (r) => setGot(r) })
+  if (!got) {
+    return (
+      <Button
+        variant="ghost"
+        className="h-7 px-2 text-xs"
+        onClick={() => run(false)}
+        loading={ask.isPending}
+      >
+        <Sparkles className="h-3.5 w-3.5" /> Summarise this calendar
+      </Button>
+    )
+  }
+  const s = got.summary
+  return (
+    <div className="bg-muted/30 space-y-2 rounded-sm border p-3 text-xs">
+      <p className="flex items-start gap-1.5 font-medium">
+        <Sparkles className="text-primary mt-0.5 h-3.5 w-3.5 shrink-0" /> {s.headline}
+      </p>
+      {s.counts.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {s.counts.map((c) => (
+            <span
+              key={c.label}
+              className="bg-background rounded-sm border px-1.5 py-0.5 text-[11px]"
+            >
+              {c.label} <span className="font-semibold tabular-nums">{c.value}</span>
+            </span>
+          ))}
+        </div>
+      )}
+      {s.upcoming.length > 0 && (
+        <div>
+          <p className="text-muted-foreground text-[10px] tracking-widest uppercase">Coming up</p>
+          <ul className="list-inside list-disc">
+            {s.upcoming.map((u) => (
+              <li key={u}>{u}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {s.gaps.length > 0 && (
+        <div>
+          <p className="text-muted-foreground text-[10px] tracking-widest uppercase">Gaps</p>
+          <ul className="list-inside list-disc text-amber-700 dark:text-amber-300">
+            {s.gaps.map((g) => (
+              <li key={g}>{g}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-muted-foreground text-[10px]">
+          as of{" "}
+          {new Date(got.generatedAt).toLocaleString("en-IN", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          })}
+        </span>
+        <Button
+          variant="ghost"
+          className="h-6 px-2 text-[11px]"
+          onClick={() => run(true)}
+          loading={ask.isPending}
+        >
+          <RefreshCw className="h-3 w-3" /> Read again
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function CalendarCard({ c, projectId }: { c: CalendarOverview; projectId: string }) {
   const [open, setOpen] = React.useState(false)
   const p = c.progress
   const pct = p.quantity > 0 ? Math.round((p.handedIn / p.quantity) * 100) : null
@@ -369,6 +475,11 @@ function CalendarCard({ c }: { c: CalendarOverview }) {
                 ))}
               </ul>
             </div>
+            {c.tabs.some((t) => t.rows > 0) && (
+              <div className="md:col-span-2">
+                <CalendarAiSummary projectId={projectId} workbookId={c.id} />
+              </div>
+            )}
           </div>
         )}
       </CardContent>
@@ -391,7 +502,7 @@ export function AnalyticsCalendars({ projectId }: { projectId: string }) {
           description="Calendars appear here once the project's services have one for the month."
         />
       ) : (
-        data!.calendars.map((c) => <CalendarCard key={c.id} c={c} />)
+        data!.calendars.map((c) => <CalendarCard key={c.id} c={c} projectId={projectId} />)
       )}
     </div>
   )

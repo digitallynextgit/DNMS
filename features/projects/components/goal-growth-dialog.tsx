@@ -12,7 +12,11 @@ import {
   YAxis,
 } from "recharts"
 
+import * as React from "react"
+import { Sparkles } from "lucide-react"
+
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -25,18 +29,28 @@ import { CHART_TOOLTIP_LABEL_STYLE, CHART_TOOLTIP_STYLE } from "@/lib/chart-them
 import { formatMonthShort } from "../lib/calendar-months"
 import { useGoalSeriesHistory } from "../hooks/use-goals"
 import { fmtNumber } from "./goal-number"
+import { useAiSuggest, useProjectAi } from "../hooks/use-project-ai"
+import { serviceInfo } from "../lib/project-services"
+import type { GoalSplitSuggestion } from "../server/ai-planning.service"
 
 /** Target against reached for every month of a repeating goal, and each service's share. */
 export function GoalGrowthDialog({
   projectId,
   seriesId,
+  canManage = false,
   onClose,
 }: {
   projectId: string
   seriesId: string | null
+  /** Managers may ask AI for next month's numbers (a draft - edit the goal to use it). */
+  canManage?: boolean
   onClose: () => void
 }) {
   const { data, isLoading } = useGoalSeriesHistory(projectId, seriesId)
+  const aiReady = useProjectAi(canManage ? projectId : "")
+  const ask = useAiSuggest(projectId, "goal_split")
+  const [next, setNext] = React.useState<{ seriesId: string; s: GoalSplitSuggestion } | null>(null)
+  const proposal = next && next.seriesId === seriesId ? next.s : null
   const months = data?.months ?? []
   const chart = months.map((m) => ({
     month: formatMonthShort(`${m.month}-01`),
@@ -100,6 +114,46 @@ export function GoalGrowthDialog({
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
+
+            {canManage && aiReady && seriesId && !data?.stoppedAt && (
+              <div className="bg-muted/30 space-y-1.5 rounded-sm border p-3 text-xs">
+                {proposal ? (
+                  <>
+                    <p className="flex items-start gap-1.5">
+                      <Sparkles className="text-primary mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        Next month:{" "}
+                        <span className="font-semibold">
+                          {fmtNumber(proposal.total)} {data?.metricLabel ?? ""}
+                        </span>{" "}
+                        -{" "}
+                        {proposal.parts
+                          .map(
+                            (p) =>
+                              `${serviceInfo(p.service)?.name ?? p.service} ${fmtNumber(p.target)}`,
+                          )
+                          .join(", ")}
+                        . {proposal.reason}
+                      </span>
+                    </p>
+                    <p className="text-muted-foreground text-[11px]">
+                      A draft only - edit next month&rsquo;s goal to change its numbers.
+                    </p>
+                  </>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    loading={ask.isPending}
+                    onClick={() =>
+                      ask.mutate({ seriesId }, { onSuccess: (s) => setNext({ seriesId, s }) })
+                    }
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Suggest next month&rsquo;s numbers
+                  </Button>
+                )}
+              </div>
+            )}
 
             <div className="overflow-x-auto rounded-sm border">
               <table className="w-full text-xs">

@@ -75,7 +75,7 @@ export function InsightsTab({ projectId, canManage }: { projectId: string; canMa
         <AnalyticsOverview projectId={projectId} canManage={canManage} />
       </TabsContent>
       <TabsContent value="goals">
-        <AnalyticsGoals projectId={projectId} />
+        <AnalyticsGoals projectId={projectId} canManage={canManage} />
       </TabsContent>
       <TabsContent value="people">
         <AnalyticsPeople projectId={projectId} />

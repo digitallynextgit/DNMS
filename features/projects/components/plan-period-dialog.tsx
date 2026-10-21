@@ -2,7 +2,16 @@
 
 import * as React from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { CalendarDays, Check, ChevronLeft, Plus, Target, Trash2, Users } from "lucide-react"
+import {
+  CalendarDays,
+  Check,
+  ChevronLeft,
+  Plus,
+  Sparkles,
+  Target,
+  Trash2,
+  Users,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { apiFetch } from "@/lib/api-fetch"
@@ -31,6 +40,7 @@ import { DateField } from "@/components/shared/date-field"
 import { useProjectTeams } from "../hooks/use-projects"
 import { useProjectGoals } from "../hooks/use-goals"
 import { serviceInfo, serviceTeams } from "../lib/project-services"
+import { markAiSuggestionUsed, useAiSuggest, useProjectAi } from "../hooks/use-project-ai"
 import {
   daysIn,
   formatPeriod,
@@ -349,6 +359,35 @@ function Body({
   }
   const usualTeams = chosenGoal?.service ? serviceTeams(chosenGoal.service) : []
 
+  // AI drafts the lines for the goal; they land in the form like typed ones, to change or remove.
+  const aiReady = useProjectAi(projectId)
+  const suggest = useAiSuggest(projectId, "deliverables")
+  const [aiNote, setAiNote] = React.useState<string | null>(null)
+  const suggestWork = () => {
+    if (!chosenGoal) return
+    suggest.mutate(
+      { goalId: chosenGoal.id },
+      {
+        onSuccess: (r) => {
+          setChosenTeams((cur) => new Set([...cur, ...r.lines.map((l) => l.teamId)]))
+          setLines((ls) => [
+            // Untouched starter lines give way to the draft.
+            ...ls.filter((l) => l.type.trim() || l.title.trim()),
+            ...r.lines.map((l) => ({
+              key: Math.random().toString(36).slice(2),
+              teamId: l.teamId,
+              type: l.type,
+              title: l.title,
+              quantity: String(l.quantity),
+            })),
+          ])
+          setAiNote(`Drafted ${r.lines.length} items - change or remove any before creating.`)
+          markAiSuggestionUsed(projectId, r.id)
+        },
+      },
+    )
+  }
+
   const filled = lines.filter((l) => l.type.trim() && l.title.trim())
   const totalRows = filled.length
 
@@ -601,6 +640,23 @@ function Body({
               })}
             </div>
           </>
+        )}
+
+        {step === "what" && chosenGoal && aiReady && (
+          <div className="flex items-center justify-between gap-2 rounded-sm border border-dashed px-3 py-2">
+            <span className="text-muted-foreground text-[11px]">
+              {aiNote ??
+                `Let AI draft the work for "${chosenGoal.title}" - you can change all of it.`}
+            </span>
+            <Button
+              variant="ghost"
+              className="h-7 shrink-0 px-2 text-xs"
+              onClick={suggestWork}
+              loading={suggest.isPending}
+            >
+              <Sparkles className="h-3.5 w-3.5" /> Suggest work
+            </Button>
+          </div>
         )}
 
         {step === "what" &&

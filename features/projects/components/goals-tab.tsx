@@ -606,7 +606,11 @@ export function GoalsTab({
   const [resultsFor, setResultsFor] = React.useState<GoalNode | null>(null)
   const [growthFor, setGrowthFor] = React.useState<string | null>(null)
   const [planFor, setPlanFor] = React.useState<PlanGoal | null>(null)
-  const [whyFor, setWhyFor] = React.useState<{ title: string; verdict: GoalVerdict } | null>(null)
+  const [whyFor, setWhyFor] = React.useState<{
+    goalId: string
+    title: string
+    verdict: GoalVerdict
+  } | null>(null)
   /** A part is planned as "Goal › Part", so the dialog says which goal it counts towards. */
   const planWork = (goal: GoalNode, parent?: GoalNode) =>
     setPlanFor({
@@ -689,7 +693,10 @@ export function GoalsTab({
       ? mainGoalVerdict(goal, plans, amName, today)
       : goalVerdict({ goal, plan: plans[goal.id], amName, today })
     return verdict ? (
-      <VerdictChip verdict={verdict} onClick={() => setWhyFor({ title: goal.title, verdict })} />
+      <VerdictChip
+        verdict={verdict}
+        onClick={() => setWhyFor({ goalId: goal.id, title: goal.title, verdict })}
+      />
     ) : null
   }
 
@@ -1518,12 +1525,14 @@ export function GoalsTab({
       <GoalGrowthDialog
         projectId={projectId}
         seriesId={growthFor}
+        canManage={canManage}
         onClose={() => setGrowthFor(null)}
       />
       <VerdictDialog
         title={whyFor?.title ?? ""}
         verdict={whyFor?.verdict ?? null}
         onClose={() => setWhyFor(null)}
+        explain={whyFor ? { projectId, goalId: whyFor.goalId } : undefined}
       />
       <PlanPeriodDialog
         projectId={projectId}

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Plus, Trash2 } from "lucide-react"
+import { Plus, Sparkles, Trash2 } from "lucide-react"
 
 import { formatDate } from "@/lib/utils"
 import { TASK_STATUS_LABELS } from "@/lib/constants"
@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { DateField } from "@/components/shared/date-field"
 import { useDeliverableTasks, useSplitDeliverable } from "../hooks/use-task-work"
 import type { DeliverableTasks } from "../server/deliverable-tasks.service"
+import { markAiSuggestionUsed, useAiSuggest, useProjectAi } from "../hooks/use-project-ai"
 
 export interface SplitTarget {
   id: string
@@ -145,6 +146,36 @@ function SplitForm({
     setLines((ls) => ls.map((l) => (l.key === k ? { ...l, ...patch } : l)))
   const ready = lines.filter((l) => l.title.trim() && l.assigneeId)
 
+  // AI drafts the tasks (with what to log when done); they land as lines to edit, assign or drop.
+  const aiReady = useProjectAi(projectId)
+  const suggest = useAiSuggest(projectId, "tasks")
+  const [hints, setHints] = React.useState<Record<string, string>>({})
+  const suggestTasks = () =>
+    suggest.mutate(
+      { deliverableId: row.id },
+      {
+        onSuccess: (r) => {
+          const drafted = r.tasks.map((t) => ({
+            key: key(),
+            title: t.title,
+            assigneeId: defaultAssignee,
+            dueDate: row.dueOn ?? "",
+            hours: t.estimatedHours === null ? "" : String(t.estimatedHours),
+            hint: t.logHint,
+          }))
+          setLines((ls) => [
+            ...ls.filter((l) => l.title.trim() && l.title !== row.title),
+            ...drafted.map(({ hint: _hint, ...l }) => l),
+          ])
+          setHints((h) => ({
+            ...h,
+            ...Object.fromEntries(drafted.filter((d) => d.hint).map((d) => [d.key, d.hint])),
+          }))
+          markAiSuggestionUsed(projectId, r.id)
+        },
+      },
+    )
+
   const submit = () => {
     if (ready.length === 0 || split.isPending) return
     split.mutate(
@@ -200,53 +231,60 @@ function SplitForm({
               {tasks.length > 0 ? "Add tasks" : "Split into tasks"}
             </Label>
             {lines.map((l) => (
-              <div key={l.key} className="grid gap-2 sm:grid-cols-[1.6fr_1fr_8.5rem_4.5rem_auto]">
-                <Input
-                  value={l.title}
-                  onChange={(e) => setLine(l.key, { title: e.target.value })}
-                  placeholder="What is the task?"
-                  maxLength={200}
-                  aria-label="Task title"
-                />
-                <Select
-                  value={l.assigneeId}
-                  onValueChange={(v) => setLine(l.key, { assigneeId: v })}
-                >
-                  <SelectTrigger aria-label="Who does it">
-                    <SelectValue placeholder="Who" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {assignable.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.id === currentUserId ? `${p.name} (you)` : p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <DateField
-                  value={l.dueDate}
-                  onChange={(v) => setLine(l.key, { dueDate: v })}
-                  placeholder="Due"
-                  modal
-                />
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.5}
-                  value={l.hours}
-                  onChange={(e) => setLine(l.key, { hours: e.target.value })}
-                  placeholder="Hrs"
-                  aria-label="Estimated hours"
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  title="Remove this task"
-                  onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+              <div key={l.key} className="space-y-1">
+                <div className="grid gap-2 sm:grid-cols-[1.6fr_1fr_8.5rem_4.5rem_auto]">
+                  <Input
+                    value={l.title}
+                    onChange={(e) => setLine(l.key, { title: e.target.value })}
+                    placeholder="What is the task?"
+                    maxLength={200}
+                    aria-label="Task title"
+                  />
+                  <Select
+                    value={l.assigneeId}
+                    onValueChange={(v) => setLine(l.key, { assigneeId: v })}
+                  >
+                    <SelectTrigger aria-label="Who does it">
+                      <SelectValue placeholder="Who" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {assignable.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.id === currentUserId ? `${p.name} (you)` : p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <DateField
+                    value={l.dueDate}
+                    onChange={(v) => setLine(l.key, { dueDate: v })}
+                    placeholder="Due"
+                    modal
+                  />
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    value={l.hours}
+                    onChange={(e) => setLine(l.key, { hours: e.target.value })}
+                    placeholder="Hrs"
+                    aria-label="Estimated hours"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Remove this task"
+                    onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                {hints[l.key] && (
+                  <p className="text-muted-foreground flex items-center gap-1 pl-1 text-[11px]">
+                    <Sparkles className="h-3 w-3 shrink-0" /> Log when done: {hints[l.key]}
+                  </p>
+                )}
               </div>
             ))}
             <Button
@@ -267,6 +305,16 @@ function SplitForm({
             >
               <Plus className="h-3.5 w-3.5" /> Another task
             </Button>
+            {aiReady && (
+              <Button
+                variant="ghost"
+                className="text-muted-foreground"
+                onClick={suggestTasks}
+                loading={suggest.isPending}
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Suggest tasks
+              </Button>
+            )}
             <p className="text-muted-foreground text-[11px]">
               You can give tasks to yourself or to people who report to you on this team; the team
               manager and account manager can pick anyone on it.

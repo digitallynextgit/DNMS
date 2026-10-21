@@ -1,8 +1,10 @@
 "use client"
 
-import { ListChecks, Package, UserRound, Inbox } from "lucide-react"
+import * as React from "react"
+import { ListChecks, Package, UserRound, Inbox, Sparkles } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -11,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { GoalVerdict, VerdictTone } from "../lib/goal-accountability"
+import { useAiSuggest, useProjectAi } from "../hooks/use-project-ai"
 
 const TONE_CHIP: Record<VerdictTone, string> = {
   good: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
@@ -97,11 +100,18 @@ export function VerdictDialog({
   title,
   verdict,
   onClose,
+  explain,
 }: {
   title: string
   verdict: GoalVerdict | null
   onClose: () => void
+  /** Offer an AI explanation of the verdict (it never changes it). */
+  explain?: { projectId: string; goalId: string }
 }) {
+  const aiReady = useProjectAi(explain?.projectId ?? "")
+  const ask = useAiSuggest(explain?.projectId ?? "", "explain_goal")
+  const [text, setText] = React.useState<{ goalId: string; text: string } | null>(null)
+  const shown = text && text.goalId === explain?.goalId ? text.text : null
   return (
     <Dialog open={verdict !== null} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
@@ -117,6 +127,29 @@ export function VerdictDialog({
               </DialogDescription>
             </DialogHeader>
             <Reasons verdict={verdict} />
+            {explain && aiReady && (
+              <div className="bg-muted/30 space-y-1.5 rounded-sm border p-2.5">
+                {shown ? (
+                  <p className="flex items-start gap-1.5 text-xs">
+                    <Sparkles className="text-primary mt-0.5 h-3.5 w-3.5 shrink-0" /> {shown}
+                  </p>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    loading={ask.isPending}
+                    onClick={() =>
+                      ask.mutate(
+                        { goalId: explain.goalId },
+                        { onSuccess: (r) => setText({ goalId: explain.goalId, text: r.text }) },
+                      )
+                    }
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Explain in plain words
+                  </Button>
+                )}
+              </div>
+            )}
             {verdict.parts && verdict.parts.length > 0 && (
               <div className="space-y-2 border-t pt-3">
                 <p className="text-muted-foreground text-[11px] tracking-widest uppercase">

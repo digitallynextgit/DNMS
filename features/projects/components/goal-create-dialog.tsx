@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Plus } from "lucide-react"
+import { Plus, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
 import { apiFetch } from "@/lib/api-fetch"
@@ -37,6 +37,7 @@ import {
 } from "../lib/calendar-months"
 import type { GoalActualSource } from "../lib/goal-derivation"
 import { GoalTagInput } from "./goal-tag-input"
+import { markAiSuggestionUsed, useAiSuggest, useProjectAi } from "../hooks/use-project-ai"
 import { fmtNumber } from "./goal-number"
 
 /** A service the goal can be split across, with whoever owns it now. */
@@ -124,6 +125,38 @@ function GoalForm({
       const prev: PartDraft = cur[code] ?? { on: false, value: "", source: "MANUAL" }
       return { ...cur, [code]: { ...prev, ...patch } }
     })
+
+  // AI drafts the split; it only fills the form - nothing saves until "Add goal".
+  const aiReady = useProjectAi(projectId)
+  const suggest = useAiSuggest(projectId, "goal_split")
+  const [splitWhy, setSplitWhy] = React.useState<{
+    all: string
+    by: Record<string, string>
+  } | null>(null)
+  const suggestSplit = () =>
+    suggest.mutate(
+      { metricLabel: metricLabel.trim(), targetValue, services: services.map((s) => s.code) },
+      {
+        onSuccess: (r) => {
+          setParts((cur) => {
+            const next = { ...cur }
+            for (const s of services) {
+              const part = r.parts.find((x) => x.service === s.code)
+              const prev: PartDraft = next[s.code] ?? { on: false, value: "", source: "MANUAL" }
+              next[s.code] = part
+                ? { ...prev, on: true, value: String(part.target) }
+                : { ...prev, on: false }
+            }
+            return next
+          })
+          setSplitWhy({
+            all: r.reason,
+            by: Object.fromEntries(r.parts.map((x) => [x.service, x.reason])),
+          })
+          markAiSuggestionUsed(projectId, r.id)
+        },
+      },
+    )
 
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
@@ -279,6 +312,16 @@ function GoalForm({
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-2">
               <Label className="text-muted-foreground text-[11px]">Split by service</Label>
+              {aiReady && (
+                <Button
+                  variant="ghost"
+                  className="text-muted-foreground ml-auto h-6 px-2 text-[11px]"
+                  onClick={suggestSplit}
+                  loading={suggest.isPending}
+                >
+                  <Sparkles className="h-3 w-3" /> Suggest split
+                </Button>
+              )}
               {chosen.length > 0 && (
                 <span
                   className={cn(
@@ -307,6 +350,11 @@ function GoalForm({
                       <span className="text-muted-foreground block text-[11px]">
                         {s.ownerName ? `owner ${s.ownerName}` : "no owner - the account manager"}
                       </span>
+                      {part?.on && splitWhy?.by[s.code] && (
+                        <span className="text-muted-foreground/80 block text-[11px] italic">
+                          {splitWhy.by[s.code]}
+                        </span>
+                      )}
                     </span>
                     {part?.on && (
                       <>
@@ -345,6 +393,12 @@ function GoalForm({
                 )
               })}
             </ul>
+            {splitWhy?.all && (
+              <p className="text-muted-foreground flex items-start gap-1.5 text-[11px]">
+                <Sparkles className="mt-0.5 h-3 w-3 shrink-0" /> {splitWhy.all} Change any number
+                before adding.
+              </p>
+            )}
             <p className="text-muted-foreground text-[11px]">
               Each part&rsquo;s owner enters its results (or Meta Ads fills them in), and the goal
               adds the parts up.
