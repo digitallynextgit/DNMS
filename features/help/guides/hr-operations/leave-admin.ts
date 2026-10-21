@@ -409,8 +409,8 @@ export const leaveAdminGuide: HelpGuide = {
           hi: "Casual या Sick Leave को Earned Leave के ठीक पहले या बाद में नहीं जोड़ा जा सकता।",
         },
         {
-          en: "Leave Without Pay (LWP): apply at least 2 days before.",
-          hi: "Leave Without Pay (LWP): कम से कम 2 दिन पहले अप्लाई करें।",
+          en: "Leave Without Pay (LWP): can be applied for any time, even for today - no notice needed.",
+          hi: "Leave Without Pay (LWP): कभी भी अप्लाई कर सकते हैं, आज के लिए भी - पहले से बताना ज़रूरी नहीं।",
         },
         {
           en: "Maternity Leave (ML): for women only, after 2 years of service.",

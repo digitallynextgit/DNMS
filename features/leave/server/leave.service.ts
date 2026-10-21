@@ -929,13 +929,14 @@ export async function applyLeave(body: {
     if (leaveType.code === "SHORT") totalDays = 0.5
     if (totalDays === 0) return fail("Selected date range results in zero leave days")
 
-    // Advance notice: EL 60 days, CL/LWP 2 days.
+    // Advance notice: EL 60 days, CL 2 days. Unpaid leave (LWP) can be applied for straight away -
+    // it is what interns and people on probation have, and it costs the company nothing.
     const noticeDays = Math.floor(
       (start.getTime() - startOfDayUTC(new Date()).getTime()) / 86_400_000,
     )
     if (leaveType.code === "EL" && noticeDays < 60)
       return fail("Earned Leave must be applied at least 60 days in advance.")
-    if ((leaveType.code === "CL" || leaveType.code === "LWP") && noticeDays < 2)
+    if (leaveType.code === "CL" && noticeDays < 2)
       return fail(`${leaveType.name} must be applied at least 2 days in advance.`)
 
     if (leaveType.code === "ML") {
