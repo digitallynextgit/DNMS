@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { canManageProject, withProjectManager } from "@/features/projects/server/project-access"
 import { encrypt, tryDecrypt } from "@/lib/crypto"
+import { createAuditLog } from "@/lib/audit"
 import type { Session } from "next-auth"
 
-// The reveal endpoint - returns the decrypted password.
+// The reveal endpoint - returns the decrypted password. Every reveal is audited: project admins can
+// open every client's logins, so who saw which one must stay answerable.
 export const GET = withProjectManager(
-  async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
+  async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId, entryId } = ctx.params
       // Scope to the guarded project, so another project's entry id 404s instead of being decrypted.
@@ -14,6 +16,13 @@ export const GET = withProjectManager(
         where: { id: entryId, projectId },
       })
       if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 })
+      await createAuditLog(session, {
+        action: "REVEAL",
+        module: "project",
+        entityType: "ProjectPasswordEntry",
+        entityId: entry.id,
+        changes: { projectId, label: entry.label },
+      })
       return NextResponse.json({ data: { password: tryDecrypt(entry.encPassword) ?? "" } })
     } catch (error) {
       console.error("[PASSWORD_REVEAL]", error)
@@ -29,7 +38,7 @@ export const PATCH = withProjectManager(
       // Bind to the guarded project first, or a manager of project A could edit B's entry.
       const entry = await db.projectPasswordEntry.findFirst({
         where: { id: entryId, projectId },
-        select: { id: true, createdById: true },
+        select: { id: true, createdById: true, label: true },
       })
       if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
@@ -60,6 +69,14 @@ export const PATCH = withProjectManager(
           createdBy: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
         },
       })
+      await createAuditLog(session, {
+        action: "UPDATE",
+        module: "project",
+        entityType: "ProjectPasswordEntry",
+        entityId: entryId,
+        // Which fields changed, never their values.
+        changes: { projectId, label: entry.label, fields: Object.keys(data) },
+      })
       return NextResponse.json({ data: updated })
     } catch (error) {
       console.error("[PASSWORD_PATCH]", error)
@@ -74,7 +91,7 @@ export const DELETE = withProjectManager(
       const { id: projectId, entryId } = ctx.params
       const entry = await db.projectPasswordEntry.findFirst({
         where: { id: entryId, projectId },
-        select: { id: true, createdById: true },
+        select: { id: true, createdById: true, label: true },
       })
       if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
@@ -84,6 +101,13 @@ export const DELETE = withProjectManager(
       }
 
       await db.projectPasswordEntry.delete({ where: { id: entryId } })
+      await createAuditLog(session, {
+        action: "DELETE",
+        module: "project",
+        entityType: "ProjectPasswordEntry",
+        entityId: entryId,
+        changes: { projectId, label: entry.label },
+      })
       return NextResponse.json({ success: true })
     } catch (error) {
       console.error("[PASSWORD_DELETE]", error)

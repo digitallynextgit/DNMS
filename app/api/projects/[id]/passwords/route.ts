@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withProjectManager } from "@/features/projects/server/project-access"
 import { encrypt } from "@/lib/crypto"
+import { createAuditLog } from "@/lib/audit"
 import type { Session } from "next-auth"
 
 const CREATOR_SELECT = {
@@ -77,6 +78,13 @@ export const POST = withProjectManager(
         },
       })
 
+      await createAuditLog(session, {
+        action: "CREATE",
+        module: "project",
+        entityType: "ProjectPasswordEntry",
+        entityId: entry.id,
+        changes: { projectId, label },
+      })
       return NextResponse.json({ data: entry }, { status: 201 })
     } catch (error) {
       console.error("[PASSWORDS_POST]", error)
