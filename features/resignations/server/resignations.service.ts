@@ -15,6 +15,7 @@ import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { startOfDayUTC, toDateOnly } from "@/lib/dates"
 import { renderResignationDecisionEmail, renderResignationRequestEmail } from "@/lib/email-layout"
 import { getConfig, warmConfig } from "@/server/app-config"
+import { isManagerOf, managedBy } from "@/lib/reporting-line"
 
 const HR_ROLE_NAMES = ["hr_manager", "admin"]
 
@@ -59,6 +60,7 @@ export async function applyResignation(input: {
         department: { select: { name: true } },
         designation: { select: { title: true } },
         manager: { select: { firstName: true, lastName: true, email: true } },
+        dottedManager: { select: { email: true } },
       },
     })
     if (!me) return fail("Employee not found")
@@ -101,10 +103,10 @@ export async function applyResignation(input: {
       link: "/resignations",
     })
 
-    // Best-effort email to HR (manager on CC) from the employee's own Gmail.
+    // Best-effort email to HR (both managers on CC) from the employee's own Gmail.
     try {
       if (me.gmailAppPassword) {
-        const managerEmail = me.manager?.email || undefined
+        const managerEmail = me.manager?.email || me.dottedManager?.email || undefined
 
         // Shared HR inbox first; else HR-role employees, then the manager.
         let to: string[] = []
@@ -124,7 +126,10 @@ export async function applyResignation(input: {
         }
         if (to.length === 0 && managerEmail) to = [managerEmail]
 
-        const cc = managerEmail && !to.includes(managerEmail) ? managerEmail : undefined
+        const managerEmails = [me.manager?.email, me.dottedManager?.email].filter(
+          (e): e is string => !!e && !to.includes(e),
+        )
+        const cc = managerEmails.length ? [...new Set(managerEmails)] : undefined
 
         if (to.length > 0) {
           const mail = renderResignationRequestEmail({
@@ -195,7 +200,16 @@ export async function cancelResignation(id: string): Promise<ActionResult<unknow
   })
 }
 
-// HR/admin see every pending resignation; a manager sees their direct reports'.
+/** Both managers' emails for a decision's CC, or undefined when neither has one. */
+function managerEmailsOf(e: {
+  manager: { email: string } | null
+  dottedManager: { email: string } | null
+}): string[] | undefined {
+  const emails = [e.manager?.email, e.dottedManager?.email].filter((m): m is string => !!m)
+  return emails.length ? [...new Set(emails)] : undefined
+}
+
+// HR/admin see every pending resignation; a manager sees their direct reports' (reporting or dotted-line).
 export async function getResignationsToReview(
   filters: { page?: number; limit?: number } = {},
 ): Promise<ActionResult<unknown>> {
@@ -204,7 +218,7 @@ export async function getResignationsToReview(
     const canReviewAll = hasPermission(session, PERMISSIONS.RESIGNATION_APPROVE)
 
     const authorized =
-      canReviewAll || (await db.employee.count({ where: { managerId: session.user.id } })) > 0
+      canReviewAll || (await db.employee.count({ where: managedBy(session.user.id) })) > 0
 
     const { page, limit, skip, take } = resolvePagination(filters, 10)
 
@@ -221,7 +235,7 @@ export async function getResignationsToReview(
 
     const where = canReviewAll
       ? { status: "PENDING" as const }
-      : { status: "PENDING" as const, employee: { managerId: session.user.id } }
+      : { status: "PENDING" as const, employee: managedBy(session.user.id) }
 
     const [resignations, total] = await Promise.all([
       db.resignation.findMany({
@@ -262,7 +276,7 @@ export async function getPendingResignationCount(): Promise<ActionResult<{ count
     const canReviewAll = hasPermission(session, PERMISSIONS.RESIGNATION_APPROVE)
     const where = canReviewAll
       ? { status: "PENDING" as const }
-      : { status: "PENDING" as const, employee: { managerId: session.user.id } }
+      : { status: "PENDING" as const, employee: managedBy(session.user.id) }
     const count = await db.resignation.count({ where })
     return ok({ count })
   })
@@ -287,8 +301,10 @@ export async function reviewResignation(
             lastName: true,
             email: true,
             managerId: true,
+            dottedManagerId: true,
             status: true,
             manager: { select: { email: true } },
+            dottedManager: { select: { email: true } },
           },
         },
       },
@@ -299,7 +315,7 @@ export async function reviewResignation(
     if (resignation.employeeId === session.user.id)
       return fail("You cannot review your own resignation")
 
-    const isManager = resignation.employee.managerId === session.user.id
+    const isManager = isManagerOf(resignation.employee, session.user.id)
     const canReviewAll = hasPermission(session, PERMISSIONS.RESIGNATION_APPROVE)
     if (!isManager && !canReviewAll)
       return fail("Only the employee's manager or HR can review this resignation")
@@ -337,7 +353,7 @@ export async function reviewResignation(
           })
           addEmailJob({
             to: resignation.employee.email,
-            cc: resignation.employee.manager?.email || undefined,
+            cc: managerEmailsOf(resignation.employee),
             subject: email.subject,
             html: email.html,
             text: email.text,
@@ -414,7 +430,7 @@ export async function reviewResignation(
         })
         addEmailJob({
           to: resignation.employee.email,
-          cc: resignation.employee.manager?.email || undefined,
+          cc: managerEmailsOf(resignation.employee),
           subject: email.subject,
           html: email.html,
           text: email.text,

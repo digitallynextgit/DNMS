@@ -15,6 +15,8 @@ interface PreviewData {
   to: { name: string; email: string } | null
   /** The HR mailbox on CC, or null. */
   ccHr: string | null
+  /** The dotted-line manager on CC, or null. */
+  ccManager?: string | null
   /** The applicant's email signature block (same source the real email uses). */
   signature: Signature | null
 }
@@ -139,10 +141,12 @@ export function LeaveMailPreview({
                   {data.to.name} &lt;{data.to.email}&gt;
                 </span>
               </div>
-              {data.ccHr && (
+              {(data.ccHr || data.ccManager) && (
                 <div className="grid grid-cols-[3.25rem_1fr] items-center gap-1">
                   <span className="text-muted-foreground">Cc:</span>
-                  <span className="truncate font-medium">{data.ccHr}</span>
+                  <span className="truncate font-medium">
+                    {[data.ccHr, data.ccManager].filter(Boolean).join(", ")}
+                  </span>
                 </div>
               )}
               <div className="grid grid-cols-[3.25rem_1fr] items-center gap-1">

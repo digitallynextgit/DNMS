@@ -20,6 +20,7 @@ import {
 import { renderDecisionEmail, renderWfhRequestEmail, signatureLogoUrl } from "@/lib/email-layout"
 import { isOnProbation, getProbationEndDate } from "@/features/employees/probation"
 import { getConfig, getConfigSync, warmConfig } from "@/server/app-config"
+import { isManagerOf, managedBy } from "@/lib/reporting-line"
 
 type Tier = 1 | 2 | 3
 
@@ -116,9 +117,12 @@ async function countOrdinaryWfhDaysInMonth(
 export interface WfhMailEnvelope {
   to: { id: string; name: string; firstName: string; email: string } | null
   ccHr: string | null
+  /** The dotted-line manager, copied in when the mail goes to someone else. */
+  ccManager: string | null
 }
 
-/** Used by both the sender and the preview so they never disagree. To = active manager, else first HR/admin. */
+/** Used by both the sender and the preview so they never disagree. To = active manager (else the
+ *  dotted-line one), else first HR/admin. */
 export async function resolveWfhMailEnvelope(applicantId: string): Promise<WfhMailEnvelope> {
   const applicant = await db.employee.findUnique({
     where: { id: applicantId },
@@ -126,23 +130,28 @@ export async function resolveWfhMailEnvelope(applicantId: string): Promise<WfhMa
       manager: {
         select: { id: true, firstName: true, lastName: true, email: true, isActive: true },
       },
+      dottedManager: {
+        select: { id: true, firstName: true, lastName: true, email: true, isActive: true },
+      },
     },
   })
   const mgr = applicant?.manager?.isActive ? applicant.manager : null
+  const dotted = applicant?.dottedManager?.isActive ? applicant.dottedManager : null
 
-  const queue = mgr
-    ? []
-    : await db.employee.findMany({
-        where: {
-          isActive: true,
-          id: { not: applicantId },
-          employeeRoles: { some: { role: { name: { in: HR_ROLE_NAMES } } } },
-        },
-        select: { id: true, firstName: true, lastName: true, email: true },
-        orderBy: { createdAt: "asc" },
-      })
+  const queue =
+    mgr || dotted
+      ? []
+      : await db.employee.findMany({
+          where: {
+            isActive: true,
+            id: { not: applicantId },
+            employeeRoles: { some: { role: { name: { in: HR_ROLE_NAMES } } } },
+          },
+          select: { id: true, firstName: true, lastName: true, email: true },
+          orderBy: { createdAt: "asc" },
+        })
 
-  const pick = mgr ?? queue[0] ?? null
+  const pick = mgr ?? dotted ?? queue[0] ?? null
   const to = pick
     ? {
         id: pick.id,
@@ -154,8 +163,9 @@ export async function resolveWfhMailEnvelope(applicantId: string): Promise<WfhMa
 
   const hrInbox = (await getConfig("HR_EMAIL"))?.trim() || null
   const ccHr = hrInbox && (!to || hrInbox.toLowerCase() !== to.email.toLowerCase()) ? hrInbox : null
+  const ccManager = dotted && dotted.id !== to?.id ? dotted.email : null
 
-  return { to, ccHr }
+  return { to, ccHr, ccManager }
 }
 
 /** `<key@host>` using the app's own host, so every id we mint looks local. */
@@ -192,6 +202,7 @@ export async function getWfhMailPreview(): Promise<ActionResult<unknown>> {
     return ok({
       to: envelope.to ? { name: envelope.to.name, email: envelope.to.email } : null,
       ccHr: envelope.ccHr,
+      ccManager: envelope.ccManager,
       signature: applicant
         ? {
             name: `${applicant.firstName} ${applicant.lastName}`.trim(),
@@ -264,7 +275,7 @@ async function sendWfhRequestLetter(
       reviewUrl: appUrl ? `${appUrl.replace(/\/$/, "")}/wfh?tab=requests` : undefined,
     })
 
-    const cc = [envelope.ccHr, applicant?.email].filter(
+    const cc = [envelope.ccHr, envelope.ccManager, applicant?.email].filter(
       (v): v is string => Boolean(v) && v !== envelope.to!.email,
     )
 
@@ -602,7 +613,11 @@ export async function updateWfhRequest(
 
     const request = await db.wfhRequest.findUnique({
       where: { id },
-      include: { employee: { select: { managerId: true, firstName: true, email: true } } },
+      include: {
+        employee: {
+          select: { managerId: true, dottedManagerId: true, firstName: true, email: true },
+        },
+      },
     })
     if (!request) return fail("WFH request not found")
     if (request.status !== "PENDING")
@@ -623,13 +638,13 @@ export async function updateWfhRequest(
       return ok(serialize({ data: updated }))
     }
 
-    // HR or the employee's own manager may act; the FIRST decision is final.
+    // HR or either of the employee's managers may act; the FIRST decision is final.
     const roles = session.user.roles ?? []
     // wfh:approve covers HR executives, who see the company-wide queue and must be able to act on it.
     const isHr =
       roles.some((r) => HR_ROLE_NAMES.includes(r)) ||
       hasPermission(session, PERMISSIONS.WFH_APPROVE)
-    const isManager = request.employee.managerId === session.user.id
+    const isManager = isManagerOf(request.employee, session.user.id)
     if (!isHr && !isManager) return fail("You can only act on your own team's WFH requests.")
     if (action === "REJECT" && !rejectionReason?.trim()) return fail("Rejection reason is required")
     const reason = rejectionReason?.trim()
@@ -717,7 +732,7 @@ export async function getWfhInbox(
         hasPermission(session, PERMISSIONS.WFH_APPROVE)
     } else {
       const reports = await db.employee.findMany({
-        where: { managerId: session.user.id, isActive: true },
+        where: { ...managedBy(session.user.id), isActive: true },
         select: { id: true },
       })
       isApprover = reports.length > 0

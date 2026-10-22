@@ -322,6 +322,7 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
       designationId: e.designation?.id ?? "",
       jobRoleId: e.jobRole?.id ?? "",
       managerId: e.manager?.id ?? "",
+      dottedManagerId: e.dottedManager?.id ?? "",
       employmentType: e.employmentType ?? "FULL_TIME",
       status: e.status ?? "ACTIVE",
       workLocation: e.workLocation ?? "",
@@ -360,6 +361,8 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
     if (form.departmentId) body.departmentId = form.departmentId
     if (form.designationId) body.designationId = form.designationId
     if (form.managerId) body.managerId = form.managerId
+    // Sent even when empty, so clearing it sticks.
+    body.dottedManagerId = form.dottedManagerId
 
     mut.mutate(
       { id: emp.id, body },
@@ -463,6 +466,25 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
               placeholder="Search and select a manager"
               modal
             />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Dotted-line manager</Label>
+            <EmployeeCombobox
+              value={form.dottedManagerId || undefined}
+              onChange={(v) => setForm((f) => ({ ...f, dottedManagerId: v ?? "" }))}
+              excludeId={emp.id}
+              initialLabel={
+                emp.dottedManager
+                  ? `${emp.dottedManager.firstName} ${emp.dottedManager.lastName}`
+                  : undefined
+              }
+              placeholder="Covers when the manager is away"
+              modal
+            />
+            <p className="text-muted-foreground text-xs">
+              Has the same say as the manager: approves leave, WFH and attendance requests, fills
+              weekly reviews and evaluations, and gets the same alerts.
+            </p>
           </div>
           <Field label="Employment Type" required>
             <Select

@@ -3,6 +3,7 @@ import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { canAccessProject } from "@/features/projects/server/project-access"
 import { getTaskTimeline } from "@/features/projects/server/task-status-periods"
+import { isManagerOf } from "@/lib/reporting-line"
 import type { Session } from "next-auth"
 
 // Readable by anyone who can see the project.
@@ -15,17 +16,17 @@ export const GET = withSession(
           projectId: true,
           assigneeId: true,
           creatorId: true,
-          assignee: { select: { managerId: true } },
+          assignee: { select: { managerId: true, dottedManagerId: true } },
         },
       })
       if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 })
 
-      // Adhoc work: whoever it's on, whoever raised it, and that person's line manager.
+      // Adhoc work: whoever it's on, whoever raised it, and either of that person's managers.
       const allowed = task.projectId
         ? await canAccessProject(session, task.projectId)
         : task.assigneeId === session.user.id ||
           task.creatorId === session.user.id ||
-          task.assignee?.managerId === session.user.id
+          isManagerOf(task.assignee, session.user.id)
       if (!allowed) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
       }

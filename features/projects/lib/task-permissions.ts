@@ -14,13 +14,20 @@ export interface TaskEditSubject {
   assigneeId: string | null
 }
 
-/** The task's "manager": its team's manager, or for adhoc work the assignee's line manager. */
-export function resolveTaskManagerId(task: {
-  teamId: string | null
-  teamManagerId?: string | null
-  assigneeManagerId?: string | null
-}): string | null {
-  return task.teamId ? (task.teamManagerId ?? null) : (task.assigneeManagerId ?? null)
+/** The task's "manager": its team's manager, or for adhoc work the assignee's line manager. The
+ *  assignee's dotted-line manager has the same say, so they get themselves back as `viewerId`. */
+export function resolveTaskManagerId(
+  task: {
+    teamId: string | null
+    teamManagerId?: string | null
+    assigneeManagerId?: string | null
+    assigneeDottedManagerId?: string | null
+  },
+  viewerId?: string,
+): string | null {
+  if (task.teamId) return task.teamManagerId ?? null
+  if (viewerId && task.assigneeDottedManagerId === viewerId) return viewerId
+  return task.assigneeManagerId ?? null
 }
 
 /** A task with no project is adhoc: work that belongs to no client. */

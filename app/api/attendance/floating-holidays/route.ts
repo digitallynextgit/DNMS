@@ -4,6 +4,7 @@ import { withSession } from "@/server/api-handler"
 import { notifyApprovers } from "@/lib/notifications"
 import { sendFloatingHolidayRequestLetter } from "@/features/attendance/server/floating-holiday-mail"
 import { SYSTEM_ROLES, FLOATING_HOLIDAY_LIMIT } from "@/lib/constants"
+import { managedBy } from "@/lib/reporting-line"
 import type { Session } from "next-auth"
 
 const HR_ROLES: string[] = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.ADMIN_]
@@ -37,7 +38,7 @@ export const GET = withSession(
             createdAt: true,
           },
         }),
-        isHr ? Promise.resolve(0) : db.employee.count({ where: { managerId: session.user.id } }),
+        isHr ? Promise.resolve(0) : db.employee.count({ where: managedBy(session.user.id) }),
       ])
 
       // Only approved holidays use the allowance; pending ones are still just requests.

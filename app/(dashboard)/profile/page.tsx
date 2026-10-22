@@ -325,6 +325,14 @@ export default function ProfilePage() {
                     emp.manager ? `${emp.manager.firstName} ${emp.manager.lastName}` : undefined
                   }
                 />
+                <InfoRow
+                  label="Dotted-line manager"
+                  value={
+                    emp.dottedManager
+                      ? `${emp.dottedManager.firstName} ${emp.dottedManager.lastName}`
+                      : undefined
+                  }
+                />
               </div>
             </CardContent>
           </Card>

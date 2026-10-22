@@ -7,6 +7,7 @@ import { SYSTEM_ROLES } from "@/lib/constants"
 import { getPendingResignationCount } from "@/features/resignations/server/resignations.service"
 import { resolveMobilePrincipal, runAsMobilePrincipal } from "@/server/mobile-auth"
 import { ipThrottled, throttled } from "@/features/auth/server/mobile-auth-http"
+import { managedBy } from "@/lib/reporting-line"
 
 // =============================================================================
 // GET /api/mobile/v1/badges - every number the tab bar and the Inbox draw, in
@@ -217,7 +218,7 @@ async function countBadges(session: Session, me: string): Promise<MobileBadges> 
       // LEAVE. getMyTeamLeaveRequests() (features/leave/server/leave.service.ts:780)
       // qualifies by the REPORTING LINE and nothing else - its route's comment
       // is "Managers are found by reporting line - no permission required". It
-      // reads `employee.managerId = me AND isActive = true`, returns
+      // reads "either manager is me AND isActive = true", returns
       // `isManager: false` with an empty page when there are none, and
       // otherwise filters leave_requests to those ids. The app asks it for
       // `?status=PENDING` (dnmsApp approvals.api.ts:66).
@@ -229,7 +230,7 @@ async function countBadges(session: Session, me: string): Promise<MobileBadges> 
       // rule, for free.
       // ---------------------------------------------------------------------
       db.leaveRequest.count({
-        where: { status: "PENDING", employee: { managerId: me, isActive: true } },
+        where: { status: "PENDING", employee: { ...managedBy(me), isActive: true } },
       }),
 
       // ---------------------------------------------------------------------
@@ -258,7 +259,7 @@ async function countBadges(session: Session, me: string): Promise<MobileBadges> 
       isHr
         ? db.wfhRequest.count({ where: { status: "PENDING" } })
         : db.wfhRequest.count({
-            where: { status: "PENDING", employee: { managerId: me, isActive: true } },
+            where: { status: "PENDING", employee: { ...managedBy(me), isActive: true } },
           }),
 
       // ---------------------------------------------------------------------
@@ -284,7 +285,7 @@ async function countBadges(session: Session, me: string): Promise<MobileBadges> 
       // FLOATING HOLIDAYS. app/api/attendance/floating-holidays/requests/route.ts:21-30,
       // which is the only one of the four with its rule written in the route
       // rather than a service: an HR ROLE sees every row, and EVERY other
-      // caller is force-filtered to `employee: { managerId: session.user.id }`.
+      // caller is force-filtered to the employees they manage.
       // There is no isApprover flag on that endpoint at all - a non-HR caller
       // who gets rows IS a manager of the people in them, which is the same
       // inference the app documents (dnmsApp approvals.api.ts:266-271).
@@ -302,7 +303,7 @@ async function countBadges(session: Session, me: string): Promise<MobileBadges> 
       //     still counted for HR.
       // ---------------------------------------------------------------------
       db.floatingHolidaySelection.count({
-        where: isHr ? { status: "PENDING" } : { status: "PENDING", employee: { managerId: me } },
+        where: isHr ? { status: "PENDING" } : { status: "PENDING", employee: managedBy(me) },
       }),
 
       // ---------------------------------------------------------------------

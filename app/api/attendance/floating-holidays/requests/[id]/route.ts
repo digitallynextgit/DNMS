@@ -4,6 +4,7 @@ import { withSession } from "@/server/api-handler"
 import { FLOATING_HOLIDAY_LIMIT, SYSTEM_ROLES } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
 import { actorStampId } from "@/lib/audit"
+import { isManagerOf } from "@/lib/reporting-line"
 import type { Session } from "next-auth"
 
 // Their approval is final; a manager's approval is only the first step.
@@ -25,7 +26,7 @@ export const PATCH = withSession(
         where: { id },
         include: {
           holiday: { select: { name: true, date: true } },
-          employee: { select: { managerId: true } },
+          employee: { select: { managerId: true, dottedManagerId: true } },
         },
       })
       if (!reqRow) return NextResponse.json({ error: "Request not found" }, { status: 404 })
@@ -37,7 +38,7 @@ export const PATCH = withSession(
       }
 
       const isHr = (session.user.roles ?? []).some((r) => HR_ROLES.includes(r))
-      const isManager = reqRow.employee.managerId === session.user.id
+      const isManager = isManagerOf(reqRow.employee, session.user.id)
       if (!isHr && !isManager) {
         return NextResponse.json(
           { error: "You can only act on your own team's floating-holiday requests." },

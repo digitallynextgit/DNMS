@@ -39,7 +39,8 @@ export const createEmployeeSchema = z.object({
   jobRoleId: z.union([z.string().uuid(), z.literal("")]).optional(),
   roleId: z.string().uuid("Select a role").optional(),
   managerId: z.string().uuid().optional(),
-  dottedManagerId: z.string().uuid().optional(),
+  // "" clears it.
+  dottedManagerId: z.union([z.string().uuid(), z.literal("")]).optional(),
   employmentType: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"]).default("FULL_TIME"),
   dateOfJoining: z.string().optional(),
   probationEndDate: z.string().optional(),

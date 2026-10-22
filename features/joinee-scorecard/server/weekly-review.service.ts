@@ -9,6 +9,7 @@ import { createNotification } from "@/lib/notifications"
 import { addEmailJob } from "@/lib/queue"
 import { wrapEmail } from "@/lib/email-layout"
 import { addDays, startOfDayUTC, todayUtc } from "@/lib/dates"
+import { isManagerOf, managedBy } from "@/lib/reporting-line"
 import { requirePermission, requireSession, getAuditMeta } from "@/server/action-guard"
 import { ok, fail, runAction, type ActionResult } from "@/server/action-result"
 import { dayStatus, isScore } from "../lib/scorecard"
@@ -34,16 +35,23 @@ const MAX_COMMENT = 4000
 
 type Session = Awaited<ReturnType<typeof requireSession>>
 
-/** HR edits anyone's; the reporting manager edits their own reports'; the joinee reads theirs. */
+/** HR edits anyone's; either manager edits their own reports'; the joinee reads theirs. */
 async function rightsFor(session: Session, employeeId: string) {
   const employee = await db.employee.findUnique({
     where: { id: employeeId },
-    select: { id: true, firstName: true, lastName: true, managerId: true, manager: PERSON },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      managerId: true,
+      dottedManagerId: true,
+      manager: PERSON,
+    },
   })
   if (!employee) return null
   const hr = hasPermission(session, PERMISSIONS.ONBOARDING_WRITE)
   const hrRead = hr || hasAnyPermission(session, [PERMISSIONS.ONBOARDING_READ])
-  const isManager = !!employee.managerId && employee.managerId === session.user.id
+  const isManager = isManagerOf(employee, session.user.id)
   return {
     employee,
     canRead: hrRead || isManager || session.user.id === employeeId,
@@ -397,7 +405,7 @@ async function dueFor(managerId: string, today: Date) {
     where: {
       reviewedAt: null,
       date: { lte: today },
-      review: { employee: { managerId, isActive: true } },
+      review: { employee: { ...managedBy(managerId), isActive: true } },
     },
     orderBy: { date: "asc" },
     select: { weekNumber: true, date: true, review: { select: { employee: PERSON } } },
@@ -427,7 +435,7 @@ export async function countMyDueWeeklyReviews(): Promise<number> {
       where: {
         reviewedAt: null,
         date: { lte: todayUtc() },
-        review: { employee: { managerId: session.user.id, isActive: true } },
+        review: { employee: { ...managedBy(session.user.id), isActive: true } },
       },
     })
   } catch {
@@ -479,6 +487,9 @@ export async function runWeeklyReviewReminders(
               firstName: true,
               lastName: true,
               manager: { select: { id: true, firstName: true, email: true, isActive: true } },
+              dottedManager: {
+                select: { id: true, firstName: true, email: true, isActive: true },
+              },
               joineeScorecard: {
                 select: { hrSpoc: { select: { id: true, email: true, isActive: true } } },
               },
@@ -495,13 +506,15 @@ export async function runWeeklyReviewReminders(
     const joinee = w.review.employee
     const name = `${joinee.firstName} ${joinee.lastName}`.trim()
     const link = `/weekly-reviews/${joinee.id}`
-    const manager = joinee.manager?.isActive ? joinee.manager : null
+    // Either manager fills it in; the reporting one is addressed, the dotted-line one copied.
+    const dotted = joinee.dottedManager?.isActive ? joinee.dottedManager : null
+    const manager = joinee.manager?.isActive ? joinee.manager : dotted
     const spoc = joinee.joineeScorecard?.hrSpoc?.isActive ? joinee.joineeScorecard.hrSpoc : null
     const late = weekday === 1
     const title = late ? "Weekly review still due" : "Weekly review due today"
     const message = `${name} - week ${w.weekNumber} (${fridayLabel(friday)}). Score the week and add a comment.`
 
-    const recipients = [manager?.id, late || !manager ? spoc?.id : null].filter(
+    const recipients = [manager?.id, dotted?.id, late || !manager ? spoc?.id : null].filter(
       (id, i, all): id is string => !!id && all.indexOf(id) === i,
     )
     for (const id of recipients) {
@@ -528,7 +541,10 @@ export async function runWeeklyReviewReminders(
         <p style="margin:0 0 8px;"><a href="${url}" style="display:inline-block; padding:10px 18px; background:#111827; color:#ffffff; border-radius:4px; text-decoration:none; font-size:14px;">Open the weekly review</a></p>`
       addEmailJob({
         to: to.email,
-        cc: late && manager && spoc?.email ? spoc.email : undefined,
+        cc: [
+          late && manager && spoc?.email ? spoc.email : null,
+          dotted && dotted.id !== to.id ? dotted.email : null,
+        ].filter((e): e is string => !!e),
         subject: `${title}: ${name}`,
         html: wrapEmail({ title, bodyHtml }),
         text: `${message}\n\n${url}`,

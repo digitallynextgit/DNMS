@@ -16,10 +16,12 @@ export interface FloatingHolidayMailEnvelope {
   to: { id: string; name: string; firstName: string; email: string } | null
   /** The HR mailbox on Cc, or null. */
   ccHr: string | null
+  /** The dotted-line manager on Cc when the letter goes to someone else, or null. */
+  ccManager: string | null
 }
 
-/** Who the letter goes to: the applicant's active manager, else the first HR/admin approver -
- *  never the applicant. */
+/** Who the letter goes to: the applicant's active manager (else the dotted-line one), else the
+ *  first HR/admin approver - never the applicant. */
 export async function resolveFloatingHolidayMailEnvelope(
   applicantId: string,
 ): Promise<FloatingHolidayMailEnvelope> {
@@ -29,23 +31,28 @@ export async function resolveFloatingHolidayMailEnvelope(
       manager: {
         select: { id: true, firstName: true, lastName: true, email: true, isActive: true },
       },
+      dottedManager: {
+        select: { id: true, firstName: true, lastName: true, email: true, isActive: true },
+      },
     },
   })
   const mgr = applicant?.manager?.isActive ? applicant.manager : null
+  const dotted = applicant?.dottedManager?.isActive ? applicant.dottedManager : null
 
-  const queue = mgr
-    ? []
-    : await db.employee.findMany({
-        where: {
-          isActive: true,
-          id: { not: applicantId },
-          employeeRoles: { some: { role: { name: { in: HR_ROLE_NAMES } } } },
-        },
-        select: { id: true, firstName: true, lastName: true, email: true },
-        orderBy: { createdAt: "asc" },
-      })
+  const queue =
+    mgr || dotted
+      ? []
+      : await db.employee.findMany({
+          where: {
+            isActive: true,
+            id: { not: applicantId },
+            employeeRoles: { some: { role: { name: { in: HR_ROLE_NAMES } } } },
+          },
+          select: { id: true, firstName: true, lastName: true, email: true },
+          orderBy: { createdAt: "asc" },
+        })
 
-  const pick = mgr ?? queue[0] ?? null
+  const pick = mgr ?? dotted ?? queue[0] ?? null
   const to = pick
     ? {
         id: pick.id,
@@ -57,8 +64,9 @@ export async function resolveFloatingHolidayMailEnvelope(
 
   const hrInbox = (await getConfig("HR_EMAIL"))?.trim() || null
   const ccHr = hrInbox && (!to || hrInbox.toLowerCase() !== to.email.toLowerCase()) ? hrInbox : null
+  const ccManager = dotted && dotted.id !== to?.id ? dotted.email : null
 
-  return { to, ccHr }
+  return { to, ccHr, ccManager }
 }
 
 /** `<key@host>` using the app's own host, so every id we mint looks local. */
@@ -144,7 +152,7 @@ export async function prepareFloatingHolidayLetter(
   })
 
   // Cc the applicant so the letter lands in their mailbox too.
-  const cc = [envelope.ccHr, applicant.email].filter(
+  const cc = [envelope.ccHr, envelope.ccManager, applicant.email].filter(
     (v): v is string => Boolean(v) && v !== envelope.to!.email,
   )
 

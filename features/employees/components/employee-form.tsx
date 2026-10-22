@@ -77,6 +77,7 @@ const formSchema = z.object({
   designationId: z.string().min(1, "Designation is required"),
   jobRoleId: z.string().optional(),
   managerId: z.string().optional(),
+  dottedManagerId: z.string().optional(),
   employmentType: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"]),
   dateOfJoining: z.string().min(1, "Date of joining is required"),
   probationEndDate: z.string().optional(),
@@ -203,6 +204,7 @@ const FIELD_TO_STEP: Partial<Record<keyof FormData, number>> = {
   designationId: 2,
   jobRoleId: 2,
   managerId: 2,
+  dottedManagerId: 2,
   employmentType: 2,
   dateOfJoining: 2,
   probationEndDate: 2,
@@ -572,6 +574,7 @@ export function EmployeeForm({ mode, employeeId, defaultEmploymentType }: Employ
         designationId: emp.designation?.id ?? "",
         jobRoleId: emp.jobRole?.id ?? "",
         managerId: emp.manager?.id ?? "",
+        dottedManagerId: emp.dottedManager?.id ?? "",
         employmentType: (emp.employmentType as FormData["employmentType"]) ?? "FULL_TIME",
         dateOfJoining: emp.dateOfJoining ? emp.dateOfJoining.split("T")[0] : "",
         probationEndDate: emp.probationEndDate ? emp.probationEndDate.split("T")[0] : "",
@@ -730,6 +733,8 @@ export function EmployeeForm({ mode, employeeId, defaultEmploymentType }: Employ
         designationId: data.designationId || undefined,
         jobRoleId: data.jobRoleId || undefined,
         managerId: data.managerId || undefined,
+        // "" clears it on edit.
+        dottedManagerId: data.dottedManagerId || (mode === "edit" ? "" : undefined),
         employmentType: data.employmentType,
         dateOfJoining: data.dateOfJoining || undefined,
         // "" clears an extension on edit (undefined would leave the stored date in place).
@@ -1196,6 +1201,20 @@ export function EmployeeForm({ mode, employeeId, defaultEmploymentType }: Employ
                     : undefined
                 }
                 placeholder="Search and select a manager"
+              />
+            </FormField>
+
+            <FormField label="Dotted-line manager" error={errors.dottedManagerId?.message}>
+              <EmployeeCombobox
+                value={watchedValues.dottedManagerId}
+                onChange={(id) => setValue("dottedManagerId", id ?? "")}
+                excludeId={mode === "edit" ? employeeId : undefined}
+                initialLabel={
+                  employeeData?.data?.dottedManager
+                    ? `${employeeData.data.dottedManager.firstName} ${employeeData.data.dottedManager.lastName}`
+                    : undefined
+                }
+                placeholder="Covers when the manager is away"
               />
             </FormField>
 

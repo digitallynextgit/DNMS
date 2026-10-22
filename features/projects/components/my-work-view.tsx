@@ -97,7 +97,13 @@ interface MyTask {
   team?: { id: string; name: string; managerId: string | null } | null
   requirement?: { id: string; title: string; status: string } | null
   /** managerId is the authority on adhoc work, which has no team manager. */
-  assignee?: { id: string; firstName: string; lastName: string; managerId?: string | null } | null
+  assignee?: {
+    id: string
+    firstName: string
+    lastName: string
+    managerId?: string | null
+    dottedManagerId?: string | null
+  } | null
   goal?: { id: string; title: string } | null
   producesOutput?: boolean
   /** Set when someone answered "nothing came out of this" - the nudge stops. */
@@ -196,18 +202,22 @@ function ProjectLink({ task, className }: { task: MyTask; className?: string }) 
 }
 
 /** Same resolution as the API, so the card shows the lock the server would enforce. */
-function taskSubject(task: MyTask) {
+function taskSubject(task: MyTask, viewerId: string) {
   return {
     creatorId: task.creatorId,
     createdAt: task.createdAt,
     // Must be the real value (null = adhoc) - it decides who may keep editing.
     projectId: task.project?.id ?? null,
     assigneeId: task.assignee?.id ?? null,
-    teamManagerId: resolveTaskManagerId({
-      teamId: task.team?.id ?? null,
-      teamManagerId: task.team?.managerId,
-      assigneeManagerId: task.assignee?.managerId,
-    }),
+    teamManagerId: resolveTaskManagerId(
+      {
+        teamId: task.team?.id ?? null,
+        teamManagerId: task.team?.managerId,
+        assigneeManagerId: task.assignee?.managerId,
+        assigneeDottedManagerId: task.assignee?.dottedManagerId,
+      },
+      viewerId,
+    ),
   }
 }
 
@@ -634,7 +644,10 @@ export function MyWorkView() {
                             task.status !== "DONE"
                           const isRejected = task.approvalStatus === "REJECTED"
                           // Same rule as the sheet and the API.
-                          const editable = canEditTaskDetails(taskSubject(task), actor)
+                          const editable = canEditTaskDetails(
+                            taskSubject(task, actor.userId),
+                            actor,
+                          )
 
                           return (
                             <div
@@ -663,7 +676,10 @@ export function MyWorkView() {
                                   {!editable && (
                                     <span
                                       title={
-                                        taskEditLockReason(taskSubject(task), actor) ?? undefined
+                                        taskEditLockReason(
+                                          taskSubject(task, actor.userId),
+                                          actor,
+                                        ) ?? undefined
                                       }
                                       className="text-muted-foreground/50 shrink-0"
                                     >

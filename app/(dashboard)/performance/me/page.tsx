@@ -40,9 +40,12 @@ export default function MyPerformancePage() {
 
   const all = data?.data ?? []
   const mine = all.filter((ev) => ev.employeeId === myId)
+  // Reporting or dotted-line manager: either fills the manager side.
+  const asManager = (ev: Evaluation) =>
+    ev.managerId === myId || ev.employee.dottedManagerId === myId
   // Scorecards I must review for my team (manager or project controller).
   const toReview = all.filter(
-    (ev) => ev.employeeId !== myId && (ev.managerId === myId || ev.controllerId === myId),
+    (ev) => ev.employeeId !== myId && (asManager(ev) || ev.controllerId === myId),
   )
 
   const periods = [...new Set([...mine, ...toReview].map((ev) => ev.periodLabel))]
@@ -59,7 +62,7 @@ export default function MyPerformancePage() {
 
   // Count of team reviews still awaiting MY input (manager/controller not yet submitted).
   const pendingReview = toReview.filter((ev) =>
-    ev.managerId === myId ? !ev.managerSubmittedAt : !ev.controllerSubmittedAt,
+    asManager(ev) ? !ev.managerSubmittedAt : !ev.controllerSubmittedAt,
   ).length
 
   // Highlight the employee's band using their most recent scored evaluation.
@@ -177,7 +180,7 @@ export default function MyPerformancePage() {
       header: "My review",
       className: "text-muted-foreground",
       cell: (ev) => {
-        const done = ev.managerId === myId ? ev.managerSubmittedAt : ev.controllerSubmittedAt
+        const done = asManager(ev) ? ev.managerSubmittedAt : ev.controllerSubmittedAt
         return done ? "Submitted" : "Pending"
       },
     },
@@ -185,7 +188,7 @@ export default function MyPerformancePage() {
       header: "",
       align: "right",
       cell: (ev) => {
-        const done = ev.managerId === myId ? ev.managerSubmittedAt : ev.controllerSubmittedAt
+        const done = asManager(ev) ? ev.managerSubmittedAt : ev.controllerSubmittedAt
         return (
           <Button asChild variant={done ? "outline" : "default"}>
             <Link href={`/performance/evaluations/${ev.id}`}>

@@ -13,6 +13,8 @@ export interface EvalPerson {
   employeeNo: string
   profilePhoto: string | null
   designation?: { title: string } | null
+  /** On the evaluated employee: their dotted-line manager, who reviews as the manager too. */
+  dottedManagerId?: string | null
 }
 
 export interface Evaluation {

@@ -36,6 +36,7 @@ export const GET = withSession(
         scope.OR = [
           { employeeId: session.user.id },
           { managerId: session.user.id },
+          { employee: { dottedManagerId: session.user.id } },
           { controllerId: session.user.id },
         ]
       }
@@ -58,7 +59,8 @@ export const GET = withSession(
         db.evaluation.findMany({
           where,
           include: {
-            employee: employeeSelect,
+            // dottedManagerId: that manager reviews as the manager too.
+            employee: { select: { ...employeeSelect.select, dottedManagerId: true } },
             manager: employeeSelect,
             controller: employeeSelect,
           },

@@ -54,7 +54,8 @@ export const EMPLOYEE_LIST_SELECT = {
   department: { select: { id: true, name: true } },
   designation: { select: { id: true, title: true, code: true, level: true } },
   jobRole: { select: { id: true, name: true } },
-  manager: { select: { id: true, firstName: true, lastName: true } },
+  manager: { select: { id: true, firstName: true, lastName: true, employeeNo: true } },
+  dottedManager: { select: { id: true, firstName: true, lastName: true, employeeNo: true } },
   // The projects they run as account manager, and what they do on the rest - live projects only.
   ownedProjects: { where: LIVE_PROJECT, select: PROJECT_LABEL, orderBy: { name: "asc" } },
   secondaryAmProjects: { where: LIVE_PROJECT, select: PROJECT_LABEL, orderBy: { name: "asc" } },

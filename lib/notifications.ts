@@ -3,6 +3,7 @@ import { getSession } from "@/server/api-handler"
 import { isAdmin_Session } from "@/lib/audit"
 import { sendPushToEmployee, type PushPayload } from "@/lib/web-push"
 import { sendMobilePushToEmployee } from "@/lib/push-mobile"
+import { managerIdsOf } from "@/lib/reporting-line"
 
 type NotificationType = "info" | "success" | "warning" | "error"
 
@@ -78,7 +79,7 @@ export async function createNotification(
 }
 
 /**
- * Notifies the requester's manager and all active HR approvers of a new request.
+ * Notifies the requester's managers (reporting and dotted-line) and all active HR approvers of a new request.
  * `hrRoles` are the roles that may decide it (HR managers and admins unless given);
  * `hrLink` is where they approve (a company-wide queue); the manager gets `link`.
  */
@@ -94,7 +95,7 @@ export async function notifyApprovers(opts: {
     const [requester, hrApprovers] = await Promise.all([
       db.employee.findUnique({
         where: { id: opts.requesterId },
-        select: { managerId: true },
+        select: { managerId: true, dottedManagerId: true },
       }),
       db.employee.findMany({
         where: {
@@ -109,7 +110,7 @@ export async function notifyApprovers(opts: {
 
     const hrIds = new Set(hrApprovers.map((a) => a.id))
     const recipientIds = new Set<string>(hrIds)
-    if (requester?.managerId) recipientIds.add(requester.managerId)
+    for (const id of managerIdsOf(requester)) recipientIds.add(id)
     recipientIds.delete(opts.requesterId)
 
     // One batched insert, instead of an INSERT plus a push lookup per approver.

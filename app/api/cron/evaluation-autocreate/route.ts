@@ -21,7 +21,7 @@ export const GET = withCron("evaluation-autocreate", async () => {
         status: "ACTIVE",
         employeeRoles: { none: { role: { name: { in: [...HIDDEN_ROLES] } } } },
       },
-      select: { id: true, managerId: true, firstName: true },
+      select: { id: true, managerId: true, dottedManagerId: true, firstName: true },
     })
 
     let created = 0
@@ -59,9 +59,11 @@ export const GET = withCron("evaluation-autocreate", async () => {
         type: "info",
         link,
       })
-      if (emp.managerId && emp.managerId !== emp.id) {
+      // Both managers review; the dotted-line one is asked too.
+      for (const reviewer of new Set([emp.managerId, emp.dottedManagerId])) {
+        if (!reviewer || reviewer === emp.id) continue
         await createNotification({
-          employeeId: emp.managerId,
+          employeeId: reviewer,
           title: "Performance evaluation to review",
           message: `Please complete the manager review for ${emp.firstName} (${periodLabel}).`,
           type: "info",

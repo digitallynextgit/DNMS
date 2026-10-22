@@ -18,6 +18,7 @@ import {
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { startOfDayUTC } from "@/lib/dates"
+import { managedBy, managerIdsOf } from "@/lib/reporting-line"
 import { SHORT_LEAVE_DAYS } from "@/lib/utils"
 import { renderLeaveDecisionLetter, renderLeaveRequestEmail } from "@/lib/email-layout"
 import { getConfig } from "@/server/app-config"
@@ -26,8 +27,8 @@ import { isOnProbation } from "@/features/employees/probation"
 
 const REQUEST_INCLUDE = {
   employee: {
-    // managerId: tells whether the viewer is the applicant's reporting manager.
-    select: { ...EMPLOYEE_SUMMARY_SELECT, managerId: true },
+    // Both managers: tells whether the viewer manages the applicant.
+    select: { ...EMPLOYEE_SUMMARY_SELECT, managerId: true, dottedManagerId: true },
   },
   leaveType: { select: { id: true, name: true, code: true, isPaid: true } },
   approver: { select: { id: true, firstName: true, lastName: true } },
@@ -116,8 +117,8 @@ function canAdviseRequest(
   request: {
     approvalStage: string | null
     currentApproverId: string | null
-    /** Lets a manager act on their report's request even when it's staged elsewhere. */
-    applicantManagerId?: string | null
+    /** Lets either manager act on their report's request even when it's staged elsewhere. */
+    applicantManagerIds?: string[]
   },
   userId: string,
 ): boolean {
@@ -127,17 +128,19 @@ function canAdviseRequest(
     roles.includes(SYSTEM_ROLES.HR_MANAGER) ||
     roles.includes(SYSTEM_ROLES.HR_EMPLOYEE)
   if (isHrOrAdmin) return false
-  return request.currentApproverId === userId || request.applicantManagerId === userId
+  return (
+    request.currentApproverId === userId || (request.applicantManagerIds ?? []).includes(userId)
+  )
 }
 
-/** Tags each request with what this viewer can do; the employee row must include managerId. */
+/** Tags each request with what this viewer can do; the employee row must include both manager ids. */
 function attachViewerRole<
   T extends {
     status: string
     employeeId: string
     approvalStage: string | null
     currentApproverId: string | null
-    employee: { managerId?: string | null }
+    employee: { managerId?: string | null; dottedManagerId?: string | null }
   },
 >(
   requests: T[],
@@ -151,7 +154,17 @@ function attachViewerRole<
       // First decision wins, so the manager is FINAL too; "ADVISORY" stays in the type for the UI.
       if (
         canFinalizeRequest(roles, permissions, r, userId) ||
-        canAdviseRequest(roles, { ...r, applicantManagerId: r.employee.managerId ?? null }, userId)
+        canAdviseRequest(
+          roles,
+          {
+            ...r,
+            applicantManagerIds: managerIdsOf({
+              managerId: r.employee.managerId ?? null,
+              dottedManagerId: r.employee.dottedManagerId,
+            }),
+          },
+          userId,
+        )
       )
         viewerRole = "FINAL"
     }
@@ -170,6 +183,8 @@ export interface LeaveMailEnvelope {
   to: { id: string; name: string; email: string; firstName: string } | null
   /** The single HR mailbox (HR_EMAIL), or null when HR is already the addressee. */
   ccHr: string | null
+  /** The dotted-line manager, copied in when the letter goes to someone else. */
+  ccManager: string | null
   notifyIds: string[]
   /** The HR/admin queue, who approve from the leave directory; a plain manager can't open it. */
   queueIds: string[]
@@ -182,7 +197,14 @@ export async function resolveLeaveMailEnvelope(
   route: ApprovalRoute,
 ): Promise<LeaveMailEnvelope> {
   if (route.autoApprove) {
-    return { autoApprove: true, to: null, ccHr: null, notifyIds: [], queueIds: [] }
+    return {
+      autoApprove: true,
+      to: null,
+      ccHr: null,
+      ccManager: null,
+      notifyIds: [],
+      queueIds: [],
+    }
   }
 
   const applicant = await db.employee.findUnique({
@@ -191,9 +213,13 @@ export async function resolveLeaveMailEnvelope(
       manager: {
         select: { id: true, firstName: true, lastName: true, email: true, isActive: true },
       },
+      dottedManager: {
+        select: { id: true, firstName: true, lastName: true, email: true, isActive: true },
+      },
     },
   })
   const mgr = applicant?.manager?.isActive ? applicant.manager : null
+  const dotted = applicant?.dottedManager?.isActive ? applicant.dottedManager : null
 
   // The role queue that makes the final call, never including the applicant. HR executives can
   // finalise at the HR stage too (canFinalizeRequest), so they are told as well.
@@ -220,7 +246,7 @@ export async function resolveLeaveMailEnvelope(
   // With no manager, the letter is addressed to an HR manager before an HR executive.
   const lead = queue.find((q) => q.employeeRoles.some((r) => r.role.name === queueRoles[0]))
 
-  const pick = mgr ?? lead ?? queue[0] ?? null
+  const pick = mgr ?? dotted ?? lead ?? queue[0] ?? null
   const to = pick
     ? {
         id: pick.id,
@@ -238,11 +264,20 @@ export async function resolveLeaveMailEnvelope(
         ? hrInbox
         : null
 
-  const notifyIds = [...new Set([...queue.map((q) => q.id), ...(mgr ? [mgr.id] : [])])].filter(
+  const ccManager = dotted && dotted.id !== to?.id ? dotted.email : null
+  const managerIds = [mgr?.id, dotted?.id].filter((id): id is string => !!id)
+  const notifyIds = [...new Set([...queue.map((q) => q.id), ...managerIds])].filter(
     (id) => id !== applicantId,
   )
 
-  return { autoApprove: false, to, ccHr, notifyIds, queueIds: queue.map((q) => q.id) }
+  return {
+    autoApprove: false,
+    to,
+    ccHr,
+    ccManager,
+    notifyIds,
+    queueIds: queue.map((q) => q.id),
+  }
 }
 
 /** `<key@host>` using the app's own host, so every id we mint looks local. */
@@ -345,7 +380,7 @@ async function notifyApprovers(
           : undefined,
     })
     // Cc the applicant so the decision reply has a thread to land on in their mailbox.
-    const cc = [envelope.ccHr, applicant?.email].filter(
+    const cc = [envelope.ccHr, envelope.ccManager, applicant?.email].filter(
       (v): v is string => Boolean(v) && v !== envelope.to!.email,
     )
     const messageId = buildLeaveThreadMessageId(request.id)
@@ -738,7 +773,7 @@ export async function getTeamLeaveRequests(
     const { page, limit, skip, take } = resolvePagination(filters, 20)
 
     const directReports = await db.employee.findMany({
-      where: { managerId: session.user.id, isActive: true },
+      where: { ...managedBy(session.user.id), isActive: true },
       select: { id: true },
     })
     const directReportIds = directReports.map((e) => e.id)
@@ -767,6 +802,7 @@ export async function getTeamLeaveRequests(
             select: {
               ...EMPLOYEE_SUMMARY_SELECT,
               managerId: true,
+              dottedManagerId: true,
               department: { select: { id: true, name: true } },
             },
           },
@@ -801,7 +837,7 @@ export async function getMyTeamLeaveRequests(
   return runAction(async () => {
     const session = await requireSession()
     const reports = await db.employee.findMany({
-      where: { managerId: session.user.id, isActive: true },
+      where: { ...managedBy(session.user.id), isActive: true },
       select: { id: true },
     })
     const reportIds = reports.map((r) => r.id)
@@ -826,6 +862,7 @@ export async function getMyTeamLeaveRequests(
             select: {
               ...EMPLOYEE_SUMMARY_SELECT,
               managerId: true,
+              dottedManagerId: true,
               department: { select: { id: true, name: true } },
             },
           },
@@ -1186,11 +1223,13 @@ export async function updateLeaveRequest(
 
     const roles = session.user.roles ?? []
     const permissions = session.user.permissions ?? []
-    // The applicant's manager can decide too; the decision email is then sent from them.
+    // Either of the applicant's managers can decide too; the decision email is then sent from them.
     const applicant = await db.employee.findUnique({
       where: { id: request.employeeId },
       select: {
         managerId: true,
+        dottedManagerId: true,
+        dottedManager: { select: { email: true } },
         manager: {
           select: {
             id: true,
@@ -1207,7 +1246,7 @@ export async function updateLeaveRequest(
     const isFinalizer = canFinalizeRequest(roles, permissions, request, session.user.id)
     const isAdvisor = canAdviseRequest(
       roles,
-      { ...request, applicantManagerId: applicant?.managerId ?? null },
+      { ...request, applicantManagerIds: managerIdsOf(applicant) },
       session.user.id,
     )
 
@@ -1352,7 +1391,9 @@ export async function updateLeaveRequest(
             .filter((e): e is string => Boolean(e))
             .map((e) => e.toLowerCase()),
         )
-        const cc = [...new Set([hrEmail, applicant?.manager?.email])]
+        const cc = [
+          ...new Set([hrEmail, applicant?.manager?.email, applicant?.dottedManager?.email]),
+        ]
           .filter((e): e is string => Boolean(e))
           .filter((e) => !onThread.has(e.toLowerCase()))
 

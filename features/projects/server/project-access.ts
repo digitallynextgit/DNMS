@@ -6,6 +6,7 @@ import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { PROJECT_LEADS_SELECT, isProjectLead, leadConditions } from "../lib/project-leads"
+import { isManagerOf } from "@/lib/reporting-line"
 import type { Session } from "next-auth"
 
 // Managing a project: global `project:write`, or one of its Account Managers - primary or secondary,
@@ -70,7 +71,7 @@ export async function canAccessTask(session: Session, taskId: string): Promise<b
       projectId: true,
       assigneeId: true,
       creatorId: true,
-      assignee: { select: { managerId: true } },
+      assignee: { select: { managerId: true, dottedManagerId: true } },
     },
   })
   if (!task) return false
@@ -78,7 +79,7 @@ export async function canAccessTask(session: Session, taskId: string): Promise<b
     ? canAccessProject(session, task.projectId)
     : task.assigneeId === session.user.id ||
         task.creatorId === session.user.id ||
-        task.assignee?.managerId === session.user.id
+        isManagerOf(task.assignee, session.user.id)
 }
 
 /**

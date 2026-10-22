@@ -43,6 +43,7 @@ export function EmployeeActionsSkeleton() {
 // Mirrors the columns in employee-directory-client.tsx (cells never render while loading).
 const COLUMNS: DataTableColumn<never>[] = [
   { header: "Employee", cell: () => null, skeleton: <EmployeeCellSkeleton /> },
+  { header: "Manager", cell: () => null },
   { header: "Account manager", cell: () => null },
   { header: "Project roles", cell: () => null },
   { header: "Employee No", cell: () => null, defaultHidden: true },

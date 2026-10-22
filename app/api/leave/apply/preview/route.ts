@@ -40,6 +40,7 @@ export const GET = withSession(
           autoApprove: envelope.autoApprove,
           to: envelope.to ? { name: envelope.to.name, email: envelope.to.email } : null,
           ccHr: envelope.ccHr,
+          ccManager: envelope.ccManager,
           signature: applicant
             ? {
                 name: `${applicant.firstName} ${applicant.lastName}`.trim(),

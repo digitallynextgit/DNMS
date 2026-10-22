@@ -6,6 +6,7 @@ import { PERMISSIONS } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
 import { createAuditLog } from "@/lib/audit"
 import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
+import { isManagerOf, managedBy } from "@/lib/reporting-line"
 import { openFirstStatusPeriod } from "@/features/projects/server/task-status-periods"
 import { sortProjectTeams } from "@/features/projects/lib/project-teams"
 import { myWorkHref } from "@/features/projects/lib/project-href"
@@ -24,7 +25,7 @@ type PickablePerson = {
 async function getManagedScope(userId: string, seesEveryone: boolean) {
   const [reports, managedTeams, everyone, left] = await Promise.all([
     db.employee.findMany({
-      where: { managerId: userId, isActive: true },
+      where: { ...managedBy(userId), isActive: true },
       select: { id: true, firstName: true, lastName: true },
     }),
     db.projectTeam.findMany({
@@ -52,7 +53,7 @@ async function getManagedScope(userId: string, seesEveryone: boolean) {
     db.employee.findMany({
       where: seesEveryone
         ? { isActive: false, ...VISIBLE_EMPLOYEE_FILTER }
-        : { managerId: userId, isActive: false },
+        : { ...managedBy(userId), isActive: false },
       select: { id: true, firstName: true, lastName: true },
     }),
   ])
@@ -169,6 +170,7 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
             lastName: true,
             profilePhoto: true,
             managerId: true,
+            dottedManagerId: true,
           },
         },
         requirement: { select: { id: true, title: true, status: true } },
@@ -208,7 +210,14 @@ export const POST = withSession(async (req: NextRequest, _ctx: unknown, session:
 
     const assignee = await db.employee.findUnique({
       where: { id: assigneeId },
-      select: { id: true, firstName: true, lastName: true, managerId: true, isActive: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        managerId: true,
+        dottedManagerId: true,
+        isActive: true,
+      },
     })
     if (!assignee || !assignee.isActive) {
       return NextResponse.json({ error: "Assignee not found" }, { status: 422 })
@@ -216,7 +225,7 @@ export const POST = withSession(async (req: NextRequest, _ctx: unknown, session:
 
     // On yourself, on a direct report, or anyone if you administer projects.
     const isSelf = assigneeId === session.user.id
-    const managesAssignee = assignee.managerId === session.user.id
+    const managesAssignee = isManagerOf(assignee, session.user.id)
     if (!isSelf && !managesAssignee && !isAdmin) {
       return NextResponse.json(
         { error: "You can only raise adhoc work on yourself or someone who reports to you." },

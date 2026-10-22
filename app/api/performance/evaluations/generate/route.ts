@@ -32,7 +32,7 @@ export const POST = withSession(
           perfKpis: { some: {} },
           employeeRoles: { none: { role: { name: SYSTEM_ROLES.ADMIN_ } } },
         },
-        select: { id: true, managerId: true, firstName: true },
+        select: { id: true, managerId: true, dottedManagerId: true, firstName: true },
       })
 
       let created = 0
@@ -71,9 +71,11 @@ export const POST = withSession(
           type: "info",
           link,
         })
-        if (emp.managerId && emp.managerId !== emp.id) {
+        // Both managers review; the dotted-line one is asked too.
+        for (const reviewer of new Set([emp.managerId, emp.dottedManagerId])) {
+          if (!reviewer || reviewer === emp.id) continue
           await createNotification({
-            employeeId: emp.managerId,
+            employeeId: reviewer,
             title: "Performance evaluation to review",
             message: `Please complete the manager review for ${emp.firstName} (${periodLabel}).`,
             type: "info",

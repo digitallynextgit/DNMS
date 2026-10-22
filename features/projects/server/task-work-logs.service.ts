@@ -85,7 +85,7 @@ async function taskAccess(session: Session, taskId: string) {
       creatorId: true,
       project: { select: { id: true, slug: true } },
       team: { select: { managerId: true } },
-      assignee: { select: { managerId: true } },
+      assignee: { select: { managerId: true, dottedManagerId: true } },
       goal: {
         select: { id: true, title: true, service: true, parent: { select: { title: true } } },
       },
@@ -105,11 +105,15 @@ async function taskAccess(session: Session, taskId: string) {
   })
   if (!task) throw new NotFoundError("Task")
   const me = session.user.id
-  const managerId = resolveTaskManagerId({
-    teamId: task.teamId,
-    teamManagerId: task.team?.managerId,
-    assigneeManagerId: task.assignee?.managerId,
-  })
+  const managerId = resolveTaskManagerId(
+    {
+      teamId: task.teamId,
+      teamManagerId: task.team?.managerId,
+      assigneeManagerId: task.assignee?.managerId,
+      assigneeDottedManagerId: task.assignee?.dottedManagerId,
+    },
+    me,
+  )
   const manager =
     hasPermission(session, PERMISSIONS.PROJECT_WRITE) ||
     managerId === me ||

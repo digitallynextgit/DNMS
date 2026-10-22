@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import { getAwayDaysForMany } from "@/features/leave/server/day-status.queries"
 import { leadConditions, ledBy } from "@/features/projects/lib/project-leads"
+import { managedBy } from "@/lib/reporting-line"
 import type { Session } from "next-auth"
 
 // A bounded snapshot of what THIS user may see, for the AI assistant (the model never queries the DB).
@@ -203,7 +204,14 @@ export async function buildAiContext(session: Session): Promise<string> {
 
   const evalWhere = canReviewPerf
     ? {}
-    : { OR: [{ employeeId: userId }, { managerId: userId }, { controllerId: userId }] }
+    : {
+        OR: [
+          { employeeId: userId },
+          { managerId: userId },
+          { employee: { dottedManagerId: userId } },
+          { controllerId: userId },
+        ],
+      }
   const evals = await db.evaluation.findMany({
     where: evalWhere,
     select: {
@@ -317,9 +325,7 @@ export async function buildAiContext(session: Session): Promise<string> {
   const pendingWfh = await db.wfhRequest.findMany({
     where: {
       status: "PENDING",
-      ...(hasPermission(session, PERMISSIONS.WFH_APPROVE)
-        ? {}
-        : { employee: { managerId: userId } }),
+      ...(hasPermission(session, PERMISSIONS.WFH_APPROVE) ? {} : { employee: managedBy(userId) }),
     },
     select: {
       date: true,
@@ -373,7 +379,12 @@ export async function buildAiContext(session: Session): Promise<string> {
     : await db.employee.findMany({
         where: {
           isActive: true,
-          OR: [{ id: userId }, { managerId: userId }, { subordinates: { some: { id: userId } } }],
+          OR: [
+            { id: userId },
+            ...(managedBy(userId).OR ?? []),
+            { subordinates: { some: { id: userId } } },
+            { dottedSubordinates: { some: { id: userId } } },
+          ],
         },
         select: { id: true, firstName: true, lastName: true },
       })

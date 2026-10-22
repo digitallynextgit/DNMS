@@ -10,21 +10,36 @@ import {
   isRatingComplete,
   type EvalCriterion,
 } from "@/features/performance/evaluation"
+import { isManagerOf } from "@/lib/reporting-line"
 import type { Session } from "next-auth"
 
 const employeeSelect = {
   select: { id: true, firstName: true, lastName: true, employeeNo: true, profilePhoto: true },
 }
+// The dotted-line manager reviews as the manager too.
+const evaluatedSelect = { select: { ...employeeSelect.select, dottedManagerId: true } }
 
 type Viewer = "HR" | "MANAGER" | "CONTROLLER" | "EMPLOYEE" | null
 
+function reviewsAsManager(
+  ev: { managerId: string | null; employee: { dottedManagerId: string | null } },
+  me: string,
+): boolean {
+  return isManagerOf({ managerId: ev.managerId, dottedManagerId: ev.employee.dottedManagerId }, me)
+}
+
 function viewerRole(
   session: Session,
-  ev: { employeeId: string; managerId: string | null; controllerId: string | null },
+  ev: {
+    employeeId: string
+    managerId: string | null
+    controllerId: string | null
+    employee: { dottedManagerId: string | null }
+  },
 ): Viewer {
   // Your own evaluation always opens on the self side, even for HR - or HR could never self-evaluate.
   if (ev.employeeId === session.user.id) return "EMPLOYEE"
-  if (ev.managerId === session.user.id) return "MANAGER"
+  if (reviewsAsManager(ev, session.user.id)) return "MANAGER"
   if (ev.controllerId === session.user.id) return "CONTROLLER"
   if (hasPermission(session, PERMISSIONS.PERFORMANCE_REVIEW)) return "HR"
   return null
@@ -36,7 +51,7 @@ export const GET = withSession(
       const { id } = ctx.params
       const ev = await db.evaluation.findUnique({
         where: { id },
-        include: { employee: employeeSelect, manager: employeeSelect, controller: employeeSelect },
+        include: { employee: evaluatedSelect, manager: employeeSelect, controller: employeeSelect },
       })
       if (!ev) return NextResponse.json({ error: "Evaluation not found" }, { status: 404 })
 
@@ -67,7 +82,10 @@ export const PATCH = withSession(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id } = ctx.params
-      const ev = await db.evaluation.findUnique({ where: { id } })
+      const ev = await db.evaluation.findUnique({
+        where: { id },
+        include: { employee: { select: { dottedManagerId: true } } },
+      })
       if (!ev) return NextResponse.json({ error: "Evaluation not found" }, { status: 404 })
 
       const body = await req.json().catch(() => null)
@@ -92,7 +110,7 @@ export const PATCH = withSession(
           { status: 403 },
         )
       }
-      if (role === "MANAGER" && ev.managerId !== session.user.id && !isHr) {
+      if (role === "MANAGER" && !reviewsAsManager(ev, session.user.id) && !isHr) {
         return NextResponse.json(
           { error: "Only the assigned manager (or HR) can submit the manager review" },
           { status: 403 },
@@ -156,14 +174,19 @@ export const PATCH = withSession(
           type: "info",
           link: `/performance/evaluations/${id}`,
         })
-      } else if (role === "SELF" && ev.managerId && ev.managerId !== session.user.id) {
-        await createNotification({
-          employeeId: ev.managerId,
-          title: "Self-evaluation submitted",
-          message: `${updated.employee.firstName} submitted their self-evaluation for ${ev.periodLabel}.`,
-          type: "info",
-          link: `/performance/evaluations/${id}`,
-        })
+      } else if (role === "SELF") {
+        const reviewers = [ev.managerId, ev.employee.dottedManagerId].filter(
+          (m, i, all): m is string => !!m && m !== session.user.id && all.indexOf(m) === i,
+        )
+        for (const reviewer of reviewers) {
+          await createNotification({
+            employeeId: reviewer,
+            title: "Self-evaluation submitted",
+            message: `${updated.employee.firstName} submitted their self-evaluation for ${ev.periodLabel}.`,
+            type: "info",
+            link: `/performance/evaluations/${id}`,
+          })
+        }
       }
 
       await createAuditLog(session, {

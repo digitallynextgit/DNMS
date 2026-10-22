@@ -74,6 +74,10 @@ export const employeeDirectoryGuide: HelpGuide = {
       ],
       tips: [
         {
+          en: "The Manager column shows who each person reports to, with their dotted-line manager underneath. The dotted-line manager has the same say as the manager every day - leave, WFH and attendance requests, weekly reviews, evaluations and alerts - so work keeps moving when the manager is away. Set it in Edit full profile, next to Manager.",
+          hi: "Manager कॉलम में दिखता है कि हर व्यक्ति किसे रिपोर्ट करता है, और नीचे उनका dotted-line manager। Dotted-line manager के पास हर दिन manager जितना ही अधिकार होता है - leave, WFH और attendance requests, weekly reviews, evaluations और alerts - ताकि manager के न होने पर भी काम चलता रहे। इसे Edit full profile में Manager के पास सेट करें।",
+        },
+        {
           en: "The status filter has more than Active and Inactive: On Leave, Suspended, Resigned and Terminated too. Pick All Statuses to see everyone.",
           hi: "Status फिल्टर में Active और Inactive के अलावा On Leave, Suspended, Resigned और Terminated भी हैं। सबको देखने के लिए All Statuses चुनें।",
         },

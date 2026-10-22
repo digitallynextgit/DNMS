@@ -43,7 +43,14 @@ export interface EmployeeListItem {
   department: { id: string; name: string } | null
   designation: { id: string; title: string; code?: string | null; level?: number } | null
   jobRole: { id: string; name: string } | null
-  manager: { id: string; firstName: string; lastName: string } | null
+  manager: { id: string; firstName: string; lastName: string; employeeNo?: string | null } | null
+  /** Shares every manager power with the reporting manager. */
+  dottedManager?: {
+    id: string
+    firstName: string
+    lastName: string
+    employeeNo?: string | null
+  } | null
   /** Live projects they run as primary / secondary account manager (directory list only). */
   ownedProjects?: ProjectLabel[]
   secondaryAmProjects?: ProjectLabel[]
@@ -79,6 +86,15 @@ export interface EmployeeDetail extends EmployeeListItem {
     lastName: string
     email: string
     profilePhoto: string | null
+    employeeNo?: string | null
+  } | null
+  dottedManager?: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    profilePhoto: string | null
+    employeeNo?: string | null
   } | null
 }
 

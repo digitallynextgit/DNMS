@@ -216,7 +216,24 @@ export async function getEmployee(idOrSlug: string): Promise<ActionResult<unknow
         designation: { select: { id: true, title: true, level: true } },
         jobRole: { select: { id: true, name: true } },
         manager: {
-          select: { id: true, firstName: true, lastName: true, email: true, profilePhoto: true },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            profilePhoto: true,
+            employeeNo: true,
+          },
+        },
+        dottedManager: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            profilePhoto: true,
+            employeeNo: true,
+          },
         },
         _count: { select: { subordinates: true, documents: true } },
         employeeRoles: {
@@ -289,6 +306,13 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
 
       const emailError = await checkEmailUniqueness(data.email, data.personalEmail)
       if (emailError) return fail(emailError)
+
+      const dottedIssue = dottedManagerProblem(
+        null,
+        data.managerId || null,
+        data.dottedManagerId || null,
+      )
+      if (dottedIssue) return fail(dottedIssue)
 
       // Plan headcount limit - checked here because every create path (form, import, API) ends here
       const planCheck = await checkTenantHeadcount()
@@ -480,6 +504,19 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
   })
 }
 
+/** Why this dotted-line manager can't be used, or null. */
+function dottedManagerProblem(
+  employeeId: string | null,
+  managerId: string | null,
+  dottedManagerId: string | null,
+): string | null {
+  if (!dottedManagerId) return null
+  if (dottedManagerId === employeeId) return "Someone can't be their own dotted-line manager."
+  if (dottedManagerId === managerId)
+    return "Pick someone other than the reporting manager as the dotted-line manager."
+  return null
+}
+
 export async function updateEmployee(id: string, input: unknown): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requirePermission(PERMISSIONS.EMPLOYEE_WRITE)
@@ -526,6 +563,18 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
     if (data.designationId !== undefined) updateData.designationId = data.designationId || null
     if (data.jobRoleId !== undefined) updateData.jobRoleId = data.jobRoleId || null
     if (data.managerId !== undefined) updateData.managerId = data.managerId || null
+    if (data.dottedManagerId !== undefined) {
+      const problem = dottedManagerProblem(
+        id,
+        data.managerId !== undefined ? data.managerId || null : before.managerId,
+        data.dottedManagerId || null,
+      )
+      if (problem) return fail(problem)
+      updateData.dottedManagerId = data.dottedManagerId || null
+    } else if (data.managerId && data.managerId === before.dottedManagerId) {
+      // Promoted to reporting manager: they can't also be the dotted-line one.
+      updateData.dottedManagerId = null
+    }
     if (data.employmentType !== undefined) updateData.employmentType = data.employmentType
     if (data.dateOfJoining !== undefined)
       updateData.dateOfJoining = data.dateOfJoining ? new Date(data.dateOfJoining) : null

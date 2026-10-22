@@ -101,6 +101,7 @@ export interface SheetTask {
   assignee?: {
     id: string
     managerId?: string | null
+    dottedManagerId?: string | null
     firstName?: string
     lastName?: string
   } | null
@@ -137,18 +138,22 @@ const STATUS_TEXT: Record<string, string> = {
 const STATUS_CLOSED = new Set(["DONE", "DISCARDED", "CANCELLED"])
 
 /** Resolves the manager as the API does (the team's for project work, the line manager for adhoc). */
-function subjectOf(task: SheetTask) {
+function subjectOf(task: SheetTask, viewerId: string) {
   return {
     creatorId: task.creatorId,
     createdAt: task.createdAt,
     // Null project = adhoc; must be the real value, never a fallback.
     projectId: task.project?.id ?? null,
     assigneeId: task.assignee?.id ?? null,
-    teamManagerId: resolveTaskManagerId({
-      teamId: task.team?.id ?? null,
-      teamManagerId: task.team?.managerId,
-      assigneeManagerId: task.assignee?.managerId,
-    }),
+    teamManagerId: resolveTaskManagerId(
+      {
+        teamId: task.team?.id ?? null,
+        teamManagerId: task.team?.managerId,
+        assigneeManagerId: task.assignee?.managerId,
+        assigneeDottedManagerId: task.assignee?.dottedManagerId,
+      },
+      viewerId,
+    ),
   }
 }
 
@@ -453,16 +458,19 @@ export function TasksSheetView({
   )
 
   const actor = useMemo(() => ({ userId: currentUserId, isAdmin }), [currentUserId, isAdmin])
-  const mayEdit = (task: SheetTask) => !readOnly && canEditTaskDetails(subjectOf(task), actor)
-  const mayDelete = (task: SheetTask) => !readOnly && canDeleteTask(subjectOf(task), actor)
+  const mayEdit = (task: SheetTask) =>
+    !readOnly && canEditTaskDetails(subjectOf(task, currentUserId), actor)
+  const mayDelete = (task: SheetTask) =>
+    !readOnly && canDeleteTask(subjectOf(task, currentUserId), actor)
 
   function editHint(task: SheetTask): string | undefined {
     if (readOnly) return undefined
-    if (!mayEdit(task)) return taskEditLockReason(subjectOf(task), actor) ?? undefined
+    if (!mayEdit(task))
+      return taskEditLockReason(subjectOf(task, currentUserId), actor) ?? undefined
     if (task.creatorId !== currentUserId) return undefined
     // Your own adhoc work never expires.
     if (!task.project && task.assignee?.id === currentUserId) return "Yours to edit"
-    const left = taskEditWindowLeft(subjectOf(task))
+    const left = taskEditWindowLeft(subjectOf(task, currentUserId))
     return left ? `Yours to edit - ${left}` : undefined
   }
 
@@ -763,7 +771,7 @@ export function TasksSheetView({
     if (lockedEdits.length > 0) {
       const [first] = lockedEdits
       toast.error(`"${first!.task.title}" can no longer be edited`, {
-        description: taskEditLockReason(subjectOf(first!.task), actor) ?? undefined,
+        description: taskEditLockReason(subjectOf(first!.task, currentUserId), actor) ?? undefined,
       })
     }
     if (lockedDeletes.length > 0) {

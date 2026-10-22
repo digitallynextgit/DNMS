@@ -49,15 +49,19 @@ async function getTaskAuthContext(taskId: string, userId: string) {
         },
       },
       project: { select: { slug: true } },
-      assignee: { select: { id: true, managerId: true } },
+      assignee: { select: { id: true, managerId: true, dottedManagerId: true } },
     },
   })
   if (!task) return null
-  const managerId = resolveTaskManagerId({
-    teamId: task.teamId,
-    teamManagerId: task.team?.managerId,
-    assigneeManagerId: task.assignee?.managerId,
-  })
+  const managerId = resolveTaskManagerId(
+    {
+      teamId: task.teamId,
+      teamManagerId: task.team?.managerId,
+      assigneeManagerId: task.assignee?.managerId,
+      assigneeDottedManagerId: task.assignee?.dottedManagerId,
+    },
+    userId,
+  )
   return {
     task,
     managerId,

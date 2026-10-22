@@ -4,6 +4,7 @@ import { withSession } from "@/server/api-handler"
 import { SYSTEM_ROLES } from "@/lib/constants"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
+import { managedBy } from "@/lib/reporting-line"
 import type { Session } from "next-auth"
 
 const HR_ROLES: string[] = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.ADMIN_]
@@ -22,7 +23,7 @@ export const GET = withSession(
 
       const where: Record<string, unknown> = {}
       if (status) where.status = status
-      if (!isHr) where.employee = { managerId: session.user.id }
+      if (!isHr) where.employee = managedBy(session.user.id)
 
       const [requests, total] = await Promise.all([
         db.floatingHolidaySelection.findMany({

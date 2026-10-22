@@ -219,6 +219,18 @@ export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employe
       ),
     },
     {
+      header: "Manager",
+      exportValue: (emp) =>
+        [
+          emp.manager && `${emp.manager.firstName} ${emp.manager.lastName}`,
+          emp.dottedManager &&
+            `Dotted: ${emp.dottedManager.firstName} ${emp.dottedManager.lastName}`,
+        ]
+          .filter(Boolean)
+          .join("; "),
+      cell: (emp) => <ManagersCell employee={emp} />,
+    },
+    {
       header: "Account manager",
       headerAction: <AmViewSwitch value={amView} onChange={setAmView} />,
       exportValue: accountManagerText,
@@ -556,6 +568,41 @@ export function EmployeeDirectoryClient({ kind = "employee" }: { kind?: "employe
         onConfirm={confirmBulkDelete}
         isLoading={bulkBusy}
       />
+    </div>
+  )
+}
+
+type ManagerRef = { firstName: string; lastName: string; employeeNo?: string | null }
+
+function ManagerLink({ person, className }: { person: ManagerRef; className?: string }) {
+  const name = `${person.firstName} ${person.lastName}`.trim()
+  if (!person.employeeNo) return <span className={className}>{name}</span>
+  return (
+    <Link
+      href={`/employees/${employeeSlug(person.employeeNo, person.firstName, person.lastName)}`}
+      className={`underline-offset-4 hover:underline ${className ?? ""}`}
+    >
+      {name}
+    </Link>
+  )
+}
+
+/** The reporting manager, with the dotted-line one (same say, every day) underneath. */
+function ManagersCell({ employee }: { employee: EmployeeListItem }) {
+  const { manager, dottedManager } = employee
+  if (!manager && !dottedManager) return <span className="text-muted-foreground text-xs">None</span>
+  return (
+    <div className="flex flex-col gap-0.5">
+      {manager ? (
+        <ManagerLink person={manager} className="text-sm" />
+      ) : (
+        <span className="text-muted-foreground text-xs">No reporting manager</span>
+      )}
+      {dottedManager && (
+        <span className="text-muted-foreground text-xs" title="Dotted-line manager">
+          Dotted: <ManagerLink person={dottedManager} className="text-foreground/80" />
+        </span>
+      )}
     </div>
   )
 }
