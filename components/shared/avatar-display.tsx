@@ -14,15 +14,28 @@ interface AvatarDisplayProps {
 
 /** Each size pairs a box with a fitting font size - use these, not `className="h-6 w-6"`. */
 const sizeClasses: Record<NonNullable<AvatarDisplayProps["size"]>, string> = {
-  "2xs": "h-4 w-4 text-[8px]",
-  xs: "h-5 w-5 text-[9px]",
+  "2xs": "h-4 w-4",
+  xs: "h-5 w-5",
   /** 24px, the default inside cards. */
-  chip: "h-6 w-6 text-[10px]",
-  sm: "h-8 w-8 text-xs",
-  md: "h-10 w-10 text-sm",
-  lg: "h-14 w-14 text-base",
-  xl: "h-20 w-20 text-xl",
-  "2xl": "h-24 w-24 text-2xl",
+  chip: "h-6 w-6",
+  sm: "h-8 w-8",
+  md: "h-10 w-10",
+  lg: "h-14 w-14",
+  xl: "h-20 w-20",
+  "2xl": "h-24 w-24",
+}
+
+// On the fallback itself: AvatarFallback's own text-sm would beat a size inherited from the box,
+// so 14px initials overflowed the 16px chips.
+const textClasses: Record<NonNullable<AvatarDisplayProps["size"]>, string> = {
+  "2xs": "text-[7px] tracking-tighter",
+  xs: "text-[9px]",
+  chip: "text-[10px]",
+  sm: "text-xs",
+  md: "text-sm",
+  lg: "text-base",
+  xl: "text-xl",
+  "2xl": "text-2xl",
 }
 
 export function AvatarDisplay({
@@ -40,7 +53,11 @@ export function AvatarDisplay({
     <Avatar className={cn(sizeClasses[size], className)}>
       {src && <AvatarImage src={src} alt={`${firstName} ${lastName}`} />}
       <AvatarFallback
-        className={cn("font-semibold", fallbackClassName ?? cn("text-white", colorClass))}
+        className={cn(
+          "font-semibold",
+          textClasses[size],
+          fallbackClassName ?? cn("text-white", colorClass),
+        )}
       >
         {initials}
       </AvatarFallback>
