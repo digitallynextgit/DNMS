@@ -60,7 +60,8 @@ export function ServiceChip({
           src={owner.profilePhoto}
           firstName={owner.firstName}
           lastName={owner.lastName}
-          size="2xs"
+          // 20px: as large as fits inside the 24px pill.
+          size="xs"
         />
       )}
     </span>
