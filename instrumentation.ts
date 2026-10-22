@@ -32,6 +32,7 @@ export async function register() {
         startDriveBackupScheduler,
         startWeeklyReviewScheduler,
         startGoalScheduler,
+        startFullFinalScheduler,
       } = await import("@/server/scheduler")
       startTaskReminderScheduler()
       startCampaignScheduler()
@@ -42,6 +43,7 @@ export async function register() {
       startDriveBackupScheduler()
       startWeeklyReviewScheduler()
       startGoalScheduler()
+      startFullFinalScheduler()
     }
   }
 }

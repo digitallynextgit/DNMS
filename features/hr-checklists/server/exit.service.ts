@@ -15,6 +15,7 @@ import {
   syncProjectsFolderAccessAsync,
 } from "@/features/projects/server/project-drive.service"
 import { projectExitSteps } from "@/features/projects/server/project-service-owners"
+import { markRelievingFromClearance } from "@/features/full-final/server/fnf.service"
 import { canComplete, type ChecklistItemState } from "../lib/checklist-rules"
 
 // Completing an EXIT issues relieving and closes the account, hence its own file.
@@ -93,6 +94,13 @@ export async function completeExitChecklist(instanceId: string): Promise<ActionR
     ])
 
     syncProjectsFolderAccessAsync(driveProjects)
+
+    // Relieving is issued now: tick it on their Full & Final record.
+    try {
+      await markRelievingFromClearance(employee.id, now)
+    } catch (e) {
+      console.error("[completeExitChecklist] full & final update failed", e)
+    }
 
     // Outside the transaction: membership lives in the platform identity tables.
     try {

@@ -25,6 +25,9 @@ export const exitClearanceGuide: HelpGuide = {
     "relieving",
     "last working day",
     "full and final",
+    "fnf",
+    "fnf due date",
+    "relieving letter",
     "sign off",
     "offboarding",
     "leaving",
@@ -231,6 +234,44 @@ export const exitClearanceGuide: HelpGuide = {
             en: "No. Relieving stays blocked until every required clearance is signed. Optional ones, like Other departments worked with, don't block it.",
             hi: "नहीं। जब तक सारे ज़रूरी clearances साइन नहीं होते, relieving रुका रहता है। Optional वाले, जैसे Other departments worked with, इसे नहीं रोकते।",
           },
+        },
+      ],
+    },
+    {
+      id: "full-final",
+      title: { en: "Full & Final settlements", hi: "Full & Final settlements (फुल एंड फाइनल)" },
+      intro: {
+        en: "The Full & Final tab keeps every leaver's settlement in one table: when FnF is due, when it was released, the notice period and the relieving letter.",
+        hi: "Full & Final टैब में हर जाने वाले व्यक्ति का settlement एक टेबल में रहता है: FnF कब देना है, कब दिया गया, notice period और relieving letter।",
+      },
+      steps: [
+        {
+          text: {
+            en: "Open Exit clearance and click the Full & Final tab. Anyone who leaves through DNMS - an accepted resignation, or marked Resigned or Terminated - is added on their own once they have a last working day.",
+            hi: "Exit clearance खोलें और Full & Final टैब पर क्लिक करें। जो भी DNMS के ज़रिए जाता है - मंज़ूर resignation, या Resigned या Terminated मार्क - उनका last working day होते ही वो अपने आप जुड़ जाते हैं।",
+          },
+        },
+        {
+          text: {
+            en: "FnF due by is two months after the last working day; change it if a settlement has a different deadline. The status says what to do next: Due in X days, Overdue by X days, Released on time, or Released X days late.",
+            hi: "FnF due by, last working day के दो महीने बाद होता है; अगर किसी settlement की deadline अलग है तो उसे बदल दें। Status बताता है कि आगे क्या करना है: Due in X days, Overdue by X days, Released on time, या Released X days late।",
+          },
+        },
+        {
+          text: {
+            en: "Click a row to record the FnF release date, the notice period (Served, Not served or Company exit) and the relieving letter. Use Add leaver for someone who left before DNMS.",
+            hi: "FnF release की तारीख, notice period (Served, Not served या Company exit) और relieving letter दर्ज करने के लिए किसी row पर क्लिक करें। जो DNMS से पहले चले गए, उनके लिए Add leaver इस्तेमाल करें।",
+          },
+        },
+      ],
+      tips: [
+        {
+          en: "Completing someone's exit clearance ticks Relieving letter given with that day.",
+          hi: "किसी का exit clearance पूरा करने पर Relieving letter given उसी दिन की तारीख के साथ टिक हो जाता है।",
+        },
+        {
+          en: "HR gets a notification a week before an FnF is due, and again if it goes past its due date without being released.",
+          hi: "HR को FnF की due date से एक हफ्ता पहले notification मिलता है, और अगर बिना release किए due date निकल जाए तो फिर से।",
         },
       ],
     },

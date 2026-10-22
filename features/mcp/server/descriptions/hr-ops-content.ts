@@ -142,6 +142,39 @@ export const HR_OPS_CONTENT: DescriptionMap = {
     keywords: ["download document", "open document", "view policy", "document link"],
     notes: "Returns a file link - use dnms_download.",
   },
+  "GET /api/exit-clearance/full-final": {
+    summary:
+      "The Full & Final settlement register: every leaver (DNMS leavers are added automatically, past employees by hand) with last working day, FnF due date (two months after it unless changed), the date FnF was released, a status (pending, due soon, overdue, released on time or late), notice period and relieving letter. Needs exit:read.",
+    keywords: [
+      "full and final",
+      "fnf",
+      "final settlement",
+      "fnf due",
+      "fnf overdue",
+      "relieving letter",
+      "notice period served",
+    ],
+  },
+  "POST /api/exit-clearance/full-final": {
+    summary:
+      "Add a past employee (someone who left before DNMS) to the Full & Final register. Needs exit:write.",
+    body: "{ name (required); lastWorkingDate (required): YYYY-MM-DD; designation?; dueDate?: YYYY-MM-DD (default two months after the last working day); releasedOn?: YYYY-MM-DD; noticePeriod?: SERVED|NOT_SERVED|COMPANY_EXIT; relievingGiven?: boolean; relievingDate?: YYYY-MM-DD; notes? }",
+    keywords: ["add fnf", "record full and final", "past employee settlement"],
+  },
+  "PATCH /api/exit-clearance/full-final/[id]": {
+    summary:
+      "Update one Full & Final record: FnF due date, released-on date (null to clear), notice period, relieving letter and its date, notes. Needs exit:write.",
+    body: "{ dueDate?; releasedOn?: YYYY-MM-DD | null; noticePeriod?: SERVED|NOT_SERVED|COMPANY_EXIT|null; relievingGiven?: boolean; relievingDate?: YYYY-MM-DD | null; designation?; notes?; name?/lastWorkingDate?: past employees only }",
+    notes:
+      "For a leaver who was in DNMS the last working day follows their profile, so lastWorkingDate is refused (409) - change it on the profile. Releasing FnF = set releasedOn.",
+    keywords: ["mark fnf released", "fnf paid", "update full and final"],
+  },
+  "DELETE /api/exit-clearance/full-final/[id]": {
+    summary:
+      "Remove a past employee's Full & Final record. Needs exit:write. Leavers who were in DNMS can't be removed (409) - they would be added back.",
+    notes: "Irreversible. Confirm the name first.",
+    keywords: ["delete fnf record", "remove full and final"],
+  },
   "GET /api/exit-clearance/serving-notice": {
     summary:
       "Everyone currently serving their notice period (resignation accepted, account still active), with last working day, manager, and exit checklist progress including which clearances still block relieving. Needs exit:read.",

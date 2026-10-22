@@ -657,6 +657,8 @@ model Employee {
   resignations         Resignation[] @relation("ResignationEmployee")
   resignationsReviewed Resignation[] @relation("ResignationReviewer")
 
+  fullFinal FullFinalSettlement?
+
   checklists          ChecklistInstance[]     @relation("ChecklistEmployee")
   checklistsStarted   ChecklistInstance[]     @relation("ChecklistStartedBy")
   checklistsCompleted ChecklistInstance[]     @relation("ChecklistCompletedBy")
@@ -1171,6 +1173,35 @@ model Resignation {
   @@index([status])
   @@index([tenantId])
   @@map("resignations")
+}
+
+// Full & Final settlement register: one row per leaver - linked when they were in DNMS, or a past
+// employee entered by hand. The due date defaults to two months after the last working day.
+model FullFinalSettlement {
+  tenantId          String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id                String    @id @default(uuid()) @map("id")
+  employeeId        String?   @unique @map("employee_id")
+  name              String    @map("name")
+  designation       String?   @map("designation")
+  lastWorkingDate   DateTime  @map("last_working_date") @db.Date
+  dueDate           DateTime  @map("due_date") @db.Date
+  releasedOn        DateTime? @map("released_on") @db.Date
+  // SERVED | NOT_SERVED | COMPANY_EXIT; null = not recorded.
+  noticePeriod      String?   @map("notice_period")
+  relievingGiven    Boolean   @default(false) @map("relieving_given")
+  relievingDate     DateTime? @map("relieving_date") @db.Date
+  notes             String?   @map("notes") @db.Text
+  // Each reminder goes out once per row.
+  dueSoonNotifiedAt DateTime? @map("due_soon_notified_at")
+  overdueNotifiedAt DateTime? @map("overdue_notified_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([dueDate])
+  @@map("full_final_settlements")
 }
 
 // HR checklists. An instance COPIES its template's text, so editing the template never rewords a signed record.

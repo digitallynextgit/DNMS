@@ -46,6 +46,11 @@ const GOALS_INTERVAL_MS = 60 * 60_000
 const GOALS_FIRST_RUN_DELAY_MS = 210_000
 const GOAL_REMINDER_EARLIEST_HOUR = 10
 
+// Hourly; the run is claimed per day.
+const FULL_FINAL_INTERVAL_MS = 60 * 60_000
+const FULL_FINAL_FIRST_RUN_DELAY_MS = 240_000
+const FULL_FINAL_EARLIEST_HOUR = 10
+
 const FIRST_RUN_DELAY_MS = 15_000
 
 // On globalThis so dev hot-reload doesn't start duplicate intervals.
@@ -68,6 +73,8 @@ const globalForScheduler = globalThis as unknown as {
   weeklyReviewRunning?: boolean
   goalsTimer?: NodeJS.Timeout
   goalsRunning?: boolean
+  fullFinalTimer?: NodeJS.Timeout
+  fullFinalRunning?: boolean
 }
 
 export function startTaskReminderScheduler(): void {
@@ -467,5 +474,46 @@ async function goalsTick(): Promise<void> {
     console.error("[scheduler] goals failed:", err)
   } finally {
     globalForScheduler.goalsRunning = false
+  }
+}
+
+/**
+ * Full & Final: from 10 AM, HR (exit:write) hears about settlements due within a week or just
+ * overdue. Production only: a dev machine shares the database and could take the day's claim.
+ */
+export function startFullFinalScheduler(): void {
+  if (globalForScheduler.fullFinalTimer) return
+  if (process.env.DISABLE_INLINE_SCHEDULER === "1") {
+    console.log("[scheduler] full & final disabled (DISABLE_INLINE_SCHEDULER=1)")
+    return
+  }
+  if (process.env.NODE_ENV !== "production") return
+
+  const timer = setInterval(fullFinalTick, FULL_FINAL_INTERVAL_MS)
+  timer.unref?.()
+  globalForScheduler.fullFinalTimer = timer
+
+  const first = setTimeout(fullFinalTick, FULL_FINAL_FIRST_RUN_DELAY_MS)
+  first.unref?.()
+
+  console.log("[scheduler] full & final started (daily reminders from 10:00)")
+}
+
+async function fullFinalTick(): Promise<void> {
+  if (globalForScheduler.fullFinalRunning) return
+  const now = new Date()
+  if (now.getHours() < FULL_FINAL_EARLIEST_HOUR) return
+
+  globalForScheduler.fullFinalRunning = true
+  try {
+    await forEachTenant("full-final", async () => {
+      const { runFullFinalReminders } = await import("@/features/full-final/server/fnf.service")
+      const r = await runFullFinalReminders(now)
+      if (!r.skipped && r.sent > 0) console.log(`[scheduler] full & final: ${r.sent} reminder(s)`)
+    })
+  } catch (err) {
+    console.error("[scheduler] full & final failed:", err)
+  } finally {
+    globalForScheduler.fullFinalRunning = false
   }
 }

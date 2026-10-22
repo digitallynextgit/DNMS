@@ -2,9 +2,13 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { DoorOpen, ShieldAlert, ShieldCheck } from "lucide-react"
+import { DoorOpen, HandCoins, ShieldAlert, ShieldCheck } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
+import { TabsBar } from "@/components/shared/tabs-bar"
+import { Tabs } from "@/components/ui/tabs"
+import { useUrlState } from "@/hooks/use-url-state"
+import { FullFinalTab } from "@/features/full-final"
 import { EmptyState } from "@/components/shared/empty-state"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { StatStrip } from "@/components/shared/stat-strip"
@@ -20,13 +24,51 @@ import {
   type ServingNoticeRow,
 } from "@/features/hr-checklists"
 
-/** Accepted resignations of still-active accounts: "serving notice" is two dates, not a status. */
+const DESCRIPTION = {
+  notice:
+    "Everyone serving notice, their last working day, and the sign-offs still blocking relieving.",
+  fnf: "Every leaver's Full & Final settlement: when it is due, when it was released, notice period and relieving letter.",
+}
+
+/** Serving notice (the live exits) and Full & Final (every leaver's settlement), as tabs. */
 export default function ExitClearancePage() {
-  const router = useRouter()
-  const tp = useTenantPath()
   const { can } = usePermissions()
   const canRead = can(PERMISSIONS.EXIT_READ) || can(PERMISSIONS.EXIT_WRITE)
+  // ?tab=fnf opens Full & Final (the FnF reminders link there).
+  const [tab, setTab] = useUrlState("tab", "notice")
+  const onFnf = tab === "fnf"
 
+  if (!canRead) {
+    return (
+      <div className="text-muted-foreground p-6 text-sm">
+        You do not have permission to view exit clearances.
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Exit clearance"
+        description={onFnf ? DESCRIPTION.fnf : DESCRIPTION.notice}
+      />
+      <Tabs value={onFnf ? "fnf" : "notice"} onValueChange={setTab}>
+        <TabsBar
+          items={[
+            { value: "notice", label: "Serving notice", icon: DoorOpen },
+            { value: "fnf", label: "Full & Final", icon: HandCoins },
+          ]}
+        />
+      </Tabs>
+      {onFnf ? <FullFinalTab canWrite={can(PERMISSIONS.EXIT_WRITE)} /> : <ServingNotice />}
+    </div>
+  )
+}
+
+/** Accepted resignations of still-active accounts: "serving notice" is two dates, not a status. */
+function ServingNotice() {
+  const router = useRouter()
+  const tp = useTenantPath()
   const { data: rows, isLoading } = useServingNotice()
 
   const stats = React.useMemo(() => {
@@ -40,18 +82,9 @@ export default function ExitClearancePage() {
     ]
   }, [rows])
 
-  if (!canRead) {
-    return (
-      <div className="text-muted-foreground p-6 text-sm">
-        You do not have permission to view exit clearances.
-      </div>
-    )
-  }
-
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-14 rounded-sm" />
         <Skeleton className="h-20 rounded-sm" />
         <Skeleton className="h-48 rounded-sm" />
       </div>
@@ -60,11 +93,6 @@ export default function ExitClearancePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Exit clearance"
-        description="Everyone serving notice, their last working day, and the sign-offs still blocking relieving."
-      />
-
       {(rows?.length ?? 0) > 0 && <StatStrip items={stats} />}
 
       {(rows?.length ?? 0) === 0 ? (
