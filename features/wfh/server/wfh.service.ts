@@ -117,12 +117,12 @@ async function countOrdinaryWfhDaysInMonth(
 export interface WfhMailEnvelope {
   to: { id: string; name: string; firstName: string; email: string } | null
   ccHr: string | null
-  /** The dotted-line manager, copied in when the mail goes to someone else. */
+  /** The dotted manager, copied in when the mail goes to someone else. */
   ccManager: string | null
 }
 
 /** Used by both the sender and the preview so they never disagree. To = active manager (else the
- *  dotted-line one), else first HR/admin. */
+ *  dotted one), else first HR/admin. */
 export async function resolveWfhMailEnvelope(applicantId: string): Promise<WfhMailEnvelope> {
   const applicant = await db.employee.findUnique({
     where: { id: applicantId },

@@ -468,7 +468,7 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
             />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label>Dotted-line manager</Label>
+            <Label>Dotted manager</Label>
             <EmployeeCombobox
               value={form.dottedManagerId || undefined}
               onChange={(v) => setForm((f) => ({ ...f, dottedManagerId: v ?? "" }))}

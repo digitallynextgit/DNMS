@@ -15,7 +15,7 @@ export interface TaskEditSubject {
 }
 
 /** The task's "manager": its team's manager, or for adhoc work the assignee's line manager. The
- *  assignee's dotted-line manager has the same say, so they get themselves back as `viewerId`. */
+ *  assignee's dotted manager has the same say, so they get themselves back as `viewerId`. */
 export function resolveTaskManagerId(
   task: {
     teamId: string | null

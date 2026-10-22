@@ -1204,7 +1204,7 @@ export function EmployeeForm({ mode, employeeId, defaultEmploymentType }: Employ
               />
             </FormField>
 
-            <FormField label="Dotted-line manager" error={errors.dottedManagerId?.message}>
+            <FormField label="Dotted manager" error={errors.dottedManagerId?.message}>
               <EmployeeCombobox
                 value={watchedValues.dottedManagerId}
                 onChange={(id) => setValue("dottedManagerId", id ?? "")}

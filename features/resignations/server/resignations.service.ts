@@ -209,7 +209,7 @@ function managerEmailsOf(e: {
   return emails.length ? [...new Set(emails)] : undefined
 }
 
-// HR/admin see every pending resignation; a manager sees their direct reports' (reporting or dotted-line).
+// HR/admin see every pending resignation; a manager sees their direct reports' (reporting or dotted).
 export async function getResignationsToReview(
   filters: { page?: number; limit?: number } = {},
 ): Promise<ActionResult<unknown>> {

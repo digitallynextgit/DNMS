@@ -6,7 +6,7 @@ export interface ReportingRow {
   dottedManagerId: string | null
 }
 
-/** An employee's two managers. The dotted-line one shares every manager power, every day. */
+/** An employee's two managers. The dotted one shares every manager power, every day. */
 export interface ManagedRow {
   managerId: string | null
   dottedManagerId?: string | null
@@ -17,18 +17,18 @@ export function managerIdsOf(e: ManagedRow | null | undefined): string[] {
   return [...new Set([e.managerId, e.dottedManagerId].filter((id): id is string => !!id))]
 }
 
-/** `me` is this employee's reporting or dotted-line manager. */
+/** `me` is this employee's reporting or dotted manager. */
 export function isManagerOf(e: ManagedRow | null | undefined, me: string): boolean {
   return managerIdsOf(e).includes(me)
 }
 
-/** Prisma filter: the employees `me` manages directly, as reporting or dotted-line manager. Nest
+/** Prisma filter: the employees `me` manages directly, as reporting or dotted manager. Nest
  *  it (`AND: [managedBy(me)]`) where the filter has its own OR. */
 export function managedBy(me: string): Prisma.EmployeeWhereInput {
   return { OR: [{ managerId: me }, { dottedManagerId: me }] }
 }
 
-/** Everyone under `me`: solid-line reports at any depth plus dotted-line reports; never `me`,
+/** Everyone under `me`: solid-line reports at any depth plus dotted reports; never `me`,
  *  and safe against cycles in bad org data. */
 export function reportingLine(me: string, employees: ReportingRow[]): string[] {
   const byManager = new Map<string, string[]>()

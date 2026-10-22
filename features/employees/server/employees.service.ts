@@ -167,7 +167,7 @@ function humanFieldList(fields: string[], max = 4): string {
     designationId: "Designation",
     jobRoleId: "Job role",
     managerId: "Reporting manager",
-    dottedManagerId: "Dotted-line manager",
+    dottedManagerId: "Dotted manager",
     employmentType: "Employment type",
     status: "Status",
     dateOfJoining: "Date of joining",
@@ -504,16 +504,16 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
   })
 }
 
-/** Why this dotted-line manager can't be used, or null. */
+/** Why this dotted manager can't be used, or null. */
 function dottedManagerProblem(
   employeeId: string | null,
   managerId: string | null,
   dottedManagerId: string | null,
 ): string | null {
   if (!dottedManagerId) return null
-  if (dottedManagerId === employeeId) return "Someone can't be their own dotted-line manager."
+  if (dottedManagerId === employeeId) return "Someone can't be their own dotted manager."
   if (dottedManagerId === managerId)
-    return "Pick someone other than the reporting manager as the dotted-line manager."
+    return "Pick someone other than the reporting manager as the dotted manager."
   return null
 }
 
@@ -572,7 +572,7 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
       if (problem) return fail(problem)
       updateData.dottedManagerId = data.dottedManagerId || null
     } else if (data.managerId && data.managerId === before.dottedManagerId) {
-      // Promoted to reporting manager: they can't also be the dotted-line one.
+      // Promoted to reporting manager: they can't also be the dotted one.
       updateData.dottedManagerId = null
     }
     if (data.employmentType !== undefined) updateData.employmentType = data.employmentType

@@ -587,7 +587,7 @@ function ManagerLink({ person, className }: { person: ManagerRef; className?: st
   )
 }
 
-/** The reporting manager, with the dotted-line one (same say, every day) underneath. */
+/** The reporting manager, with the dotted one (same say, every day) underneath. */
 function ManagersCell({ employee }: { employee: EmployeeListItem }) {
   const { manager, dottedManager } = employee
   if (!manager && !dottedManager) return <span className="text-muted-foreground text-xs">None</span>
@@ -599,7 +599,7 @@ function ManagersCell({ employee }: { employee: EmployeeListItem }) {
         <span className="text-muted-foreground text-xs">No reporting manager</span>
       )}
       {dottedManager && (
-        <span className="text-muted-foreground text-xs" title="Dotted-line manager">
+        <span className="text-muted-foreground text-xs" title="Dotted manager">
           Dotted: <ManagerLink person={dottedManager} className="text-foreground/80" />
         </span>
       )}

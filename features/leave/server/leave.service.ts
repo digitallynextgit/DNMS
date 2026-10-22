@@ -183,7 +183,7 @@ export interface LeaveMailEnvelope {
   to: { id: string; name: string; email: string; firstName: string } | null
   /** The single HR mailbox (HR_EMAIL), or null when HR is already the addressee. */
   ccHr: string | null
-  /** The dotted-line manager, copied in when the letter goes to someone else. */
+  /** The dotted manager, copied in when the letter goes to someone else. */
   ccManager: string | null
   notifyIds: string[]
   /** The HR/admin queue, who approve from the leave directory; a plain manager can't open it. */

@@ -15,7 +15,7 @@ interface PreviewData {
   to: { name: string; email: string } | null
   /** The HR mailbox on CC, or null. */
   ccHr: string | null
-  /** The dotted-line manager on CC, or null. */
+  /** The dotted manager on CC, or null. */
   ccManager?: string | null
   /** The applicant's email signature block (same source the real email uses). */
   signature: Signature | null

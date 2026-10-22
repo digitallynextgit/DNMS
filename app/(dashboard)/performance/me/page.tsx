@@ -40,7 +40,7 @@ export default function MyPerformancePage() {
 
   const all = data?.data ?? []
   const mine = all.filter((ev) => ev.employeeId === myId)
-  // Reporting or dotted-line manager: either fills the manager side.
+  // Reporting or dotted manager: either fills the manager side.
   const asManager = (ev: Evaluation) =>
     ev.managerId === myId || ev.employee.dottedManagerId === myId
   // Scorecards I must review for my team (manager or project controller).

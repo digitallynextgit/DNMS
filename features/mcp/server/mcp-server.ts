@@ -48,7 +48,7 @@ Glossary (DNMS words and where they live):
 - Team manager = manager of one project team (/api/projects/[id]/teams). Services = what a project includes: SMO (social media), SEO, PM (paid performance), MSG (email/WhatsApp/SMS), INF (influencers), ALL (alliances). Service owner = the person responsible for one service on a project, who manages its calendar; each service can also have a secondary owner with the same powers. Set both with PUT /api/projects/[id]/service-owners.
 - Content calendar / service calendar = a project workbook (/api/projects/[id]/workbooks), one per service per month; its tabs are "sheets". Each calendar has an owner and a secondary who covers with the same powers; a service calendar's are the service's owners, a custom (hand-made) calendar has its own (PUT /api/projects/[id]/workbooks/[workbookId]/secondary). Kick-off checklist = /api/projects/[id]/kickoff (the Account Manager's pre-campaign must-haves).
 - Deliverables = the outputs a team ships for a project (posts, reels, blogs...). Goals = monthly project targets that tasks serve.
-- Reporting manager = an employee's line manager (managerId on the employee; dottedManagerId is a secondary, dotted-line manager).
+- Reporting manager = an employee's line manager (managerId on the employee; dottedManagerId is a secondary, dotted manager).
 - Floating holiday, sandwich rule, WFH: leave and attendance policy terms - look them up with dnms_find_endpoints.
 
 Not available through this connector: platform/superadmin settings and storage, AI provider keys, password-vault secrets, sign-in and password endpoints, the client portal and file uploads. Payslips exist in DNMS as on-screen pages, not files - read them with dnms_get and present the figures.`

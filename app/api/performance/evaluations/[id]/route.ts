@@ -16,7 +16,7 @@ import type { Session } from "next-auth"
 const employeeSelect = {
   select: { id: true, firstName: true, lastName: true, employeeNo: true, profilePhoto: true },
 }
-// The dotted-line manager reviews as the manager too.
+// The dotted manager reviews as the manager too.
 const evaluatedSelect = { select: { ...employeeSelect.select, dottedManagerId: true } }
 
 type Viewer = "HR" | "MANAGER" | "CONTROLLER" | "EMPLOYEE" | null

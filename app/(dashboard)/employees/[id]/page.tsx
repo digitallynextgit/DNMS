@@ -310,7 +310,7 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
                   }
                 />
                 <InfoRow
-                  label="Dotted-line manager"
+                  label="Dotted manager"
                   value={
                     emp.dottedManager
                       ? `${emp.dottedManager.firstName} ${emp.dottedManager.lastName}`

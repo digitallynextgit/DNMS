@@ -71,7 +71,7 @@ export const POST = withSession(
           type: "info",
           link,
         })
-        // Both managers review; the dotted-line one is asked too.
+        // Both managers review; the dotted one is asked too.
         for (const reviewer of new Set([emp.managerId, emp.dottedManagerId])) {
           if (!reviewer || reviewer === emp.id) continue
           await createNotification({

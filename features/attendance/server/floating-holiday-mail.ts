@@ -16,11 +16,11 @@ export interface FloatingHolidayMailEnvelope {
   to: { id: string; name: string; firstName: string; email: string } | null
   /** The HR mailbox on Cc, or null. */
   ccHr: string | null
-  /** The dotted-line manager on Cc when the letter goes to someone else, or null. */
+  /** The dotted manager on Cc when the letter goes to someone else, or null. */
   ccManager: string | null
 }
 
-/** Who the letter goes to: the applicant's active manager (else the dotted-line one), else the
+/** Who the letter goes to: the applicant's active manager (else the dotted one), else the
  *  first HR/admin approver - never the applicant. */
 export async function resolveFloatingHolidayMailEnvelope(
   applicantId: string,

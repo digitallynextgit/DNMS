@@ -10,7 +10,7 @@ import { MailSignature, type MailSignatureData } from "@/components/shared/mail-
 interface PreviewData {
   to: { name: string; email: string } | null
   ccHr: string | null
-  /** The dotted-line manager on CC, or null. */
+  /** The dotted manager on CC, or null. */
   ccManager?: string | null
   signature: MailSignatureData | null
 }

@@ -12,7 +12,7 @@ import { reportingLine } from "@/lib/reporting-line"
 import type { WorkReportRole, WorkReportScopeData, WorkReportScopePerson } from "../types"
 
 // Who a work report may cover: admins (project:write, HR) anyone; managers themselves plus their
-// whole reporting line (incl. indirect and dotted-line); members only themselves. The picker and
+// whole reporting line (incl. indirect and dotted); members only themselves. The picker and
 // the download both use this.
 
 const HR_ROLE_NAMES: string[] = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.ADMIN_]

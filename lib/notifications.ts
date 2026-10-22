@@ -79,7 +79,7 @@ export async function createNotification(
 }
 
 /**
- * Notifies the requester's managers (reporting and dotted-line) and all active HR approvers of a new request.
+ * Notifies the requester's managers (reporting and dotted) and all active HR approvers of a new request.
  * `hrRoles` are the roles that may decide it (HR managers and admins unless given);
  * `hrLink` is where they approve (a company-wide queue); the manager gets `link`.
  */

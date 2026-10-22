@@ -19,7 +19,7 @@ describe("reportingLine", () => {
     row("other", "ceo"),
   ]
 
-  it("includes indirect reports and dotted-line reports", () => {
+  it("includes indirect reports and dotted reports", () => {
     expect(reportingLine("lead", org).sort()).toEqual(["designer", "dev1", "dev2", "intern"])
   })
   it("is empty for someone nobody reports to", () => {
@@ -31,13 +31,13 @@ describe("reportingLine", () => {
 })
 
 describe("both managers", () => {
-  it("lists the reporting and dotted-line manager once each", () => {
+  it("lists the reporting and dotted manager once each", () => {
     expect(managerIdsOf({ managerId: "a", dottedManagerId: "b" })).toEqual(["a", "b"])
     expect(managerIdsOf({ managerId: "a", dottedManagerId: "a" })).toEqual(["a"])
     expect(managerIdsOf({ managerId: null, dottedManagerId: null })).toEqual([])
     expect(managerIdsOf(null)).toEqual([])
   })
-  it("gives the dotted-line manager the same say", () => {
+  it("gives the dotted manager the same say", () => {
     const e = { managerId: "a", dottedManagerId: "b" }
     expect(isManagerOf(e, "a")).toBe(true)
     expect(isManagerOf(e, "b")).toBe(true)

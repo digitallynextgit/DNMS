@@ -506,7 +506,7 @@ export async function runWeeklyReviewReminders(
     const joinee = w.review.employee
     const name = `${joinee.firstName} ${joinee.lastName}`.trim()
     const link = `/weekly-reviews/${joinee.id}`
-    // Either manager fills it in; the reporting one is addressed, the dotted-line one copied.
+    // Either manager fills it in; the reporting one is addressed, the dotted one copied.
     const dotted = joinee.dottedManager?.isActive ? joinee.dottedManager : null
     const manager = joinee.manager?.isActive ? joinee.manager : dotted
     const spoc = joinee.joineeScorecard?.hrSpoc?.isActive ? joinee.joineeScorecard.hrSpoc : null

@@ -326,7 +326,7 @@ export default function ProfilePage() {
                   }
                 />
                 <InfoRow
-                  label="Dotted-line manager"
+                  label="Dotted manager"
                   value={
                     emp.dottedManager
                       ? `${emp.dottedManager.firstName} ${emp.dottedManager.lastName}`
