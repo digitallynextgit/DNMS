@@ -131,6 +131,65 @@ function LeadCell({
   )
 }
 
+/** One owned service: its chip, this month's calendar (a link) and how that calendar is going. */
+function ServiceLine({
+  service: s,
+  monthName,
+  today,
+}: {
+  service: OwnedService
+  monthName: string
+  today: string
+}) {
+  const p = s.calendar?.progress
+  const late = !!p?.nextDue && p.nextDue < today
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      <ServiceChip code={s.service} />
+      {s.calendar ? (
+        <Link
+          href={calendarHref(s.project, s.calendar.id)}
+          className="inline-flex items-center gap-1 font-medium hover:underline"
+        >
+          <CalendarDays className="h-3.5 w-3.5" />
+          {s.calendar.name}
+        </Link>
+      ) : (
+        <span className="text-muted-foreground">
+          {serviceInfo(s.service)?.name} · no {monthName} calendar
+          {s.latestCalendarId ? (
+            <>
+              {" · "}
+              <Link
+                href={calendarHref(s.project, s.latestCalendarId)}
+                className="text-foreground underline-offset-4 hover:underline"
+              >
+                open the latest
+              </Link>
+            </>
+          ) : null}
+        </span>
+      )}
+      {s.secondary && (
+        <span className="text-primary text-[11px] font-medium" title="Covers for the owner">
+          secondary
+        </span>
+      )}
+      {p ? (
+        <span className="text-muted-foreground tabular-nums">
+          {p.teams === 0 ? "No plan yet" : `${p.teamsDone} of ${p.teams} teams done`}
+          {p.quantity > 0 ? ` · ${p.handedIn} / ${p.quantity} delivered` : ""}
+          {p.nextDue ? (
+            <span className={cn(late && "text-destructive font-medium")}>
+              {` · next due ${formatDate(p.nextDue)}${late ? " (late)" : ""}`}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
 function TeamsDone({ progress }: { progress: CalendarProgress }) {
   if (progress.teams === 0)
     return <span className="text-muted-foreground text-xs">No plan yet</span>
@@ -187,70 +246,8 @@ export function EmployeeWorkView({ employeeId }: { employeeId?: string }) {
   ])
   const dueThisWeek = (data?.assignments ?? []).filter((a) => dueSoon(a, today)).length
 
-  const serviceColumns: DataTableColumn<OwnedService>[] = [
-    {
-      header: "Project",
-      sortValue: (s) => s.project.shortName ?? s.project.name,
-      cell: (s) => <ProjectCell project={s.project} />,
-    },
-    {
-      header: "Service",
-      sortValue: (s) => serviceInfo(s.service)?.name ?? s.service,
-      cell: (s) => (
-        <span className="flex items-center gap-2">
-          <ServiceChip code={s.service} />
-          <span className="text-muted-foreground text-xs">{serviceInfo(s.service)?.name}</span>
-          {s.secondary && (
-            <span className="text-primary text-[11px] font-medium" title="Covers for the owner">
-              secondary
-            </span>
-          )}
-        </span>
-      ),
-    },
-    {
-      header: "Calendar",
-      cell: (s) =>
-        s.calendar ? (
-          <CalendarLink project={s.project} id={s.calendar.id} name={s.calendar.name} />
-        ) : (
-          <span className="flex items-center gap-2">
-            <span className="text-muted-foreground text-xs">No {monthName} calendar</span>
-            {s.latestCalendarId ? (
-              <Link
-                href={calendarHref(s.project, s.latestCalendarId)}
-                className="text-xs underline-offset-4 hover:underline"
-              >
-                Open the latest
-              </Link>
-            ) : null}
-          </span>
-        ),
-    },
-    {
-      header: "Team plan",
-      cell: (s) => (s.calendar ? <TeamsDone progress={s.calendar.progress} /> : null),
-    },
-    {
-      header: "Delivered",
-      sortValue: (s) =>
-        s.calendar?.progress.quantity
-          ? s.calendar.progress.handedIn / s.calendar.progress.quantity
-          : null,
-      cell: (s) =>
-        s.calendar ? (
-          <Delivered
-            handedIn={s.calendar.progress.handedIn}
-            quantity={s.calendar.progress.quantity}
-          />
-        ) : null,
-    },
-    {
-      header: "Next due",
-      sortValue: (s) => s.calendar?.progress.nextDue ?? null,
-      cell: (s) => <DueDate date={s.calendar?.progress.nextDue ?? null} open today={today} />,
-    },
-  ]
+  const servicesOf = (projectId: string) =>
+    (data?.ownedServices ?? []).filter((s) => s.project.id === projectId)
 
   const calendarColumns: DataTableColumn<OwnedCalendar>[] = [
     {
@@ -382,6 +379,21 @@ export function EmployeeWorkView({ employeeId }: { employeeId?: string }) {
           </span>
         ),
     },
+    {
+      header: "Services owned",
+      sortValue: (p) => servicesOf(p.id).length,
+      cell: (p) => {
+        const services = servicesOf(p.id)
+        if (services.length === 0) return <span className="text-muted-foreground text-xs">-</span>
+        return (
+          <div className="flex flex-col gap-1.5">
+            {services.map((s) => (
+              <ServiceLine key={s.service} service={s} monthName={monthName} today={today} />
+            ))}
+          </div>
+        )
+      },
+    },
   ]
 
   return (
@@ -415,18 +427,19 @@ export function EmployeeWorkView({ employeeId }: { employeeId?: string }) {
           />
 
           <Section
-            title={`Services ${owns}`}
-            hint="The owner answers for the service and owns its calendar each month."
+            title={self ? "Your projects" : `${who}'s projects`}
+            hint={`The teams ${self ? "you are" : `${who} is`} on, and the services ${owns} - the owner answers for a service and its calendar each month. Click a calendar to open it.`}
           >
             <DataTable
-              tableId="work-services"
-              columns={serviceColumns}
-              rows={data?.ownedServices ?? []}
-              rowKey={(s) => `${s.project.id}:${s.service}`}
+              tableId="work-projects"
+              columns={projectColumns}
+              rows={data?.projects ?? []}
+              rowKey={(p) => p.id}
               loading={isLoading}
-              skeletonRows={3}
+              skeletonRows={4}
+              showSerial
               columnToggle={false}
-              empty={`${self ? "You don't" : `${who} doesn't`} own any services yet.`}
+              empty="Not on any project yet."
             />
           </Section>
 
@@ -455,20 +468,6 @@ export function EmployeeWorkView({ employeeId }: { employeeId?: string }) {
               skeletonRows={3}
               columnToggle={false}
               empty={`Not named in any calendar's team plan for ${monthName}.`}
-            />
-          </Section>
-
-          <Section title={self ? "Your projects" : `${who}'s projects`}>
-            <DataTable
-              tableId="work-projects"
-              columns={projectColumns}
-              rows={data?.projects ?? []}
-              rowKey={(p) => p.id}
-              loading={isLoading}
-              skeletonRows={4}
-              showSerial
-              columnToggle={false}
-              empty="Not on any project's teams yet."
             />
           </Section>
         </>

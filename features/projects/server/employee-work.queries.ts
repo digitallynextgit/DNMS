@@ -52,6 +52,10 @@ export async function getEmployeeWork(employeeId: string, month: string): Promis
         OR: [
           ...leadConditions(employeeId),
           { teams: { some: { members: { some: { employeeId } } } } },
+          // Every owned service gets a row to sit in.
+          {
+            serviceOwners: { some: { OR: [{ employeeId }, { secondaryEmployeeId: employeeId }] } },
+          },
         ],
       },
       orderBy: { name: "asc" },
@@ -171,18 +175,21 @@ export async function getEmployeeWork(employeeId: string, month: string): Promis
       })),
   )
 
-  const workProjects: WorkProject[] = projects.map((p) => ({
-    id: p.id,
-    slug: p.slug,
-    name: p.name,
-    shortName: p.shortName,
-    code: p.code,
-    status: p.status,
-    accountManager: p.owner,
-    isAccountManager: p.ownerId === employeeId,
-    leadRoles: leadRolesOf(p, employeeId),
-    teams: p.teams.map((t) => ({ name: t.name, isManager: t.managerId === employeeId })),
-  }))
+  const workProjects: WorkProject[] = projects
+    .map((p) => ({
+      id: p.id,
+      slug: p.slug,
+      name: p.name,
+      shortName: p.shortName,
+      code: p.code,
+      status: p.status,
+      accountManager: p.owner,
+      isAccountManager: p.ownerId === employeeId,
+      leadRoles: leadRolesOf(p, employeeId),
+      teams: p.teams.map((t) => ({ name: t.name, isManager: t.managerId === employeeId })),
+    }))
+    // An owner row for a dropped service alone doesn't put them on the project.
+    .filter((p) => p.teams.length || p.leadRoles.length || owned.some((o) => o.project.id === p.id))
 
   return {
     month,

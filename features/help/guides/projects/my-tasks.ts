@@ -400,20 +400,20 @@ export const myTasksGuide: HelpGuide = {
             path: "/projects/my-work?tab=services",
             highlight: [
               { role: "tab", name: "Services & calendars" },
-              { text: "Services you own", exact: true },
+              { text: "Your projects", exact: true },
             ],
           },
         },
         {
           text: {
-            en: "Services you own (2) lists each service you answer for, with its calendar for the month - click it to open the calendar - how many teams are done, what has been delivered so far, and the next due date.",
-            hi: "Services you own (2) में हर वो service दिखती है जिसके लिए आप ज़िम्मेदार हैं, उस महीने के कैलेंडर के साथ - कैलेंडर खोलने के लिए उस पर क्लिक करें - कितनी टीमों का काम पूरा हुआ, अब तक क्या deliver हुआ, और अगली ड्यू डेट।",
+            en: "Your projects (2) has one row per project: its status, its Account Manager, your teams - manager marks the teams you lead - and the services you own there. Each service shows its calendar for the month - click it to open the calendar - how many teams are done, what has been delivered so far, and the next due date.",
+            hi: "Your projects (2) में हर प्रोजेक्ट की एक लाइन है: उसका status, उसका Account Manager, आपकी टीमें - manager उन टीमों पर लिखा होता है जिन्हें आप लीड करते हैं - और वहाँ की वो services जिनके आप owner हैं। हर service के साथ उस महीने का कैलेंडर दिखता है - खोलने के लिए उस पर क्लिक करें - कितनी टीमों का काम पूरा हुआ, अब तक क्या deliver हुआ, और अगली ड्यू डेट।",
           },
         },
         {
           text: {
-            en: "Calendar work lists the calendar team plans you are named in: the team, its status, what you have handed in against what was promised, and when it is due. Your projects lists every project you are on, its Account Manager, and your teams - manager marks the teams you lead.",
-            hi: "Calendar work में वो कैलेंडर टीम प्लान दिखते हैं जिनमें आपका नाम है: टीम, उसका status, जितना वादा था उसके मुकाबले आपने कितना जमा किया, और कब तक करना है। Your projects में हर वो प्रोजेक्ट दिखता है जिसमें आप हैं, उसका Account Manager, और आपकी टीमें - manager उन टीमों पर लिखा होता है जिन्हें आप लीड करते हैं।",
+            en: "Calendar work lists the calendar team plans you are named in: the team, its status, what you have handed in against what was promised, and when it is due.",
+            hi: "Calendar work में वो कैलेंडर टीम प्लान दिखते हैं जिनमें आपका नाम है: टीम, उसका status, जितना वादा था उसके मुकाबले आपने कितना जमा किया, और कब तक करना है।",
           },
         },
       ],
