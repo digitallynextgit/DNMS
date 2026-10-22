@@ -6,6 +6,7 @@ import { projectRepositoryGuide } from "./project-repository"
 import { projectInsightsSeoGuide } from "./project-insights-seo"
 import { projectMonitoringGuide } from "./project-monitoring"
 import { projectMailerGuide } from "./project-mailer"
+import { projectSalesGuide } from "./project-sales"
 import { clientsGuide } from "./clients"
 
 export const projectToolGuides: HelpGuide[] = [
@@ -16,5 +17,6 @@ export const projectToolGuides: HelpGuide[] = [
   projectInsightsSeoGuide,
   projectMonitoringGuide,
   projectMailerGuide,
+  projectSalesGuide,
   clientsGuide,
 ]

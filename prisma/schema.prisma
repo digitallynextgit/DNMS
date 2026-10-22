@@ -661,6 +661,9 @@ model Employee {
 
   plannerCampaignsOwned PlannerCampaign[] @relation("PlannerCampaignOwner")
 
+  salesLeadsAssigned SalesLead[]         @relation("SalesLeadAssignee")
+  salesActivities    SalesLeadActivity[] @relation("SalesLeadActivityActor")
+
   checklists          ChecklistInstance[]     @relation("ChecklistEmployee")
   checklistsStarted   ChecklistInstance[]     @relation("ChecklistStartedBy")
   checklistsCompleted ChecklistInstance[]     @relation("ChecklistCompletedBy")
@@ -1764,6 +1767,7 @@ model Project {
   sheets                  ProjectSheet[]
   workbooks               ProjectWorkbook[]
   plannerCampaigns        PlannerCampaign[]
+  salesLeads              SalesLead[]
   sheetIntakes            ProjectSheetIntake[]
   integration             ProjectIntegration?
   metaCampaigns           MetaCampaign[]
@@ -2085,6 +2089,76 @@ model PlannerCampaign {
   @@index([projectId, startDate])
   @@index([tenantId])
   @@map("planner_campaigns")
+}
+
+/// A sales lead on a project (e.g. a hostel a water-tank client could sell to). Added by hand or
+/// imported; worked through stages with follow-up dates. Not "lead" in project-leads.ts, which
+/// means the Account Managers.
+model SalesLead {
+  tenantId           String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id                 String    @id @default(uuid()) @map("id")
+  projectId          String    @map("project_id")
+  business           String    @map("business")
+  contactName        String?   @map("contact_name")
+  /// As typed; matching and WhatsApp use the digits.
+  phone              String?   @map("phone")
+  email              String?   @map("email")
+  website            String?   @map("website")
+  category           String?   @map("category")
+  area               String?   @map("area")
+  city               String?   @map("city")
+  address            String?   @map("address")
+  mapsUrl            String?   @map("maps_url")
+  rating             Float?    @map("rating")
+  reviewsCount       Int?      @map("reviews_count")
+  /// NEW | CONTACTED | INTERESTED | VISIT | QUOTATION | WON | LOST (features/sales/lib/sales.ts).
+  stage              String    @default("NEW") @map("stage")
+  lostReason         String?   @map("lost_reason")
+  /// Expected or won deal value, in rupees.
+  value              Float?    @map("value")
+  assigneeId         String?   @map("assignee_id")
+  nextFollowUp       DateTime? @map("next_follow_up") @db.Date
+  /// The follow-up date a reminder already went out for.
+  followUpRemindedOn DateTime? @map("follow_up_reminded_on") @db.Date
+  /// Asked not to be contacted: no reminders, and the outreach buttons are off.
+  doNotContact       Boolean   @default(false) @map("do_not_contact")
+  /// Where it came from: "Manual", "Import", ...
+  source             String?   @map("source")
+  notes              String?   @map("notes") @db.Text
+  createdById        String?   @map("created_by_id")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  project    Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee   Employee?           @relation("SalesLeadAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  activities SalesLeadActivity[]
+
+  @@index([projectId, stage])
+  @@index([assigneeId])
+  @@index([nextFollowUp])
+  @@index([tenantId])
+  @@map("sales_leads")
+}
+
+/// What happened with a lead: a call, a WhatsApp, a visit, a note, or a stage change.
+model SalesLeadActivity {
+  tenantId  String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id        String   @id @default(uuid()) @map("id")
+  leadId    String   @map("lead_id")
+  actorId   String?  @map("actor_id")
+  /// CALL | WHATSAPP | EMAIL | VISIT | NOTE | STAGE | CREATED
+  kind      String   @map("kind")
+  note      String?  @map("note") @db.Text
+  fromStage String?  @map("from_stage")
+  toStage   String?  @map("to_stage")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lead  SalesLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  actor Employee? @relation("SalesLeadActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([leadId, createdAt])
+  @@index([tenantId])
+  @@map("sales_lead_activities")
 }
 
 /// An API for one calendar tab: an outside system (e.g. a website form) POSTs rows to it with its

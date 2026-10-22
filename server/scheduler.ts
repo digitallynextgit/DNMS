@@ -528,6 +528,7 @@ async function fullFinalTick(): Promise<void> {
 /**
  * Planner: from 9 AM, campaigns starting today are announced, calendar team plans remind their
  * people 3 days before, on the day and once late, and live campaigns' owners hear who is behind.
+ * Sales leads whose follow-up has come remind their assignee.
  * Production only: a dev machine shares the database and could take the day's claim.
  */
 export function startPlannerScheduler(): void {
@@ -559,6 +560,10 @@ async function plannerTick(): Promise<void> {
       const { runPlannerReminders } = await import("@/features/projects/server/campaigns.service")
       const r = await runPlannerReminders(now)
       if (!r.skipped && r.sent > 0) console.log(`[scheduler] planner: ${r.sent} reminder(s)`)
+      // Sales follow-ups ride the same morning run (claimed separately).
+      const { runSalesFollowUps } = await import("@/features/sales/server/sales.service")
+      const f = await runSalesFollowUps(now)
+      if (!f.skipped && f.sent > 0) console.log(`[scheduler] sales: ${f.sent} follow-up(s)`)
     })
   } catch (err) {
     console.error("[scheduler] planner failed:", err)

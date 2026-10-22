@@ -43,6 +43,7 @@ import {
   Activity,
   MessageSquare,
   Mail,
+  Handshake,
   KeyRound,
   Rocket,
   Palette,
@@ -157,6 +158,10 @@ const ProjectMailerTab = dynamic(
   () => import("@/features/project-mailer").then((m) => m.ProjectMailerTab),
   { loading: tabFallback },
 )
+const SalesTab = dynamic(
+  () => import("@/features/sales/components/sales-tab").then((m) => m.SalesTab),
+  { loading: tabFallback },
+)
 const ProjectMonitoringTab = dynamic(
   () => import("@/features/monitoring").then((m) => m.ProjectMonitoringTab),
   { loading: tabFallback },
@@ -181,6 +186,7 @@ const PROJECT_TABS = [
   "kickoff",
   "monitoring",
   "mailer",
+  "sales",
 ] as const
 
 const KickoffTab = dynamic(
@@ -224,6 +230,7 @@ export default function ProjectDetailPage() {
       "month",
       "view",
       "campaign",
+      "lead",
     ])
       next.delete(key)
     router.replace(`${pathname}?${next.toString()}`, { scroll: false })
@@ -261,8 +268,11 @@ export default function ProjectDetailPage() {
    * A ?tab=passwords bookmark for someone who may not see it. Judged only once the project has
    * LOADED - canManage is false mid-fetch and would bounce the account manager off their own.
    */
+  const hasSales = (project?.services ?? []).includes("BD")
   const shownTab =
-    Boolean(project) && !canManage && (activeTab === "passwords" || activeTab === "kickoff")
+    Boolean(project) &&
+    ((!canManage && (activeTab === "passwords" || activeTab === "kickoff")) ||
+      (activeTab === "sales" && !hasSales))
       ? "overview"
       : activeTab
 
@@ -440,6 +450,8 @@ export default function ProjectDetailPage() {
               // Open to the whole project team, not only the owner.
               { value: "monitoring", label: "Monitoring", icon: Activity },
               { value: "mailer", label: "Mailer", icon: Mail },
+              // Projects where we sell for the client (the BD / Sales service).
+              ...(hasSales ? [{ value: "sales" as const, label: "Sales", icon: Handshake }] : []),
               // Portal access lives on the client's page (Clients -> Contacts), not here.
             ] satisfies {
               value: (typeof PROJECT_TABS)[number]
@@ -596,6 +608,10 @@ export default function ProjectDetailPage() {
         {/* Always true: reaching this page means project access, which is what both APIs check. */}
         <TabsContent value="monitoring" className="mt-4">
           <ProjectMonitoringTab projectRef={projectRef} canManage />
+        </TabsContent>
+
+        <TabsContent value="sales">
+          <SalesTab projectId={projectRef} />
         </TabsContent>
 
         <TabsContent value="mailer" className="mt-4">

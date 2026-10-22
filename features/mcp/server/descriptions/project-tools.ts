@@ -186,6 +186,45 @@ export const PROJECT_TOOLS: DescriptionMap = {
     keywords: ["project logo", "client logo", "brand logo image"],
     notes: "Returns a file - use dnms_download.",
   },
+  "GET /api/projects/[id]/sales/leads": {
+    summary:
+      "A project's sales leads (the Sales tab, for projects with the BD / Sales service): business, contact, phone, email, category, area, city, stage (NEW, CONTACTED, INTERESTED, VISIT, QUOTATION, WON, LOST), assignee, next follow-up, deal value, do-not-contact and the last activity. Also canManage (may the caller add, import, assign and delete). Anyone on the project.",
+    keywords: ["sales leads", "pipeline", "prospects", "follow ups", "bd leads"],
+  },
+  "POST /api/projects/[id]/sales/leads": {
+    summary:
+      "Add a sales lead. Account Managers, project admins and the BD / Sales service owner. Refused (409) if a lead with the same phone - or the same business in the same area - exists.",
+    body: "{ business (required); contactName?; phone?; email?; website?; category?; area?; city?; address?; mapsUrl?; rating?: 0-5; reviewsCount?; stage?: NEW|CONTACTED|INTERESTED|VISIT|QUOTATION|WON|LOST; lostReason?; value?: rupees; assigneeId?; nextFollowUp?: YYYY-MM-DD; doNotContact?: boolean; notes? }",
+    keywords: ["add lead", "new prospect"],
+  },
+  "PATCH /api/projects/[id]/sales/leads/[leadId]": {
+    summary:
+      "Edit a lead: details, stage (a change is logged), next follow-up, value, do-not-contact, notes. Its assignee or the sales managers; only managers reassign (the new assignee is notified).",
+    body: "Any field of POST /api/projects/[id]/sales/leads.",
+    keywords: ["update lead", "move lead stage", "assign lead", "set follow up"],
+  },
+  "DELETE /api/projects/[id]/sales/leads/[leadId]": {
+    summary: "Delete a lead and its history. Sales managers only.",
+    notes: "Irreversible. Confirm the business name first.",
+    keywords: ["delete lead"],
+  },
+  "GET /api/projects/[id]/sales/leads/[leadId]/activities": {
+    summary:
+      "A lead's history, newest first: calls, WhatsApps, emails, visits, notes and stage changes, with who did each. Anyone on the project.",
+    keywords: ["lead history", "lead activity", "call log"],
+  },
+  "POST /api/projects/[id]/sales/leads/[leadId]/activities": {
+    summary:
+      "Log what happened with a lead - and optionally move its stage and set the next follow-up in the same step. Its assignee or the sales managers.",
+    body: "{ kind (required): CALL|WHATSAPP|EMAIL|VISIT|NOTE; note?; stage?; nextFollowUp?: YYYY-MM-DD or null }",
+    keywords: ["log call", "log visit", "lead note"],
+  },
+  "POST /api/projects/[id]/sales/leads/import": {
+    summary:
+      "Import leads already mapped from a spreadsheet (up to 2,000 rows). Rows matching an existing lead - the same phone, or the same business in the same area - are skipped. Sales managers only. Returns { added, duplicates }.",
+    body: "{ rows (required): [{ business (required), contactName?, phone?, email?, website?, category?, area?, city?, address?, mapsUrl?, rating?, reviewsCount?, notes? }]; assigneeId? }",
+    keywords: ["import leads", "bulk add leads", "upload lead list"],
+  },
   "GET /api/projects/[id]/mailer": {
     summary:
       "Everything in a project's email mailer (newsletter / email campaign tool): SMTP sending accounts (no passwords), email templates, recipients/subscribers (newest 500) with tags, the 25 latest campaigns with sent/failed counts, and subscriber and tag counts. Mailer 'accounts' are SMTP senders, not the project's Account Manager.",
