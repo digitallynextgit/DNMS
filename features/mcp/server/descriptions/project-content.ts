@@ -211,6 +211,37 @@ export const PROJECT_CONTENT: DescriptionMap = {
       "audit trail",
     ],
   },
+  "GET /api/projects/[id]/campaigns": {
+    summary:
+      "List a project's Planner campaigns (work across services, e.g. Halloween 2026): name, start date, deadline, upcoming/live/ended with days, owner, services taking part, brief, its own calendar (workbookId), and team-plan progress (done, stuck, overdue). Anyone on the project.",
+    keywords: [
+      "campaigns",
+      "campaign calendar",
+      "festive campaign",
+      "planner",
+      "campaign deadline",
+    ],
+  },
+  "POST /api/projects/[id]/campaigns": {
+    summary:
+      "Create a Planner campaign. It gets its own calendar with one tab per service, and a team plan due on the deadline for every team that usually makes those services. Account Managers and project admins.",
+    body: "{ name (required, unique on the project); startDate (required): YYYY-MM-DD; deadline (required): YYYY-MM-DD, not before startDate; services (required): PROJECT_SERVICES codes, at least one; ownerId?: employee id (default the Campaign Planning service owner, else the Account Manager); brief? }",
+    notes:
+      "Staff the team plans afterwards with PUT /api/projects/[id]/workbooks/[workbookId]/teams/[teamId] on the returned workbookId - each person added is notified.",
+    keywords: ["new campaign", "plan halloween", "create campaign calendar"],
+  },
+  "PATCH /api/projects/[id]/campaigns/[campaignId]": {
+    summary:
+      "Edit a Planner campaign: name (renames its calendar), dates, owner, brief, services (a newly added service gets its tab; removed ones keep theirs). The campaign owner, Account Managers and project admins.",
+    body: "{ name?; startDate?; deadline?; services?; ownerId?; brief? }",
+    keywords: ["edit campaign", "move campaign deadline", "change campaign owner"],
+  },
+  "DELETE /api/projects/[id]/campaigns/[campaignId]": {
+    summary:
+      "Delete a Planner campaign and its calendar (every tab, row and team plan). Account Managers and project admins.",
+    notes: "Irreversible. Confirm the campaign name first.",
+    keywords: ["delete campaign", "remove campaign"],
+  },
   "GET /api/projects/[id]/workbooks": {
     summary:
       "List a project's sheets / content calendars (posting schedules): name, month (periodMonth), calendar manager, service, whether shared with the client, and each tab's id and name - no rows. Anyone on the project. Use it to find a workbookId or tab id.",

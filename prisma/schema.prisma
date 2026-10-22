@@ -659,6 +659,8 @@ model Employee {
 
   fullFinal FullFinalSettlement?
 
+  plannerCampaignsOwned PlannerCampaign[] @relation("PlannerCampaignOwner")
+
   checklists          ChecklistInstance[]     @relation("ChecklistEmployee")
   checklistsStarted   ChecklistInstance[]     @relation("ChecklistStartedBy")
   checklistsCompleted ChecklistInstance[]     @relation("ChecklistCompletedBy")
@@ -1761,6 +1763,7 @@ model Project {
   contentCalendar         ContentCalendarEntry[]
   sheets                  ProjectSheet[]
   workbooks               ProjectWorkbook[]
+  plannerCampaigns        PlannerCampaign[]
   sheetIntakes            ProjectSheetIntake[]
   integration             ProjectIntegration?
   metaCampaigns           MetaCampaign[]
@@ -2025,6 +2028,8 @@ model ProjectWorkbook {
   isClientVisible       Boolean   @default(false) @map("is_client_visible")
   /// The project service (PROJECT_SERVICES code) this calendar is for; every month of the series carries it.
   service               String?   @map("service")
+  /// Set on a campaign's own calendar (one per campaign, undated); deleting the campaign deletes it.
+  campaignId            String?   @unique @map("campaign_id")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
 
@@ -2036,6 +2041,7 @@ model ProjectWorkbook {
   sheets              ProjectSheet[]
   teams               ProjectWorkbookTeam[]
   aiSummary           ProjectWorkbookSummary?
+  campaign            PlannerCampaign?      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   /// One calendar of a given name per month (dated editions). Also serves the month picker's ordered read.
   @@unique([projectId, name, periodMonth])
@@ -2050,6 +2056,35 @@ model ProjectWorkbook {
   @@index([projectId, service])
   @@index([tenantId])
   @@map("project_workbooks")
+}
+
+/// A campaign across services (e.g. Halloween 2026): its dates, owner and the services taking part.
+/// The work lives in its own calendar (ProjectWorkbook.campaignId), one tab per service.
+model PlannerCampaign {
+  tenantId        String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id              String    @id @default(uuid()) @map("id")
+  projectId       String    @map("project_id")
+  name            String    @map("name")
+  brief           String?   @map("brief") @db.Text
+  startDate       DateTime  @map("start_date") @db.Date
+  deadline        DateTime  @map("deadline") @db.Date
+  ownerId         String?   @map("owner_id")
+  /// PROJECT_SERVICES codes taking part.
+  services        String[]  @default([]) @map("services")
+  createdById     String?   @map("created_by_id")
+  /// The "campaign has started" notice goes out once.
+  startNotifiedAt DateTime? @map("start_notified_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  project  Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner    Employee?        @relation("PlannerCampaignOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  workbook ProjectWorkbook?
+
+  @@unique([projectId, name])
+  @@index([projectId, startDate])
+  @@index([tenantId])
+  @@map("planner_campaigns")
 }
 
 /// An API for one calendar tab: an outside system (e.g. a website form) POSTs rows to it with its
@@ -2128,6 +2163,11 @@ model ProjectWorkbookTeam {
   createdById String?            @map("created_by_id")
   createdAt   DateTime           @default(now()) @map("created_at")
   updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  /// Due-date reminders already sent, each once; cleared when the due date moves.
+  soonRemindedAt    DateTime? @map("soon_reminded_at")
+  dueRemindedAt     DateTime? @map("due_reminded_at")
+  overdueRemindedAt DateTime? @map("overdue_reminded_at")
 
   workbook    ProjectWorkbook             @relation(fields: [workbookId], references: [id], onDelete: Cascade)
   team        ProjectTeam                 @relation(fields: [teamId], references: [id], onDelete: Cascade)

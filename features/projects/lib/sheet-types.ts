@@ -182,6 +182,8 @@ export interface WorkbookIndexEntry {
   isClientVisible: boolean
   /** The project service this calendar is for (PROJECT_SERVICES code), or null. */
   service: string | null
+  /** Set on a campaign's own calendar: it lives in the Planner's Campaigns view, not Monthly. */
+  campaignId: string | null
   updatedAt: string
   /** Tab names only, in order - enough for the importer to match one by name. */
   tabs: { id: string; name: string; position: number }[]

@@ -622,13 +622,22 @@ function WorkbookPerson({
 export function ProjectSheetSection({
   projectId,
   canManage,
+  campaignWorkbookId = null,
 }: {
   projectId: string
   canManage: boolean
+  /** A campaign's own calendar: show just that one, without the calendar and month pickers. */
+  campaignWorkbookId?: string | null
 }) {
   // Two reads: a cheap index of every calendar and month, and the open month's detail.
   const qc = useQueryClient()
-  const { data: index, isLoading } = useWorkbookIndex(projectId)
+  const { data: allIndex, isLoading } = useWorkbookIndex(projectId)
+  // Monthly: every calendar but the campaigns' own. A campaign: only its calendar.
+  const index = React.useMemo(
+    () =>
+      allIndex?.filter((w) => (campaignWorkbookId ? w.id === campaignWorkbookId : !w.campaignId)),
+    [allIndex, campaignWorkbookId],
+  )
   const { data: teams } = useProjectTeams(projectId)
   const m = useSheetMutations(projectId)
   // Assigning follows the staffing rule, not the delete rule.
@@ -1270,24 +1279,29 @@ export function ProjectSheetSection({
         data-mod="calendar"
         className="bg-card flex flex-wrap items-center gap-2 rounded-sm border px-3 py-2.5"
       >
-        <CalendarNamePicker
-          series={series}
-          activeName={activeSeries?.name ?? null}
-          onPick={(name) => {
-            // Keep the month when switching calendars; `entry` falls back to the newest if it doesn't exist.
-            pickSeries(name)
-            setActiveId(null)
-          }}
-          onNew={() => setNewSheetOpen(true)}
-        />
-        <CalendarMonthPicker
-          series={activeSeries}
-          month={month}
-          onPickEdition={openEdition}
-          onNewMonth={() => setNewMonthOpen(true)}
-          onSetMonth={() => setSetMonthOpen(true)}
-          canCreate={canStaff}
-        />
+        {/* A campaign's calendar has no siblings or months to pick between. */}
+        {!campaignWorkbookId && (
+          <>
+            <CalendarNamePicker
+              series={series}
+              activeName={activeSeries?.name ?? null}
+              onPick={(name) => {
+                // Keep the month when switching calendars; `entry` falls back to the newest if it doesn't exist.
+                pickSeries(name)
+                setActiveId(null)
+              }}
+              onNew={() => setNewSheetOpen(true)}
+            />
+            <CalendarMonthPicker
+              series={activeSeries}
+              month={month}
+              onPickEdition={openEdition}
+              onNewMonth={() => setNewMonthOpen(true)}
+              onSetMonth={() => setSetMonthOpen(true)}
+              canCreate={canStaff}
+            />
+          </>
+        )}
 
         {workbook && (
           <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -1349,7 +1363,8 @@ export function ProjectSheetSection({
                 {workbook.isClientVisible ? "Shared" : "Share"}
               </Button>
             )}
-            {canManage && (
+            {/* A campaign's calendar goes when the campaign is deleted. */}
+            {canManage && !campaignWorkbookId && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" aria-label="More calendar actions">

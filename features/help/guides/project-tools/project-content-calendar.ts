@@ -1,7 +1,7 @@
 import { CalendarDays } from "lucide-react"
 import type { HelpGuide } from "../../types"
 
-// Screens: features/projects/components/project-sheet.tsx (Calendars tab) and calendar/*.
+// Screens: features/projects/components/planner/* (Planner tab), project-sheet.tsx and calendar/*.
 
 const CALENDARS = "/projects/sunmeadow-organics-launch?tab=calendar"
 
@@ -10,7 +10,7 @@ export const projectContentCalendarGuide: HelpGuide = {
   group: "projects",
   icon: CalendarDays,
   href: "/projects/my-projects",
-  title: { en: "Content Calendar", hi: "कंटेंट कैलेंडर (Calendars)" },
+  title: { en: "Planner: calendars and campaigns", hi: "प्लानर: कैलेंडर और कैंपेन (Planner)" },
   summary: {
     en: "Plan a project's content month by month in a shared spreadsheet, and track what each team owes for the month.",
     hi: "प्रोजेक्ट का कंटेंट महीने-दर-महीने एक शेयर्ड स्प्रेडशीट में प्लान करें, और देखें कि महीने में हर टीम को क्या देना है।",
@@ -27,6 +27,14 @@ export const projectContentCalendarGuide: HelpGuide = {
     "excel",
     "google sheet",
     "share with client",
+    "planner",
+    "campaign",
+    "campaign calendar",
+    "halloween",
+    "diwali",
+    "festive",
+    "deadline",
+    "कैंपेन",
     "कैलेंडर",
     "कंटेंट",
     "शीट",
@@ -35,16 +43,16 @@ export const projectContentCalendarGuide: HelpGuide = {
   sections: [
     {
       id: "about",
-      title: { en: "What the Calendars tab is for", hi: "Calendars टैब किस काम का है" },
+      title: { en: "What the Planner tab is for", hi: "Planner टैब किस काम का है" },
       intro: {
-        en: "The Calendars tab holds the project's calendars - spreadsheets your team builds itself, like a content calendar, a campaign plan or a tracker. Each calendar has a page for every month, and a month can have several tabs.",
-        hi: "Calendars टैब में प्रोजेक्ट के कैलेंडर रहते हैं - ऐसी स्प्रेडशीट जो आपकी टीम खुद बनाती है, जैसे कंटेंट कैलेंडर, कैंपेन प्लान या ट्रैकर। हर कैलेंडर में हर महीने का अलग पेज होता है, और एक महीने में कई टैब हो सकते हैं।",
+        en: "The Planner tab (Monthly view) holds the project's calendars - spreadsheets your team builds itself, like a content calendar, a campaign plan or a tracker. Each calendar has a page for every month, and a month can have several tabs.",
+        hi: "Planner टैब (Monthly view) में प्रोजेक्ट के कैलेंडर रहते हैं - ऐसी स्प्रेडशीट जो आपकी टीम खुद बनाती है, जैसे कंटेंट कैलेंडर, कैंपेन प्लान या ट्रैकर। हर कैलेंडर में हर महीने का अलग पेज होता है, और एक महीने में कई टैब हो सकते हैं।",
       },
       steps: [
         {
           text: {
-            en: "Open the project from Projects and click the Calendars tab. The bar at the top is about the whole calendar: its name (1) switches between calendars - New calendar is at the bottom of that list - and the month (2), with the arrows on each side, moves between months. On the right are the calendar's Owner (3) and Share.",
-            hi: "Projects से प्रोजेक्ट खोलें और Calendars टैब पर क्लिक करें। ऊपर की पट्टी पूरे कैलेंडर के लिए है: उसका नाम (1) एक कैलेंडर से दूसरे पर ले जाता है - New calendar उसी लिस्ट में सबसे नीचे है - और महीना (2), दोनों ओर के तीरों के साथ, एक महीने से दूसरे पर ले जाता है। दाईं ओर कैलेंडर का Owner (3) और Share है।",
+            en: "Open the project from Projects and click the Planner tab. The bar at the top is about the whole calendar: its name (1) switches between calendars - New calendar is at the bottom of that list - and the month (2), with the arrows on each side, moves between months. On the right are the calendar's Owner (3) and Share.",
+            hi: "Projects से प्रोजेक्ट खोलें और Planner टैब पर क्लिक करें। ऊपर की पट्टी पूरे कैलेंडर के लिए है: उसका नाम (1) एक कैलेंडर से दूसरे पर ले जाता है - New calendar उसी लिस्ट में सबसे नीचे है - और महीना (2), दोनों ओर के तीरों के साथ, एक महीने से दूसरे पर ले जाता है। दाईं ओर कैलेंडर का Owner (3) और Share है।",
           },
           shot: {
             id: "project-content-calendar-overview",
@@ -273,6 +281,44 @@ export const projectContentCalendarGuide: HelpGuide = {
             en: "The client cannot change the columns, rename the calendar or delete it. They also need the Calendars section in their portal access, which is set on the client's Contacts tab. A calendar the client starts from their portal shows up on this tab too, already shared.",
             hi: "क्लाइंट कॉलम नहीं बदल सकते, न कैलेंडर का नाम बदल सकते हैं, न उसे डिलीट कर सकते हैं। उनकी पोर्टल एक्सेस में Calendars सेक्शन भी होना चाहिए, जो क्लाइंट के Contacts टैब पर सेट होता है। क्लाइंट अपने पोर्टल से जो कैलेंडर शुरू करते हैं, वो भी इसी टैब पर दिखता है, पहले से शेयर किया हुआ।",
           },
+        },
+      ],
+    },
+    {
+      id: "campaigns",
+      title: { en: "Campaigns across services", hi: "सभी services में कैंपेन (Campaigns)" },
+      intro: {
+        en: "A campaign - Halloween, Diwali, a launch - cuts across services. In the Planner tab, switch to Campaigns to plan it once, with one start date and one deadline.",
+        hi: "कैंपेन - Halloween, Diwali, कोई launch - कई services में फैला होता है। Planner टैब में Campaigns पर जाएँ और उसे एक ही start date और एक deadline के साथ एक बार में प्लान करें।",
+      },
+      steps: [
+        {
+          text: {
+            en: "Click New campaign. Give it a name, when it starts, its deadline, the services taking part, an owner and a short brief.",
+            hi: "New campaign पर क्लिक करें। उसका नाम, कब शुरू होगा, उसकी deadline, कौन सी services शामिल हैं, एक owner और छोटा सा brief डालें।",
+          },
+        },
+        {
+          text: {
+            en: "The campaign gets its own calendar: a tab for each service, and a team plan - due on the deadline - for each team that usually makes those services. Add the people, the quantity and each team's own due date, just like a monthly calendar.",
+            hi: "कैंपेन का अपना कैलेंडर बनता है: हर service का एक टैब, और उन services को बनाने वाली हर टीम का एक team plan - deadline पर due। लोगों को जोड़ें, quantity और हर टीम की अपनी due date डालें, बिलकुल monthly कैलेंडर की तरह।",
+          },
+        },
+        {
+          text: {
+            en: "Each card shows whether the campaign is upcoming, live or ended, its dates, the services, and how many team plans are done or overdue. Click a card to open its calendar.",
+            hi: "हर कार्ड बताता है कि कैंपेन आने वाला है, चल रहा है या खत्म हो गया, उसकी तारीखें, services, और कितने team plan पूरे हुए या overdue हैं। उसका कैलेंडर खोलने के लिए कार्ड पर क्लिक करें।",
+          },
+        },
+      ],
+      tips: [
+        {
+          en: "Everyone on a campaign is told the day it starts. People on any team plan - monthly or campaign - are reminded 3 days before it is due, on the day, and once if it goes late; the owner hears when a team is behind.",
+          hi: "कैंपेन शुरू होने के दिन उस पर काम करने वाले सबको बताया जाता है। किसी भी team plan - monthly या campaign - के लोगों को due date से 3 दिन पहले, उसी दिन, और देर होने पर एक बार याद दिलाया जाता है; कोई टीम पीछे हो तो owner को बताया जाता है।",
+        },
+        {
+          en: "Deleting a campaign deletes its calendar too.",
+          hi: "कैंपेन delete करने पर उसका कैलेंडर भी delete हो जाता है।",
         },
       ],
     },

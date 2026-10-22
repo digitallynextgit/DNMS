@@ -1,5 +1,7 @@
 // Full & Final settlement rules, pure so the table, the API and the reminders agree.
 
+import { daysFromTo, indiaToday } from "@/lib/dates"
+
 export const NOTICE_PERIODS = ["SERVED", "NOT_SERVED", "COMPANY_EXIT"] as const
 export type NoticePeriod = (typeof NOTICE_PERIODS)[number]
 
@@ -34,11 +36,7 @@ export function fnfDueDate(lastWorkingDate: string): string {
 }
 
 /** Whole days from `a` to `b` (positive when b is later). */
-export function daysFrom(a: string, b: string): number {
-  const [ay, am, ad] = parts(a)
-  const [by, bm, bd] = parts(b)
-  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000)
-}
+export const daysFrom = daysFromTo
 
 export type FnfState = "RELEASED" | "RELEASED_LATE" | "OVERDUE" | "DUE_SOON" | "PENDING"
 
@@ -78,7 +76,4 @@ export function fnfStatusLabel({ state, days }: FnfStatus): string {
   }
 }
 
-/** Today in India as YYYY-MM-DD: due dates are Indian calendar days. */
-export function indiaToday(now = new Date()): string {
-  return new Date(now.getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10)
-}
+export { indiaToday }

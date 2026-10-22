@@ -120,9 +120,17 @@ export const PUT = withWorkbookTeamContribute(
     try {
       const workbook = await db.projectWorkbook.findUnique({
         where: { id: workbookId },
-        select: { name: true, periodMonth: true, project: { select: { name: true } } },
+        select: {
+          name: true,
+          periodMonth: true,
+          campaign: { select: { name: true } },
+          project: { select: { name: true } },
+        },
       })
-      const month = formatMonth(workbook?.periodMonth?.toISOString().slice(0, 10) ?? null)
+      // A campaign's calendar has no month: name the campaign instead.
+      const month =
+        workbook?.campaign?.name ??
+        formatMonth(workbook?.periodMonth?.toISOString().slice(0, 10) ?? null)
 
       await logActivity({
         projectId: projectId!,

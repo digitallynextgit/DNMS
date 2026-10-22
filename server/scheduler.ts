@@ -51,6 +51,11 @@ const FULL_FINAL_INTERVAL_MS = 60 * 60_000
 const FULL_FINAL_FIRST_RUN_DELAY_MS = 240_000
 const FULL_FINAL_EARLIEST_HOUR = 10
 
+// Hourly; the run is claimed per day. Morning, so people see what is due before the day starts.
+const PLANNER_INTERVAL_MS = 60 * 60_000
+const PLANNER_FIRST_RUN_DELAY_MS = 270_000
+const PLANNER_EARLIEST_HOUR = 9
+
 const FIRST_RUN_DELAY_MS = 15_000
 
 // On globalThis so dev hot-reload doesn't start duplicate intervals.
@@ -75,6 +80,8 @@ const globalForScheduler = globalThis as unknown as {
   goalsRunning?: boolean
   fullFinalTimer?: NodeJS.Timeout
   fullFinalRunning?: boolean
+  plannerTimer?: NodeJS.Timeout
+  plannerRunning?: boolean
 }
 
 export function startTaskReminderScheduler(): void {
@@ -515,5 +522,47 @@ async function fullFinalTick(): Promise<void> {
     console.error("[scheduler] full & final failed:", err)
   } finally {
     globalForScheduler.fullFinalRunning = false
+  }
+}
+
+/**
+ * Planner: from 9 AM, campaigns starting today are announced, calendar team plans remind their
+ * people 3 days before, on the day and once late, and live campaigns' owners hear who is behind.
+ * Production only: a dev machine shares the database and could take the day's claim.
+ */
+export function startPlannerScheduler(): void {
+  if (globalForScheduler.plannerTimer) return
+  if (process.env.DISABLE_INLINE_SCHEDULER === "1") {
+    console.log("[scheduler] planner disabled (DISABLE_INLINE_SCHEDULER=1)")
+    return
+  }
+  if (process.env.NODE_ENV !== "production") return
+
+  const timer = setInterval(plannerTick, PLANNER_INTERVAL_MS)
+  timer.unref?.()
+  globalForScheduler.plannerTimer = timer
+
+  const first = setTimeout(plannerTick, PLANNER_FIRST_RUN_DELAY_MS)
+  first.unref?.()
+
+  console.log("[scheduler] planner started (daily reminders from 09:00)")
+}
+
+async function plannerTick(): Promise<void> {
+  if (globalForScheduler.plannerRunning) return
+  const now = new Date()
+  if (now.getHours() < PLANNER_EARLIEST_HOUR) return
+
+  globalForScheduler.plannerRunning = true
+  try {
+    await forEachTenant("planner", async () => {
+      const { runPlannerReminders } = await import("@/features/projects/server/campaigns.service")
+      const r = await runPlannerReminders(now)
+      if (!r.skipped && r.sent > 0) console.log(`[scheduler] planner: ${r.sent} reminder(s)`)
+    })
+  } catch (err) {
+    console.error("[scheduler] planner failed:", err)
+  } finally {
+    globalForScheduler.plannerRunning = false
   }
 }

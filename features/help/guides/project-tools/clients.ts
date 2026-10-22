@@ -268,8 +268,8 @@ export const clientsGuide: HelpGuide = {
           hi: "कुछ सेक्शन में क्लाइंट बदलाव कर सकते हैं: Content plan (प्लान आइटम जोड़ना और बना हुआ काम अटैच करना), Documents & assets (फाइलें अपलोड करना), Calendars (शेयर किए गए कैलेंडर भरना) और Email campaigns (प्रोजेक्ट के अकाउंट से असली ईमेल भेजना)। इन पर सोच-समझकर टिक करें।",
         },
         {
-          en: "Calendars shows only the calendars you have shared from the project's Calendars tab with the Share button.",
-          hi: "Calendars में सिर्फ वही कैलेंडर दिखते हैं जो आपने प्रोजेक्ट के Calendars टैब से Share बटन द्वारा शेयर किए हैं।",
+          en: "Calendars shows only the calendars you have shared from the project's Planner tab with the Share button.",
+          hi: "Calendars में सिर्फ वही कैलेंडर दिखते हैं जो आपने प्रोजेक्ट के Planner टैब से Share बटन द्वारा शेयर किए हैं।",
         },
       ],
     },

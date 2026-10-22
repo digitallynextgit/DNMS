@@ -78,8 +78,9 @@ const BrandTab = dynamic(
     loading: tabFallback,
   },
 )
-const ContentCalendarTab = dynamic(
-  () => import("@/features/projects/components/project-sheet").then((m) => m.ProjectSheetSection),
+const PlannerTab = dynamic(
+  () =>
+    import("@/features/projects/components/planner/planner-section").then((m) => m.PlannerSection),
   {
     loading: tabFallback,
   },
@@ -221,6 +222,8 @@ export default function ProjectDetailPage() {
       "section",
       "deliverable",
       "month",
+      "view",
+      "campaign",
     ])
       next.delete(key)
     router.replace(`${pathname}?${next.toString()}`, { scroll: false })
@@ -401,7 +404,7 @@ export default function ProjectDetailPage() {
               { value: "overview", label: "Overview", icon: Layers },
               { value: "brand", label: "Brand", icon: Palette },
               { value: "goals", label: "Goals", icon: Target },
-              { value: "calendar", label: "Calendars", icon: CalendarDays },
+              { value: "calendar", label: "Planner", icon: CalendarDays },
               { value: "deliverables", label: "Deliverables", icon: PackageCheck },
               { value: "repository", label: "Repository", icon: HardDrive },
               { value: "insights", label: "Analytics", icon: BarChart3 },
@@ -507,7 +510,7 @@ export default function ProjectDetailPage() {
                       className="gap-1 px-2"
                       onClick={() => handleTabChange("calendar")}
                     >
-                      Open calendars
+                      Open Planner
                       <ArrowRight className="h-3.5 w-3.5" />
                     </Button>
                   ) : null
@@ -536,9 +539,11 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="calendar">
-          <div className="mt-4">
-            <ContentCalendarTab projectId={projectRef} canManage={canManage} />
-          </div>
+          <PlannerTab
+            projectId={projectRef}
+            canManage={canManage}
+            projectServices={project.services ?? []}
+          />
         </TabsContent>
         <TabsContent value="brand">
           <BrandTab projectId={projectRef} canManage={canManage} />

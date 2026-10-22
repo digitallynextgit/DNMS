@@ -17,6 +17,16 @@ export function toDateOnly(date: Date | string): string {
   return new Date(date).toISOString().split("T")[0]
 }
 
+/** Today's calendar day in India as YYYY-MM-DD: due dates and deadlines are Indian days. */
+export function indiaToday(now = new Date()): string {
+  return new Date(now.getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10)
+}
+
+/** Whole days from one YYYY-MM-DD to another (positive when `to` is later). */
+export function daysFromTo(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
+}
+
 /** `month` is 0-indexed (0 = January). */
 export function monthRange(year: number, month: number): { start: Date; end: Date } {
   return {

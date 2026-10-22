@@ -294,6 +294,7 @@ export async function listWorkbookIndex(projectId: string): Promise<WorkbookInde
       createdByClientId: true,
       isClientVisible: true,
       service: true,
+      campaignId: true,
       updatedAt: true,
       createdBy: { select: { firstName: true, lastName: true } },
       createdByClient: { select: { name: true } },
@@ -314,6 +315,7 @@ export async function listWorkbookIndex(projectId: string): Promise<WorkbookInde
     secondaryAssignedTo: w.secondaryAssignedTo,
     isClientVisible: w.isClientVisible,
     service: w.service,
+    campaignId: w.campaignId,
     updatedAt: w.updatedAt.toISOString(),
     tabs: w.sheets,
   }))
@@ -1393,11 +1395,15 @@ export async function upsertWorkbookTeam(
       id: true,
       quantity: true,
       links: true,
+      dueOn: true,
       members: { select: { employeeId: true } },
       _count: { select: { attachments: true } },
     },
   })
   const before = new Set(existing?.members.map((m) => m.employeeId) ?? [])
+  // A moved due date gets its reminders again.
+  const dueMoved =
+    dueOn !== undefined && (dueOn?.getTime() ?? null) !== (existing?.dueOn?.getTime() ?? null)
 
   // DONE needs links + files >= quantity, checked against the row AFTER this write. Not a CHECK
   // constraint: it spans `links` and a COUNT over project_resources.
@@ -1432,6 +1438,7 @@ export async function upsertWorkbookTeam(
       ...(input.quantity === undefined ? {} : { quantity: input.quantity ?? 0 }),
       ...(input.status === undefined ? {} : { status: input.status }),
       ...(dueOn === undefined ? {} : { dueOn }),
+      ...(dueMoved ? { soonRemindedAt: null, dueRemindedAt: null, overdueRemindedAt: null } : {}),
       ...(input.links === undefined ? {} : { links: input.links }),
       ...(input.notes === undefined ? {} : { notes: input.notes }),
       ...(members
