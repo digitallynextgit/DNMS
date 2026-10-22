@@ -76,7 +76,7 @@ export const PROJECTS_CORE: DescriptionMap = {
 
   "GET /api/projects": {
     summary:
-      "List projects, newest first, with their Account Managers (owner = primary, secondaryAccountManager), client, teams, members, service owners (each with its secondary owner), task counts and kick-off checklist progress. project:write and project:view_all (read-only, e.g. HR) holders see every project; everyone else only projects they are an Account Manager of or on a team of.",
+      "List projects, most important first (Active, then On hold, Planning, Completed/Cancelled; within that Urgent > High > Medium > Low priority, then most tasks), with their Account Managers (owner = primary, secondaryAccountManager), client, teams, members, service owners (each with its secondary owner), task counts and kick-off checklist progress. project:write and project:view_all (read-only, e.g. HR) holders see every project; everyone else only projects they are an Account Manager of or on a team of.",
     query:
       "status: PLANNING|ACTIVE|ON_HOLD|COMPLETED|CANCELLED; mine: true = only projects I am an Account Manager of (primary or secondary) or a team member on; clientId: client id; page (default 1); limit (default 20, max 100)",
     keywords: [

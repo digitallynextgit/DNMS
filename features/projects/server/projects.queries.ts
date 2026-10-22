@@ -9,6 +9,7 @@ import { resolveProjectId, canAccessProject } from "./project-access"
 import { SERVICE_OWNER_SELECT } from "./project-service-owners"
 import { kickoffProgressFor } from "./kickoff.service"
 import { isProjectLead, leadConditions } from "../lib/project-leads"
+import { compareProjectImportance } from "../lib/project-order"
 
 export interface ListProjectsOptions {
   status?: string
@@ -40,12 +41,11 @@ export async function listProjects(opts: ListProjectsOptions, session: Session) 
     ]
   }
 
-  const [projects, total] = await Promise.all([
+  // Ordered by importance (status, priority, workload) - a computed rank, so it is sorted here
+  // and paged after; a company has tens of projects, not thousands.
+  const [all, total] = await Promise.all([
     db.project.findMany({
       where,
-      skip,
-      take,
-      orderBy: { createdAt: "desc" },
       include: {
         owner: { select: PERSON },
         secondaryAccountManager: { select: PERSON },
@@ -69,6 +69,14 @@ export async function listProjects(opts: ListProjectsOptions, session: Session) 
     }),
     db.project.count({ where }),
   ])
+  const projects = all
+    .sort((a, b) =>
+      compareProjectImportance(
+        { name: a.name, status: a.status, priority: a.priority, taskCount: a._count.tasks },
+        { name: b.name, status: b.status, priority: b.priority, taskCount: b._count.tasks },
+      ),
+    )
+    .slice(skip, skip + take)
 
   // Once per person: someone can be on several of the project's teams.
   // Kickoff progress only for people who can manage the project (admins and its Account Managers).
