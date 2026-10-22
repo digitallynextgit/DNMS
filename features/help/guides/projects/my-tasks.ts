@@ -120,8 +120,8 @@ export const myTasksGuide: HelpGuide = {
           hi: "हर task का रंग उसका status है: To-do सादा, In Progress नीला, Completed हरा, On Hold पीला-नारंगी, Discarded लाल।",
         },
         {
-          en: "Days you are on leave, holidays and your birthday are marked in the day's heading.",
-          hi: "जिन दिनों आप छुट्टी पर हैं, हॉलिडे, और आपका जन्मदिन - ये दिन के हेडिंग में लिखे आते हैं।",
+          en: "Days you are on leave, holidays and your birthday are marked in the day's heading, and that day's cells are locked - nothing can be planned or changed on a day off (half days stay open). Work already on such a day opens from its number, so you can move it.",
+          hi: "जिन दिनों आप छुट्टी पर हैं, हॉलिडे, और आपका जन्मदिन - ये दिन के हेडिंग में लिखे आते हैं, और उस दिन के cells लॉक रहते हैं - छुट्टी वाले दिन कुछ प्लान या बदला नहीं जा सकता (half day खुला रहता है)। ऐसे दिन पर पहले से रखा काम उसके नंबर पर क्लिक करके खुलता है, ताकि आप उसे दूसरे दिन पर ले जा सकें।",
         },
       ],
     },

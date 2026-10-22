@@ -1053,45 +1053,52 @@ export function TasksSheetView({
                       const away = awayByDay.has(c.key)
                         ? undefined
                         : awayByRow.get(row.awayOf)?.get(c.key)
+                      // A whole day off takes no work; what is already on it opens from its number to be moved.
+                      const off = awayByDay.get(c.key) ?? away
+                      const dayOff = !!off && off.status !== "half-day"
+                      const cellEdit = dayOff ? () => false : mayEdit
+                      const offHint = dayOff
+                        ? `${off.label} - a day off, so it can't be edited`
+                        : away?.label
                       // One bg class per cell: two bg utilities would win by stylesheet order.
-                      const tint = away
-                        ? away.status === "half-day"
+                      const tint = dayOff
+                        ? "bg-muted/50"
+                        : away?.status === "half-day"
                           ? "bg-amber-500/5"
-                          : "bg-muted/50"
-                        : isToday
-                          ? "bg-primary/5"
-                          : undefined
+                          : isToday
+                            ? "bg-primary/5"
+                            : undefined
                       return (
                         <Fragment key={c.key}>
-                          <td className={cn("border-r border-b p-0", tint)} title={away?.label}>
+                          <td className={cn("border-r border-b p-0", tint)} title={offHint}>
                             <PlanCell
                               tasks={cellTasks}
                               busy={!!busyCells[planKey]}
                               // Only blocks new plans; existing lines follow their own task rules.
-                              readOnly={readOnly || !row.canPlan}
+                              readOnly={readOnly || !row.canPlan || dayOff}
                               onCommit={(lines) => commitPlan(row, c.key, lines)}
                               onPickStatus={pickStatus}
-                              canEdit={mayEdit}
+                              canEdit={cellEdit}
                               editHint={editHint}
                               onOpenTask={onOpenTask}
                             />
                           </td>
-                          <td className={cn("border-r border-b p-0", tint)} title={away?.label}>
+                          <td className={cn("border-r border-b p-0", tint)} title={offHint}>
                             <ActualCell
                               tasks={cellTasks}
                               busy={!!busyCells[actualKey]}
-                              canEdit={mayEdit}
+                              canEdit={cellEdit}
                               onOpenTask={onOpenTask}
                               onCommit={(task, text) =>
                                 patchTask(task, { description: text || null }, actualKey, "Saved")
                               }
                             />
                           </td>
-                          <td className={cn("border-r border-b p-0", tint)} title={away?.label}>
+                          <td className={cn("border-r border-b p-0", tint)} title={offHint}>
                             <HoursCell
                               tasks={cellTasks}
                               busy={!!busyCells[hoursKey]}
-                              canEdit={mayEdit}
+                              canEdit={cellEdit}
                               onCommit={(task, hours) =>
                                 patchTask(
                                   task,
@@ -1102,11 +1109,11 @@ export function TasksSheetView({
                               }
                             />
                           </td>
-                          <td className={cn("border-r border-b p-0", tint)} title={away?.label}>
+                          <td className={cn("border-r border-b p-0", tint)} title={offHint}>
                             <ResourcesCell
                               tasks={cellTasks}
                               busy={!!busyCells[resourcesKey]}
-                              readOnly={readOnly}
+                              readOnly={readOnly || dayOff}
                               onCommit={(task, links) =>
                                 patchTask(task, { links }, resourcesKey, "Resources saved")
                               }
