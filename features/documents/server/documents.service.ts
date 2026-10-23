@@ -1,26 +1,50 @@
 import "server-only"
 
 import { db } from "@/server/db"
-import { hasPermission } from "@/lib/permissions"
+import { hasPermission, isAdmin_ } from "@/lib/permissions"
 import { uploadFile, getObjectKey, getSignedUrl, deleteFile } from "@/lib/storage"
 import { uploadDocumentSchema } from "@/features/documents/schemas/document.schema"
-import { PERMISSIONS, ALLOWED_FILE_TYPES, MAX_FILE_SIZE } from "@/lib/constants"
+import {
+  ADMIN_DOCUMENT_ROLES,
+  PERMISSIONS,
+  ALLOWED_FILE_TYPES,
+  MAX_FILE_SIZE,
+} from "@/lib/constants"
 import { createAuditLog } from "@/lib/audit"
 import type { DocumentCategory } from "@prisma/client"
-import { requireSession, requirePermission, getAuditMeta } from "@/server/action-guard"
+import type { Session } from "next-auth"
+import {
+  requireSession,
+  requirePermission,
+  requireAnyRole,
+  getAuditMeta,
+} from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
+
+/** "company": what every employee may read. "admin": Admin Documents, for admins and HR only. */
+export type DocumentScope = "company" | "admin"
+
+/** Admin Documents are gated on who someone is, not on a scope (admin_ always passes). */
+export function canSeeAdminDocuments(session: Session): boolean {
+  if (isAdmin_(session)) return true
+  const roles = session.user.roles ?? []
+  return ADMIN_DOCUMENT_ROLES.some((r) => roles.includes(r))
+}
 
 export async function getCompanyDocuments(
   category?: string,
   filters: { page?: number; limit?: number } = {},
+  scope: DocumentScope = "company",
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
-    await requirePermission(PERMISSIONS.DOCUMENT_READ)
+    if (scope === "admin") await requireAnyRole([...ADMIN_DOCUMENT_ROLES])
+    else await requirePermission(PERMISSIONS.DOCUMENT_READ)
 
     const { page, limit, skip, take } = resolvePagination(filters, 10)
 
-    const where: Record<string, unknown> = { isCompanyDoc: true }
+    // The two lists never mix: an Admin Document is not in the company list, and vice versa.
+    const where: Record<string, unknown> = { isCompanyDoc: true, adminOnly: scope === "admin" }
     if (category) where.category = category
 
     const [documents, total] = await Promise.all([
@@ -51,7 +75,11 @@ export async function getCompanyDocuments(
 
 export async function uploadDocument(formData: FormData): Promise<ActionResult<unknown>> {
   return runAction(async () => {
-    const session = await requirePermission(PERMISSIONS.DOCUMENT_WRITE)
+    // An Admin Document is uploaded by its readers (admins, HR); anything else needs the write scope.
+    const adminOnly = formData.get("adminOnly") === "1"
+    const session = adminOnly
+      ? await requireAnyRole([...ADMIN_DOCUMENT_ROLES])
+      : await requirePermission(PERMISSIONS.DOCUMENT_WRITE)
 
     const file = formData.get("file") as File | null
     if (!file) return fail("No file provided")
@@ -90,6 +118,8 @@ export async function uploadDocument(formData: FormData): Promise<ActionResult<u
         employeeId: meta.employeeId ?? null,
         uploadedById: session.user.id,
         isCompanyDoc,
+        // Only a company-wide document can be admin-only; a locker document has its own rules.
+        adminOnly: adminOnly && isCompanyDoc,
         expiresAt: meta.expiresAt ? new Date(meta.expiresAt) : null,
       },
     })
@@ -107,6 +137,7 @@ export async function uploadDocument(formData: FormData): Promise<ActionResult<u
         fileSize: document.fileSize,
         employeeId: document.employeeId,
         isCompanyDoc: document.isCompanyDoc,
+        adminOnly: document.adminOnly,
       },
       ...auditMeta,
     })
@@ -125,7 +156,9 @@ export async function getDocumentUrl(
     const document = await db.document.findUnique({ where: { id } })
     if (!document) return fail("Document not found")
 
-    if (document.employeeId !== null) {
+    if (document.adminOnly) {
+      if (!canSeeAdminDocuments(session)) return fail("Forbidden")
+    } else if (document.employeeId !== null) {
       // Only the owner or HR (employee:read); document:read is held by every employee.
       const canReadAny = hasPermission(session, PERMISSIONS.EMPLOYEE_READ)
       const isOwner = session.user.id === document.employeeId
@@ -148,10 +181,15 @@ export async function deleteDocument(
   id: string,
 ): Promise<ActionResult<{ data: { success: true } }>> {
   return runAction(async () => {
-    const session = await requirePermission(PERMISSIONS.DOCUMENT_DELETE)
+    const session = await requireSession()
 
     const document = await db.document.findUnique({ where: { id } })
     if (!document) return fail("Document not found")
+    // Whoever may see an Admin Document may remove it; anything else needs the delete scope.
+    const allowed = document.adminOnly
+      ? canSeeAdminDocuments(session)
+      : hasPermission(session, PERMISSIONS.DOCUMENT_DELETE)
+    if (!allowed) return fail("Forbidden")
 
     await deleteFile(document.objectKey)
     await db.document.delete({ where: { id } })
@@ -167,6 +205,7 @@ export async function deleteDocument(
         fileName: document.fileName,
         category: document.category,
         employeeId: document.employeeId,
+        adminOnly: document.adminOnly,
       },
       ...auditMeta,
     })

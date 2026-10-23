@@ -537,6 +537,14 @@ export const PROJECT_CONTENT: DescriptionMap = {
     keywords: ["import rows", "bulk add posts", "paste into sheet", "load calendar"],
     notes: "Unknown column ids and empty rows are dropped. Returns { imported, firstPosition }.",
   },
+  "POST /api/projects/[id]/sheets/[sheetId]/template": {
+    summary:
+      "Give a calendar tab its service's fixed columns (Date, Day, Campaign, Owner, Internal deadline, Status, Approver, Final asset, Notes plus the service's own block). Matches headers already typed, adds what is missing, keeps every value. Anyone on the project.",
+    body: "{ service?: string } - only for a calendar with no service yet (a PROJECT_SERVICES code such as SMO); its whole series becomes that service's",
+    keywords: ["apply calendar columns", "fixed columns", "template", "standard columns"],
+    notes:
+      "Safe to repeat. Legacy statuses such as Posted become Done; text dates become dates. Returns { adopted, added }.",
+  },
   "POST /api/projects/[id]/sheets/[sheetId]/rows": {
     summary:
       "Append one empty row to the end of a sheet tab. Anyone on the project. Takes no body and returns no row id.",

@@ -744,6 +744,8 @@ model Document {
   employeeId   String?          @map("employee_id")
   uploadedById String           @map("uploaded_by_id")
   isCompanyDoc Boolean          @default(false) @map("is_company_doc")
+  /// Admin Documents: seen by admins and HR only (company-wide documents only).
+  adminOnly    Boolean          @default(false) @map("admin_only")
   expiresAt    DateTime?        @map("expires_at")
   createdAt    DateTime         @default(now()) @map("created_at")
   updatedAt    DateTime         @updatedAt @map("updated_at")

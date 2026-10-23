@@ -67,6 +67,13 @@ export const SYSTEM_ROLES = {
 
 export const HIDDEN_ROLES = ["admin_"] as const
 
+/** Who may see Admin Documents: admins and the HR team (admin_ always passes). */
+export const ADMIN_DOCUMENT_ROLES: readonly string[] = [
+  SYSTEM_ROLES.ADMIN,
+  SYSTEM_ROLES.HR_MANAGER,
+  SYSTEM_ROLES.HR_EMPLOYEE,
+]
+
 // admin_ intentionally omitted.
 export const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",

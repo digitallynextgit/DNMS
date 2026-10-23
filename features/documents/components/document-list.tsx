@@ -11,6 +11,7 @@ import {
   useCompanyDocuments,
   useDeleteDocument,
   useDeleteEmployeeDocument,
+  type DocumentScope,
 } from "@/features/documents/hooks/use-documents"
 
 interface DocumentListProps {
@@ -23,6 +24,8 @@ interface DocumentListProps {
   /** Current page for the company-document list (server-side pagination). */
   page?: number
   onPageChange?: (page: number) => void
+  /** "admin" lists the Admin Documents (admins and HR only) instead of the company ones. */
+  scope?: DocumentScope
 }
 
 function DocumentListSkeleton() {
@@ -98,6 +101,7 @@ function CompanyDocumentListInner({
   onUploadClick,
   page = 1,
   onPageChange,
+  scope = "company",
 }: {
   category?: string
   canDelete?: boolean
@@ -105,8 +109,9 @@ function CompanyDocumentListInner({
   onUploadClick?: () => void
   page?: number
   onPageChange?: (page: number) => void
+  scope?: DocumentScope
 }) {
-  const { data, isLoading } = useCompanyDocuments(category, page)
+  const { data, isLoading } = useCompanyDocuments(category, page, 10, scope)
   const deleteMutation = useDeleteDocument()
 
   const documents = data?.data ?? []
@@ -119,7 +124,11 @@ function CompanyDocumentListInner({
       <EmptyState
         icon={FolderOpen}
         title="No documents uploaded yet"
-        description="Upload company policies, templates, and compliance documents."
+        description={
+          scope === "admin"
+            ? "Upload documents that only admins and HR should see."
+            : "Upload company policies, templates, and compliance documents."
+        }
         action={
           canUpload && onUploadClick
             ? { label: "Upload Document", onClick: onUploadClick }
@@ -163,6 +172,7 @@ export function DocumentList({
   onUploadClick,
   page,
   onPageChange,
+  scope,
 }: DocumentListProps) {
   if (employeeId) {
     return (
@@ -183,6 +193,7 @@ export function DocumentList({
       onUploadClick={onUploadClick}
       page={page}
       onPageChange={onPageChange}
+      scope={scope}
     />
   )
 }

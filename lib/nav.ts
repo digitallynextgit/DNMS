@@ -2,6 +2,7 @@ import {
   LayoutDashboard,
   Users,
   FileText,
+  FileLock2,
   Bell,
   Shield,
   ScrollText,
@@ -35,7 +36,7 @@ import {
   Sparkles,
 } from "lucide-react"
 
-import { PERMISSIONS } from "@/lib/constants"
+import { ADMIN_DOCUMENT_ROLES, PERMISSIONS } from "@/lib/constants"
 
 // The one nav list, shared by the desktop sidebar and the mobile tab bar / More menu.
 
@@ -50,6 +51,8 @@ export interface NavItem {
   href?: string
   icon: React.ElementType
   permission?: string
+  /** Shown to any of these roles (as well as needing `permission`, when set). */
+  roles?: readonly string[]
   children?: NavChild[]
   badge?: "pending-resignations" | "unread-notifications" | "unread-chat" | "pending-clearances"
 }
@@ -84,6 +87,13 @@ export const COMPANY_ITEMS: NavItem[] = [
   { label: "Announcements", href: "/announcements", icon: Megaphone },
   { label: "Photo Gallery", href: "/gallery", icon: Images },
   { label: "Documents", href: "/documents", icon: FileText },
+  // Admins and the HR team only; the server refuses everyone else too.
+  {
+    label: "Admin Documents",
+    href: "/documents/admin",
+    icon: FileLock2,
+    roles: ADMIN_DOCUMENT_ROLES,
+  },
   { label: "Organisation Chart", href: "/employees/org-chart", icon: Network },
   // A single tool can still be limited by permission.
   { label: "Tools", href: "/tools", icon: Wrench },
@@ -271,11 +281,12 @@ export const ADMIN_ITEMS: NavItem[] = [
 ]
 
 export function canAccess(
-  item: { permission?: string },
+  item: { permission?: string; roles?: readonly string[] },
   permissions: string[],
   roles: string[],
 ): boolean {
   if (roles.includes("admin_")) return true
+  if (item.roles && !item.roles.some((r) => roles.includes(r))) return false
   if (!item.permission) return true
   return permissions.includes(item.permission)
 }

@@ -5,12 +5,14 @@ import { getCompanyDocuments, uploadDocument } from "@/features/documents/server
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const sp = req.nextUrl.searchParams
   const category = sp.get("category") ?? undefined
+  // scope=admin: the Admin Documents (admins and HR only); default: the company list.
+  const scope = sp.get("scope") === "admin" ? "admin" : "company"
 
   const filters: { page?: number; limit?: number } = {}
   if (sp.has("page")) filters.page = Number(sp.get("page"))
   if (sp.has("limit")) filters.limit = Number(sp.get("limit"))
 
-  return respond(await getCompanyDocuments(category, filters))
+  return respond(await getCompanyDocuments(category, filters, scope))
 })
 
 export const POST = withErrorHandler(async (req: NextRequest) => {

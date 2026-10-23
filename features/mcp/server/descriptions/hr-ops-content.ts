@@ -134,8 +134,15 @@ export const HR_OPS_CONTENT: DescriptionMap = {
     summary:
       "List company-wide documents (policies, templates, handbooks) - not employees' personal documents (those are under /api/employees/[id]/documents). Needs document:read, which every employee has.",
     query:
-      "category: IDENTITY|ACADEMIC|PROFESSIONAL|EMPLOYMENT|TAX|COMPANY_POLICY|TEMPLATE|OTHER; page; limit (default 10, max 100).",
-    keywords: ["company documents", "policies", "HR policy document", "templates", "handbook"],
+      "category: IDENTITY|ACADEMIC|PROFESSIONAL|EMPLOYMENT|TAX|COMPANY_POLICY|TEMPLATE|OTHER; scope: admin (the Admin Documents, for admins and HR only; default lists the company documents); page; limit (default 10, max 100).",
+    keywords: [
+      "company documents",
+      "policies",
+      "HR policy document",
+      "templates",
+      "handbook",
+      "admin documents",
+    ],
   },
   "GET /api/documents/[id]": {
     summary:

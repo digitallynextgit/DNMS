@@ -24,6 +24,8 @@ interface DocumentUploadDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   employeeId?: string
+  /** An Admin Document: seen by admins and HR only. */
+  adminOnly?: boolean
 }
 
 const ACCEPTED_TYPES = ALLOWED_FILE_TYPES.join(",")
@@ -32,6 +34,7 @@ export function DocumentUploadDialog({
   open,
   onOpenChange,
   employeeId,
+  adminOnly,
 }: DocumentUploadDialogProps) {
   // Locker uploads (employeeId set) go to EmployeeDocument, company uploads to Document.
   const companyUpload = useUploadDocument()
@@ -62,6 +65,7 @@ export function DocumentUploadDialog({
     formData.append("category", category)
     if (description.trim()) formData.append("description", description.trim())
     if (employeeId) formData.append("employeeId", employeeId)
+    else if (adminOnly) formData.append("adminOnly", "1")
 
     uploadMutation.mutate(formData, {
       onSuccess: () => {
@@ -85,7 +89,8 @@ export function DocumentUploadDialog({
     <FormDialog
       open={open}
       onOpenChange={handleClose}
-      title="Upload Document"
+      title={adminOnly ? "Upload Admin Document" : "Upload Document"}
+      description={adminOnly ? "Only admins and HR will see this document." : undefined}
       isPending={isSubmitting}
       submitDisabled={!(Boolean(file) && Boolean(title.trim()))}
       submitLabel={isSubmitting ? "Uploading..." : "Upload"}

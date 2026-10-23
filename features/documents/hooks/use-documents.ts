@@ -5,6 +5,9 @@ import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 
+/** "company": the list every employee sees. "admin": Admin Documents (admins and HR only). */
+export type DocumentScope = "company" | "admin"
+
 export interface DocumentRecord {
   id: string
   title: string
@@ -18,6 +21,7 @@ export interface DocumentRecord {
   employeeId: string | null
   uploadedById: string
   isCompanyDoc: boolean
+  adminOnly: boolean
   expiresAt: string | null
   createdAt: string
   updatedAt: string
@@ -44,8 +48,8 @@ export interface CompanyDocumentsResult {
 export const documentKeys = {
   all: ["documents"] as const,
   employee: (employeeId: string) => ["documents", "employee", employeeId] as const,
-  company: (category?: string, page?: number) =>
-    ["documents", "company", category ?? "all", page ?? 1] as const,
+  company: (category?: string, page?: number, scope: DocumentScope = "company") =>
+    ["documents", "company", scope, category ?? "all", page ?? 1] as const,
   url: (id: string) => ["documents", "url", id] as const,
 }
 
@@ -62,12 +66,18 @@ export function useEmployeeDocuments(employeeId: string) {
   })
 }
 
-export function useCompanyDocuments(category?: string, page = 1, limit = 10) {
+export function useCompanyDocuments(
+  category?: string,
+  page = 1,
+  limit = 10,
+  scope: DocumentScope = "company",
+) {
   return useQuery<CompanyDocumentsResult>({
-    queryKey: documentKeys.company(category, page),
+    queryKey: documentKeys.company(category, page, scope),
     queryFn: async () => {
       const params = new URLSearchParams()
       if (category) params.set("category", category)
+      if (scope === "admin") params.set("scope", "admin")
       params.set("page", String(page))
       params.set("limit", String(limit))
       return (await apiFetch<{ data: CompanyDocumentsResult }>(`/api/documents?${params}`)).data
