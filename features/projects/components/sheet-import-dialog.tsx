@@ -29,6 +29,7 @@ import { toastError } from "@/lib/error-message"
 import { cn } from "@/lib/utils"
 import { useProjectDrive } from "../hooks/use-project-drive"
 import { useSheetMutations } from "../hooks/use-sheets"
+import { guessKey } from "../lib/calendar-templates"
 import { formatMonth } from "../lib/calendar-months"
 import {
   COLUMN_TYPE_LABEL,
@@ -220,7 +221,10 @@ function split(tab: Tab, hasHeader: boolean): { headers: Raw[]; rows: Raw[][] } 
   return { headers, rows: hasHeader ? tab.rows.slice(1) : tab.rows }
 }
 
-/** A header matching a column name maps there; else the next unnamed default column (renamed); else a new one. */
+/**
+ * A header matching a column name maps there, then one that means a fixed calendar column; else
+ * the next unnamed default column (renamed); else a new one.
+ */
 function autoMap(headers: Raw[], columns: SheetColumn[]): Record<number, string> {
   const used = new Set<string>()
   const map: Record<number, string> = {}
@@ -234,6 +238,21 @@ function autoMap(headers: Raw[], columns: SheetColumn[]): Record<number, string>
       used.add(id)
     }
   })
+  // "Hook/Concept" lands on the calendar's "Content idea / Hook", however it was renamed.
+  const keyed = columns.filter((c) => c.key && !used.has(c.id))
+  if (keyed.length) {
+    const template = keyed.map((c) => ({ key: c.key!, label: c.name, type: c.type }))
+    const byKey = new Map(keyed.map((c) => [c.key!, c.id]))
+    headers.forEach((h, i) => {
+      if (map[i]) return
+      const key = guessKey(String(h ?? ""), template)
+      const id = key ? byKey.get(key) : undefined
+      if (id && !used.has(id)) {
+        map[i] = id
+        used.add(id)
+      }
+    })
+  }
   const spare = columns
     .filter((c) => isPlaceholder(c) && !used.has(c.id))
     .sort((a, b) => a.position - b.position)

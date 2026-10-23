@@ -345,6 +345,11 @@ async function workDigestTick(): Promise<void> {
       const { runWeeklyWorkDigest } = await import("@/features/projects/server/work-digest.service")
       const r = await runWeeklyWorkDigest()
       if (!r.skipped) console.log(`[scheduler] work digest: ${r.sent} recipient(s)`)
+      // Calendar owners' column digest rides the same Monday run (claimed separately).
+      const { runCalendarDigest } =
+        await import("@/features/projects/server/calendar-reminders.service")
+      const c = await runCalendarDigest(now)
+      if (!c.skipped) console.log(`[scheduler] calendar digest: ${c.sent} recipient(s)`)
     })
   } catch (err) {
     console.error("[scheduler] work digest failed:", err)
@@ -564,6 +569,11 @@ async function plannerTick(): Promise<void> {
       const { runSalesFollowUps } = await import("@/features/sales/server/sales.service")
       const f = await runSalesFollowUps(now)
       if (!f.skipped && f.sent > 0) console.log(`[scheduler] sales: ${f.sent} follow-up(s)`)
+      // Calendar rows: deadlines and publish dates (claimed separately).
+      const { runCalendarReminders } =
+        await import("@/features/projects/server/calendar-reminders.service")
+      const c = await runCalendarReminders(now)
+      if (!c.skipped && c.sent > 0) console.log(`[scheduler] calendar: ${c.sent} reminder(s)`)
     })
   } catch (err) {
     console.error("[scheduler] planner failed:", err)

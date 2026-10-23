@@ -23,6 +23,8 @@ import {
   Loader2,
   Plug,
   X,
+  Lock,
+  LayoutTemplate,
 } from "lucide-react"
 import { toast } from "sonner"
 import { SheetImportDialog } from "./sheet-import-dialog"
@@ -55,6 +57,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -80,7 +85,7 @@ import {
   parseMonth,
   type YearMonth,
 } from "../lib/calendar-months"
-import { LEAD_SERVICE } from "../lib/project-services"
+import { LEAD_SERVICE, PROJECT_SERVICES } from "../lib/project-services"
 import { useStoredState } from "@/hooks/use-stored-state"
 import { CalendarMonthPicker, CalendarNamePicker } from "./calendar/calendar-picker"
 import { NewMonthDialog, SetMonthDialog } from "./calendar/month-dialogs"
@@ -104,6 +109,7 @@ import {
   type SheetRow,
   type WorkbookIndexEntry,
 } from "../lib/sheet-types"
+import { CAMPAIGN_NONE, COMPUTED_KEYS } from "../lib/calendar-templates"
 
 // Anyone on the project may edit; only the account manager or an admin may delete (those controls
 // aren't rendered for others). Every edit is recorded, which is what makes open editing safe.
@@ -292,7 +298,11 @@ function ColumnDialog({
             <label htmlFor="col-type" className="mb-1.5 block text-xs font-medium">
               Type
             </label>
-            <Select value={type} onValueChange={(v) => setType(v as SheetColumnType)}>
+            <Select
+              value={type}
+              onValueChange={(v) => setType(v as SheetColumnType)}
+              disabled={!!column?.locked}
+            >
               <SelectTrigger id="col-type">
                 <SelectValue />
               </SelectTrigger>
@@ -308,7 +318,12 @@ function ColumnDialog({
               </SelectContent>
             </Select>
           </div>
-          {type === "SELECT" && (
+          {column?.key === "campaign" && (
+            <p className="text-muted-foreground text-xs">
+              The choices are this project&apos;s campaigns in the Planner.
+            </p>
+          )}
+          {type === "SELECT" && column?.key !== "campaign" && (
             <div>
               <label htmlFor="col-options" className="mb-1.5 block text-xs font-medium">
                 Choices, one per line
@@ -782,6 +797,7 @@ export function ProjectSheetSection({
   const [newTabName, setNewTabName] = React.useState("")
   // `matchIdx` is unbounded and wrapped at use, so a new query needs no reset effect.
   const [search, setSearch] = React.useState("")
+  const [campaignFilter, setCampaignFilter] = React.useState("")
   const [matchIdx, setMatchIdx] = React.useState(0)
   const [confirm, setConfirm] = React.useState<
     | { kind: "workbook" | "sheet" | "row" | "column"; id: string; label: string }
@@ -936,6 +952,10 @@ export function ProjectSheetSection({
     for (const r of active?.rows ?? []) map.set(r.position, r)
     return map
   }, [active])
+  const campaignColumn = active?.columns.find((c) => c.key === "campaign") ?? null
+  /** Does this row belong to the highlighted campaign? */
+  const campaignHit = (pos: number) =>
+    !!campaignColumn && rowByPos.get(pos)?.cells[campaignColumn.id] === campaignFilter
 
   const people = React.useMemo(() => {
     const map = new Map<string, string>()
@@ -1085,6 +1105,8 @@ export function ProjectSheetSection({
   }, [])
 
   const startEdit = (pos: number, column: SheetColumn, seed?: string) => {
+    // Day follows Date; it is read, not typed.
+    if (column.key && COMPUTED_KEYS.has(column.key)) return
     const v = cellValue(pos, column)
     setEditing({ pos, columnId: column.id })
     // A seed (the key that started the edit) replaces the value, as in a spreadsheet.
@@ -1488,6 +1510,27 @@ export function ProjectSheetSection({
               className="h-8 w-56 pl-7 text-xs"
             />
           </div>
+          {/* Which campaign's rows to light up; the choices are the project's Planner campaigns. */}
+          {campaignColumn && campaignColumn.options.length > 1 && (
+            <Select
+              value={campaignFilter || "__all__"}
+              onValueChange={(v) => setCampaignFilter(v === "__all__" ? "" : v)}
+            >
+              <SelectTrigger className="h-8 w-44 text-xs" aria-label="Highlight a campaign">
+                <SelectValue placeholder="Campaign" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All campaigns</SelectItem>
+                {campaignColumn.options
+                  .filter((o) => o !== CAMPAIGN_NONE)
+                  .map((o) => (
+                    <SelectItem key={o} value={o}>
+                      {o}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          )}
           {search.trim() !== "" && (
             <>
               <span className="text-muted-foreground w-14 text-center text-xs tabular-nums">
@@ -1607,6 +1650,38 @@ export function ProjectSheetSection({
               <DropdownMenuItem className="gap-2" onSelect={() => setHistoryOpen(true)}>
                 <History className="h-3.5 w-3.5" /> History
               </DropdownMenuItem>
+              {/* Older tabs were born as A..Z; this gives them the calendar's fixed columns. A
+                  calendar with no service says which it is for, and its whole series follows. */}
+              {canApi && active && (workbook?.service || campaignWorkbookId) && (
+                <DropdownMenuItem
+                  className="gap-2"
+                  onSelect={() => m.applyTemplate.mutate({ sheetId: active.id })}
+                >
+                  <LayoutTemplate className="h-3.5 w-3.5" />{" "}
+                  {active.columns.some((c) => c.key)
+                    ? "Re-apply calendar columns"
+                    : "Apply calendar columns"}
+                </DropdownMenuItem>
+              )}
+              {canApi && active && workbook && !workbook.service && !campaignWorkbookId && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="gap-2">
+                    <LayoutTemplate className="h-3.5 w-3.5" /> Apply calendar columns as…
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {PROJECT_SERVICES.map((s) => (
+                      <DropdownMenuItem
+                        key={s.code}
+                        onSelect={() =>
+                          m.applyTemplate.mutate({ sheetId: active.id, service: s.code })
+                        }
+                      >
+                        {s.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
               {canApi && active && (
                 <DropdownMenuItem className="gap-2" onSelect={() => setApiOpen(true)}>
                   <Plug className="h-3.5 w-3.5" /> API access
@@ -1687,6 +1762,7 @@ export function ProjectSheetSection({
                               c.name +
                               " - " +
                               COLUMN_TYPE_LABEL[c.type] +
+                              (c.locked ? " (fixed calendar column)" : "") +
                               "\nClick to select · Shift/Ctrl-click for more · Double-click to edit"
                             }
                             onMouseDown={(e) => pickColumn(ci, e)}
@@ -1707,6 +1783,9 @@ export function ProjectSheetSection({
                                   {columnLetter(ci)}
                                 </span>
                                 <span className="truncate text-xs font-medium">{c.name}</span>
+                                {c.locked && (
+                                  <Lock className="text-muted-foreground/70 h-2.5 w-2.5 shrink-0" />
+                                )}
                               </>
                             )}
                           </button>
@@ -1726,14 +1805,16 @@ export function ProjectSheetSection({
                                 {c.name}
                                 <span className="text-muted-foreground ml-1.5 font-normal">
                                   {COLUMN_TYPE_LABEL[c.type]}
+                                  {c.locked ? " · fixed" : ""}
                                 </span>
                               </DropdownMenuLabel>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => setColumnDialog({ column: c })}>
-                                <Pencil className="mr-2 h-4 w-4" /> Edit column
+                                <Pencil className="mr-2 h-4 w-4" />{" "}
+                                {c.locked ? "Rename column" : "Edit column"}
                               </DropdownMenuItem>
-                              {/* Manager-only: it discards this column in every row. */}
-                              {canManage && (
+                              {/* Manager-only: it discards this column in every row. Fixed calendar columns stay. */}
+                              {canManage && !c.locked && (
                                 <DropdownMenuItem
                                   className="text-destructive focus:text-destructive"
                                   onClick={() =>
@@ -1792,7 +1873,9 @@ export function ProjectSheetSection({
                     <tr key={pos} data-row-pos={pos} className="group">
                       <th
                         className={cn(
-                          "bg-muted border-border sticky left-0 z-10 border-r border-b px-0 font-normal select-none",
+                          // Above a selected or editing cell (z-10 / z-11), which would otherwise show
+                          // through the gutter when scrolled sideways; below the header (z-20).
+                          "bg-muted border-border sticky left-0 z-[15] border-r border-b px-0 font-normal select-none",
                           selected?.r === pos && "bg-primary/20",
                           pickedRows.has(pos) && "bg-primary/25",
                         )}
@@ -1878,10 +1961,12 @@ export function ProjectSheetSection({
                             className={cn(
                               "border-border relative border-r border-b p-0 align-middle",
                               (pickedRows.has(pos) || pickedCols.has(c.id)) && "bg-primary/10",
+                              campaignFilter && !campaignHit(pos) && "opacity-40",
+                              campaignFilter && campaignHit(pos) && "bg-amber-500/10",
                               // Raised so the next cell's rule doesn't clip the ring.
                               isSelected && !isEditing && "ring-primary z-10 ring-2",
                               isMatch && !isSelected && "z-10 ring-2 ring-amber-400",
-                              isEditing && "z-20",
+                              isEditing && "z-[11]",
                             )}
                             style={{ height: heightOf(pos) }}
                           >
@@ -2373,6 +2458,15 @@ function CellEditor({
   const areaRef = React.useRef<HTMLTextAreaElement>(null)
   const isTextish = column.type === "TEXT" || column.type === "LONG_TEXT" || column.type === "URL"
   useAutoGrow(areaRef, draft, isEditing && isTextish, onGrow)
+
+  // Day follows Date: it is shown, never edited.
+  if (column.key && COMPUTED_KEYS.has(column.key)) {
+    return (
+      <span className="text-muted-foreground flex h-full items-center px-2 text-[13px]">
+        {value === null ? "" : String(value)}
+      </span>
+    )
+  }
 
   if (column.type === "CHECKBOX") {
     return (

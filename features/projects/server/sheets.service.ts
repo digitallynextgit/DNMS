@@ -24,6 +24,19 @@ import { ymd } from "../lib/delivery-period"
 import { positionAfterDelete } from "../lib/sheet-rows"
 import { sortProjectTeams } from "../lib/project-teams"
 import { statusProblem, teamProgress, type WorkbookTeamStatus } from "../lib/workbook-team-progress"
+import {
+  CAMPAIGN_NONE,
+  COMPUTED_KEYS,
+  STATUS_OPTIONS,
+  calendarTemplate,
+  cellDate,
+  dayOf,
+  guessKey,
+  normaliseStatus,
+  type CalendarColumnSpec,
+} from "../lib/calendar-templates"
+import { PROJECT_SERVICES } from "../lib/project-services"
+import { notifyCalendarCellChanges } from "./calendar-notify.service"
 
 // Project sheets. Anyone on the project may create and edit; only the account manager/admin may
 // delete (sheets, columns, rows). Every mutation appends a ProjectSheetEvent (never edited).
@@ -122,6 +135,8 @@ function toSheet(s: SheetRecord): ProjectSheet {
         position: c.position,
         width: c.width,
         options: asOptions(c.options),
+        key: c.key,
+        locked: c.locked,
       }),
     ),
     rows: s.rows.map((r) => ({
@@ -140,7 +155,54 @@ export async function listSheets(projectId: string): Promise<ProjectSheet[]> {
     orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     include: SHEET_INCLUDE,
   })
-  return sheets.map(toSheet)
+  return withCampaignOptions(projectId, sheets.map(toSheet))
+}
+
+/** The Campaign column's choices are the project's Planner campaigns: nobody maintains that list. */
+async function withCampaignOptions<T extends { columns: SheetColumn[] }>(
+  projectId: string,
+  sheets: T[],
+): Promise<T[]> {
+  if (!sheets.some((s) => s.columns.some((c) => c.key === "campaign"))) return sheets
+  const campaigns = await db.plannerCampaign.findMany({
+    where: { projectId },
+    orderBy: { startDate: "desc" },
+    select: { name: true },
+  })
+  const options = [CAMPAIGN_NONE, ...campaigns.map((c) => c.name)]
+  return sheets.map((s) => ({
+    ...s,
+    columns: s.columns.map((c) => (c.key === "campaign" ? { ...c, options } : c)),
+  }))
+}
+
+/** Template columns as create data, in template order. */
+function templateColumns(specs: readonly CalendarColumnSpec[]) {
+  return specs.map((c, i) => ({
+    name: c.label,
+    type: c.type,
+    position: i,
+    key: c.key,
+    locked: c.locked ?? false,
+    options: c.options ? ([...c.options] as Prisma.InputJsonValue) : undefined,
+  }))
+}
+
+/** The service a tab of this workbook is for: the workbook's own, or (campaign calendars) the service
+ *  the tab is named after. */
+async function templateFor(workbookId: string, tab: string): Promise<CalendarColumnSpec[] | null> {
+  const book = await db.projectWorkbook.findUnique({
+    where: { id: workbookId },
+    select: { service: true, campaignId: true },
+  })
+  if (!book) return null
+  if (book.service) return calendarTemplate(book.service, tab)
+  if (book.campaignId) {
+    // A campaign's own tabs: the service's columns minus Campaign (every row here is this one's).
+    const byTab = PROJECT_SERVICES.find((s) => s.name === tab)
+    return calendarTemplate(byTab?.code ?? "CAMP", tab)?.filter((c) => c.key !== "campaign") ?? null
+  }
+  return null
 }
 
 // The history dialog shows edits and deletions only (everything is still recorded).
@@ -341,7 +403,13 @@ export async function getWorkbook(
     teams.map((t) => ({ name: t.team.name, row: toWorkbookTeam(t) })),
   ).map((t) => t.row)
 
-  return { ...toWorkbook(book), teams: ordered, secondaryOwner: book.secondaryAssignedTo }
+  const plain = toWorkbook(book)
+  return {
+    ...plain,
+    sheets: await withCampaignOptions(projectId, plain.sheets),
+    teams: ordered,
+    secondaryOwner: book.secondaryAssignedTo,
+  }
 }
 
 /** Every workbook on the project, each with its tabs (columns and rows included). */
@@ -361,7 +429,12 @@ export async function listClientWorkbooks(projectId: string): Promise<SheetWorkb
     orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     include: WORKBOOK_INCLUDE,
   })
-  return books.map(toWorkbook)
+  const out: SheetWorkbook[] = []
+  for (const b of books) {
+    const w = toWorkbook(b)
+    out.push({ ...w, sheets: await withCampaignOptions(projectId, w.sheets) })
+  }
+  return out
 }
 
 /** Portal write guard: the sheet must be on a calendar this project has SHARED. */
@@ -513,6 +586,36 @@ export async function createWorkbook(
   const copyStructure = source && (input.copyFrom?.structure ?? true)
   if (copyStructure && source.sheets.length > 0) {
     for (const tab of source.sheets) {
+      // A service calendar's new month starts from the TEMPLATE (so an old A..Z month doesn't
+      // carry forward), keeping last month's renamed labels, widths and its extra columns after.
+      const template = service ? calendarTemplate(service, tab.name) : null
+      const columns = template
+        ? (() => {
+            const prior = new Map(tab.columns.filter((c) => c.key).map((c) => [c.key!, c]))
+            const base = templateColumns(template).map((c) => {
+              const p = prior.get(c.key)
+              return p ? { ...c, name: p.name, width: p.width } : c
+            })
+            const extras = tab.columns
+              .filter((c) => !c.key && !DEFAULT_COLUMN_NAME.test(c.name))
+              .map((c, i) => ({
+                name: c.name,
+                type: c.type,
+                position: base.length + i,
+                width: c.width,
+                options: c.options ?? undefined,
+              }))
+            return [...base, ...extras]
+          })()
+        : tab.columns.map((c) => ({
+            name: c.name,
+            type: c.type,
+            position: c.position,
+            width: c.width,
+            options: c.options ?? undefined,
+            key: c.key,
+            locked: c.locked,
+          }))
       await db.projectSheet.create({
         data: {
           projectId,
@@ -522,15 +625,7 @@ export async function createWorkbook(
           position: tab.position,
           rowHeights: tab.rowHeights ?? undefined,
           createdById: actorId,
-          columns: {
-            create: tab.columns.map((c) => ({
-              name: c.name,
-              type: c.type,
-              position: c.position,
-              width: c.width,
-              options: c.options ?? undefined,
-            })),
-          },
+          columns: { create: columns },
           // NO ROWS: last month's content must not make a fresh month look full.
         },
       })
@@ -731,6 +826,8 @@ export async function createSheet(
     select: { position: true },
   })
 
+  // A service (or campaign) calendar opens with its fixed columns; anything else as A..Z.
+  const template = await templateFor(input.workbookId, title)
   const sheet = await db.projectSheet.create({
     data: {
       projectId,
@@ -741,11 +838,13 @@ export async function createSheet(
       createdById: actorId,
       // A..Z up front, so the sheet opens as a grid you can type anywhere in.
       columns: {
-        create: Array.from({ length: DEFAULT_COLUMNS }, (_, i) => ({
-          name: columnLetter(i),
-          type: "TEXT" as const,
-          position: i,
-        })),
+        create: template
+          ? templateColumns(template)
+          : Array.from({ length: DEFAULT_COLUMNS }, (_, i) => ({
+              name: columnLetter(i),
+              type: "TEXT" as const,
+              position: i,
+            })),
       },
       // No rows: they're created when typed into (see writeCellsAt).
     },
@@ -881,6 +980,8 @@ export async function addColumn(
     position: column.position,
     width: column.width,
     options: asOptions(column.options),
+    key: column.key,
+    locked: column.locked,
   }
 }
 
@@ -894,7 +995,18 @@ export async function updateColumn(
   const current = await db.projectSheetColumn.findFirst({ where: { id: columnId, sheetId } })
   if (!current) throw new NotFoundError("Column")
   const title = input.name?.trim()
-  if (input.name !== undefined && !title) throw new Error("A column needs a name")
+  if (input.name !== undefined && !title) throw new ValidationError("A column needs a name")
+  // A template column keeps its type: reminders and the campaign view read it by key.
+  if (current.locked && input.type && input.type !== current.type) {
+    throw new ValidationError(`"${current.name}" is a fixed calendar column; its type can't change`)
+  }
+  // Statuses can grow, but the seven the workflow runs on must stay.
+  if (current.key === "status" && input.options) {
+    const missing = STATUS_OPTIONS.filter((s) => !input.options!.includes(s))
+    if (missing.length) throw new ValidationError(`Status must keep: ${missing.join(", ")}`)
+  }
+  // The campaign list is generated from the Planner's campaigns.
+  if (current.key === "campaign" && input.options) input = { ...input, options: undefined }
 
   const column = await db.projectSheetColumn.update({
     where: { id: columnId },
@@ -923,6 +1035,8 @@ export async function updateColumn(
     position: column.position,
     width: column.width,
     options: asOptions(column.options),
+    key: column.key,
+    locked: column.locked,
   }
 }
 
@@ -935,6 +1049,8 @@ export async function deleteColumn(
   // Scoped for the same reason as updateColumn: the id alone is not authority.
   const column = await db.projectSheetColumn.findFirst({ where: { id: columnId, sheetId } })
   if (!column) throw new NotFoundError("Column")
+  if (column.locked)
+    throw new ValidationError(`"${column.name}" is a fixed calendar column and can't be deleted`)
   const rows = await db.projectSheetRow.findMany({
     where: { sheetId: column.sheetId },
     select: { id: true, cells: true },
@@ -997,19 +1113,32 @@ export async function updateCells(
   const byId = new Map(columns.map((c) => [c.id, c]))
 
   const cells = asCells(row.cells)
-  const changes: { columnId: string; label: string; before: CellValue; after: CellValue }[] = []
+  const changes: {
+    columnId: string
+    key: string | null
+    label: string
+    before: CellValue
+    after: CellValue
+  }[] = []
 
   for (const [columnId, raw] of Object.entries(updates)) {
     const column = byId.get(columnId)
     // Skip unknown columns: the client has a stale layout, and a 422 would lose the edit.
     if (!column) continue
+    // Derived columns (Day) are written below, from the date.
+    if (column.key && COMPUTED_KEYS.has(column.key)) continue
     const next = normalizeCell(column.type as SheetColumnType, raw)
     const prev = cells[columnId] ?? null
     if (prev === next) continue
     cells[columnId] = next
-    changes.push({ columnId, label: column.name, before: prev, after: next })
+    changes.push({ columnId, key: column.key, label: column.name, before: prev, after: next })
   }
   if (changes.length === 0) return
+
+  // Day follows Date.
+  const dateChange = changes.find((c) => c.key === "date")
+  const dayColumn = columns.find((c) => c.key === "day")
+  if (dateChange && dayColumn) cells[dayColumn.id] = dayOf(dateChange.after) || null
 
   await db.projectSheetRow.update({
     where: { id: rowId },
@@ -1024,6 +1153,23 @@ export async function updateCells(
       after: c.after,
       actorClientId,
     })
+  }
+  // Hand-offs (Review, Approved, a new owner) are told at once; everything else waits for the
+  // digest. Awaited (a detached promise outlives the request's tenant context), never fatal.
+  try {
+    await notifyCalendarCellChanges({
+      sheetId: row.sheetId,
+      rowId,
+      position: row.position,
+      cells,
+      columns: columns.map((c) => ({ id: c.id, key: c.key, name: c.name })),
+      changes: changes
+        .filter((c) => c.key)
+        .map((c) => ({ key: c.key!, before: c.before, after: c.after })),
+      actorId,
+    })
+  } catch (e) {
+    console.error("[calendar] hand-off notification failed", e)
   }
 }
 
@@ -1057,9 +1203,11 @@ export async function importRows(
 ): Promise<{ imported: number; firstPosition: number }> {
   const columns = await db.projectSheetColumn.findMany({
     where: { sheetId },
-    select: { id: true, type: true },
+    select: { id: true, type: true, key: true },
   })
   const typeOf = new Map(columns.map((c) => [c.id, c.type as SheetColumnType]))
+  const dateColumn = columns.find((c) => c.key === "date")
+  const dayColumn = columns.find((c) => c.key === "day")
   const last = await db.projectSheetRow.findFirst({
     where: { sheetId },
     orderBy: { position: "desc" },
@@ -1077,6 +1225,7 @@ export async function importRows(
       const next = normalizeCell(type, value)
       if (next !== null) cells[columnId] = next
     }
+    if (dateColumn && dayColumn) cells[dayColumn.id] = dayOf(cells[dateColumn.id]) || null
     if (Object.keys(cells).length === 0) continue
     data.push({
       sheetId,
@@ -1098,7 +1247,8 @@ export async function importRows(
 }
 
 /** A tab's untouched default column: a bare letter (A, B, ... AA) that no row has a value in. */
-const DEFAULT_COLUMN_NAME = /^[A-Z]{1,2}$/
+/** A column nobody named: a letter, or the importer's "Column 7". */
+const DEFAULT_COLUMN_NAME = /^(?:[A-Z]{1,2}|Column \d+)$/
 
 const columnKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ")
 
@@ -1123,14 +1273,25 @@ export async function appendRowByColumnName(
     ])
     const used = new Set(rows.flatMap((r) => Object.keys(asCells(r.cells))))
     const byName = new Map(columns.map((c) => [columnKey(c.name), c]))
+    const byKey = new Map(columns.filter((c) => c.key).map((c) => [c.key!, c]))
     const free = columns.filter((c) => DEFAULT_COLUMN_NAME.test(c.name) && !used.has(c.id))
     let nextPosition = (columns.at(-1)?.position ?? -1) + 1
+    // On a templated tab, "Publish date" or "Assignee" lands in the Date / Owner column.
+    const specs = byKey.size
+      ? columns
+          .filter((c) => c.key)
+          .map((c) => ({ key: c.key!, label: c.name, type: c.type as SheetColumnType }))
+      : []
 
     const cells: Record<string, CellValue> = {}
     for (const [name, raw] of values) {
       const title = name.trim().slice(0, 100)
       if (!title) continue
       let column = byName.get(columnKey(title))
+      if (!column && specs.length) {
+        const key = guessKey(title, specs)
+        if (key) column = byKey.get(key)
+      }
       if (!column) {
         const claim = free.shift()
         if (claim) {
@@ -1159,6 +1320,9 @@ export async function appendRowByColumnName(
       const value = normalizeCell(column.type as SheetColumnType, raw)
       if (value !== null) cells[column.id] = value
     }
+    const dateColumn = byKey.get("date")
+    const dayColumn = byKey.get("day")
+    if (dateColumn && dayColumn) cells[dayColumn.id] = dayOf(cells[dateColumn.id]) || null
 
     const position = rows.reduce((max, r) => Math.max(max, r.position), -1) + 1
     const row = await db.projectSheetRow.create({
@@ -1176,6 +1340,195 @@ export async function appendRowByColumnName(
   } finally {
     if (appendQueues.get(sheetId) === next) appendQueues.delete(sheetId)
   }
+}
+
+/**
+ * Give a tab the calendar's fixed columns. Additive: a free column whose header means a template
+ * key adopts it (typed-in text is retyped only where nothing is lost), the missing ones are added,
+ * and untouched default columns are dropped so the grid opens on the template. A calendar with no
+ * service takes `service` - for its whole series, so later months and new tabs follow.
+ */
+export async function applyTemplateToSheet(
+  sheetId: string,
+  actorId: string | null,
+  service?: string | null,
+  /** Use `service` for this tab only: a calendar that mixes services keeps none. */
+  tabOnly = false,
+): Promise<{ adopted: number; added: number }> {
+  const sheet = await db.projectSheet.findUnique({
+    where: { id: sheetId },
+    select: {
+      name: true,
+      workbookId: true,
+      workbook: { select: { projectId: true, name: true } },
+      columns: { orderBy: { position: "asc" } },
+      rows: { select: { id: true, cells: true } },
+    },
+  })
+  if (!sheet) throw new NotFoundError("Sheet")
+  let template = await templateFor(sheet.workbookId, sheet.name)
+  if (!template) {
+    const code = PROJECT_SERVICES.find((s) => s.code === service)?.code
+    if (!code) throw new ValidationError("Say which service this calendar is for")
+    if (!tabOnly) {
+      await db.projectWorkbook.updateMany({
+        where: { projectId: sheet.workbook.projectId, name: sheet.workbook.name, service: null },
+        data: { service: code },
+      })
+    }
+    template = calendarTemplate(code, sheet.name)!
+  }
+
+  const rows = sheet.rows.map((r) => ({ id: r.id, cells: asCells(r.cells) }))
+  const filled = new Set<string>()
+  for (const r of rows) {
+    for (const [id, v] of Object.entries(r.cells)) if (v !== null && v !== "") filled.add(id)
+  }
+  const textsOf = (columnId: string) =>
+    rows
+      .map((r) => r.cells[columnId])
+      .filter((v): v is string => typeof v === "string" && v.trim() !== "")
+  const trimmed = (v: CellValue): CellValue => (typeof v === "string" ? v.trim() || null : v)
+
+  const taken = new Set(sheet.columns.filter((c) => c.key).map((c) => c.key!))
+  const byKey = new Map(sheet.columns.filter((c) => c.key).map((c) => [c.key!, c]))
+  // Value rewrites for adopted columns (legacy statuses, dates as ISO), applied with Day below.
+  const rewrites = new Map<string, (v: CellValue) => CellValue>()
+  let adopted = 0
+  let added = 0
+
+  // 1. Match free columns to keys by header (first match wins; a default name never matches).
+  for (const c of sheet.columns) {
+    if (c.key || DEFAULT_COLUMN_NAME.test(c.name)) continue
+    const key = guessKey(c.name, template)
+    if (!key || taken.has(key)) continue
+    const spec = template.find((t) => t.key === key)!
+    const texty = c.type === "TEXT" || c.type === "LONG_TEXT"
+    // An empty column takes the template's type. Typed-in text stays text (long text, a link), or
+    // becomes a choice (the same string; a legacy "Posted" becomes the workflow's "Done"), or a
+    // date when nearly every value reads as one (a "Total posts" summary row doesn't stop it; its
+    // cell is left alone). It never becomes a person or a number.
+    let retype = !filled.has(c.id) || spec.type === c.type
+    let rewrite: ((v: CellValue) => CellValue) | null = null
+    if (!retype && texty && (spec.type === "LONG_TEXT" || spec.type === "URL")) {
+      retype = true
+    } else if (!retype && texty && spec.type === "SELECT") {
+      retype = true
+      rewrite = key === "status" ? (v) => normaliseStatus(v) : trimmed
+    } else if (!retype && texty && spec.type === "DATE") {
+      const texts = textsOf(c.id)
+      const dated = texts.filter(cellDate).length
+      if (dated > 0 && dated >= texts.length * 0.8) {
+        retype = true
+        rewrite = (v) => cellDate(v) ?? v
+      }
+    }
+    let options: string[] | undefined
+    if (spec.options && (retype || c.type === "SELECT")) {
+      const norm = rewrite ?? ((v: CellValue) => v)
+      // Every choice and value in use stays pickable, after the template's own.
+      options = [
+        ...new Set(
+          [...spec.options, ...asOptions(c.options).map(norm), ...textsOf(c.id).map(norm)].filter(
+            (v): v is string => typeof v === "string" && v !== "",
+          ),
+        ),
+      ]
+    }
+    const updated = await db.projectSheetColumn.update({
+      where: { id: c.id },
+      data: {
+        key,
+        locked: spec.locked ?? false,
+        ...(retype ? { type: spec.type } : {}),
+        ...(options ? { options: options as Prisma.InputJsonValue } : {}),
+      },
+    })
+    if (rewrite) rewrites.set(c.id, rewrite)
+    taken.add(key)
+    byKey.set(key, updated)
+    adopted++
+  }
+
+  // 2. Add what is still missing, then put everything in template order with the extras after.
+  const order: string[] = []
+  for (const spec of template) {
+    const have = byKey.get(spec.key)
+    if (have) {
+      order.push(have.id)
+      continue
+    }
+    const created = await db.projectSheetColumn.create({
+      data: {
+        sheetId,
+        name: spec.label,
+        type: spec.type,
+        position: 0,
+        key: spec.key,
+        locked: spec.locked ?? false,
+        options: spec.options ? ([...spec.options] as Prisma.InputJsonValue) : undefined,
+      },
+    })
+    await record(sheetId, actorId, "COLUMN_ADDED", {
+      columnId: created.id,
+      label: created.name,
+      after: { name: created.name, type: created.type },
+    })
+    byKey.set(spec.key, created)
+    order.push(created.id)
+    added++
+  }
+  const keyed = new Set(order)
+  // Untouched default columns that nobody typed into are dropped, so the grid opens on the
+  // template; anything with a value or a real name is kept after it.
+  const extras = sheet.columns.filter(
+    (c) => !keyed.has(c.id) && (filled.has(c.id) || !DEFAULT_COLUMN_NAME.test(c.name)),
+  )
+  const spare = sheet.columns.filter(
+    (c) => !keyed.has(c.id) && !filled.has(c.id) && DEFAULT_COLUMN_NAME.test(c.name),
+  )
+  if (spare.length) {
+    await db.projectSheetColumn.deleteMany({ where: { id: { in: spare.map((c) => c.id) } } })
+  }
+  const final = [...order, ...extras.map((c) => c.id)]
+  for (const [position, id] of final.entries()) {
+    await db.projectSheetColumn.update({ where: { id }, data: { position } })
+  }
+
+  // 3. Rows: the adopted columns' rewrites, and Day from Date.
+  const dateId = byKey.get("date")?.id
+  const dayId = byKey.get("day")?.id
+  for (const r of rows) {
+    const cells = r.cells
+    let changed = false
+    for (const [id, fn] of rewrites) {
+      if (!(id in cells)) continue
+      const next = fn(cells[id] ?? null)
+      if (next !== cells[id]) {
+        cells[id] = next
+        changed = true
+      }
+    }
+    if (dateId && dayId) {
+      const day = dayOf(cells[dateId]) || null
+      if ((cells[dayId] ?? null) !== day) {
+        cells[dayId] = day
+        changed = true
+      }
+    }
+    if (changed) {
+      await db.projectSheetRow.update({
+        where: { id: r.id },
+        data: { cells: cells as Prisma.InputJsonValue },
+      })
+    }
+  }
+
+  await record(sheetId, actorId, "SHEET_RENAMED", {
+    label: sheet.name,
+    after: { template: "applied", adopted, added },
+  })
+  return { adopted, added }
 }
 
 /** Manager-only. The row's values go into the history before it goes; the rows below move up. */
@@ -1261,11 +1614,14 @@ export async function deleteColumns(
   sheetId: string,
   columnIds: string[],
   actorId: string,
-): Promise<{ deleted: number }> {
-  const columns = await db.projectSheetColumn.findMany({
+): Promise<{ deleted: number; kept: number }> {
+  const picked = await db.projectSheetColumn.findMany({
     where: { sheetId, id: { in: [...new Set(columnIds)] } },
   })
-  if (columns.length === 0) return { deleted: 0 }
+  // Fixed calendar columns stay; a selection that sweeps one in still deletes the rest.
+  const columns = picked.filter((c) => !c.locked)
+  const kept = picked.length - columns.length
+  if (columns.length === 0) return { deleted: 0, kept }
   const ids = columns.map((c) => c.id)
   const rows = await db.projectSheetRow.findMany({
     where: { sheetId },
@@ -1299,7 +1655,7 @@ export async function deleteColumns(
       before: { name: c.name, type: c.type, values: discarded.get(c.id) ?? [] },
     })
   }
-  return { deleted: columns.length }
+  return { deleted: columns.length, kept }
 }
 
 // Per-team plan, keyed on (workbookId, teamId): the teams are fixed, and the route guard can

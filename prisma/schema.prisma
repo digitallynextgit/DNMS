@@ -2290,6 +2290,11 @@ model ProjectSheetColumn {
   width     Int?            @map("width")
   /// SELECT choices, as a JSON array of strings. Null for every other type.
   options   Json?           @map("options")
+  /// Calendar template key ("date", "status", "owner"...): what reminders and the campaign view bind to,
+  /// whatever the header is renamed to. Null for a free column. See lib/calendar-templates.ts.
+  key       String?         @map("key")
+  /// A template column: renameable, never retyped or deleted.
+  locked    Boolean         @default(false) @map("locked")
   createdAt DateTime        @default(now()) @map("created_at")
   updatedAt DateTime        @updatedAt @map("updated_at")
 
@@ -2308,6 +2313,8 @@ model ProjectSheetRow {
   /// Cell values keyed by column id ({ "<uuid>": "Reel" }). One JSON blob because a sheet is always read whole;
   /// per-cell history lives in ProjectSheetEvent.
   cells       Json     @default("{}") @map("cells")
+  /// Calendar reminders already sent for this row: { "<kind>": "YYYY-MM-DD" }.
+  reminders   Json?    @map("reminders")
   createdById String?  @map("created_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

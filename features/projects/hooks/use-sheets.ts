@@ -309,6 +309,25 @@ export function useSheetMutations(projectId: string) {
     onError: (e) => fail(e, "Could not delete the tab"),
   })
 
+  /** `service` only for a calendar with none yet: its whole series becomes that service's. */
+  const applyTemplate = useMutation({
+    mutationFn: ({ sheetId, service }: { sheetId: string; service?: string }) =>
+      apiFetch<{ data: { adopted: number; added: number } }>(`${base}/${sheetId}/template`, {
+        method: "POST",
+        headers: json,
+        body: JSON.stringify({ service }),
+      }).then((r) => r.data),
+    onSuccess: (r) => {
+      void invalidate()
+      toast.success(
+        r.adopted + r.added === 0
+          ? "This tab already has the calendar columns"
+          : `Calendar columns applied: ${r.adopted} matched, ${r.added} added`,
+      )
+    },
+    onError: (e) => fail(e, "Could not apply the calendar template"),
+  })
+
   const addColumn = useMutation({
     mutationFn: ({
       sheetId,
@@ -394,15 +413,17 @@ export function useSheetMutations(projectId: string) {
 
   const deleteColumns = useMutation({
     mutationFn: ({ sheetId, columnIds }: { sheetId: string; columnIds: string[] }) =>
-      apiFetch<{ data: { deleted: number } }>(`${base}/${sheetId}/columns`, {
+      apiFetch<{ data: { deleted: number; kept: number } }>(`${base}/${sheetId}/columns`, {
         method: "DELETE",
         headers: json,
         body: JSON.stringify({ columnIds }),
       }),
     onSuccess: (res) => {
       void invalidate()
-      const n = res.data.deleted
-      toast.success(`${n} column${n === 1 ? "" : "s"} deleted`)
+      const { deleted: n, kept } = res.data
+      const fixed = kept ? ` (${kept} fixed calendar column${kept === 1 ? "" : "s"} kept)` : ""
+      if (n === 0) toast.info(`Nothing deleted${fixed}`)
+      else toast.success(`${n} column${n === 1 ? "" : "s"} deleted${fixed}`)
     },
     onError: (e) => fail(e, "Could not delete the columns"),
   })
@@ -467,6 +488,7 @@ export function useSheetMutations(projectId: string) {
     createSheet,
     renameSheet,
     deleteSheet,
+    applyTemplate,
     addColumn,
     updateColumn,
     deleteColumn,

@@ -34,6 +34,7 @@ import {
   type SheetWorkbook,
 } from "@/features/projects/lib/sheet-types"
 import { formatMonth } from "@/features/projects/lib/calendar-months"
+import { COMPUTED_KEYS } from "@/features/projects/lib/calendar-templates"
 
 // Client view of shared calendars. Not project-sheet.tsx: a client may only fill cells, but the
 // grid must still feel like a spreadsheet (keyboard cursor, type-to-replace, Enter/Tab).
@@ -54,6 +55,8 @@ const OVERSCAN = 6
 const LIVE_TYPES = new Set<string>(["SELECT", "CHECKBOX"])
 /** PERSON holds an employee id and the portal has no roster, so it's read-only. */
 const READ_ONLY_TYPES = new Set<string>(["PERSON"])
+/** Day follows Date: it is shown, never typed. */
+const isComputed = (c: SheetColumn) => !!c.key && COMPUTED_KEYS.has(c.key)
 
 /** One shared empty object, so "nothing pending" is a stable reference. */
 const EMPTY_CELLS: Record<string, CellValue> = {}
@@ -416,7 +419,8 @@ function SheetGrid({
   }
 
   const startEdit = (pos: number, column: SheetColumn, seed?: string) => {
-    if (READ_ONLY_TYPES.has(column.type) || LIVE_TYPES.has(column.type)) return
+    if (READ_ONLY_TYPES.has(column.type) || LIVE_TYPES.has(column.type) || isComputed(column))
+      return
     const v = valueAt(pos, column)
     setEditing({ r: pos, columnId: column.id })
     // Typing over a selected cell replaces it, as in a spreadsheet.
@@ -452,7 +456,8 @@ function SheetGrid({
       case "Delete":
       case "Backspace":
         e.preventDefault()
-        if (!READ_ONLY_TYPES.has(column.type)) commit(selected.r, column, null)
+        if (!READ_ONLY_TYPES.has(column.type) && !isComputed(column))
+          commit(selected.r, column, null)
         return
     }
     // A printable character opens the edit and becomes its first character.
@@ -693,6 +698,14 @@ function PortalCell({
   onCommitAndMove: (v: CellValue, dr: number, dc: number) => void
   onCancel: () => void
 }) {
+  if (isComputed(column)) {
+    return (
+      <span className="text-muted-foreground flex h-full items-center px-2 text-[13px]">
+        {value === null ? "" : String(value)}
+      </span>
+    )
+  }
+
   if (column.type === "CHECKBOX") {
     return (
       <div className="flex h-full items-center justify-center">

@@ -63,6 +63,10 @@ export interface SheetColumn {
   width: number | null
   /** SELECT choices. Empty for every other type. */
   options: string[]
+  /** Calendar template key ("date", "status"...), or null for a free column. */
+  key: string | null
+  /** A template column: renameable, never retyped or deleted. */
+  locked: boolean
 }
 
 export interface SheetRow {
