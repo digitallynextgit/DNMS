@@ -90,7 +90,7 @@ export const COMPANY_ITEMS: NavItem[] = [
   // Admins and the HR team only; the server refuses everyone else too.
   {
     label: "Admin Documents",
-    href: "/documents/admin",
+    href: "/admin-documents",
     icon: FileLock2,
     roles: ADMIN_DOCUMENT_ROLES,
   },

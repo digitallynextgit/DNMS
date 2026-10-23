@@ -134,7 +134,7 @@ export const HR_OPS_CONTENT: DescriptionMap = {
     summary:
       "List company-wide documents (policies, templates, handbooks) - not employees' personal documents (those are under /api/employees/[id]/documents). Needs document:read, which every employee has.",
     query:
-      "category: IDENTITY|ACADEMIC|PROFESSIONAL|EMPLOYMENT|TAX|COMPANY_POLICY|TEMPLATE|OTHER; scope: admin (the Admin Documents, for admins and HR only; default lists the company documents); page; limit (default 10, max 100).",
+      "category: IDENTITY|ACADEMIC|PROFESSIONAL|EMPLOYMENT|TAX|COMPANY_POLICY|TEMPLATE|JOB_DESCRIPTION|OTHER; scope: admin (the Admin Documents, for admins and HR only; default lists the company documents); page; limit (default 10, max 100).",
     keywords: [
       "company documents",
       "policies",
@@ -416,7 +416,7 @@ export const HR_OPS_CONTENT: DescriptionMap = {
   "POST /api/document-requests": {
     summary:
       "HR asks an employee to upload a document (e.g. PAN card, degree certificate) with an optional note and due date. Needs document:write.",
-    body: "{ employeeId: employee id (required), title: string (required), category?: IDENTITY|ACADEMIC|PROFESSIONAL|EMPLOYMENT|TAX|COMPANY_POLICY|TEMPLATE|OTHER (default OTHER), note?: string, dueDate?: YYYY-MM-DD }",
+    body: "{ employeeId: employee id (required), title: string (required), category?: IDENTITY|ACADEMIC|PROFESSIONAL|EMPLOYMENT|TAX|COMPANY_POLICY|TEMPLATE|JOB_DESCRIPTION|OTHER (default OTHER), note?: string, dueDate?: YYYY-MM-DD }",
     keywords: [
       "request document",
       "ask employee to upload",
@@ -428,7 +428,7 @@ export const HR_OPS_CONTENT: DescriptionMap = {
   "POST /api/documents": {
     summary:
       "Upload a document - a company-wide one (policy, template), or a personal one for an employee when employeeId is given. Needs document:write.",
-    body: "multipart form: file (required), title (required), description?, category? (IDENTITY|ACADEMIC|PROFESSIONAL|EMPLOYMENT|TAX|COMPANY_POLICY|TEMPLATE|OTHER), employeeId?, expiresAt?",
+    body: "multipart form: file (required), title (required), description?, category? (IDENTITY|ACADEMIC|PROFESSIONAL|EMPLOYMENT|TAX|COMPANY_POLICY|TEMPLATE|JOB_DESCRIPTION|OTHER), employeeId?, expiresAt?",
     keywords: ["upload document", "add policy", "upload company file"],
     notes: "File upload - not possible through the AI connector.",
   },

@@ -7,7 +7,7 @@ export default function AdminDocumentsLoading() {
       <PageHeaderSkeleton withActions />
 
       <div className="flex gap-1">
-        {Array.from({ length: 5 }).map((_, i) => (
+        {Array.from({ length: 2 }).map((_, i) => (
           <Skeleton key={i} className="bg-muted h-8 w-24 animate-pulse rounded-sm" />
         ))}
       </div>

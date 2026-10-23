@@ -26,6 +26,9 @@ interface DocumentUploadDialogProps {
   employeeId?: string
   /** An Admin Document: seen by admins and HR only. */
   adminOnly?: boolean
+  /** Only these categories are offered (default: all of them). */
+  categories?: readonly string[]
+  defaultCategory?: string
 }
 
 const ACCEPTED_TYPES = ALLOWED_FILE_TYPES.join(",")
@@ -35,6 +38,8 @@ export function DocumentUploadDialog({
   onOpenChange,
   employeeId,
   adminOnly,
+  categories,
+  defaultCategory = "OTHER",
 }: DocumentUploadDialogProps) {
   // Locker uploads (employeeId set) go to EmployeeDocument, company uploads to Document.
   const companyUpload = useUploadDocument()
@@ -43,7 +48,7 @@ export function DocumentUploadDialog({
 
   const [file, setFile] = React.useState<File | null>(null)
   const [title, setTitle] = React.useState("")
-  const [category, setCategory] = React.useState("OTHER")
+  const [category, setCategory] = React.useState(defaultCategory)
   const [description, setDescription] = React.useState("")
 
   // Auto-fill title from filename (strip extension)
@@ -78,7 +83,7 @@ export function DocumentUploadDialog({
     if (uploadMutation.isPending) return
     setFile(null)
     setTitle("")
-    setCategory("OTHER")
+    setCategory(defaultCategory)
     setDescription("")
     onOpenChange(false)
   }
@@ -131,11 +136,13 @@ export function DocumentUploadDialog({
             <SelectValue placeholder="Select category" />
           </SelectTrigger>
           <SelectContent>
-            {Object.entries(DOCUMENT_CATEGORY_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
+            {Object.entries(DOCUMENT_CATEGORY_LABELS)
+              .filter(([value]) => !categories || categories.includes(value))
+              .map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
       </div>

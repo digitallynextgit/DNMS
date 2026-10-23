@@ -15,11 +15,11 @@ import { ADMIN_DOCUMENT_ROLES } from "@/lib/constants"
 
 const CATEGORY_TABS = [
   { label: "All", value: "" },
-  { label: "Policies", value: "COMPANY_POLICY" },
-  { label: "Templates", value: "TEMPLATE" },
-  { label: "Employment", value: "EMPLOYMENT" },
-  { label: "Other", value: "OTHER" },
+  { label: "Job Description", value: "JOB_DESCRIPTION" },
 ] as const
+
+/** What an Admin Document can be filed as. */
+const ADMIN_CATEGORIES = ["JOB_DESCRIPTION", "OTHER"] as const
 
 export default function AdminDocumentsPage() {
   const { roles, isAdmin_, isLoading } = usePermissions()
@@ -73,7 +73,13 @@ export default function AdminDocumentsPage() {
         onPageChange={setPage}
       />
 
-      <DocumentUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} adminOnly />
+      <DocumentUploadDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        adminOnly
+        categories={ADMIN_CATEGORIES}
+        defaultCategory="JOB_DESCRIPTION"
+      />
     </div>
   )
 }

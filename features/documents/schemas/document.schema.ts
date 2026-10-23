@@ -12,6 +12,7 @@ export const uploadDocumentSchema = z.object({
       "TAX",
       "COMPANY_POLICY",
       "TEMPLATE",
+      "JOB_DESCRIPTION",
       "OTHER",
     ])
     .default("OTHER"),

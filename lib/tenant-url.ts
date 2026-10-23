@@ -8,6 +8,7 @@
  */
 export const TENANT_SCOPED_SEGMENTS: ReadonlySet<string> = new Set([
   "admin",
+  "admin-documents",
   "ai-connections",
   "analytics",
   "announcements",

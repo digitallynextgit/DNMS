@@ -409,6 +409,7 @@ export const DOCUMENT_CATEGORY_LABELS: Record<string, string> = {
   TAX: "Tax",
   COMPANY_POLICY: "Company Policy",
   TEMPLATE: "Template",
+  JOB_DESCRIPTION: "Job Description",
   OTHER: "Other",
 }
 
