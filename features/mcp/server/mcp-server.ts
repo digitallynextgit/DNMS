@@ -12,7 +12,7 @@ import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import { getAwayDaysForMany, type AwayDay } from "@/features/leave/server/day-status.queries"
 import { rateLimited } from "@/lib/rate-limit"
 import { isAdmin_ } from "@/lib/permissions"
-import { PERMISSIONS } from "@/lib/constants"
+import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import {
   callApi,
   describeEndpoint,
@@ -45,11 +45,12 @@ How to work:
 
 Glossary (DNMS words and where they live):
 - Account Managers: every project has a primary and a secondary Account Manager, both always on with the same powers; wherever a description says "the Account Manager" may do something, either may. The primary (or project:write) hands the project over and picks the secondary; the secondary can change neither. Change them with PATCH /api/projects/[id] {accountManagerId | secondaryAccountManagerId: <employeeId>, or null to clear the secondary}. On a project, owner/ownerId is the primary Account Manager (a historical name). The mailer's "accounts" are SMTP sending accounts, not Account Managers.
-- Team manager = manager of one project team (/api/projects/[id]/teams). Services = what a project includes: SMO (social media), SEO, PM (paid performance), MSG (email/WhatsApp/SMS), INF (influencers), ALL (alliances). Service owner = the person responsible for one service on a project, who manages its calendar; each service can also have a secondary owner with the same powers. Set both with PUT /api/projects/[id]/service-owners.
+- Team manager = manager of one project team (/api/projects/[id]/teams). Services = what a project includes: SMO (Social Media), SEO (SEO/AEO/GEO), PM (Paid Performance), DA (Data & Analytics), MSG (Email/WhatsApp/SMS), INF (Influencers & Collabs), ALL (Alliances & Partnerships), DPR (Digital PR), WEB (Website), CAMP (Campaign Planning), OFF (Offline Marketing), BD (BD/Sales), BRAND (Branding Kit). Service owner = the person responsible for one service on a project, who manages its calendar; each service can also have a secondary owner with the same powers. Set both with PUT /api/projects/[id]/service-owners.
 - Content calendar / service calendar = a project workbook (/api/projects/[id]/workbooks), one per service per month; its tabs are "sheets". Each calendar has an owner and a secondary who covers with the same powers; a service calendar's are the service's owners, a custom (hand-made) calendar has its own (PUT /api/projects/[id]/workbooks/[workbookId]/secondary). Kick-off checklist = /api/projects/[id]/kickoff (the Account Manager's pre-campaign must-haves).
-- Deliverables = the outputs a team ships for a project (posts, reels, blogs...). Goals = monthly project targets that tasks serve.
+- Deliverables = the outputs a team ships for a project (posts, reels, blogs...); one can be split into tasks. Goals = project targets with a number, split by service, optionally repeating every month (a goal series); results are logged against them and tasks serve them. Work logs = time logged on a task day by day.
+- Planner = a project's campaigns across services, each with its own calendar (/api/projects/[id]/campaigns). Sales = a project's leads pipeline with follow-ups (/api/projects/[id]/sales/leads).
 - Reporting manager = an employee's line manager (managerId on the employee; dottedManagerId is a secondary, dotted manager).
-- Floating holiday, sandwich rule, WFH: leave and attendance policy terms - look them up with dnms_find_endpoints.
+- Floating holiday, sandwich rule, WFH, half day, short leave (2 hours, counted as 0.25 day), Out of office (official duty, marked by HR; ON_DUTY in data): leave and attendance terms - look them up with dnms_find_endpoints.
 
 Not available through this connector: platform/superadmin settings and storage, AI provider keys, password-vault secrets, sign-in and password endpoints, the client portal and file uploads. Payslips exist in DNMS as on-screen pages, not files - read them with dnms_get and present the figures.`
 
@@ -190,20 +191,30 @@ function registerTools(server: McpServer) {
     {
       title: "DNMS dashboard",
       description:
-        "This user's personal dashboard (their leave, attendance, tasks, notices) and, if they may see it, the company-wide dashboard (headcount, who is in/out today, pending items).",
+        "This user's personal dashboard (their leave, attendance, tasks, notices); the HR numbers (headcount, joiners, by department) if they may see them; and for admins the company today - who is in, away or WFH, approvals waiting, projects needing a look, overdue work, delivery scores, joiners, notice periods, open jobs and payroll. Start here for 'how is the company doing today'.",
       inputSchema: z.object({}),
       annotations: readOnly,
     },
     async (_args, ctx) =>
       runTool(ctx, "dnms_dashboard", "GET /api/dashboard", async (p) => {
-        const [me, company] = await Promise.all([
+        const roles = p.session.user.roles ?? []
+        const isAdmin = roles.includes(SYSTEM_ROLES.ADMIN) || roles.includes(SYSTEM_ROLES.ADMIN_)
+        const [me, company, today] = await Promise.all([
           callApi(p, { method: "GET", path: "/api/dashboard/me" }),
           can(p, PERMISSIONS.DASHBOARD_READ)
             ? callApi(p, { method: "GET", path: "/api/dashboard/stats" })
             : Promise.resolve(null),
+          // The admin home page: the leadership view of the company today.
+          isAdmin
+            ? callApi(p, { method: "GET", path: "/api/dashboard/leadership" })
+            : Promise.resolve(null),
         ])
         return {
-          result: asText({ me, company: company ?? "not permitted for this user" }),
+          result: asText({
+            me,
+            company: company ?? "not permitted for this user",
+            ...(today && { companyToday: today }),
+          }),
           status: me.status,
         }
       }),
@@ -270,7 +281,7 @@ function registerTools(server: McpServer) {
     {
       title: "Waiting for my approval",
       description:
-        "Everything currently waiting for this user to act on: leave and WFH requests from their team (or everyone, for HR), resignations to review, floating-holiday requests and exit clearances assigned to them.",
+        "Everything currently waiting for this user to act on: leave and WFH requests from their team (or everyone, for HR), resignations to review, floating-holiday requests, exit clearances and checklist items assigned to them, and joinee weekly reviews they owe as reporting manager - the DNMS 'Waiting on you' items.",
       inputSchema: z.object({}),
       annotations: readOnly,
     },
@@ -280,14 +291,16 @@ function registerTools(server: McpServer) {
           callApi(p, { method: "GET", path, query: { limit: 50, ...query } })
         const hrLeave = can(p, PERMISSIONS.LEAVE_APPROVE)
         const hrWfh = can(p, PERMISSIONS.WFH_APPROVE)
-        const [teamLeave, allLeave, wfh, resignations, floating, clearances] = await Promise.all([
-          get("/api/leave/my-team", { status: "PENDING" }),
-          hrLeave ? get("/api/leave/requests", { status: "PENDING" }) : Promise.resolve(null),
-          get("/api/wfh/my-team", { scope: hrWfh ? "all" : "team", status: "PENDING" }),
-          get("/api/resignations/review"),
-          get("/api/attendance/floating-holidays/requests", { status: "PENDING" }),
-          get("/api/clearances"),
-        ])
+        const [teamLeave, allLeave, wfh, resignations, floating, clearances, weeklyReviews] =
+          await Promise.all([
+            get("/api/leave/my-team", { status: "PENDING" }),
+            hrLeave ? get("/api/leave/requests", { status: "PENDING" }) : Promise.resolve(null),
+            get("/api/wfh/my-team", { scope: hrWfh ? "all" : "team", status: "PENDING" }),
+            get("/api/resignations/review"),
+            get("/api/attendance/floating-holidays/requests", { status: "PENDING" }),
+            get("/api/clearances"),
+            get("/api/joinee-weekly-reviews/due"),
+          ])
         const pick = (r: ApiCallResult | null) =>
           r === null
             ? "not applicable"
@@ -302,6 +315,7 @@ function registerTools(server: McpServer) {
             resignationsToReview: pick(resignations),
             floatingHolidayRequests: pick(floating),
             exitClearancesAssignedToMe: pick(clearances),
+            joineeWeeklyReviewsDue: pick(weeklyReviews),
           }),
           status: 200,
         }

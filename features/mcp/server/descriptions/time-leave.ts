@@ -42,7 +42,7 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "GET /api/attendance": {
     summary:
-      "List attendance logs (one row per employee per day: check-in, check-out, work hours, status) for everyone, newest first. HR/admin view - needs attendance:write. For your own attendance use GET /api/attendance/me.",
+      "List attendance logs (one row per employee per day: check-in, check-out, work hours, status, source) for everyone, newest first. HR/admin view - needs attendance:write. A day marked 'Out of office' (on official duty) is status PRESENT with source on_duty. For your own attendance use GET /api/attendance/me.",
     query:
       "employeeId; status: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND; dateFrom, dateTo: YYYY-MM-DD; page, limit (default 20, max 100)",
     keywords: [
@@ -79,7 +79,7 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "GET /api/attendance/directory": {
     summary:
-      "Company attendance roster: every active employee's attendance for one day (check-in/out, hours, status PRESENT|HALF_DAY|MISSING_PUNCH|ABSENT) or for a date range (present/half/missing/absent day counts, average hours), plus totals. Needs attendance:write.",
+      "Company attendance roster: every active employee's attendance for one day (check-in/out, hours, status PRESENT|ON_DUTY (out of office on official work)|HALF_DAY|MISSING_PUNCH|ABSENT) or for a date range (present/onDuty/half/missing/absent day counts - presentDays includes on-duty days - and average hours), plus totals. Needs attendance:write.",
     query: "from, to: YYYY-MM-DD (default today; to defaults to from; max 92 days)",
     keywords: [
       "who came in today",
@@ -91,7 +91,7 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "GET /api/attendance/directory/[employeeId]/calendar": {
     summary:
-      "Month calendar of one employee's attendance, one status per day: PRESENT, HALF_DAY, MISSING_PUNCH, LEAVE, WFH, HOLIDAY (incl. birthday/floating), WEEKEND, UPCOMING or NONE (no record), with punch times. Needs attendance:write. employeeId from GET /api/employees.",
+      "Month calendar of one employee's attendance, one status per day: PRESENT, ON_DUTY (out of office on official work, HR-marked; label = the purpose), HALF_DAY, MISSING_PUNCH, LEAVE, WFH, HOLIDAY (incl. birthday/floating), WEEKEND, UPCOMING or NONE (no record), with punch times. Needs attendance:write. employeeId from GET /api/employees.",
     query: "month: YYYY-MM (default current month)",
     keywords: ["employee attendance calendar", "monthly attendance of employee", "missing punches"],
   },
@@ -121,7 +121,7 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "GET /api/attendance/floating-holidays/requests": {
     summary:
-      "Floating (optional) holiday requests waiting for review. HR Manager/Admin see everyone's; anyone else sees only their direct reports' requests (empty if they manage nobody). id of each row is used to approve/reject.",
+      "Floating (optional) holiday requests waiting for review. HR Manager/Admin see everyone's; anyone else sees only the requests of people they manage directly, as reporting or dotted manager (empty if they manage nobody). id of each row is used to approve/reject.",
     query: "status: PENDING|APPROVED|REJECTED|CANCELLED; page, limit (default 10, max 100)",
     keywords: [
       "floating holiday approvals",
@@ -143,20 +143,20 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "GET /api/attendance/me": {
     summary:
-      "Your own attendance logs (check-in, check-out, work hours, status) for the last N days, newest first.",
+      "Your own attendance logs (check-in, check-out, work hours, status, source) for the last N days, newest first. A day HR marked 'Out of office' (official duty) is status PRESENT with source on_duty.",
     query:
       "days: 1-365 (default 30); status: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND; page, limit (default 30, max 100)",
     keywords: ["my attendance", "my punch in time", "my check in", "my working hours"],
   },
   "GET /api/attendance/me/calendar": {
     summary:
-      "Your own attendance for a month, one status per day: PRESENT, HALF_DAY, MISSING_PUNCH (forgot to punch in/out), LEAVE, WFH, HOLIDAY (incl. birthday/floating), WEEKEND, UPCOMING or NONE. Includes punch times and hours.",
+      "Your own attendance for a month, one status per day: PRESENT, ON_DUTY (out of office on official work, marked by HR; label = the purpose), HALF_DAY, MISSING_PUNCH (forgot to punch in/out), LEAVE, WFH, HOLIDAY (incl. birthday/floating), WEEKEND, UPCOMING or NONE. Includes punch times and hours.",
     query: "month: YYYY-MM (default current month)",
     keywords: ["my attendance calendar", "my missing punches", "my monthly attendance"],
   },
   "GET /api/attendance/summary": {
     summary:
-      "One employee's attendance totals for a month: present, absent, late (late marks), half-day, on-leave, holiday and weekend day counts, total and average hours. Counts stored log rows only. Needs attendance:write.",
+      "One employee's attendance totals for a month: present, absent, late (late marks), half-day, on-leave, holiday and weekend day counts, total and average hours. Counts stored log rows only; out-of-office (official duty) days count as present. Needs attendance:write.",
     query:
       "employeeId (required, from GET /api/employees); month: 1-12 (required); year: e.g. 2026 (required)",
     keywords: [
@@ -169,7 +169,7 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "GET /api/leave/apply/preview": {
     summary:
-      "Before applying for leave: shows who your leave email will go to (your manager, else HR), the HR inbox that is cc'd, whether your leave would be auto-approved, and your email signature. Read-only.",
+      "Before applying for leave: shows who your leave email will go to (your manager, else your dotted manager, else HR), who is cc'd (ccHr: the HR inbox; ccManager: your dotted manager), whether your leave would be auto-approved, and your email signature. Read-only.",
     keywords: ["leave approver", "who approves my leave", "leave email recipient"],
   },
   "GET /api/leave/balances": {
@@ -192,7 +192,7 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "GET /api/leave/day-status": {
     summary:
-      "Which days one or more colleagues are away in a date range: leave, half-day, holiday (incl. approved floating) or birthday. Any employee may ask about anyone; the leave type is never revealed. WFH is not counted as away.",
+      "Which days one or more colleagues are away in a date range: leave, half-day (also a 2-hour short leave, labelled so), holiday (incl. approved floating) or birthday. Any employee may ask about anyone; the leave type is never revealed. WFH is not counted as away.",
     query:
       "from, to: YYYY-MM-DD (both required); employeeId (default you) OR employeeIds: comma-separated ids (max 100, result keyed by id)",
     keywords: ["is he on leave", "who is off", "away days", "availability", "out of office"],
@@ -205,7 +205,7 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "GET /api/leave/my-team": {
     summary:
-      "Leave requests of your direct reports (by reporting line, no permission needed). viewerRole FINAL on a row means you can approve/reject it. Returns { requests, isManager, pagination }; isManager false if you manage nobody.",
+      "Leave requests of the people you manage directly, as reporting or dotted manager (no permission needed). viewerRole FINAL on a row means you can approve/reject it. Returns { requests, isManager, pagination }; isManager false if you manage nobody.",
     query: "status: PENDING|APPROVED|REJECTED|CANCELLED; page, limit (default 10, max 100)",
     keywords: [
       "team leave requests",
@@ -221,14 +221,14 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "GET /api/leave/requests": {
     summary:
-      "List leave requests, newest first. Ordinary employees get only their own. With leave:approve you see everyone's and can filter by employee and dates. viewerRole FINAL marks requests you can decide.",
+      "List leave requests, newest first. Ordinary employees get only their own. With leave:approve you see everyone's and can filter by employee and dates. viewerRole FINAL marks requests you can decide. totalDays 0.5 = half day, 0.25 = a 2-hour short leave.",
     query:
       "status: PENDING|APPROVED|REJECTED|CANCELLED; leaveTypeId; employeeId, from, to (YYYY-MM-DD, matched on start date) - leave:approve only; page, limit (default 20, max 100)",
     keywords: ["my leave requests", "leave history", "leave applications", "all leave requests"],
   },
   "GET /api/leave/team": {
     summary:
-      "Your leave approval queue: requests routed to you, your direct reports' requests, and the HR queue (HR roles) or Admin queue (Admins). Excludes your own. Needs leave:approve.",
+      "Your leave approval queue: requests routed to you, requests of people you manage directly (as reporting or dotted manager), and the HR queue (HR roles) or Admin queue (Admins). Excludes your own. Needs leave:approve.",
     query: "status: PENDING|APPROVED|REJECTED|CANCELLED; page, limit (default 20, max 100)",
     keywords: [
       "leave approval queue",
@@ -249,7 +249,7 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "GET /api/wfh/apply/preview": {
     summary:
-      "Before applying for work from home: shows who the WFH email will go to (your manager, else HR/Admin), the HR inbox cc'd, and your email signature. Read-only.",
+      "Before applying for work from home: shows who the WFH email will go to (your manager, else your dotted manager, else HR/Admin), who is cc'd (ccHr: the HR inbox; ccManager: your dotted manager), and your email signature. Read-only.",
     keywords: ["wfh approver", "who approves my wfh", "work from home email recipient"],
   },
   "GET /api/wfh/eligibility": {
@@ -259,7 +259,7 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "GET /api/wfh/my-team": {
     summary:
-      "WFH request inbox. scope=team: your direct reports' requests (empty if you manage nobody). scope=all: every employee's requests, for HR Manager/Admin or wfh:approve holders. Returns { requests, isApprover, pagination }.",
+      "WFH request inbox. scope=team: requests of people you manage directly, as reporting or dotted manager (empty if you manage nobody). scope=all: every employee's requests, for HR Manager/Admin or wfh:approve holders. Returns { requests, isApprover, pagination }.",
     query:
       "scope: team|all (default team); status: PENDING|APPROVED|REJECTED|CANCELLED; page, limit (default 10, max 100)",
     keywords: ["team wfh requests", "pending wfh approvals", "work from home requests of my team"],
@@ -274,16 +274,18 @@ export const TIME_LEAVE: DescriptionMap = {
   "PATCH /api/attendance/[id]": {
     summary:
       "Correct one attendance log (regularise a missed punch or wrong status). Only the fields sent change and they are pinned so the device sync will not overwrite them. Needs attendance:write. id from GET /api/attendance.",
-    body: "{ checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30 (null clears), checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: stored as PRESENT, shown as 'Out of office'; false = back to an ordinary day), notes?: string (for on duty: the purpose / where) }",
+    body: "{ checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30 (null clears), checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: stored as PRESENT, shown as 'Out of office', overrides status; false = back to an ordinary day), notes?: string (for on duty: the purpose / where) }",
     keywords: [
       "regularize attendance",
       "fix missing punch",
       "correct check in time",
       "edit attendance",
       "mark present",
+      "mark out of office",
+      "on duty",
     ],
     notes:
-      "Work hours are recomputed; if times change without a status, status is re-derived from hours (<4h ABSENT, <8h HALF_DAY).",
+      "Work hours are recomputed; if times change without a status, status is re-derived from hours (no check-in or <4h ABSENT, <8h HALF_DAY). An out-of-office day stays PRESENT/out of office when only its times change; onDuty:false re-derives the status from the punches unless status is sent.",
   },
   "PATCH /api/attendance/devices/[id]": {
     summary:
@@ -293,7 +295,7 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "PATCH /api/attendance/floating-holidays/requests/[id]": {
     summary:
-      "Approve or reject a floating (optional) holiday request. HR Manager/Admin decide finally (max 3 approved per year); the employee's manager's decision is only advisory and leaves it PENDING for HR. Nobody can review their own. id from GET /api/attendance/floating-holidays/requests.",
+      "Approve or reject a floating (optional) holiday request. HR Manager/Admin decide finally (max 3 approved per year); a decision by the employee's reporting or dotted manager is only advisory and leaves it PENDING for HR. Nobody can review their own. id from GET /api/attendance/floating-holidays/requests.",
     body: "{ action: APPROVE|REJECT (required), rejectionReason?: string (required for REJECT) }",
     keywords: ["approve floating holiday", "reject optional holiday", "floating holiday decision"],
     notes: "Notifies the employee in-app.",
@@ -306,11 +308,11 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "PATCH /api/leave/requests/[id]": {
     summary:
-      "Approve, reject or cancel a PENDING leave request. The applicant's manager can decide; HR Manager/HR Employee decide ordinary employees' leave; Admins decide anything (incl. HR's own). An employee can only cancel their own. id from GET /api/leave/requests or /api/leave/team.",
+      "Approve, reject or cancel a PENDING leave request. The applicant's reporting or dotted manager can decide; HR Manager/HR Employee decide ordinary employees' leave; Admins decide anything (incl. HR's own). An employee can only cancel their own. id from GET /api/leave/requests or /api/leave/team.",
     body: "{ action: APPROVE|REJECT|CANCEL (required), rejectionReason?: string (required for REJECT), emailBody?: custom letter text for the decision email }",
     keywords: ["approve leave", "reject leave", "cancel leave", "leave decision", "withdraw leave"],
     notes:
-      "First decision is final and updates the leave balance. Approve/reject emails the employee from the decider's mailbox (cc HR, manager) and notifies them. Cannot be undone.",
+      "First decision is final and updates the leave balance. Approve/reject emails the employee from the decider's mailbox (cc HR and both managers) and notifies them. Cannot be undone.",
   },
   "PATCH /api/leave/types/[id]": {
     summary:
@@ -322,7 +324,7 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "PATCH /api/wfh/requests/[id]": {
     summary:
-      "Approve, reject or cancel a PENDING work-from-home request. HR Manager/Admin or wfh:approve holders decide anyone's; the employee's manager decides their reports'; an employee can only cancel their own. First decision is final. id from GET /api/wfh/requests or /api/wfh/my-team.",
+      "Approve, reject or cancel a PENDING work-from-home request. HR Manager/Admin or wfh:approve holders decide anyone's; the employee's reporting or dotted manager decides their reports'; an employee can only cancel their own. First decision is final. id from GET /api/wfh/requests or /api/wfh/my-team.",
     body: "{ action: APPROVE|REJECT|CANCEL (required), rejectionReason?: string (required for REJECT) }",
     keywords: ["approve wfh", "reject work from home", "cancel wfh", "wfh decision"],
     notes: "Approve/reject notifies and emails the employee. Cannot be undone.",
@@ -330,7 +332,7 @@ export const TIME_LEAVE: DescriptionMap = {
   "POST /api/attendance": {
     summary:
       "Add or overwrite an employee's attendance for one day by hand (manual entry). Upserts on employee + date. Needs attendance:write. For changing one field of an existing day use PATCH /api/attendance/[id].",
-    body: "{ employeeId (required), date: YYYY-MM-DD (required), checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30, checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: a present day shown as 'Out of office', times optional), notes?: string (for on duty: the purpose / where) }",
+    body: "{ employeeId (required), date: YYYY-MM-DD (required), checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30, checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: a present day shown as 'Out of office', times optional, status ignored; false = turn an out-of-office day back into an ordinary one), notes?: string (for on duty: the purpose / where) }",
     keywords: [
       "add attendance",
       "manual attendance",
@@ -343,7 +345,7 @@ export const TIME_LEAVE: DescriptionMap = {
       "out of office for work",
     ],
     notes:
-      "If a row exists for that day it is fully replaced - omitted checkIn/checkOut/notes become empty. Without status it is derived from hours worked.",
+      "If a row exists for that day it is fully replaced - omitted checkIn/checkOut/notes become empty. Without status it is derived from hours worked. Omitting onDuty on a day already marked out of office keeps that tag - send onDuty:false to clear it.",
   },
   "POST /api/attendance/devices": {
     summary:
@@ -371,7 +373,8 @@ export const TIME_LEAVE: DescriptionMap = {
       "Apply for a floating (optional) holiday for yourself. Only optional holidays, only on or before the date, max 3 approved per year. Re-applying after a rejection reopens the request.",
     body: "{ holidayId (required): an optional holiday's id from GET /api/attendance/floating-holidays (optionalHolidays[].id), reason?: string }",
     keywords: ["apply floating holiday", "take optional holiday", "request restricted holiday"],
-    notes: "Notifies your approvers and emails the request letter.",
+    notes:
+      "Notifies your reporting and dotted managers and HR, and emails the request letter to your manager (else dotted manager, else HR), cc HR and your dotted manager.",
   },
   "POST /api/attendance/holidays": {
     summary:
@@ -424,8 +427,8 @@ export const TIME_LEAVE: DescriptionMap = {
   },
   "POST /api/leave/requests": {
     summary:
-      "Apply for leave for yourself. Checks balance, probation, notice-period and company rules (EL: 60 days notice, 3-7 days, 7 per half-year; CL: 2 days notice, max 2/month; no overlap; CL/SL not next to EL). Days are calendar days incl. weekends (sandwich rule).",
-    body: "{ leaveTypeId (required, from GET /api/leave/types/eligible), startDate: YYYY-MM-DD (required), endDate: YYYY-MM-DD (required), reason?: string, isHalfDay?: boolean (single day, 0.5 day), isShortLeave?: boolean (single day, a 2-hour leave charged as 0.25 day; not for EL/ML), emailSubject?: string, emailBody?: string (custom letter text) }",
+      "Apply for leave for yourself. Checks balance, probation (paid leave blocked - LWP only), no leave while serving notice, and company rules (EL: 60 days notice, 3-7 days, 7 per half-year; CL: 2 days notice, max 2/month; LWP: no notice, can start today; no overlap; CL/SL not next to EL). Days are calendar days incl. weekends (sandwich rule).",
+    body: "{ leaveTypeId (required, from GET /api/leave/types/eligible), startDate: YYYY-MM-DD (required), endDate: YYYY-MM-DD (required; same as startDate for a part day), reason?: string, isHalfDay?: boolean (one day, charged 0.5), isShortLeave?: boolean (one day, a 2-hour leave charged 0.25; wins over isHalfDay), emailSubject?: string, emailBody?: string (custom letter text) }",
     keywords: [
       "apply leave",
       "request leave",
@@ -433,9 +436,13 @@ export const TIME_LEAVE: DescriptionMap = {
       "sick leave",
       "casual leave",
       "half day leave",
+      "short leave",
+      "2 hour leave",
+      "leave without pay",
+      "lwp",
     ],
     notes:
-      "Emails your manager (sent from your mailbox, cc HR) and notifies approvers; see GET /api/leave/apply/preview for recipients. Holds the days as pending on your balance.",
+      "Half day and short leave suit any type except EL and ML - incl. LWP, so probationers can take part-day unpaid leave. Emails your manager (else dotted manager, else HR) from your mailbox, cc HR and your dotted manager, and notifies both managers and HR; see GET /api/leave/apply/preview. Holds the days as pending on your balance.",
   },
   "POST /api/leave/types": {
     summary: "Create a new leave type. Needs leave:policy.",

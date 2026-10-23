@@ -10,13 +10,14 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         permissions: ["analytics:read"],
         guard: "withAuth",
-        doc: "Company-wide executive analytics: headcount (total including leavers, working now, new this month vs last), headcount of people working now by department plus those with no department, pending/approved leave, attendance status counts this month, last month's payroll totals, open jobs and applicants by stage, active projects, tasks completed, 6-month hiring trend, total documents and the most recent joiners. Needs analytics:read. Note: payroll covers the PREVIOUS month even though payroll.periodLabel shows the current month name. Figures can be up to a minute old.",
+        doc: "Company-wide numbers (moved here from the dashboard): headcount (total incl. leavers, working now, new this vs last month, by department incl. no department, by status), leave, attendance this month, last month's payroll, open jobs and applicants by stage, active projects, tasks completed, 6-month hiring trend, total documents and the 6 latest joiners (admins left out). Needs analytics:read. Note: payroll covers the PREVIOUS month even though payroll.periodLabel shows the current month name. Figures can be up to a minute old.",
         keywords: [
           "company analytics",
           "HR metrics",
           "headcount report",
           "executive dashboard",
           "KPIs",
+          "company numbers",
         ],
       },
     },
@@ -73,16 +74,18 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         keywords: ["attendance record", "attendance entry details"],
       },
       PATCH: {
-        body: "{ checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30 (null clears), checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: stored as PRESENT, shown as 'Out of office'; false = back to an ordinary day), notes?: string (for on duty: the purpose / where) }",
+        body: "{ checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30 (null clears), checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: stored as PRESENT, shown as 'Out of office', overrides status; false = back to an ordinary day), notes?: string (for on duty: the purpose / where) }",
         permissions: ["attendance:write"],
         guard: "withAuth",
-        doc: "Correct one attendance log (regularise a missed punch or wrong status). Only the fields sent change and they are pinned so the device sync will not overwrite them. Needs attendance:write. id from GET /api/attendance. Note: Work hours are recomputed; if times change without a status, status is re-derived from hours (<4h ABSENT, <8h HALF_DAY).",
+        doc: "Correct one attendance log (regularise a missed punch or wrong status). Only the fields sent change and they are pinned so the device sync will not overwrite them. Needs attendance:write. id from GET /api/attendance. Note: Work hours are recomputed; if times change without a status, status is re-derived from hours (no check-in or <4h ABSENT, <8h HALF_DAY). An out-of-office day stays PRESENT/out of office when only its times change; onDuty:false re-derives the status from the punches unless status is sent.",
         keywords: [
           "regularize attendance",
           "fix missing punch",
           "correct check in time",
           "edit attendance",
           "mark present",
+          "mark out of office",
+          "on duty",
         ],
       },
       DELETE: {
@@ -191,7 +194,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         query: ["month"],
         permissions: ["attendance:write"],
         guard: "withAuth",
-        doc: "Month calendar of one employee's attendance, one status per day: PRESENT, HALF_DAY, MISSING_PUNCH, LEAVE, WFH, HOLIDAY (incl. birthday/floating), WEEKEND, UPCOMING or NONE (no record), with punch times. Needs attendance:write. employeeId from GET /api/employees.",
+        doc: "Month calendar of one employee's attendance, one status per day: PRESENT, ON_DUTY (out of office on official work, HR-marked; label = the purpose), HALF_DAY, MISSING_PUNCH, LEAVE, WFH, HOLIDAY (incl. birthday/floating), WEEKEND, UPCOMING or NONE (no record), with punch times. Needs attendance:write. employeeId from GET /api/employees.",
         queryHelp: "month: YYYY-MM (default current month)",
         keywords: [
           "employee attendance calendar",
@@ -209,7 +212,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         query: ["from", "to"],
         permissions: ["attendance:write"],
         guard: "withAuth",
-        doc: "Company attendance roster: every active employee's attendance for one day (check-in/out, hours, status PRESENT|HALF_DAY|MISSING_PUNCH|ABSENT) or for a date range (present/half/missing/absent day counts, average hours), plus totals. Needs attendance:write.",
+        doc: "Company attendance roster: every active employee's attendance for one day (check-in/out, hours, status PRESENT|ON_DUTY (out of office on official work)|HALF_DAY|MISSING_PUNCH|ABSENT) or for a date range (present/onDuty/half/missing/absent day counts - presentDays includes on-duty days - and average hours), plus totals. Needs attendance:write.",
         queryHelp: "from, to: YYYY-MM-DD (default today; to defaults to from; max 92 days)",
         keywords: [
           "who came in today",
@@ -261,7 +264,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       PATCH: {
         body: "{ action: APPROVE|REJECT (required), rejectionReason?: string (required for REJECT) }",
         guard: "withSession",
-        doc: "Approve or reject a floating (optional) holiday request. HR Manager/Admin decide finally (max 3 approved per year); the employee's manager's decision is only advisory and leaves it PENDING for HR. Nobody can review their own. id from GET /api/attendance/floating-holidays/requests. Note: Notifies the employee in-app.",
+        doc: "Approve or reject a floating (optional) holiday request. HR Manager/Admin decide finally (max 3 approved per year); a decision by the employee's reporting or dotted manager is only advisory and leaves it PENDING for HR. Nobody can review their own. id from GET /api/attendance/floating-holidays/requests. Note: Notifies the employee in-app.",
         keywords: [
           "approve floating holiday",
           "reject optional holiday",
@@ -277,7 +280,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["status", "page", "limit"],
         guard: "withSession",
-        doc: "Floating (optional) holiday requests waiting for review. HR Manager/Admin see everyone's; anyone else sees only their direct reports' requests (empty if they manage nobody). id of each row is used to approve/reject.",
+        doc: "Floating (optional) holiday requests waiting for review. HR Manager/Admin see everyone's; anyone else sees only the requests of people they manage directly, as reporting or dotted manager (empty if they manage nobody). id of each row is used to approve/reject.",
         queryHelp: "status: PENDING|APPROVED|REJECTED|CANCELLED; page, limit (default 10, max 100)",
         keywords: [
           "floating holiday approvals",
@@ -306,7 +309,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       POST: {
         body: "{ holidayId (required): an optional holiday's id from GET /api/attendance/floating-holidays (optionalHolidays[].id), reason?: string }",
         guard: "withSession",
-        doc: "Apply for a floating (optional) holiday for yourself. Only optional holidays, only on or before the date, max 3 approved per year. Re-applying after a rejection reopens the request. Note: Notifies your approvers and emails the request letter.",
+        doc: "Apply for a floating (optional) holiday for yourself. Only optional holidays, only on or before the date, max 3 approved per year. Re-applying after a rejection reopens the request. Note: Notifies your reporting and dotted managers and HR, and emails the request letter to your manager (else dotted manager, else HR), cc HR and your dotted manager.",
         keywords: ["apply floating holiday", "take optional holiday", "request restricted holiday"],
       },
       DELETE: {
@@ -376,7 +379,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["month"],
         guard: "withSession",
-        doc: "Your own attendance for a month, one status per day: PRESENT, HALF_DAY, MISSING_PUNCH (forgot to punch in/out), LEAVE, WFH, HOLIDAY (incl. birthday/floating), WEEKEND, UPCOMING or NONE. Includes punch times and hours.",
+        doc: "Your own attendance for a month, one status per day: PRESENT, ON_DUTY (out of office on official work, marked by HR; label = the purpose), HALF_DAY, MISSING_PUNCH (forgot to punch in/out), LEAVE, WFH, HOLIDAY (incl. birthday/floating), WEEKEND, UPCOMING or NONE. Includes punch times and hours.",
         queryHelp: "month: YYYY-MM (default current month)",
         keywords: ["my attendance calendar", "my missing punches", "my monthly attendance"],
       },
@@ -389,7 +392,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["days", "status", "page", "limit"],
         guard: "withSession",
-        doc: "Your own attendance logs (check-in, check-out, work hours, status) for the last N days, newest first.",
+        doc: "Your own attendance logs (check-in, check-out, work hours, status, source) for the last N days, newest first. A day HR marked 'Out of office' (official duty) is status PRESENT with source on_duty.",
         queryHelp:
           "days: 1-365 (default 30); status: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND; page, limit (default 30, max 100)",
         keywords: ["my attendance", "my punch in time", "my check in", "my working hours"],
@@ -404,7 +407,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         query: ["employeeId", "status", "dateFrom", "dateTo", "page", "limit"],
         permissions: ["attendance:write"],
         guard: "withAuth",
-        doc: "List attendance logs (one row per employee per day: check-in, check-out, work hours, status) for everyone, newest first. HR/admin view - needs attendance:write. For your own attendance use GET /api/attendance/me.",
+        doc: "List attendance logs (one row per employee per day: check-in, check-out, work hours, status, source) for everyone, newest first. HR/admin view - needs attendance:write. A day marked 'Out of office' (on official duty) is status PRESENT with source on_duty. For your own attendance use GET /api/attendance/me.",
         queryHelp:
           "employeeId; status: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND; dateFrom, dateTo: YYYY-MM-DD; page, limit (default 20, max 100)",
         keywords: [
@@ -416,10 +419,10 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         ],
       },
       POST: {
-        body: "{ employeeId (required), date: YYYY-MM-DD (required), checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30, checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: a present day shown as 'Out of office', times optional), notes?: string (for on duty: the purpose / where) }",
+        body: "{ employeeId (required), date: YYYY-MM-DD (required), checkIn?: ISO datetime with offset e.g. 2026-10-14T09:30:00+05:30, checkOut?: same, status?: PRESENT|ABSENT|HALF_DAY|LATE|ON_LEAVE|HOLIDAY|WEEKEND, onDuty?: boolean (true = out of office on official work: a present day shown as 'Out of office', times optional, status ignored; false = turn an out-of-office day back into an ordinary one), notes?: string (for on duty: the purpose / where) }",
         permissions: ["attendance:write"],
         guard: "withAuth",
-        doc: "Add or overwrite an employee's attendance for one day by hand (manual entry). Upserts on employee + date. Needs attendance:write. For changing one field of an existing day use PATCH /api/attendance/[id]. Note: If a row exists for that day it is fully replaced - omitted checkIn/checkOut/notes become empty. Without status it is derived from hours worked.",
+        doc: "Add or overwrite an employee's attendance for one day by hand (manual entry). Upserts on employee + date. Needs attendance:write. For changing one field of an existing day use PATCH /api/attendance/[id]. Note: If a row exists for that day it is fully replaced - omitted checkIn/checkOut/notes become empty. Without status it is derived from hours worked. Omitting onDuty on a day already marked out of office keeps that tag - send onDuty:false to clear it.",
         keywords: [
           "add attendance",
           "manual attendance",
@@ -442,7 +445,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         query: ["employeeId", "month", "year"],
         permissions: ["attendance:write"],
         guard: "withAuth",
-        doc: "One employee's attendance totals for a month: present, absent, late (late marks), half-day, on-leave, holiday and weekend day counts, total and average hours. Counts stored log rows only. Needs attendance:write.",
+        doc: "One employee's attendance totals for a month: present, absent, late (late marks), half-day, on-leave, holiday and weekend day counts, total and average hours. Counts stored log rows only; out-of-office (official duty) days count as present. Needs attendance:write.",
         queryHelp:
           "employeeId (required, from GET /api/employees); month: 1-12 (required); year: e.g. 2026 (required)",
         keywords: [
@@ -876,8 +879,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withSession",
-        doc: "Count of open onboarding/exit checklist items assigned to the caller (the clearances badge).",
-        keywords: ["clearance count", "pending clearances", "how many sign-offs"],
+        doc: "The 'Waiting on you' badge number: open onboarding/exit checklist items assigned to the caller PLUS weekly joinee reviews due from them (Fridays not yet scored for people they manage as reporting or dotted manager). Returns { count }. Note: Can be higher than GET /api/clearances, which lists only the checklist items; the due weekly reviews are listed by GET /api/joinee-weekly-reviews/due.",
+        keywords: ["clearance count", "pending clearances", "how many sign-offs", "waiting on you"],
       },
     },
     load: () => import("@/app/api/clearances/count/route"),
@@ -1043,7 +1046,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withSession",
-        doc: "The admin home page in one call: today's people (working, away, working from home, not checked in, birthdays, holiday), attendance in vs expected, approvals waiting (leave, WFH, resignations), active projects with overdue tasks and late deliverables, the projects needing a look worst first, goals needing attention, this month's delivery scores (average, best and could-use-support), and joiners, onboarding, serving notice, open jobs and last payroll. Admin and admin_ only.",
+        doc: "The admin home page in one call: today's people (working, away, working from home, not checked in, birthdays, holiday), attendance in vs expected, approvals waiting (leave, WFH, resignations), active projects with overdue tasks and late deliverables, the projects needing a look worst first, goals needing attention, this month's delivery scores (average, best and could-use-support), and joiners, onboarding, serving notice, open jobs and last payroll. Admin and admin_ only. Note: 403 for everyone else, HR included - they use GET /api/dashboard/me (and GET /api/analytics for company numbers). Payroll is the previous month's net total. Delivery scores rank only people with 3+ scored items.",
         keywords: [
           "admin dashboard",
           "leadership dashboard",
@@ -1073,7 +1076,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         permissions: ["dashboard:read"],
         guard: "withAuth",
-        doc: "Org-wide HR dashboard numbers: active headcount, joiners in the last 30 days, headcount by status and by department, total company documents, unread notifications across everyone, and the 5 most recent joiners. Needs dashboard:read.",
+        doc: "Org-wide HR headcount numbers: people working now, joiners in the last 30 days, headcount by status and by department, total company documents, the caller's OWN unread notification count, and the 5 latest joiners by joining date (admins left out). Needs dashboard:read. Note: For the fuller company picture use GET /api/analytics; the admin home page is GET /api/dashboard/leadership.",
         keywords: ["HR dashboard", "headcount", "recent joiners", "company stats"],
       },
     },
@@ -1397,7 +1400,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withErrorHandler",
-        doc: "One employee's full HR record: personal and contact details, addresses, emergency contact, department, designation, job role, reporting manager, access roles, probation, employment type, direct-report count. Your own record always; anyone else's needs employee:read. Note: [id] accepts the employee id (UUID) or the profile slug '<employeeCode>-<first>-<last>' (e.g. 8-diwakar-jha). Other /api/employees/[id]/... endpoints need the UUID.",
+        doc: "One employee's full HR record: personal and contact details, addresses, emergency contact, department, designation, job role, reporting manager and dotted manager, access roles, probation (incl. any explicit probationEndDate), employment type, direct-report count. Your own record always; anyone else's needs employee:read. Note: [id] accepts the employee id (UUID) or the profile slug '<employeeCode>-<first>-<last>' (e.g. 8-diwakar-jha). Other /api/employees/[id]/... endpoints need the UUID.",
         keywords: [
           "employee profile",
           "employee details",
@@ -1407,9 +1410,9 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         ],
       },
       PATCH: {
-        body: "{ firstName?, lastName?, employeeNo?: unique code, email?: work email (also their login), personalEmail?, phone?, personalPhone?, dateOfBirth?: YYYY-MM-DD, gender?: MALE|FEMALE|OTHER|PREFER_NOT_TO_SAY, nationality?, bloodGroup?, departmentId?, designationId?, jobRoleId?: id or '' to clear, managerId?: reporting manager's employee id, employmentType?: FULL_TIME|PART_TIME|CONTRACT|INTERN, dateOfJoining?, probationEndDate?, onProbation?: boolean, probationMonths?: 0-6, workLocation?, deviceId?: biometric code, gmailAppPassword?: 16 chars, currentAddress?/permanentAddress?: { line1, line2, city, state, zip, country }, emergencyContact?: { name, relation, phone } }",
+        body: "{ firstName?, lastName?, employeeNo?: unique code, email?: work email (also their login), personalEmail?, phone?, personalPhone?, dateOfBirth?: YYYY-MM-DD, gender?: MALE|FEMALE|OTHER|PREFER_NOT_TO_SAY, nationality?, bloodGroup?, departmentId?, designationId?, jobRoleId?: id or '' to clear, managerId?: reporting manager's employee id, dottedManagerId?: dotted manager's employee id or '' to clear, employmentType?: FULL_TIME|PART_TIME|CONTRACT|INTERN (INTERN moves them to the Intern Directory), dateOfJoining?: YYYY-MM-DD, probationEndDate?: YYYY-MM-DD explicit probation end, e.g. an extension (wins over joining date + probationMonths; '' clears it), onProbation?: boolean, probationMonths?: 0-6, workLocation?, deviceId?: biometric code, gmailAppPassword?: 16 chars (blank keeps the saved one), currentAddress?/permanentAddress?: { line1, line2, city, state, zip, country }, emergencyContact?: { name, relation, phone } }",
         guard: "withErrorHandler",
-        doc: "HR edit of an employee record: name, employee code, emails, phone, personal details, department, designation, job role, reporting manager, employment type, joining date, probation, addresses, emergency contact. Needs employee:write. id = employee id. Note: ALWAYS include the employee's current employmentType (read it first) - if omitted it silently resets to FULL_TIME. status, resignationDate, lastWorkingDate, roleId, password and mustChangePassword are accepted but ignored (use deactivate/bulk-terminate and PUT /api/employees/[id]/roles). dottedManagerId sets the dotted manager (same powers as the reporting manager; must differ from it; an empty string clears it). Department/designation/manager can be changed but not cleared. onProbation:false confirms probation and recalculates leave. The employee gets an in-app notification.",
+        doc: "HR edit of an employee record: name, employee code, emails, phone, personal details, department, designation, job role, reporting manager, dotted manager, employment type, joining date, probation (incl. an explicit end date / extension), addresses, emergency contact. Needs employee:write. id = employee id. Send only the fields to change. Note: Omitted fields are left unchanged. status, resignationDate, lastWorkingDate, roleId, password and mustChangePassword are accepted but ignored (use deactivate/bulk-terminate and PUT /api/employees/[id]/roles). The dotted manager shares every manager power (approvals, reviews, alerts); it must be neither the employee nor the reporting manager, and making the dotted manager the reporting manager clears the dotted slot. Department/designation/reporting manager can be changed but not cleared. Probation applies only while onProbation is true; onProbation:false confirms it and recalculates leave. The employee gets an in-app notification.",
         keywords: [
           "change reporting manager",
           "transfer department",
@@ -1417,6 +1420,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
           "edit employee",
           "confirm probation",
           "promote",
+          "dotted manager",
+          "extend probation",
         ],
       },
       DELETE: {
@@ -1526,9 +1531,9 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
           "limit",
         ],
         guard: "withErrorHandler",
-        doc: "HR employee directory with full records (contact, personal details, department, designation, status, probation). Needs employee:read; people without it should use dnms_search_people, GET /api/employees/org-chart or GET /api/employees/[id]/card.",
+        doc: "HR employee directory (Employee and Intern Directory) with full records: contact, department, designation with its level, job role, reporting and dotted manager, status, probation, and live projects - those they run as primary/secondary account manager, teams they are on or manage, services they own. Needs employee:read; others use dnms_search_people, GET /api/employees/org-chart or GET /api/employees/[id]/card.",
         queryHelp:
-          "search: partial name, work email or employee code; departmentId (includes its sub-departments); designationId; status: ACTIVE|INACTIVE (login enabled / deactivated) or ON_LEAVE|SUSPENDED|RESIGNED|TERMINATED; employmentType: FULL_TIME|PART_TIME|CONTRACT|INTERN (INTERN = the Intern Directory); excludeEmploymentType: same values, leaves that type out (the Employee Directory uses INTERN); page, limit (default 20, max 100)",
+          "search: partial name, work email or employee code; departmentId (includes its sub-departments); designationId; status: ACTIVE|INACTIVE (login enabled / deactivated) or ON_LEAVE|SUSPENDED|RESIGNED|TERMINATED; employmentType: FULL_TIME|PART_TIME|CONTRACT|INTERN (INTERN = the Intern Directory); excludeEmploymentType: same values, leaves that type out (the Employee Directory uses INTERN; ignored when employmentType is sent); page, limit (default 20, max 100)",
         keywords: [
           "employee list",
           "staff directory",
@@ -1538,10 +1543,16 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         ],
       },
       POST: {
-        body: "{ firstName, lastName, email: work email - all required; employeeNo?: code (auto EMP-YYYY-#### if blank), personalEmail?, phone?, personalPhone?, dateOfBirth?: YYYY-MM-DD, gender?: MALE|FEMALE|OTHER|PREFER_NOT_TO_SAY, nationality?, bloodGroup?, departmentId?, designationId?, jobRoleId?, managerId?: reporting manager id, dottedManagerId?: dotted manager id - same powers as the reporting manager (approvals, reviews, alerts), must differ from it, an empty string clears, roleId?: access role id (default 'employee'), employmentType?: FULL_TIME|PART_TIME|CONTRACT|INTERN, dateOfJoining?: YYYY-MM-DD, probationEndDate?, onProbation?: boolean, probationMonths?: 0-6, deviceId?: biometric code, workLocation?, currentAddress?/permanentAddress?: { line1, line2, city, state, zip, country }, emergencyContact?: { name, relation, phone }, password?: min 8 (generated if omitted), mustChangePassword?: boolean }",
+        body: "{ firstName, lastName, email: work email - all required; employeeNo?: code (auto EMP-YYYY-#### if blank), personalEmail?, phone?, personalPhone?, dateOfBirth?: YYYY-MM-DD, gender?: MALE|FEMALE|OTHER|PREFER_NOT_TO_SAY, nationality?, bloodGroup?, departmentId?, designationId?, jobRoleId?, managerId?: reporting manager id, dottedManagerId?: dotted manager id - same powers as the reporting manager (approvals, reviews, alerts), must differ from it, roleId?: access role id (default 'employee'), employmentType?: FULL_TIME|PART_TIME|CONTRACT|INTERN (default FULL_TIME; INTERN = Intern Directory), dateOfJoining?: YYYY-MM-DD, probationEndDate?: YYYY-MM-DD explicit probation end (else joining date + probationMonths), onProbation?: boolean (default true), probationMonths?: 0-6 (default 6), deviceId?: biometric code, workLocation?, currentAddress?/permanentAddress?: { line1, line2, city, state, zip, country }, emergencyContact?: { name, relation, phone }, mustChangePassword?: boolean }",
         guard: "withErrorHandler",
-        doc: "Add (onboard) a new employee. Needs employee:write. Creates their login, assigns an access role, seeds leave balances, starts the onboarding checklist and 15-day joinee scorecard. Note: Emails a welcome message WITH the login password to the work and personal emails, and notifies HR/admins. Fails with 402 if the plan's headcount limit is reached. status/resignationDate/lastWorkingDate are ignored.",
-        keywords: ["add employee", "onboard new hire", "create employee", "new joiner"],
+        doc: "Add (onboard) a new employee. Needs employee:write. Creates their login, assigns an access role, seeds leave balances, starts the onboarding checklist, the 15-day joinee scorecard and the weekly review that follows it. Note: Never send password - the AI connector refuses it; leave it out and a password is generated. Emails a welcome message WITH the login password to the work and personal emails, and notifies HR/admins. Fails with 402 if the plan's headcount limit is reached. status/resignationDate/lastWorkingDate are ignored.",
+        keywords: [
+          "add employee",
+          "onboard new hire",
+          "create employee",
+          "new joiner",
+          "add intern",
+        ],
       },
     },
     load: () => import("@/app/api/employees/route"),
@@ -1550,9 +1561,9 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/exit-clearance/full-final/[id]",
     methods: {
       PATCH: {
-        body: "{ dueDate?; releasedOn?: YYYY-MM-DD | null; noticePeriod?: SERVED|NOT_SERVED|COMPANY_EXIT|null; relievingGiven?: boolean; relievingDate?: YYYY-MM-DD | null; designation?; notes?; name?/lastWorkingDate?: past employees only }",
+        body: "{ dueDate?: YYYY-MM-DD (not before the last working day); releasedOn?: YYYY-MM-DD | null; noticePeriod?: SERVED|NOT_SERVED|COMPANY_EXIT|null; relievingGiven?: boolean (false also clears relievingDate); relievingDate?: YYYY-MM-DD | null; designation?: string | null; notes?: string | null; name?/lastWorkingDate?: YYYY-MM-DD, past employees only }",
         guard: "withSession",
-        doc: "Update one Full & Final record: FnF due date, released-on date (null to clear), notice period, relieving letter and its date, notes. Needs exit:write. Note: For a leaver who was in DNMS the last working day follows their profile, so lastWorkingDate is refused (409) - change it on the profile. Releasing FnF = set releasedOn.",
+        doc: "Update one Full & Final record: FnF due date, released-on date (null to clear), notice period, relieving letter and its date, notes. Needs exit:write. Note: For a leaver who was in DNMS the last working day follows their profile, so lastWorkingDate is refused (409) - change it on the profile - and name is ignored. Releasing FnF = set releasedOn. id from GET /api/exit-clearance/full-final.",
         keywords: ["mark fnf released", "fnf paid", "update full and final"],
       },
       DELETE: {
@@ -1568,7 +1579,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withSession",
-        doc: "The Full & Final settlement register: every leaver (DNMS leavers are added automatically, past employees by hand) with last working day, FnF due date (two months after it unless changed), the date FnF was released, a status (pending, due soon, overdue, released on time or late), notice period and relieving letter. Needs exit:read.",
+        doc: "The Full & Final settlement register: every leaver (DNMS leavers added automatically, past employees by hand) with last working day, FnF due date (two months after it unless changed), FnF released-on date, status, notice period and relieving letter. Open ones first, most urgent on top. Needs exit:read. Note: status = { state: PENDING|DUE_SOON (due within 7 days)|OVERDUE|RELEASED|RELEASED_LATE, days (left or late) }. Reading it also adds any new DNMS leavers to the register and moves their last working day/default due date to match their profile.",
         keywords: [
           "full and final",
           "fnf",
@@ -1580,7 +1591,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         ],
       },
       POST: {
-        body: "{ name (required); lastWorkingDate (required): YYYY-MM-DD; designation?; dueDate?: YYYY-MM-DD (default two months after the last working day); releasedOn?: YYYY-MM-DD; noticePeriod?: SERVED|NOT_SERVED|COMPANY_EXIT; relievingGiven?: boolean; relievingDate?: YYYY-MM-DD; notes? }",
+        body: "{ name (required unless employeeId); employeeId?: a DNMS employee id instead of name (409 if already in the register); lastWorkingDate (required): YYYY-MM-DD; designation?; dueDate?: YYYY-MM-DD, not before lastWorkingDate (default two months after it); releasedOn?: YYYY-MM-DD; noticePeriod?: SERVED|NOT_SERVED|COMPANY_EXIT; relievingGiven?: boolean; relievingDate?: YYYY-MM-DD (kept only when relievingGiven is true); notes? (max 2000) }",
         guard: "withSession",
         doc: "Add a past employee (someone who left before DNMS) to the Full & Final register. Needs exit:write.",
         keywords: ["add fnf", "record full and final", "past employee settlement"],
@@ -1696,7 +1707,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       POST: {
         guard: "withSession",
-        doc: "HR's final exit sign-off (relieving): closes the exit checklist, marks the employee RESIGNED and deactivates their account, removes them from project teams. Needs exit:write. Refused (409) while required clearances are unsigned; cannot sign off your own exit. Note: High impact and not reversible here: the person loses access immediately and gets a relieving email (manager cc). Get explicit confirmation.",
+        doc: "HR's final exit sign-off (relieving): closes the exit checklist, marks the employee RESIGNED, deactivates the account, takes them off project teams and passes their projects/services to the secondary owner, and ticks relieving on their Full & Final record. Needs exit:write. 409 while required clearances are unsigned; not for your own exit. Note: High impact and not reversible here: the person loses access immediately and gets a relieving email (manager cc). Get explicit confirmation.",
         keywords: [
           "relieve employee",
           "complete exit",
@@ -1888,7 +1899,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       },
       DELETE: {
         guard: "withErrorHandler",
-        doc: "Delete a new joinee's 15-day scorecard and all of its daily scores. Needs onboarding:write. [id] is the scorecard id (scorecard.id from GET /api/joinee-scorecards?employeeId=...). Note: Irreversible - every daily score and observation is lost.",
+        doc: "Delete a new joinee's 15-day scorecard and all of its daily scores. Needs onboarding:write. [id] is the scorecard id (scorecard.id from GET /api/joinee-scorecards?employeeId=...). Note: Irreversible - every daily score and observation is lost. The joinee's weekly review is separate and is kept (DELETE /api/joinee-weekly-reviews/[id] removes it).",
         keywords: ["remove joinee scorecard", "new joinee evaluation", "onboarding scorecard"],
       },
     },
@@ -1931,7 +1942,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       POST: {
         body: "{ employeeId (required), hrSpocId?: employee id of the HR point of contact }",
         guard: "withErrorHandler",
-        doc: "Start a 15-working-day new joinee scorecard for an employee (for people who joined before scorecards were automatic). Days are laid out from their date of joining, skipping weekends and holidays. Needs onboarding:write. Note: 409 if the employee already has a scorecard.",
+        doc: "Start a 15-day new joinee scorecard for an employee (for people who joined before scorecards were automatic): 15 calendar days from their date of joining (today if none); weekends, holidays and full-day leave show as off and aren't scored. Uses the company's current default criteria. Needs onboarding:write. Note: 409 if the employee already has a scorecard. Also starts their weekly review (Fridays for 90 days after the scorecard) if they have none.",
         keywords: ["create joinee scorecard", "start onboarding evaluation", "new joinee review"],
       },
     },
@@ -1954,7 +1965,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       PUT: {
         body: "{ items: Array<{ key?: string | null (null = new), label: string, isActive?: boolean }> } in display order",
         guard: "withErrorHandler",
-        doc: "Replace the parameters of ONE Friday of one joinee's weekly review (other Fridays and other joinees are untouched). The reporting manager or onboarding:write. Rows left out are hidden, never deleted; at least one stays visible.",
+        doc: "Replace the parameters of ONE Friday of one joinee's weekly review (other Fridays and other joinees are untouched). The joinee's reporting or dotted manager, or onboarding:write. Rows left out are hidden, never deleted; at least one stays visible.",
         keywords: ["edit friday parameters", "change weekly review parameters for one week"],
       },
     },
@@ -1964,9 +1975,9 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/joinee-weekly-reviews/[id]/weeks/[week]",
     methods: {
       PATCH: {
-        body: "{ scores?: { <paramKey>: 1-5 or null to clear } (keys from that week's params), comment?: string | null }",
+        body: "{ scores?: { <paramKey>: whole number 1-5 or null to clear } (keys from that week's params; unknown keys are ignored), comment?: string up to 4000 chars | null }",
         guard: "withErrorHandler",
-        doc: "Fill in one Friday of a joinee's weekly review: 1-5 scores and/or the comment. The joinee's reporting manager or onboarding:write. [id] is review.id; [week] is the week number (1 = the first Friday). A Friday opens on the Monday of its week.",
+        doc: "Fill in one Friday of a joinee's weekly review: 1-5 scores and/or the comment. The joinee's reporting or dotted manager, or onboarding:write. [id] is review.id; [week] is the week number (1 = the first Friday). A Friday opens on the Monday of its week.",
         keywords: ["score weekly review", "fill friday review", "weekly review comment"],
       },
     },
@@ -1977,7 +1988,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withErrorHandler",
-        doc: "The weekly reviews the signed-in reporting manager still has to fill in: Fridays up to today with nothing entered, for their active direct reports.",
+        doc: "The weekly reviews the signed-in manager still has to fill in: Fridays up to today with nothing entered, for their active direct reports (as reporting or dotted manager).",
         keywords: ["my weekly reviews due", "pending friday reviews", "reviews waiting on me"],
       },
     },
@@ -2006,7 +2017,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["employeeId"],
         guard: "withErrorHandler",
-        doc: "A new joinee's weekly review: after the 15-day scorecard, the reporting manager scores them every Friday for 90 days (about 13 Fridays). Each Friday has its own parameters, 1-5 scores, a comment, who reviewed it and a note when the Friday is a holiday or leave. The joinee reads their own; their reporting manager and onboarding:read/write see it. Note: review is null until started (plannedFridays then shows the Fridays it would cover). canEdit = may score (reporting manager or onboarding:write); canManage = may start/delete it and edit the default parameters.",
+        doc: "A new joinee's weekly review: after the 15-day scorecard, their manager scores them every Friday for 90 days (about 13 Fridays). Each Friday has its own parameters, 1-5 scores, a comment, who reviewed it and a note when the Friday is a holiday or leave. The joinee reads their own; their reporting or dotted manager and onboarding:read/write see it. Note: review is null until started (plannedFridays then shows the Fridays it would cover). canEdit = may score (reporting or dotted manager, or onboarding:write); canManage = may start/delete it and edit the default parameters.",
         queryHelp:
           "employeeId: the employee's id (required; find it with dnms_search_people or /api/employees)",
         keywords: [
@@ -2030,7 +2041,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withSession",
-        doc: "Before applying for leave: shows who your leave email will go to (your manager, else HR), the HR inbox that is cc'd, whether your leave would be auto-approved, and your email signature. Read-only.",
+        doc: "Before applying for leave: shows who your leave email will go to (your manager, else your dotted manager, else HR), who is cc'd (ccHr: the HR inbox; ccManager: your dotted manager), whether your leave would be auto-approved, and your email signature. Read-only.",
         keywords: ["leave approver", "who approves my leave", "leave email recipient"],
       },
     },
@@ -2098,7 +2109,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withSession",
-        doc: "Which days one or more colleagues are away in a date range: leave, half-day, holiday (incl. approved floating) or birthday. Any employee may ask about anyone; the leave type is never revealed. WFH is not counted as away.",
+        doc: "Which days one or more colleagues are away in a date range: leave, half-day (also a 2-hour short leave, labelled so), holiday (incl. approved floating) or birthday. Any employee may ask about anyone; the leave type is never revealed. WFH is not counted as away.",
         queryHelp:
           "from, to: YYYY-MM-DD (both required); employeeId (default you) OR employeeIds: comma-separated ids (max 100, result keyed by id)",
         keywords: ["is he on leave", "who is off", "away days", "availability", "out of office"],
@@ -2138,7 +2149,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["status", "page", "limit"],
         guard: "withErrorHandler",
-        doc: "Leave requests of your direct reports (by reporting line, no permission needed). viewerRole FINAL on a row means you can approve/reject it. Returns { requests, isManager, pagination }; isManager false if you manage nobody.",
+        doc: "Leave requests of the people you manage directly, as reporting or dotted manager (no permission needed). viewerRole FINAL on a row means you can approve/reject it. Returns { requests, isManager, pagination }; isManager false if you manage nobody.",
         queryHelp: "status: PENDING|APPROVED|REJECTED|CANCELLED; page, limit (default 10, max 100)",
         keywords: [
           "team leave requests",
@@ -2189,7 +2200,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       PATCH: {
         body: "{ action: APPROVE|REJECT|CANCEL (required), rejectionReason?: string (required for REJECT), emailBody?: custom letter text for the decision email }",
         guard: "withErrorHandler",
-        doc: "Approve, reject or cancel a PENDING leave request. The applicant's manager can decide; HR Manager/HR Employee decide ordinary employees' leave; Admins decide anything (incl. HR's own). An employee can only cancel their own. id from GET /api/leave/requests or /api/leave/team. Note: First decision is final and updates the leave balance. Approve/reject emails the employee from the decider's mailbox (cc HR, manager) and notifies them. Cannot be undone.",
+        doc: "Approve, reject or cancel a PENDING leave request. The applicant's reporting or dotted manager can decide; HR Manager/HR Employee decide ordinary employees' leave; Admins decide anything (incl. HR's own). An employee can only cancel their own. id from GET /api/leave/requests or /api/leave/team. Note: First decision is final and updates the leave balance. Approve/reject emails the employee from the decider's mailbox (cc HR and both managers) and notifies them. Cannot be undone.",
         keywords: [
           "approve leave",
           "reject leave",
@@ -2207,7 +2218,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["status", "employeeId", "leaveTypeId", "from", "to", "page", "limit"],
         guard: "withErrorHandler",
-        doc: "List leave requests, newest first. Ordinary employees get only their own. With leave:approve you see everyone's and can filter by employee and dates. viewerRole FINAL marks requests you can decide.",
+        doc: "List leave requests, newest first. Ordinary employees get only their own. With leave:approve you see everyone's and can filter by employee and dates. viewerRole FINAL marks requests you can decide. totalDays 0.5 = half day, 0.25 = a 2-hour short leave.",
         queryHelp:
           "status: PENDING|APPROVED|REJECTED|CANCELLED; leaveTypeId; employeeId, from, to (YYYY-MM-DD, matched on start date) - leave:approve only; page, limit (default 20, max 100)",
         keywords: [
@@ -2218,9 +2229,9 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         ],
       },
       POST: {
-        body: "{ leaveTypeId (required, from GET /api/leave/types/eligible), startDate: YYYY-MM-DD (required), endDate: YYYY-MM-DD (required), reason?: string, isHalfDay?: boolean (single day, 0.5 day), isShortLeave?: boolean (single day, a 2-hour leave charged as 0.25 day; not for EL/ML), emailSubject?: string, emailBody?: string (custom letter text) }",
+        body: "{ leaveTypeId (required, from GET /api/leave/types/eligible), startDate: YYYY-MM-DD (required), endDate: YYYY-MM-DD (required; same as startDate for a part day), reason?: string, isHalfDay?: boolean (one day, charged 0.5), isShortLeave?: boolean (one day, a 2-hour leave charged 0.25; wins over isHalfDay), emailSubject?: string, emailBody?: string (custom letter text) }",
         guard: "withErrorHandler",
-        doc: "Apply for leave for yourself. Checks balance, probation, notice-period and company rules (EL: 60 days notice, 3-7 days, 7 per half-year; CL: 2 days notice, max 2/month; no overlap; CL/SL not next to EL). Days are calendar days incl. weekends (sandwich rule). Note: Emails your manager (sent from your mailbox, cc HR) and notifies approvers; see GET /api/leave/apply/preview for recipients. Holds the days as pending on your balance.",
+        doc: "Apply for leave for yourself. Checks balance, probation (paid leave blocked - LWP only), no leave while serving notice, and company rules (EL: 60 days notice, 3-7 days, 7 per half-year; CL: 2 days notice, max 2/month; LWP: no notice, can start today; no overlap; CL/SL not next to EL). Days are calendar days incl. weekends (sandwich rule). Note: Half day and short leave suit any type except EL and ML - incl. LWP, so probationers can take part-day unpaid leave. Emails your manager (else dotted manager, else HR) from your mailbox, cc HR and your dotted manager, and notifies both managers and HR; see GET /api/leave/apply/preview. Holds the days as pending on your balance.",
         keywords: [
           "apply leave",
           "request leave",
@@ -2228,6 +2239,10 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
           "sick leave",
           "casual leave",
           "half day leave",
+          "short leave",
+          "2 hour leave",
+          "leave without pay",
+          "lwp",
         ],
       },
     },
@@ -2239,7 +2254,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["status", "page", "limit"],
         guard: "withErrorHandler",
-        doc: "Your leave approval queue: requests routed to you, your direct reports' requests, and the HR queue (HR roles) or Admin queue (Admins). Excludes your own. Needs leave:approve.",
+        doc: "Your leave approval queue: requests routed to you, requests of people you manage directly (as reporting or dotted manager), and the HR queue (HR roles) or Admin queue (Admins). Excludes your own. Needs leave:approve.",
         queryHelp: "status: PENDING|APPROVED|REJECTED|CANCELLED; page, limit (default 20, max 100)",
         keywords: [
           "leave approval queue",
@@ -2457,7 +2472,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         body: "{ month: 1-12 (required), year: e.g. 2026 (required), employeeIds?: employee id[] (default: everyone eligible) }",
         permissions: ["payroll:process"],
         guard: "withAuth",
-        doc: "Run payroll for a month: creates DRAFT payslips for every active employee with a salary structure (or only the listed employeeIds), prorated from attendance, leave, WFH and holidays (salary / 30 per day). Needs payroll:process. Note: Notifies every employee included that their payslip is ready, with the net pay. Anyone who already has a record for that month is skipped. Confirm the month and people first.",
+        doc: "Run payroll for a month: creates DRAFT payslips for every active employee with a salary structure (or only the listed employeeIds), prorated from attendance, leave, WFH and holidays (salary / 30 per day). Needs payroll:process. Note: Notifies every employee included that their payslip is ready, with the net pay. Anyone who already has a record for that month is skipped. Confirm the month and people first. Weekends, holidays, approved floating holidays and the birthday are paid; a half-day (0.5) or 2-hour short leave (0.25) on a day they came in costs nothing if the leave is paid, only its fraction if unpaid.",
         keywords: ["run payroll", "generate payslips", "process salary", "monthly payroll"],
       },
     },
@@ -2532,14 +2547,14 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withSession",
-        doc: "One evaluation: its criteria (selfCriteria and managerCriteria, each with id, section, weight), submitted ratings and comments, final score out of 100, and viewerRole (EMPLOYEE, MANAGER, CONTROLLER or HR) saying which side the caller can fill. Visible to the employee, their reviewers and HR. Note: The employee cannot see manager/controller ratings until those are submitted. Use the criterion ids here as the keys of ratings in PATCH.",
+        doc: "One evaluation: its criteria (selfCriteria and managerCriteria, each with id, section, weight), submitted ratings and comments, final score out of 100, and viewerRole (EMPLOYEE, MANAGER, CONTROLLER or HR) saying which side the caller can fill. Visible to the employee, their reviewers (the assigned manager and the employee's dotted manager both get MANAGER) and HR. Note: The employee cannot see manager/controller ratings until those are submitted. Use the criterion ids here as the keys of ratings in PATCH.",
         keywords: ["appraisal details", "performance score", "evaluation form", "review ratings"],
       },
       PATCH: {
         body: "{ role: SELF|MANAGER|CONTROLLER (required), ratings: { <criterion id>: 1-5 } for every criterion of that side (required; ids from GET /api/performance/evaluations/[id] - selfCriteria for SELF, managerCriteria for MANAGER and CONTROLLER), comment?: string }",
         permissions: ["performance:review"],
         guard: "withSession",
-        doc: "Submit ratings for one side of a performance evaluation: SELF (only the employee), MANAGER (the assigned manager or HR) or CONTROLLER (the assigned project controller or HR). Every criterion of that side must be rated 1-5. Note: The manager's ratings set the official final score out of 100 (Section A 60%, B 40%). Notifies the employee (manager review) or the manager (self review). Can be resubmitted, which overwrites earlier ratings.",
+        doc: "Submit ratings for one side of a performance evaluation: SELF (only the employee), MANAGER (the assigned manager, the employee's dotted manager, or HR) or CONTROLLER (the assigned project controller or HR). Every criterion of that side must be rated 1-5. Note: The manager's ratings set the official final score out of 100 (Section A 60%, B 40%); there is one MANAGER side, shared by both managers. Notifies the employee (manager review) or both the assigned and dotted manager (self review). Can be resubmitted, which overwrites earlier ratings.",
         keywords: [
           "submit appraisal",
           "rate employee",
@@ -2575,7 +2590,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       POST: {
         permissions: ["performance:review"],
         guard: "withSession",
-        doc: "Start an evaluation round now: creates a PENDING evaluation, labelled with today's date (e.g. 'Oct 14, 2026'), for every active employee who has a KPI profile, reviewed by their reporting manager. HR only (performance:review). No body. Note: Notifies every employee and manager included. Safe to re-run the same day (existing ones are skipped). Employees without a configured KPI profile are left out.",
+        doc: "Start an evaluation round now: creates a PENDING evaluation, labelled with today's date (e.g. 'Oct 14, 2026'), for every active employee who has a KPI profile, reviewed by their reporting manager. HR only (performance:review). No body. Note: Notifies every employee included plus their reporting and dotted managers (either may submit the manager review). Safe to re-run the same day (existing ones are skipped). Employees without a configured KPI profile are left out.",
         keywords: [
           "start appraisal cycle",
           "generate evaluations",
@@ -2593,7 +2608,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         query: ["status", "period", "q", "page", "limit", "mine"],
         permissions: ["performance:review"],
         guard: "withSession",
-        doc: "List performance evaluations (appraisals / review scorecards). HR (performance:review) sees everyone's; others see their own plus the ones where they are the reviewing manager or project controller.",
+        doc: "List performance evaluations (appraisals / review scorecards). HR (performance:review) sees everyone's; others see their own plus the ones they review: as the assigned manager, as the employee's dotted manager, or as project controller.",
         queryHelp:
           "status: PENDING|SELF_DONE|MANAGER_DONE|COMPLETED; period: exact period label (the response's periods array lists them); q: employee name or number; mine=1: only the caller's own; page, limit (max 100, default 10)",
         keywords: [
@@ -2608,7 +2623,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         body: "{ employeeId (required), periodLabel: e.g. 'Q3 2026' (required), managerId?: reviewing manager (defaults to their reporting manager), controllerId?: optional project controller who also reviews, periodStart?, periodEnd?, dueDate?: YYYY-MM-DD }",
         permissions: ["performance:review"],
         guard: "withSession",
-        doc: "Create a performance evaluation (appraisal) for one employee for a period; its criteria are copied from their KPI profile (or the defaults). HR only (performance:review). Note: Notifies the employee, the manager and the controller.",
+        doc: "Create a performance evaluation (appraisal) for one employee for a period; its criteria are copied from their KPI profile (or the defaults). HR only (performance:review). Note: Notifies the employee, the manager and the controller. The employee's dotted manager can also submit the manager review, but is not notified here.",
         keywords: ["start appraisal", "create performance review", "new evaluation"],
       },
     },
@@ -2666,9 +2681,9 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         keywords: ["my profile", "my details", "my info", "about me"],
       },
       PATCH: {
-        body: "{ phone?: string, currentAddress?: { line1, line2, city, state, zip, country }, emergencyContact?: { name, relation, phone }, gmailAppPassword?: 16-char Google App Password or '' to remove, currentPassword?: string, newPassword?: string min 8 (both needed to change password) }",
+        body: "{ phone?: string, currentAddress?: { line1, line2, city, state, zip, country }, emergencyContact?: { name, relation, phone }, gmailAppPassword?: 16-char Google App Password or '' to remove }",
         guard: "withSession",
-        doc: "Update the signed-in person's own self-service details: phone, current address, emergency contact, Gmail App Password, or sign-in password. Everything else (name, department, manager) is HR's job via PATCH /api/employees/[id]. Note: Changing the password or Gmail App Password handles credentials - only do it when the person explicitly asks and supplies them.",
+        doc: "Update the signed-in person's own self-service details: phone, current address, emergency contact or Gmail App Password. Everything else (name, department, manager) is HR's job via PATCH /api/employees/[id]. Note: The sign-in password (currentPassword/newPassword) cannot be changed through the AI connector - it refuses those fields; the person does it in DNMS. The Gmail App Password is a credential - only set it when the person explicitly asks and supplies it.",
         keywords: [
           "update my phone",
           "change my address",
@@ -2715,11 +2730,11 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withProjectAccess",
-        doc: "Whether AI planning drafts are available for this project (AI configured on the server). Note: Returns { available }.",
+        doc: "Whether AI planning drafts are available for this project (AI configured on the server). Note: Returns { data: { available } }.",
         keywords: ["ai available", "ai planning status"],
       },
       POST: {
-        doc: "Ask AI for a planning DRAFT - nothing is saved to the plan. Kinds: goal_split (split a number across services, or propose next month's), deliverables (the work a goal needs, by team), tasks (split a deliverable into tasks), explain_goal (a goal's verdict in plain words), calendar (summarise a calendar, cached until it changes). No people's names are sent to the AI. Note: Who may ask: goal_split and deliverables the Account Manager; tasks the owing team or its managers; explain_goal and calendar anyone on the project. goal_split returns { id, total, parts: [{ service, target, reason }], reason } with parts adding up to the total (with seriesId and no targetValue it proposes the total); deliverables { id, lines: [{ teamId, teamName, type, title, quantity, reason }] }; tasks { id, tasks: [{ title, estimatedHours, logHint }] }; explain_goal { id, text, verdict }; calendar { summary: { headline, counts, upcoming, gaps }, generatedAt, cached }. 503 when AI is not set up.",
+        doc: "Ask AI for a planning DRAFT - nothing is saved to the plan. Kinds: goal_split (split a number across services, or propose next month's), deliverables (the work a goal needs, by team), tasks (split a deliverable into tasks), explain_goal (a goal's verdict in plain words), calendar (summarise a calendar, cached until it changes). No people's names are sent to the AI. Note: Slow (one AI call, several seconds). Who may ask: goal_split and deliverables the Account Manager; tasks the owing team or its managers; explain_goal (only a goal with a number) and calendar anyone on the project. Results come under data: goal_split { id, total, parts: [{ service, target, reason }], reason } with parts adding up to the total (with seriesId and no targetValue it proposes the total); deliverables { id, lines: [{ teamId, teamName, type, title, quantity, reason }] }; tasks { id, tasks: [{ title, estimatedHours, logHint }] }; explain_goal { id, text, verdict }; calendar { summary: { headline, counts, upcoming, gaps }, generatedAt, cached }. 503 when AI is not set up; 429/502 when the AI call fails - try again.",
         body: "{ kind (required): goal_split|deliverables|tasks|explain_goal|calendar; goal_split: metricLabel?, targetValue?, services?: codes, seriesId?; deliverables/explain_goal: goalId; tasks: deliverableId; calendar: workbookId, refresh?: true to read it again }",
         guard: "withProjectAccess",
         keywords: [
@@ -2817,7 +2832,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["month"],
         guard: "withProjectAccess",
-        doc: "A project's calendars for a month (Analytics > Calendars): each calendar's manager and secondary, its service, the teams on its plan with their people, status, handed-in of promised and due day, its progress (teams done, items handed in, next due) and how many rows each tab holds. Anyone on the project. Note: Returns { month, calendars: [{ id, name, service, owner, secondary, progress, teams, tabs }] }.",
+        doc: "A project's calendars for a month (Analytics > Calendars): each calendar's manager and secondary, its service, the teams on its plan with their people, status, handed-in of promised and due day, its progress (teams done, items handed in, next due) and how many rows each tab holds. Anyone on the project. Note: Returns { data: { month, calendars: [{ id, name, service, owner, secondary, progress, teams, tabs }] } }.",
         queryHelp: "month?: YYYY-MM (default this month); undated calendars are included",
         keywords: [
           "calendar overview",
@@ -2833,9 +2848,9 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/projects/[id]/campaigns/[campaignId]",
     methods: {
       PATCH: {
-        body: "{ name?; startDate?; deadline?; services?; ownerId?; brief? }",
+        body: "{ name?; startDate?: YYYY-MM-DD; deadline?: YYYY-MM-DD; services?: full list of service codes (replaces it); ownerId?: employee id or null; brief?: text or null } - same rules as POST /api/projects/[id]/campaigns",
         guard: "withProjectAccess",
-        doc: "Edit a Planner campaign: name (renames its calendar), dates, owner, brief, services (a newly added service gets its tab; removed ones keep theirs). The campaign owner, Account Managers and project admins.",
+        doc: "Edit a Planner campaign: name (renames its calendar), dates, owner, brief, services (a newly added service gets its tab; removed ones keep theirs). The campaign owner, Account Managers and project admins. Note: Moving the deadline also moves the team plans still due on the old deadline (their reminders re-arm); hand-set due dates stay. A new owner also takes over the calendar unless someone else was put in charge of it.",
         keywords: ["edit campaign", "move campaign deadline", "change campaign owner"],
       },
       DELETE: {
@@ -2861,9 +2876,9 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         ],
       },
       POST: {
-        body: "{ name (required, unique on the project); startDate (required): YYYY-MM-DD; deadline (required): YYYY-MM-DD, not before startDate; services (required): PROJECT_SERVICES codes, at least one; ownerId?: employee id (default the Campaign Planning service owner, else the Account Manager); brief? }",
+        body: "{ name (required, max 80, unique on the project); startDate (required): YYYY-MM-DD; deadline (required): YYYY-MM-DD, not before startDate; services (required, at least one): service codes SMO|SEO|PM|DA|MSG|INF|ALL|DPR|WEB|CAMP|OFF|BD|BRAND (as in POST /api/projects; unknown codes are dropped); ownerId?: employee id (default the Campaign Planning service owner, else the Account Manager); brief?: text (max 4000) }",
         guard: "withProjectManager",
-        doc: "Create a Planner campaign. It gets its own calendar with one tab per service, and a team plan due on the deadline for every team that usually makes those services. Account Managers and project admins. Note: Staff the team plans afterwards with PUT /api/projects/[id]/workbooks/[workbookId]/teams/[teamId] on the returned workbookId - each person added is notified.",
+        doc: "Create a Planner campaign. It gets its own calendar with one tab per service, and a team plan due on the deadline for every team that usually makes those services. Account Managers and project admins. Note: 409 if the name is taken. Staff the team plans afterwards with PUT /api/projects/[id]/workbooks/[workbookId]/teams/[teamId] on the returned workbookId - each person added is notified.",
         keywords: ["new campaign", "plan halloween", "create campaign calendar"],
       },
     },
@@ -2943,13 +2958,13 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withProjectAccess",
-        doc: "The tasks a planned deliverable is split into (title, assignee, status, due, hours, units logged), whom the caller may give a new one to, and whether they may split it. Anyone on the project. Note: Returns { deliverable: { id, title, type, quantity, made, status, dueOn, teamName, goal }, tasks, assignable: [{ id, name }], canSplit }.",
+        doc: "The tasks a planned deliverable is split into (title, assignee, status, due, hours, units logged), whom the caller may give a new one to, and whether they may split it. Anyone on the project. Note: Returns { data: { deliverable: { id, title, type, quantity, made, status, dueOn, teamName, goal }, tasks, assignable: [{ id, name }], canSplit } }.",
         keywords: ["deliverable tasks", "split tasks", "who is working on this deliverable"],
       },
       POST: {
         body: "{ tasks (required, 1-30): [{ title (required), assigneeId (required), dueDate?: YYYY-MM-DD (default the deliverable's due day), estimatedHours?: 0-500 }] }",
         guard: "withProjectAccess",
-        doc: "Split owed work into tasks for the team's people. Each task belongs to the deliverable and its goal; work logged on them adds to its made count. For the owing team's members, its manager and project managers. A member may give tasks to themselves or to their own reports (any depth, dotted line too) on that team; managers to anyone on it. Note: Claims an unclaimed deliverable (the caller if on the team, else the first assignee). Each other assignee is notified. Returns { created }.",
+        doc: "Split owed work into tasks for the team's people. Each task belongs to the deliverable and its goal; work logged on them adds to its made count. For the owing team's members, its manager and project managers. A member may give tasks to themselves or to their own reports (any depth, dotted line too) on that team; managers to anyone on it. Note: Only open work owed by a team can be split. Claims an unclaimed deliverable (the caller if on the team, else the first assignee). Each other assignee is notified. Returns { data: { created } }.",
         keywords: [
           "split deliverable",
           "break into tasks",
@@ -3047,7 +3062,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       PATCH: {
         body: "{ fileId: Google Drive file id (required), name?: string (max 255), folderId?: project folder id, or null for the top level } - at least one of name/folderId",
         guard: "withProjectAccess",
-        doc: "Rename and/or move a file in the project's Google Drive folder into one of the project's Files-tab folders. Anyone on the project. The Drive file id goes in the body. Note: Refuses files outside this project's Drive folder (404).",
+        doc: "Rename and/or move a file in the project's Google Drive folder into one of the project's Files-tab folders. Anyone on the project. The Drive file id goes in the body. Note: Refuses files outside this project's Drive folder (404). A rename or move is not checked for a same-named item in the target folder (the website asks first) - check GET /api/projects/[id]/files.",
         keywords: ["rename drive file", "move google doc", "organise drive"],
       },
       DELETE: {
@@ -3070,7 +3085,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       POST: {
         body: '{ kind?: doc|sheet (default doc), name?: string (default "Untitled doc"/"Untitled sheet"), folderId?: project folder id }',
         guard: "withProjectAccess",
-        doc: "Create a blank Google Doc or Google Sheet in the project's Drive folder (or a Files-tab folder's Drive mirror). Anyone on the project. Returns the new file with its webViewLink.",
+        doc: "Create a blank Google Doc or Google Sheet in the project's Drive folder (or a Files-tab folder's Drive mirror). Anyone on the project. Returns the new file with its webViewLink. Note: The website asks before a name already in that folder is used again; this API does not check - look in GET /api/projects/[id]/files first and ask the person if the name is taken.",
         keywords: ["new google doc", "create google sheet", "new document in drive"],
       },
     },
@@ -3111,9 +3126,9 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["search", "folder"],
         guard: "withProjectAccess",
-        doc: "Browse one folder of a project's Files tab: sub-folders (with item counts), uploaded files, saved links, Google Drive-only files and the breadcrumb path. Anyone on the project. Omit folder for the top level. Note: Side effect: sub-folders made directly in Google Drive are adopted into the tree, and the top-level read re-syncs Drive sharing.",
+        doc: 'Browse one folder of a project\'s Repository (Files tab): sub-folders (with item counts), uploaded files, saved links, Google Drive-only files and the breadcrumb path. Omit folder for the top level. With search, searches the WHOLE Repository (every folder) instead and says which folder each hit is in. Anyone on the project. Note: A search returns { folders, files, links, driveFiles, locations } (up to 300 of each; under 2 characters returns empty lists). locations is keyed "folder-<id>", "b2-<id>" (uploaded file), "link-<id>" or "drive-<id>" and gives each hit\'s folderId and path ("" = top level). Side effect of a folder read: sub-folders made directly in Google Drive are adopted into the tree, and Drive sharing is re-checked in the background (at most every 10 minutes).',
         queryHelp:
-          "folder: folder id to open (from folders[].id or GET /api/projects/[id]/folders); omit for the project's top level",
+          "folder: folder id to open (from folders[].id or GET /api/projects/[id]/folders); omit for the project's top level. search: text (2+ characters) - finds folders by name, files by name or description, links by title, URL or description, and Drive-made Docs/Sheets by name, in every folder; folder is ignored when search is sent",
         keywords: [
           "project files",
           "client files",
@@ -3121,6 +3136,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
           "files tab",
           "documents",
           "repository",
+          "search files",
+          "find file",
         ],
       },
     },
@@ -3204,8 +3221,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       POST: {
         guard: "withProjectAccess",
-        doc: "Enter an actual number against a goal with a number (e.g. 180 orders for a day or week). Its owner, its service's owners, or the Account Manager / project:write. Results add up to the goal's actual; a goal whose service parts have numbers takes its total from them, so enter on the parts. Note: Refused on goals whose results come from Meta Ads (actualSource META_PURCHASES). Owners can add to a month until 7 days after it ends; managers any time.",
-        body: "{ value: number >= 0; recordedFor?: YYYY-MM-DD (default today; inside the month for a monthly edition); note?: string (max 300) }",
+        doc: "Enter an actual number against a goal with a number (e.g. 180 orders for a day or week). Its owner, its service's owners, or the Account Manager / project:write. Results add up to the goal's actual; a goal whose service parts have numbers takes its total from them, so enter on the parts. Note: Refused on goals with no number, deactivated goals, and goals whose results come from Meta Ads (actualSource META_PURCHASES). Owners can add to a month until 7 days after it ends; managers any time. Recorded in the goal's history. Returns { data: { id } }.",
+        body: "{ value (required): number >= 0; recordedFor?: YYYY-MM-DD (default today, not in the future; inside the month for a monthly edition); note?: string (max 300) }",
         keywords: ["enter goal result", "record orders", "goal actual", "log results against goal"],
       },
     },
@@ -3216,14 +3233,14 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       PATCH: {
         guard: "withProjectAccess",
-        doc: "Edit a project goal: title, description, status, target date, tags or the person accountable for it. Only the Account Manager or project:write holders. Send only what changes. Note: A goal with sub-goals or linked tasks takes its status from them - you can only flag it AT_RISK/DISCARDED or clear that flag. Progress % is not settable (it comes from sub-goals, tasks or deliverable targets). Status changes go into the goal history.",
-        body: "{ title?: max 200; description?: string or null; status?: NOT_STARTED|IN_PROGRESS|AT_RISK|DONE|DISCARDED; reason?: required with AT_RISK or DISCARDED; targetDate?: YYYY-MM-DD or null (not on a monthly edition); tags?: string[] (max 6, each max 24 chars; replaces the set); ownerId?: accountable employee id, or null = the Account Manager; metricLabel?: what is counted, or null; targetValue?: number > 0, or null to remove the number; actualSource?: MANUAL|META_PURCHASES; service?: a project service code, on a sub-goal only }",
+        doc: "Edit a project goal: title, description, status, target date, tags, the person accountable for it, its number (what is counted and the target), where its results come from, or a part's service. Only the Account Manager or project:write holders. Send only what changes. Note: A goal with sub-goals or linked tasks takes its status from them - you can only flag it AT_RISK/DISCARDED or clear that flag. Progress % is not settable (it comes from sub-goals, tasks or deliverable targets). Status changes go into the goal history.",
+        body: "{ title?: max 200; description?: string or null; status?: NOT_STARTED|IN_PROGRESS|AT_RISK|DONE|DISCARDED; reason?: required with AT_RISK or DISCARDED; targetDate?: YYYY-MM-DD or null (not on a monthly edition); tags?: string[] (max 6, each max 24 chars; replaces the set); ownerId?: accountable employee id, or null = the Account Manager; metricLabel?: what is counted (max 40), or null; targetValue?: number > 0 (needs a metricLabel), or null to remove the number; actualSource?: MANUAL|META_PURCHASES (META_PURCHASES only on a goal with a number); service?: a project service code, on a sub-goal only }",
         keywords: ["update goal", "goal at risk", "goal status", "goal owner", "goal due date"],
       },
       DELETE: {
         query: ["permanent", "reason"],
         guard: "withProjectAccess",
-        doc: "Deactivate (soft-delete) a project goal and its sub-goals, or delete it for good with permanent=1. Only the Account Manager or project:write holders. [goalId] from GET /api/projects/[id]/goals. Note: permanent=1 is irreversible - confirm first. Deactivated goals stop counting toward progress.",
+        doc: "Deactivate (soft-delete) a project goal and its sub-goals, or delete it for good with permanent=1. Only the Account Manager or project:write holders. [goalId] from GET /api/projects/[id]/goals. Note: permanent=1 is irreversible - confirm first. Deactivated goals stop counting toward progress. On a repeating goal this touches only that month's edition; to stop future months use PATCH /api/projects/[id]/goal-series/[seriesId] { stopped: true }.",
         queryHelp:
           "permanent: 1 = delete forever with sub-goals, targets and history (otherwise it is only deactivated and can be restored via POST .../reactivate); reason: optional text recorded when deactivating",
         keywords: ["remove goal", "deactivate goal", "archive goal", "delete objective"],
@@ -3278,15 +3295,22 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["includeInactive", "month"],
         guard: "withProjectAccess",
-        doc: "A project's goals, nested (main goals with sub-goals): status, progress %, target date, owner, tags, deliverable targets, linked tasks and history, plus totals (done, overdue, at risk) and the count of open tasks serving no goal. Goals with a number show metricLabel, targetValue, actualValue (entered results, Meta purchases, or the sum of their service parts), paceValue and results; service parts carry `service`. Repeating goals show one month's edition (seriesId, periodStart/End); `series` lists them with their months. Anyone with access to the project.",
+        doc: "A project's goals, nested (main goals with sub-goals, e.g. one part per service): status, progress %, target date, owner, tags, number and results, deliverable targets, linked tasks, planned work by team and history, plus totals (done, overdue, at risk) and the count of open tasks serving no goal. Repeating goals show one month's edition. Anyone with access to the project. Note: Goals with a number carry metricLabel, targetValue, actualValue (entered results, Meta purchases, or the sum of their service parts), paceValue (where it should be by today) and results[] (ids for DELETE .../results/[resultId]); service parts carry `service`. Editions carry seriesId and periodStart/End; `series` lists each repeating goal with its months and stoppedAt; `plans` = goal id -> its planned work by team (planned, made, overdue, unclaimed, items).",
         queryHelp:
           "includeInactive: 1 = also return deactivated goals; month: YYYY-MM = which month of the repeating goals to show (default this month)",
-        keywords: ["project goals", "objectives", "OKR", "goal progress", "milestones"],
+        keywords: [
+          "project goals",
+          "objectives",
+          "OKR",
+          "goal progress",
+          "milestones",
+          "goal plan",
+        ],
       },
       POST: {
         guard: "withProjectAccess",
-        doc: "Create a project goal, or a sub-goal under a main goal (one level of nesting only). Only the Account Manager or project:write holders. Note: Returns { id }. Add countable targets with POST .../goals/[goalId]/targets and link tasks with POST .../goals/[goalId]/tasks.",
-        body: "{ title (required, max 200); description?; parentId?: main goal id to make this a sub-goal; status?: NOT_STARTED (default)|IN_PROGRESS|AT_RISK|DONE|DISCARDED; reason?: required for AT_RISK/DISCARDED; targetDate?: YYYY-MM-DD; tags?: string[] (max 6); ownerId?: accountable employee id (default the Account Manager, or the service's owner for a service part); metricLabel?: what is counted, e.g. 'Orders'; targetValue?: number > 0; actualSource?: MANUAL (default) | META_PURCHASES; service?: project service code (sub-goals only); recurring?: true = repeats monthly (main goals); startMonth?: YYYY-MM (default this month); split?: [{ service, targetValue, actualSource? }] = one numbered part per service, created with the goal }",
+        doc: "Create a project goal, or a sub-goal under a main goal (one level of nesting only). Only the Account Manager or project:write holders. Note: Returns { id }. Add countable targets with POST .../goals/[goalId]/targets and link tasks with POST .../goals/[goalId]/tasks; plan its work by team with POST .../deliverables/plan (lines[].goalId). A repeating goal gets each new month's edition copied from the last (parts, targets, and planned work owed again and unclaimed; results and tasks are not copied).",
+        body: "{ title (required, max 200); description?; parentId?: main goal id to make this a sub-goal; status?: NOT_STARTED (default)|IN_PROGRESS|AT_RISK|DONE|DISCARDED; reason?: required for AT_RISK/DISCARDED; targetDate?: YYYY-MM-DD; tags?: string[] (max 6); ownerId?: accountable employee id (default the Account Manager, or the service's owner for a service part); metricLabel?: what is counted, e.g. 'Orders' (max 40; a sub-goal inherits its parent's); targetValue?: number > 0 (needs a metricLabel); actualSource?: MANUAL (default) | META_PURCHASES (only with a targetValue); service?: a service code ticked on the project, one part per service (sub-goals only); recurring?: true = repeats monthly (main goals; targetDate is then the month's last day); startMonth?: YYYY-MM (default this month); split?: [{ service, targetValue, actualSource? }] = one numbered part per service, created with the goal (needs the goal's targetValue) }",
         keywords: [
           "create goal",
           "add objective",
@@ -3410,7 +3434,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       POST: {
         body: "{ title: string (required, max 200), url: full http(s) URL (required), folderId?: folder id or null, tag?: BRAND|STRATEGY|RESEARCH|JOURNEY|REPORT|CREATIVE|VIDEO|PRODUCT|LEGAL|OTHER or null, description?: string (max 1000) }",
         guard: "withProjectAccess",
-        doc: "Save a link (Figma, Canva, Google Doc, live page or any web URL) to a project's Files tab. Anyone on the project.",
+        doc: "Save a link (Figma, Canva, Google Doc, live page or any web URL) to a project's Files tab. Anyone on the project. Note: The website asks before a title already in that folder is used again; this API does not check - look in GET /api/projects/[id]/files first and ask the person if the name is taken.",
         keywords: ["add link", "save url", "bookmark", "add reference link"],
       },
     },
@@ -3897,14 +3921,14 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/projects/[id]/passwords/[entryId]",
     methods: {
       PATCH: {
-        body: "{ label?: string, username?: string, password?: string (new password; blank keeps the current one), url?: string, notes?: string }",
+        body: "{ label?: string (blank keeps the current one), username?: string, password?: string (new password; blank keeps the current one), url?: string, notes?: string } - empty string or null clears username, url or notes",
         guard: "withProjectManager",
-        doc: "Edit a project password-vault entry (stored client login): label, username, URL, notes, or set a new password. [entryId] from GET /api/projects/[id]/passwords. Note: Stores a secret (encrypted). Account Manager or project:write only. The response never includes the password.",
+        doc: "Edit a project password-vault entry (stored client login): label, username, URL, notes, or set a new password. [entryId] from GET /api/projects/[id]/passwords. Note: Stores a secret (encrypted). Account Manager or project:write only. The response never includes the password. Recorded in the audit log: which fields changed, never their values.",
         keywords: ["update saved password", "edit client login", "change vault entry"],
       },
       DELETE: {
         guard: "withProjectManager",
-        doc: "Delete one entry from a project's password vault (stored client logins). [entryId] from GET /api/projects/[id]/passwords. Note: Permanent - the stored password is lost. Account Manager or project:write only.",
+        doc: "Delete one entry from a project's password vault (stored client logins). [entryId] from GET /api/projects/[id]/passwords. Note: Permanent - the stored password is lost. Account Manager or project:write only. Recorded in the audit log (who, and the entry's label).",
         keywords: ["delete saved password", "remove vault entry", "delete client login"],
       },
     },
@@ -3915,13 +3939,13 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withProjectManager",
-        doc: "List a project's password vault entries (stored client logins: label, username, URL, notes, who added it). The passwords themselves are NOT included and cannot be revealed through the AI connector. Account Manager or project:write only.",
+        doc: "List a project's password vault entries (stored client logins: label, username, URL, notes, who added it). The passwords themselves are NOT included and cannot be revealed through the AI connector. Account Manager or project:write only. Note: To see a password the person must use Reveal on the project's Passwords tab in the DNMS web app (each reveal is audit-logged); do not offer to fetch it.",
         keywords: ["password vault", "client logins", "saved credentials", "account logins"],
       },
       POST: {
         body: "{ label: string (required), password: string (required), username?: string, url?: string, notes?: string }",
         guard: "withProjectManager",
-        doc: "Save a new client login in a project's password vault (label, username, password, URL, notes). Note: Stores a secret (encrypted). Account Manager or project:write only. Passwords cannot be read back through the AI connector.",
+        doc: "Save a new client login in a project's password vault (label, username, password, URL, notes). Note: Stores a secret (encrypted). Account Manager or project:write only. Passwords cannot be read back through the AI connector. Recorded in the audit log (label only, never the password).",
         keywords: ["save password", "add client login", "store credentials"],
       },
     },
@@ -4036,7 +4060,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       PATCH: {
         body: "{ tag?: BRAND|STRATEGY|RESEARCH|JOURNEY|REPORT|CREATIVE|VIDEO|PRODUCT|LEGAL|OTHER or null, fileName?: string (max 255), folderId?: folder id or null (top level), workbookTeamId?: calendar team-row id (id from GET .../workbooks/[workbookId]/teams) or null to detach, isClientVisible?: boolean (project manager only), reviewStatus?: IN_REVIEW|APPROVED|CHANGES_REQUESTED (project manager only, file must already be shared), reviewNote?: string (max 1000) } - at least one",
         guard: "withSession",
-        doc: "Update an uploaded project file: retag, rename, move to a folder, attach it to a calendar team row, share it with the client portal, or record a review decision on a client file. Uploader, the file's team manager, or a project manager. Note: Sharing makes the file visible to the client in the portal; unsharing also clears its review decision.",
+        doc: "Update an uploaded project file: retag, rename, move to a folder, attach it to a calendar team row, share it with the client portal, or record a review decision on a client file. Uploader, the file's team manager, or a project manager. Note: Sharing makes the file visible to the client in the portal; unsharing also clears its review decision. A rename or move is not checked for a same-named item in the target folder (the website asks first) - check GET /api/projects/[id]/files.",
         keywords: [
           "rename file",
           "share file with client",
@@ -4559,8 +4583,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       },
       DELETE: {
         guard: "withProjectManager",
-        doc: "Delete several columns of a sheet tab at once, clearing their values in every row. Only the Account Manager or a project admin. Column ids from the tab's columns in GET /api/projects/[id]/workbooks/[workbookId]. Note: The discarded values are copied into the tab's history but cannot be restored automatically; returns { deleted }.",
-        body: "{ columnIds: string[] }",
+        doc: "Delete several columns of a sheet tab at once, clearing their values in every row. Only the Account Manager or a project admin. Column ids from the tab's columns in GET /api/projects/[id]/workbooks/[workbookId]. Note: The discarded values are copied into the tab's history but cannot be restored automatically; returns { deleted }. 400 if columnIds is empty.",
+        body: "{ columnIds (required): string[] - column ids of this tab; ids not on this tab are ignored }",
         keywords: ["delete columns", "bulk delete sheet columns", "remove columns"],
       },
     },
@@ -4651,8 +4675,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       },
       DELETE: {
         guard: "withProjectManager",
-        doc: "Delete several rows of a sheet tab at once by position (0 = the first grid row), empty rows included; the rows below move up to close the gap, as in a spreadsheet. Only the Account Manager or a project admin. Note: Each deleted row's values are kept in the tab's history; returns { deleted, moved }.",
-        body: "{ positions: number[] } - 0-based grid row positions (rows[].position), at most 1000",
+        doc: "Delete several rows of a sheet tab at once by position (0 = the first grid row), empty rows included; the rows below move up to close the gap, as in a spreadsheet. Only the Account Manager or a project admin. [sheetId] is the tab id. Note: Send every position in ONE call: afterwards the rows below have new positions, so re-read the calendar before deleting more or writing cells by position. Each deleted row's values are kept in the tab's history; row heights move with their rows. Returns { deleted (stored rows removed), moved }. 400 if no valid position, 422 over 1000.",
+        body: "{ positions (required): integer[] >= 0 - 0-based grid row positions (rows[].position from GET /api/projects/[id]/workbooks/[workbookId]), 1-1000; duplicates and invalid entries are ignored }",
         keywords: ["delete rows", "remove empty rows", "bulk delete calendar rows", "close gap"],
       },
     },
@@ -4706,7 +4730,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withProjectAccess",
-        doc: "Whom the caller may give a task on this team to: themselves and their reports on it, or everyone on it for the team manager and project managers. Note: Returns { ids, canAssignAnyone }.",
+        doc: "Whom the caller may give a task on this team to: themselves and their reports on it (solid line at any depth, or dotted line), or everyone on it for the team manager and project managers. Anyone with access to the project. Note: Returns { data: { ids: employee ids, canAssignAnyone } }.",
         keywords: ["who can I assign", "assignable people", "delegate to my reports"],
       },
     },
@@ -4789,7 +4813,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       POST: {
         body: "{ title (required); assigneeId?: a member of this team - defaults to the TEAM MANAGER, so non-managers must send their own id; description?; priority?: LOW|MEDIUM (default)|HIGH|URGENT; dueDate?: YYYY-MM-DD; estimatedHours?: number; tags?: string[]; goalId?: goal on this project; producesOutput?: boolean; seoPropertyId?: an SEO site of this project }",
         guard: "withSession",
-        doc: "Create a task in a project team. A team member may add their own task (send their own id as assigneeId) or give it to someone who reports to them on that team; the team manager, Account Manager or project:write may assign it to any member of the team. Note: Starts as TODO. A manager assigning someone else notifies them in-app and by email; a member adding their own task notifies the team manager in-app.",
+        doc: "Create a task in a project team. A team member may add their own task (send their own id as assigneeId) or give it to someone on that team who reports to them (solid line at any depth, or dotted line); the team manager, Account Manager or project:write may assign it to any member of the team. Note: Starts as TODO. GET .../teams/[teamId]/assignable lists whom the caller may pick. A manager assigning someone else notifies them in-app and by email; a member's task (their own or one given to a report) notifies the team manager in-app only, not the assignee.",
         keywords: ["create team task", "assign task", "add my task", "new task"],
       },
     },
@@ -4916,7 +4940,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       PUT: {
         body: "{ quantity?: integer >= 0, dueOn?: YYYY-MM-DD or null, status?: TODO|IN_PROGRESS|DONE|STUCK|DISCARDED, links?: string[] of http(s) URLs (max 20, replaces the list), notes?: string or null, employeeIds?: string[] (replaces the set; must be active members of that team) }",
         guard: "withWorkbookTeamContribute",
-        doc: "Add a team to a content calendar's plan or update its row: how many items it owes, due date, status, hand-in links, notes and people. [teamId] is the PROJECT team id (from GET /api/projects/[id]/teams). Omitted fields are left alone. Note: Team members may change links, notes and status; quantity, dueOn, employeeIds and DISCARDED need the AM, a project admin, the calendar's manager or the team's manager. DONE needs links + files >= quantity. Notifies newly added people.",
+        doc: "Add a team to a content calendar's plan or update its row: how many items it owes, due date, status, hand-in links, notes and people. [teamId] is the PROJECT team id (from GET /api/projects/[id]/teams). Omitted fields are left alone. Note: Team members may change links, notes and status; quantity, dueOn, employeeIds and DISCARDED need the AM, a project admin, the calendar's manager or the team's manager. DONE needs links + files >= quantity. Notifies newly added people. Works the same on a Planner campaign's calendar (workbookId from GET /api/projects/[id]/campaigns). The row's people are reminded 3 days before dueOn, on the day and once when late; moving dueOn sends those reminders again.",
         keywords: [
           "plan team for month",
           "mark calendar done",
@@ -4949,7 +4973,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withProjectAccess",
-        doc: "List a project's sheets / content calendars (posting schedules): name, month (periodMonth), calendar manager, service, whether shared with the client, and each tab's id and name - no rows. Anyone on the project. Use it to find a workbookId or tab id.",
+        doc: "List a project's sheets / content calendars (posting schedules): name, month (periodMonth), calendar manager, service, campaignId (set on a Planner campaign's calendar), whether shared with the client, and each tab's id and name - no rows. Anyone on the project. Use it to find a workbookId or tab id.",
         keywords: [
           "content calendar",
           "posting schedule",
@@ -5060,8 +5084,9 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withSession",
-        doc: "One person's or one team's month on Team Performance, item by item: the goals they own (reached, target, expected by now, achievement), and every deliverable and task due in the month with how it counted (on time, late, not due yet, not counted), each with its project for linking. Same scope as the list. Note: Returns { month, title, score, goals: [...], deliverables: [{ id, title, project, dueOn, result }], tasks: [{ id, title, project, dueDate, result }] }. 403 for someone outside the caller's scope.",
-        queryHelp: "month?: YYYY-MM; projectId?; personId or teamId (one is required)",
+        doc: "One person's or one team's month on Team Performance, item by item: the goals they own (reached, target, expected by now, achievement), and every deliverable and task due in the month with how it counted (on time, late, not due yet, not counted), each with its project for linking. Same scope as the list. Note: Returns { data: { month, title, score, goals: [...], deliverables: [{ id, title, project, dueOn, result }], tasks: [{ id, title, project, dueDate, result }] } }. 403 for someone outside the caller's scope or when neither personId nor teamId is sent.",
+        queryHelp:
+          "month?: YYYY-MM; projectId?: project id (not slug); personId (employee id) or teamId (project team id) - one is required",
         keywords: ["score breakdown", "why is my score", "performance details", "late items"],
       },
     },
@@ -5072,8 +5097,9 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withSession",
-        doc: "Delivery scores for a month (Team Performance): one 0-100 score per person and per team with its parts - goals they own (40%, reached vs expected by now, capped), deliverables made by their due day (35%) and tasks done by their due day (25%); a part with nothing in it is left out and the rest rescaled. Held and discarded tasks don't count. Scoped like Progress: admins everyone, account managers their projects, team managers their teams and reports, members only themselves. Note: Returns { month, role, people: [{ id, name, designation, score }], teams: [{ id, name, projectName, score }] }; score = { score, goals: { score, count }, deliverables: { score, onTime, due }, tasks: { score, onTime, due }, basedOn }.",
-        queryHelp: "month?: YYYY-MM (default this month); projectId?: one project",
+        doc: "Delivery scores for a month (Team Performance tab of Progress & Performance): one 0-100 score per person and per team from goals they own (40%), deliverables made by their due day (35%) and tasks done by their due day (25%). Scoped like Progress: admins everyone, account managers their projects, team managers their teams and reports, members only themselves. Note: Goals count reached vs expected by now (capped); a part with nothing in it is left out and the rest rescaled; held and discarded tasks don't count. Returns { data: { month, role, people: [{ id, name, designation, score }], teams: [{ id, name, projectName, score }] } }; score = { score, goals: { score, count }, deliverables: { score, onTime, due }, tasks: { score, onTime, due }, basedOn }.",
+        queryHelp:
+          "month?: YYYY-MM (default this month); projectId?: one project's id (not slug - a slug silently matches nothing)",
         keywords: [
           "delivery score",
           "team performance",
@@ -5092,7 +5118,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["projectId"],
         guard: "withSession",
-        doc: "Goals across all projects you can see (portfolio): each project's active goals with status, progress and target dates, plus totals (done, overdue, at risk, overall progress, next target date) and all tags. project:read/project:write holders see every project; others only their own.",
+        doc: "Goals across all projects you can see (portfolio): each project's active goals with status, progress and target dates, plus totals (done, overdue, at risk, overall progress, next target date) and all tags. Repeating goals count with this month's edition only. project:read/project:write holders see every project; others only their own.",
         queryHelp: "projectId: project id (not slug) to narrow to one project",
         keywords: ["all goals", "goals portfolio", "objectives across projects", "at risk goals"],
       },
@@ -5151,7 +5177,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         query: ["projectId", "from", "to"],
         permissions: ["project:write"],
         guard: "withSession",
-        doc: "Task performance metrics: assigned, completed, on time, late, overdue, in progress, on hold, due/done this week, allocated vs logged hours, completion and on-time rates; 8-week trend; by employee and project (by team for one project). project:write sees all; others their teams, owned projects and own tasks.",
+        doc: "Task performance metrics: assigned, completed, on time, late, overdue, in progress, on hold, due/done this week, allocated vs logged hours, completion and on-time rates; 8-week trend; by employee and project (by team for one project). project:write sees all; others their teams, owned projects and own tasks. Note: Overdue = open, past its due day and NOT on hold; every held task counts as on hold, never overdue, so the five states (to-do, in progress, on hold, overdue, done/discarded) don't overlap.",
         queryHelp:
           "projectId: project id (not slug); from, to: YYYY-MM-DD - only tasks DUE in the window",
         keywords: [
@@ -5183,7 +5209,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["status", "mine", "clientId", "page", "limit"],
         guard: "withSession",
-        doc: "List projects, most important first (Active, then On hold, Planning, Completed/Cancelled; within that Urgent > High > Medium > Low priority, then most tasks), with their Account Managers (owner = primary, secondaryAccountManager), client, teams, members, service owners (each with its secondary owner), task counts and kick-off checklist progress. project:write and project:view_all (read-only, e.g. HR) holders see every project; everyone else only projects they are an Account Manager of or on a team of. Note: No name search - page through, or filter by clientId/status. Each row's id (or slug) is the [id] for every /api/projects/[id] route. kickoff is null on projects you do not manage.",
+        doc: "List projects, most important first, with their Account Managers (owner = primary, secondaryAccountManager), client, teams, members, service owners (each with its secondary owner), task counts and kick-off checklist progress. project:write and project:view_all (read-only, e.g. HR) holders see every project; everyone else only projects they are an Account Manager of or on a team of. Note: Order: Active, then On hold, Planning, Completed/Cancelled; within that Urgent > High > Medium > Low priority, then most tasks. No name search - page through, or filter by clientId/status. Each row's id (or slug) is the [id] for every /api/projects/[id] route. kickoff is null on projects you do not manage.",
         queryHelp:
           "status: PLANNING|ACTIVE|ON_HOLD|COMPLETED|CANCELLED; mine: true = only projects I am an Account Manager of (primary or secondary) or a team member on; clientId: client id; page (default 1); limit (default 20, max 100)",
         keywords: [
@@ -5199,7 +5225,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         body: "{ name (required); accountManagerId?: active employee id, the primary Account Manager (default you); secondaryAccountManagerId?: active employee id, someone other than the primary; clientId?; description?; status?: PLANNING (default)|ACTIVE|ON_HOLD|COMPLETED|CANCELLED; priority?: LOW|MEDIUM (default)|HIGH|URGENT; stage?: LAUNCH|GROWTH|REBRANDING|DECLINE (the Phase); startDate?: YYYY-MM-DD; budget?: number (INR); shortName?: up to 24 chars, unique; services?: array of SMO (Social Media), SEO (SEO/AEO/GEO), PM (Paid Performance), DA (Data & Analytics), MSG (Email/WhatsApp/SMS), INF (Influencers), ALL (Alliances & Partnerships), DPR (Digital PR), WEB (Website), CAMP (Campaign Planning), OFF (Offline), BD (BD/Sales), BRAND (Branding Kit) }",
         permissions: ["project:write"],
         guard: "withAuth",
-        doc: "Create a new project. It gets the next DN code, a URL slug, all 11 fixed teams (its Account Manager managing AM) and a calendar per service. Needs project:write. The Account Manager defaults to you. Note: Also shares the project's Drive folder with its Account Managers and team members, and notifies a new Account Manager in-app. Unknown service codes are silently dropped. Set service owners afterwards with PUT /api/projects/[id]/service-owners.",
+        doc: "Create a new project. It gets the next DN code, a URL slug, all 12 fixed teams (AM, WEB, DESIGN, VIDEO, CONTENT, SMO, ORGANIC PROMOTION, PAID PROMOTION, DATA ANALYTICS, PR, ALLIANCES & PARTNERSHIPS, ADMIN; its Account Manager managing AM) and a calendar per service. Needs project:write. The Account Manager defaults to you. Note: Also shares the project's Drive folder with its Account Managers and team members, and notifies a new Account Manager in-app. Unknown service codes are silently dropped. Set service owners afterwards with PUT /api/projects/[id]/service-owners.",
         keywords: [
           "new project",
           "create project",
@@ -5219,7 +5245,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         guard: "withSession",
         doc: "Tasks across projects filtered by state (overdue, to-do, in progress, on hold, done, open), project, person, team, goal and due window - the list behind Progress/Performance counts. project:write sees all; others tasks of teams they manage, projects they are Account Manager of, or their own.",
         queryHelp:
-          "state: overdue|todo|progress|hold|done|open|all (default all); projectId (id, not slug); assigneeId; teamId; goalId; unlinked: 1 = only tasks serving no goal; from, to: YYYY-MM-DD due window; limit (default 150, max 900)",
+          "state: overdue (open, past due, not on hold)|todo|progress (not late)|hold (every on-hold task, late or not)|done|open (all unfinished)|all (default all); projectId (id, not slug); assigneeId; teamId; goalId; unlinked: 1 = only tasks serving no goal; from, to: YYYY-MM-DD due window; limit (default 150, max 900)",
         keywords: [
           "overdue tasks",
           "late tasks",
@@ -5258,7 +5284,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["month", "employeeId"],
         guard: "withSession",
-        doc: "One person's project work for a month: services they own (with calendar progress), calendars they own, calendar team-plan rows naming them, and projects they are Account Manager of or on a team of. Default you; another person needs project:write/HR or to be in your reporting line.",
+        doc: "One person's project work for a month: services they own (with calendar progress), calendars they own, calendar team-plan rows naming them, and projects they are Account Manager of, on a team of or own a service on (with their teams per project). Default you; another person needs project:write/HR or to be in your reporting line.",
         queryHelp: "month: YYYY-MM (default this month); employeeId (default yourself)",
         keywords: [
           "employee work",
@@ -5579,7 +5605,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       POST: {
         body: "{ action: APPROVE|REJECT (required), note?: string }",
         guard: "withErrorHandler",
-        doc: "Approve or reject a pending resignation. Allowed for the employee's manager or HR (resignation:approve), never for your own. Approving starts the notice period and the exit clearance checklist. Id from GET /api/resignations/review. Note: Emails and notifies the employee (manager cc). Approval sets their last working day (requested date, or today if none) and notifies exit checklist owners. Cannot be undone.",
+        doc: "Approve or reject a pending resignation. Allowed for the employee's reporting or dotted manager or HR (resignation:approve), never for your own. Approving starts the notice period and the exit clearance checklist. Id from GET /api/resignations/review. Note: Emails and notifies the employee (both managers cc). Approval sets their last working day (requested date, or today if none) and notifies exit checklist owners. Cannot be undone.",
         keywords: [
           "approve resignation",
           "reject resignation",
@@ -5611,7 +5637,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withErrorHandler",
-        doc: "Number of pending resignations the caller can review (all for HR with resignation:approve, otherwise their direct reports').",
+        doc: "Number of pending resignations the caller can review (all for HR with resignation:approve, otherwise those of their direct reports, reporting or dotted).",
         keywords: ["pending resignation count", "resignations waiting"],
       },
     },
@@ -5623,7 +5649,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["page", "limit"],
         guard: "withErrorHandler",
-        doc: "Pending resignations waiting for the caller's decision: HR (resignation:approve) sees all, a manager sees their direct reports'. Others get an empty list with authorized:false.",
+        doc: "Pending resignations waiting for the caller's decision: HR (resignation:approve) sees all, a manager sees those of people they manage directly (as reporting or dotted manager). Others get an empty list with authorized:false.",
         queryHelp: "page; limit (default 10, max 100).",
         keywords: [
           "resignations to approve",
@@ -5924,9 +5950,9 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     path: "/api/tasks/[id]",
     methods: {
       PATCH: {
-        body: "{ status?: TODO|IN_PROGRESS|DONE|ON_HOLD|DISCARDED; holdReason + holdExpectedDate (YYYY-MM-DD): required for ON_HOLD; discardReason: required for DISCARDED; keepFollowUp?: true to go ahead after a 409 about a hold follow-up; title?; description?; priority?: LOW|MEDIUM|HIGH|URGENT; startDate?, dueDate?: YYYY-MM-DD or null; estimatedHours?: number or null; tags?: string[]; assigneeId?: active employee id or null (manager/admin; the assignee may also hand it to their own report on the same team); links?: http(s) URLs, max 20; isMilestone?: boolean; goalId?: goal on the task's project or null; producesOutput?: boolean; outputSkipped?: true = nothing came out of this }",
+        body: "{ status?: TODO|IN_PROGRESS|DONE|ON_HOLD|DISCARDED; holdReason + holdExpectedDate (YYYY-MM-DD): required for ON_HOLD; discardReason: required for DISCARDED; keepFollowUp?: true to go ahead after a 409 about a hold follow-up; title?; description?; priority?: LOW|MEDIUM|HIGH|URGENT; startDate?, dueDate?: YYYY-MM-DD or null; estimatedHours?: number or null; tags?: string[]; assigneeId?: active employee id or null (manager/admin; the assignee may also hand it to their own report - solid line any depth or dotted - who is on the same team); links?: http(s) URLs, max 20; isMilestone?: boolean; goalId?: goal on the task's project or null; producesOutput?: boolean; outputSkipped?: true = nothing came out of this }",
         guard: "withSession",
-        doc: "Update a task: move its status (start, complete, hold, discard), edit details, reassign, change due date, priority, hours, links, goal or milestone flag. For the assignee, the task's manager (team manager; for adhoc work the assignee's line manager), the project's Account Manager or project:write holders. Note: Detail fields (title, description, priority, dates, hours, tags) are editable by the task's creator only for 15 minutes after creating it, otherwise only by its manager/admin. IN_PROGRESS starts the time clock and leaving it stops it (loggedHours is measured, not writable). ON_HOLD books the remaining hours onto a follow-up task. Done/hold/discard notifies the manager in-app.",
+        doc: "Update a task: move its status (start, complete, hold, discard), edit details, reassign, change due date, priority, hours, links, goal or milestone flag. For the assignee, the task's manager (team manager; for adhoc work the assignee's reporting or dotted manager), the project's Account Manager or project:write holders. Note: Detail fields (title, description, priority, dates, hours, tags) are editable by the task's creator only for 15 minutes after creating it, otherwise only by its manager/admin. IN_PROGRESS starts the time clock and leaving it stops it (loggedHours is measured, not writable). ON_HOLD books the remaining hours onto a follow-up task. Done/hold/discard notifies the manager in-app.",
         keywords: [
           "update task",
           "complete task",
@@ -5938,7 +5964,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       },
       DELETE: {
         guard: "withSession",
-        doc: "Permanently delete a task (project or adhoc). Only the task's manager - its team manager, or for adhoc work the assignee's line manager - or project:write holders; an assignee may also delete an untouched hold follow-up the app created. Note: Irreversible: logged hours, comments, checklist and status history go with it - confirm first. [id] = task id.",
+        doc: "Permanently delete a task (project or adhoc). Only the task's manager - its team manager, or for adhoc work the assignee's reporting or dotted manager - the project's Account Manager or project:write holders; an assignee may also delete an untouched hold follow-up the app created. Note: Irreversible: logged hours, comments, checklist and status history go with it - confirm first. [id] = task id.",
         keywords: ["delete task", "remove task"],
       },
     },
@@ -5949,7 +5975,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withSession",
-        doc: "A task's status history: each period it spent in To-do, In Progress, On Hold etc., who moved it and why, across hold follow-ups. Anyone who can see the project (adhoc work: assignee, creator or their manager).",
+        doc: "A task's status history: each period it spent in To-do, In Progress, On Hold etc., who moved it and why, across hold follow-ups. Anyone who can see the project (adhoc work: assignee, creator, or the assignee's reporting or dotted manager).",
         keywords: ["task history", "status history", "time in progress", "how long did it take"],
       },
     },
@@ -5971,7 +5997,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withSession",
-        doc: "A task's work log, newest day first: what was done each day, how many were made, links, and who logged it. Also where the task sits (its goal and parent goal, and the planned deliverable it is part of, with made of quantity) and whether the caller may log. Anyone who can see the task. Note: Returns { chain: { goal, deliverable }, logs: [{ id, workedOn, note, quantity, links, employeeName, canDelete }], canLog }.",
+        doc: "A task's work log, newest day first: what was done each day, how many were made, links, and who logged it. Also where the task sits (its goal and parent goal, and the planned deliverable it is part of, with made of quantity) and whether the caller may log. Anyone who can see the task. Note: Returns { data: { chain: { goal, deliverable }, logs: [{ id, workedOn, note, quantity, links, employeeName, canDelete }], canLog } }.",
         keywords: [
           "work log",
           "what was done",
@@ -5981,9 +6007,9 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         ],
       },
       POST: {
-        body: "{ note (required, max 2000), workedOn?: YYYY-MM-DD (default today, not future; members up to 90 days back), quantity?: whole number >= 1 (only on a task that is part of an owed deliverable), links?: http(s) URLs (max 10) }",
+        body: "{ note (required, max 2000), workedOn?: YYYY-MM-DD (default today, not future; non-managers up to 90 days back), quantity?: whole number >= 1, at most the units still left to make (only on a task that is part of an owed deliverable), links?: http(s) URLs (max 10) }",
         guard: "withSession",
-        doc: "Log work on a task for a day. The assignee can always log, whoever raised the task; their team manager and project managers too. A quantity adds to the made count of the deliverable the task is part of while it is still owed (a planned one moves to In progress). Note: Returns { id }.",
+        doc: "Log work on a task for a day. The assignee can always log, whoever raised the task; the task's manager (team manager; for adhoc work the assignee's reporting or dotted manager) and project managers too. A quantity adds to the made count of the deliverable the task is part of while it is still owed (a planned one moves to In progress). Note: Returns { data: { id } }.",
         keywords: [
           "log work",
           "add work log",
@@ -6002,7 +6028,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         query: ["mine", "scope", "status"],
         permissions: ["project:write"],
         guard: "withSession",
-        doc: "My Work task list: tasks assigned to me by default; with mine=true, also a team I manage, one direct report/team member, or everyone I manage (project:write: anyone). Includes project, team, goal and blocking requirement; meta lists the teams and people I may pick. Note: Up to 2000 tasks sorted by due date; meta.truncated when more.",
+        doc: "My Work task list: tasks assigned to me by default; with mine=true, also a team I manage, one direct report (as reporting or dotted manager) or team member, or everyone I manage (project:write: anyone). Includes project, team, goal and blocking requirement; meta lists the teams and people I may pick. Note: Up to 2000 tasks sorted by due date; meta.truncated when more.",
         queryHelp:
           "mine: true = enable the scope picker (required for any scope other than me); scope: me (default) | all | team:<teamId> | user:<employeeId> - unknown or unauthorised values silently fall back to me; status: TODO|IN_PROGRESS|DONE|ON_HOLD|DISCARDED",
         keywords: [
@@ -6018,7 +6044,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         body: "{ title (required); assigneeId?: active employee id (default you); description?; priority?: LOW|MEDIUM (default)|HIGH|URGENT; dueDate?: YYYY-MM-DD; estimatedHours?: number; tags?: string[] }",
         permissions: ["project:write"],
         guard: "withSession",
-        doc: "Create an ADHOC task - work with no project or client (meetings, interviews, internal QC) - on yourself, on a direct report, or on anyone if you hold project:write. Note: For client/project work use POST /api/projects/[id]/tasks or POST /api/projects/[id]/teams/[teamId]/tasks. Notifies the assignee in-app when it is not you.",
+        doc: "Create an ADHOC task - work with no project or client (meetings, interviews, internal QC) - on yourself, on a direct report (you are their reporting or dotted manager), or on anyone if you hold project:write. Note: For client/project work use POST /api/projects/[id]/tasks or POST /api/projects/[id]/teams/[teamId]/tasks. Notifies the assignee in-app when it is not you.",
         keywords: ["adhoc task", "personal task", "meeting task", "my work", "create task"],
       },
     },
@@ -6029,7 +6055,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       GET: {
         guard: "withErrorHandler",
-        doc: "Before applying for work from home: shows who the WFH email will go to (your manager, else HR/Admin), the HR inbox cc'd, and your email signature. Read-only.",
+        doc: "Before applying for work from home: shows who the WFH email will go to (your manager, else your dotted manager, else HR/Admin), who is cc'd (ccHr: the HR inbox; ccManager: your dotted manager), and your email signature. Read-only.",
         keywords: ["wfh approver", "who approves my wfh", "work from home email recipient"],
       },
     },
@@ -6052,7 +6078,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["scope", "status", "page", "limit"],
         guard: "withErrorHandler",
-        doc: "WFH request inbox. scope=team: your direct reports' requests (empty if you manage nobody). scope=all: every employee's requests, for HR Manager/Admin or wfh:approve holders. Returns { requests, isApprover, pagination }.",
+        doc: "WFH request inbox. scope=team: requests of people you manage directly, as reporting or dotted manager (empty if you manage nobody). scope=all: every employee's requests, for HR Manager/Admin or wfh:approve holders. Returns { requests, isApprover, pagination }.",
         queryHelp:
           "scope: team|all (default team); status: PENDING|APPROVED|REJECTED|CANCELLED; page, limit (default 10, max 100)",
         keywords: [
@@ -6070,7 +6096,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       PATCH: {
         body: "{ action: APPROVE|REJECT|CANCEL (required), rejectionReason?: string (required for REJECT) }",
         guard: "withErrorHandler",
-        doc: "Approve, reject or cancel a PENDING work-from-home request. HR Manager/Admin or wfh:approve holders decide anyone's; the employee's manager decides their reports'; an employee can only cancel their own. First decision is final. id from GET /api/wfh/requests or /api/wfh/my-team. Note: Approve/reject notifies and emails the employee. Cannot be undone.",
+        doc: "Approve, reject or cancel a PENDING work-from-home request. HR Manager/Admin or wfh:approve holders decide anyone's; the employee's reporting or dotted manager decides their reports'; an employee can only cancel their own. First decision is final. id from GET /api/wfh/requests or /api/wfh/my-team. Note: Approve/reject notifies and emails the employee. Cannot be undone.",
         keywords: ["approve wfh", "reject work from home", "cancel wfh", "wfh decision"],
       },
     },

@@ -75,18 +75,19 @@ export const PROJECT_CONTENT: DescriptionMap = {
   },
   "DELETE /api/projects/[id]/sheets/[sheetId]/rows": {
     summary:
-      "Delete several rows of a sheet tab at once by position (0 = the first grid row), empty rows included; the rows below move up to close the gap, as in a spreadsheet. Only the Account Manager or a project admin.",
-    body: "{ positions: number[] } - 0-based grid row positions (rows[].position), at most 1000",
+      "Delete several rows of a sheet tab at once by position (0 = the first grid row), empty rows included; the rows below move up to close the gap, as in a spreadsheet. Only the Account Manager or a project admin. [sheetId] is the tab id.",
+    body: "{ positions (required): integer[] >= 0 - 0-based grid row positions (rows[].position from GET /api/projects/[id]/workbooks/[workbookId]), 1-1000; duplicates and invalid entries are ignored }",
     keywords: ["delete rows", "remove empty rows", "bulk delete calendar rows", "close gap"],
-    notes: "Each deleted row's values are kept in the tab's history; returns { deleted, moved }.",
+    notes:
+      "Send every position in ONE call: afterwards the rows below have new positions, so re-read the calendar before deleting more or writing cells by position. Each deleted row's values are kept in the tab's history; row heights move with their rows. Returns { deleted (stored rows removed), moved }. 400 if no valid position, 422 over 1000.",
   },
   "DELETE /api/projects/[id]/sheets/[sheetId]/columns": {
     summary:
       "Delete several columns of a sheet tab at once, clearing their values in every row. Only the Account Manager or a project admin. Column ids from the tab's columns in GET /api/projects/[id]/workbooks/[workbookId].",
-    body: "{ columnIds: string[] }",
+    body: "{ columnIds (required): string[] - column ids of this tab; ids not on this tab are ignored }",
     keywords: ["delete columns", "bulk delete sheet columns", "remove columns"],
     notes:
-      "The discarded values are copied into the tab's history but cannot be restored automatically; returns { deleted }.",
+      "The discarded values are copied into the tab's history but cannot be restored automatically; returns { deleted }. 400 if columnIds is empty.",
   },
   "DELETE /api/projects/[id]/workbooks/[workbookId]": {
     summary:
@@ -115,9 +116,9 @@ export const PROJECT_CONTENT: DescriptionMap = {
   },
   "GET /api/projects/[id]/files": {
     summary:
-      "Browse one folder of a project's Files tab: sub-folders (with item counts), uploaded files, saved links, Google Drive-only files and the breadcrumb path. Anyone on the project. Omit folder for the top level.",
+      "Browse one folder of a project's Repository (Files tab): sub-folders (with item counts), uploaded files, saved links, Google Drive-only files and the breadcrumb path. Omit folder for the top level. With search, searches the WHOLE Repository (every folder) instead and says which folder each hit is in. Anyone on the project.",
     query:
-      "folder: folder id to open (from folders[].id or GET /api/projects/[id]/folders); omit for the project's top level",
+      "folder: folder id to open (from folders[].id or GET /api/projects/[id]/folders); omit for the project's top level. search: text (2+ characters) - finds folders by name, files by name or description, links by title, URL or description, and Drive-made Docs/Sheets by name, in every folder; folder is ignored when search is sent",
     keywords: [
       "project files",
       "client files",
@@ -125,9 +126,11 @@ export const PROJECT_CONTENT: DescriptionMap = {
       "files tab",
       "documents",
       "repository",
+      "search files",
+      "find file",
     ],
     notes:
-      "Side effect: sub-folders made directly in Google Drive are adopted into the tree, and the top-level read re-syncs Drive sharing.",
+      'A search returns { folders, files, links, driveFiles, locations } (up to 300 of each; under 2 characters returns empty lists). locations is keyed "folder-<id>", "b2-<id>" (uploaded file), "link-<id>" or "drive-<id>" and gives each hit\'s folderId and path ("" = top level). Side effect of a folder read: sub-folders made directly in Google Drive are adopted into the tree, and Drive sharing is re-checked in the background (at most every 10 minutes).',
   },
   "GET /api/projects/[id]/folders": {
     summary:
@@ -225,16 +228,18 @@ export const PROJECT_CONTENT: DescriptionMap = {
   "POST /api/projects/[id]/campaigns": {
     summary:
       "Create a Planner campaign. It gets its own calendar with one tab per service, and a team plan due on the deadline for every team that usually makes those services. Account Managers and project admins.",
-    body: "{ name (required, unique on the project); startDate (required): YYYY-MM-DD; deadline (required): YYYY-MM-DD, not before startDate; services (required): PROJECT_SERVICES codes, at least one; ownerId?: employee id (default the Campaign Planning service owner, else the Account Manager); brief? }",
+    body: "{ name (required, max 80, unique on the project); startDate (required): YYYY-MM-DD; deadline (required): YYYY-MM-DD, not before startDate; services (required, at least one): service codes SMO|SEO|PM|DA|MSG|INF|ALL|DPR|WEB|CAMP|OFF|BD|BRAND (as in POST /api/projects; unknown codes are dropped); ownerId?: employee id (default the Campaign Planning service owner, else the Account Manager); brief?: text (max 4000) }",
     notes:
-      "Staff the team plans afterwards with PUT /api/projects/[id]/workbooks/[workbookId]/teams/[teamId] on the returned workbookId - each person added is notified.",
+      "409 if the name is taken. Staff the team plans afterwards with PUT /api/projects/[id]/workbooks/[workbookId]/teams/[teamId] on the returned workbookId - each person added is notified.",
     keywords: ["new campaign", "plan halloween", "create campaign calendar"],
   },
   "PATCH /api/projects/[id]/campaigns/[campaignId]": {
     summary:
       "Edit a Planner campaign: name (renames its calendar), dates, owner, brief, services (a newly added service gets its tab; removed ones keep theirs). The campaign owner, Account Managers and project admins.",
-    body: "{ name?; startDate?; deadline?; services?; ownerId?; brief? }",
+    body: "{ name?; startDate?: YYYY-MM-DD; deadline?: YYYY-MM-DD; services?: full list of service codes (replaces it); ownerId?: employee id or null; brief?: text or null } - same rules as POST /api/projects/[id]/campaigns",
     keywords: ["edit campaign", "move campaign deadline", "change campaign owner"],
+    notes:
+      "Moving the deadline also moves the team plans still due on the old deadline (their reminders re-arm); hand-set due dates stay. A new owner also takes over the calendar unless someone else was put in charge of it.",
   },
   "DELETE /api/projects/[id]/campaigns/[campaignId]": {
     summary:
@@ -244,7 +249,7 @@ export const PROJECT_CONTENT: DescriptionMap = {
   },
   "GET /api/projects/[id]/workbooks": {
     summary:
-      "List a project's sheets / content calendars (posting schedules): name, month (periodMonth), calendar manager, service, whether shared with the client, and each tab's id and name - no rows. Anyone on the project. Use it to find a workbookId or tab id.",
+      "List a project's sheets / content calendars (posting schedules): name, month (periodMonth), calendar manager, service, campaignId (set on a Planner campaign's calendar), whether shared with the client, and each tab's id and name - no rows. Anyone on the project. Use it to find a workbookId or tab id.",
     keywords: [
       "content calendar",
       "posting schedule",
@@ -313,7 +318,8 @@ export const PROJECT_CONTENT: DescriptionMap = {
       "Rename and/or move a file in the project's Google Drive folder into one of the project's Files-tab folders. Anyone on the project. The Drive file id goes in the body.",
     body: "{ fileId: Google Drive file id (required), name?: string (max 255), folderId?: project folder id, or null for the top level } - at least one of name/folderId",
     keywords: ["rename drive file", "move google doc", "organise drive"],
-    notes: "Refuses files outside this project's Drive folder (404).",
+    notes:
+      "Refuses files outside this project's Drive folder (404). A rename or move is not checked for a same-named item in the target folder (the website asks first) - check GET /api/projects/[id]/files.",
   },
   "PATCH /api/projects/[id]/folders/[folderId]": {
     summary:
@@ -357,7 +363,7 @@ export const PROJECT_CONTENT: DescriptionMap = {
       "review upload",
     ],
     notes:
-      "Sharing makes the file visible to the client in the portal; unsharing also clears its review decision.",
+      "Sharing makes the file visible to the client in the portal; unsharing also clears its review decision. A rename or move is not checked for a same-named item in the target folder (the website asks first) - check GET /api/projects/[id]/files.",
   },
   "PATCH /api/projects/[id]/sheets/[sheetId]": {
     summary:
@@ -442,6 +448,8 @@ export const PROJECT_CONTENT: DescriptionMap = {
       "Create a blank Google Doc or Google Sheet in the project's Drive folder (or a Files-tab folder's Drive mirror). Anyone on the project. Returns the new file with its webViewLink.",
     body: '{ kind?: doc|sheet (default doc), name?: string (default "Untitled doc"/"Untitled sheet"), folderId?: project folder id }',
     keywords: ["new google doc", "create google sheet", "new document in drive"],
+    notes:
+      "The website asks before a name already in that folder is used again; this API does not check - look in GET /api/projects/[id]/files first and ask the person if the name is taken.",
   },
   "POST /api/projects/[id]/drive/sync": {
     summary:
@@ -461,6 +469,8 @@ export const PROJECT_CONTENT: DescriptionMap = {
       "Save a link (Figma, Canva, Google Doc, live page or any web URL) to a project's Files tab. Anyone on the project.",
     body: "{ title: string (required, max 200), url: full http(s) URL (required), folderId?: folder id or null, tag?: BRAND|STRATEGY|RESEARCH|JOURNEY|REPORT|CREATIVE|VIDEO|PRODUCT|LEGAL|OTHER or null, description?: string (max 1000) }",
     keywords: ["add link", "save url", "bookmark", "add reference link"],
+    notes:
+      "The website asks before a title already in that folder is used again; this API does not check - look in GET /api/projects/[id]/files first and ask the person if the name is taken.",
   },
   "POST /api/projects/[id]/messages": {
     summary:
@@ -568,6 +578,6 @@ export const PROJECT_CONTENT: DescriptionMap = {
       "assign people to calendar",
     ],
     notes:
-      "Team members may change links, notes and status; quantity, dueOn, employeeIds and DISCARDED need the AM, a project admin, the calendar's manager or the team's manager. DONE needs links + files >= quantity. Notifies newly added people.",
+      "Team members may change links, notes and status; quantity, dueOn, employeeIds and DISCARDED need the AM, a project admin, the calendar's manager or the team's manager. DONE needs links + files >= quantity. Notifies newly added people. Works the same on a Planner campaign's calendar (workbookId from GET /api/projects/[id]/campaigns). The row's people are reminded 3 days before dueOn, on the day and once when late; moving dueOn sends those reminders again.",
   },
 }

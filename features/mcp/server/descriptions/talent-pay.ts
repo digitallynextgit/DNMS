@@ -33,7 +33,8 @@ export const TALENT_PAY: DescriptionMap = {
     summary:
       "Delete a new joinee's 15-day scorecard and all of its daily scores. Needs onboarding:write. [id] is the scorecard id (scorecard.id from GET /api/joinee-scorecards?employeeId=...).",
     keywords: ["remove joinee scorecard", "new joinee evaluation", "onboarding scorecard"],
-    notes: "Irreversible - every daily score and observation is lost.",
+    notes:
+      "Irreversible - every daily score and observation is lost. The joinee's weekly review is separate and is kept (DELETE /api/joinee-weekly-reviews/[id] removes it).",
   },
   "DELETE /api/payroll/records/[id]": {
     summary:
@@ -167,14 +168,14 @@ export const TALENT_PAY: DescriptionMap = {
   },
   "GET /api/performance/evaluations": {
     summary:
-      "List performance evaluations (appraisals / review scorecards). HR (performance:review) sees everyone's; others see their own plus the ones where they are the reviewing manager or project controller.",
+      "List performance evaluations (appraisals / review scorecards). HR (performance:review) sees everyone's; others see their own plus the ones they review: as the assigned manager, as the employee's dotted manager, or as project controller.",
     query:
       "status: PENDING|SELF_DONE|MANAGER_DONE|COMPLETED; period: exact period label (the response's periods array lists them); q: employee name or number; mine=1: only the caller's own; page, limit (max 100, default 10)",
     keywords: ["appraisal", "performance review", "evaluation list", "ratings", "pending reviews"],
   },
   "GET /api/performance/evaluations/[id]": {
     summary:
-      "One evaluation: its criteria (selfCriteria and managerCriteria, each with id, section, weight), submitted ratings and comments, final score out of 100, and viewerRole (EMPLOYEE, MANAGER, CONTROLLER or HR) saying which side the caller can fill. Visible to the employee, their reviewers and HR.",
+      "One evaluation: its criteria (selfCriteria and managerCriteria, each with id, section, weight), submitted ratings and comments, final score out of 100, and viewerRole (EMPLOYEE, MANAGER, CONTROLLER or HR) saying which side the caller can fill. Visible to the employee, their reviewers (the assigned manager and the employee's dotted manager both get MANAGER) and HR.",
     keywords: ["appraisal details", "performance score", "evaluation form", "review ratings"],
     notes:
       "The employee cannot see manager/controller ratings until those are submitted. Use the criterion ids here as the keys of ratings in PATCH.",
@@ -340,7 +341,7 @@ export const TALENT_PAY: DescriptionMap = {
   },
   "GET /api/joinee-weekly-reviews": {
     summary:
-      "A new joinee's weekly review: after the 15-day scorecard, the reporting manager scores them every Friday for 90 days (about 13 Fridays). Each Friday has its own parameters, 1-5 scores, a comment, who reviewed it and a note when the Friday is a holiday or leave. The joinee reads their own; their reporting manager and onboarding:read/write see it.",
+      "A new joinee's weekly review: after the 15-day scorecard, their manager scores them every Friday for 90 days (about 13 Fridays). Each Friday has its own parameters, 1-5 scores, a comment, who reviewed it and a note when the Friday is a holiday or leave. The joinee reads their own; their reporting or dotted manager and onboarding:read/write see it.",
     query:
       "employeeId: the employee's id (required; find it with dnms_search_people or /api/employees)",
     keywords: [
@@ -350,7 +351,7 @@ export const TALENT_PAY: DescriptionMap = {
       "manager weekly feedback",
     ],
     notes:
-      "review is null until started (plannedFridays then shows the Fridays it would cover). canEdit = may score (reporting manager or onboarding:write); canManage = may start/delete it and edit the default parameters.",
+      "review is null until started (plannedFridays then shows the Fridays it would cover). canEdit = may score (reporting or dotted manager, or onboarding:write); canManage = may start/delete it and edit the default parameters.",
   },
   "POST /api/joinee-weekly-reviews": {
     summary:
@@ -365,13 +366,13 @@ export const TALENT_PAY: DescriptionMap = {
   },
   "PATCH /api/joinee-weekly-reviews/[id]/weeks/[week]": {
     summary:
-      "Fill in one Friday of a joinee's weekly review: 1-5 scores and/or the comment. The joinee's reporting manager or onboarding:write. [id] is review.id; [week] is the week number (1 = the first Friday). A Friday opens on the Monday of its week.",
-    body: "{ scores?: { <paramKey>: 1-5 or null to clear } (keys from that week's params), comment?: string | null }",
+      "Fill in one Friday of a joinee's weekly review: 1-5 scores and/or the comment. The joinee's reporting or dotted manager, or onboarding:write. [id] is review.id; [week] is the week number (1 = the first Friday). A Friday opens on the Monday of its week.",
+    body: "{ scores?: { <paramKey>: whole number 1-5 or null to clear } (keys from that week's params; unknown keys are ignored), comment?: string up to 4000 chars | null }",
     keywords: ["score weekly review", "fill friday review", "weekly review comment"],
   },
   "PUT /api/joinee-weekly-reviews/[id]/weeks/[week]/params": {
     summary:
-      "Replace the parameters of ONE Friday of one joinee's weekly review (other Fridays and other joinees are untouched). The reporting manager or onboarding:write. Rows left out are hidden, never deleted; at least one stays visible.",
+      "Replace the parameters of ONE Friday of one joinee's weekly review (other Fridays and other joinees are untouched). The joinee's reporting or dotted manager, or onboarding:write. Rows left out are hidden, never deleted; at least one stays visible.",
     body: "{ items: Array<{ key?: string | null (null = new), label: string, isActive?: boolean }> } in display order",
     keywords: ["edit friday parameters", "change weekly review parameters for one week"],
   },
@@ -388,7 +389,7 @@ export const TALENT_PAY: DescriptionMap = {
   },
   "GET /api/joinee-weekly-reviews/due": {
     summary:
-      "The weekly reviews the signed-in reporting manager still has to fill in: Fridays up to today with nothing entered, for their active direct reports.",
+      "The weekly reviews the signed-in manager still has to fill in: Fridays up to today with nothing entered, for their active direct reports (as reporting or dotted manager).",
     keywords: ["my weekly reviews due", "pending friday reviews", "reviews waiting on me"],
   },
   "PUT /api/joinee-scorecards/[id]/criteria": {
@@ -421,7 +422,7 @@ export const TALENT_PAY: DescriptionMap = {
   },
   "PATCH /api/performance/evaluations/[id]": {
     summary:
-      "Submit ratings for one side of a performance evaluation: SELF (only the employee), MANAGER (the assigned manager or HR) or CONTROLLER (the assigned project controller or HR). Every criterion of that side must be rated 1-5.",
+      "Submit ratings for one side of a performance evaluation: SELF (only the employee), MANAGER (the assigned manager, the employee's dotted manager, or HR) or CONTROLLER (the assigned project controller or HR). Every criterion of that side must be rated 1-5.",
     body: "{ role: SELF|MANAGER|CONTROLLER (required), ratings: { <criterion id>: 1-5 } for every criterion of that side (required; ids from GET /api/performance/evaluations/[id] - selfCriteria for SELF, managerCriteria for MANAGER and CONTROLLER), comment?: string }",
     keywords: [
       "submit appraisal",
@@ -431,7 +432,7 @@ export const TALENT_PAY: DescriptionMap = {
       "fill evaluation",
     ],
     notes:
-      "The manager's ratings set the official final score out of 100 (Section A 60%, B 40%). Notifies the employee (manager review) or the manager (self review). Can be resubmitted, which overwrites earlier ratings.",
+      "The manager's ratings set the official final score out of 100 (Section A 60%, B 40%); there is one MANAGER side, shared by both managers. Notifies the employee (manager review) or both the assigned and dotted manager (self review). Can be resubmitted, which overwrites earlier ratings.",
   },
   "PATCH /api/recruitment/applicants/[id]": {
     summary:
@@ -511,10 +512,11 @@ export const TALENT_PAY: DescriptionMap = {
   },
   "POST /api/joinee-scorecards": {
     summary:
-      "Start a 15-working-day new joinee scorecard for an employee (for people who joined before scorecards were automatic). Days are laid out from their date of joining, skipping weekends and holidays. Needs onboarding:write.",
+      "Start a 15-day new joinee scorecard for an employee (for people who joined before scorecards were automatic): 15 calendar days from their date of joining (today if none); weekends, holidays and full-day leave show as off and aren't scored. Uses the company's current default criteria. Needs onboarding:write.",
     body: "{ employeeId (required), hrSpocId?: employee id of the HR point of contact }",
     keywords: ["create joinee scorecard", "start onboarding evaluation", "new joinee review"],
-    notes: "409 if the employee already has a scorecard.",
+    notes:
+      "409 if the employee already has a scorecard. Also starts their weekly review (Fridays for 90 days after the scorecard) if they have none.",
   },
   "POST /api/payroll/records": {
     summary:
@@ -522,7 +524,7 @@ export const TALENT_PAY: DescriptionMap = {
     body: "{ month: 1-12 (required), year: e.g. 2026 (required), employeeIds?: employee id[] (default: everyone eligible) }",
     keywords: ["run payroll", "generate payslips", "process salary", "monthly payroll"],
     notes:
-      "Notifies every employee included that their payslip is ready, with the net pay. Anyone who already has a record for that month is skipped. Confirm the month and people first.",
+      "Notifies every employee included that their payslip is ready, with the net pay. Anyone who already has a record for that month is skipped. Confirm the month and people first. Weekends, holidays, approved floating holidays and the birthday are paid; a half-day (0.5) or 2-hour short leave (0.25) on a day they came in costs nothing if the leave is paid, only its fraction if unpaid.",
   },
   "POST /api/payroll/salary-structures": {
     summary:
@@ -537,7 +539,8 @@ export const TALENT_PAY: DescriptionMap = {
       "Create a performance evaluation (appraisal) for one employee for a period; its criteria are copied from their KPI profile (or the defaults). HR only (performance:review).",
     body: "{ employeeId (required), periodLabel: e.g. 'Q3 2026' (required), managerId?: reviewing manager (defaults to their reporting manager), controllerId?: optional project controller who also reviews, periodStart?, periodEnd?, dueDate?: YYYY-MM-DD }",
     keywords: ["start appraisal", "create performance review", "new evaluation"],
-    notes: "Notifies the employee, the manager and the controller.",
+    notes:
+      "Notifies the employee, the manager and the controller. The employee's dotted manager can also submit the manager review, but is not notified here.",
   },
   "POST /api/performance/evaluations/bulk-delete": {
     summary: "Delete many performance evaluations at once. HR only (performance:review).",
@@ -555,7 +558,7 @@ export const TALENT_PAY: DescriptionMap = {
       "launch reviews",
     ],
     notes:
-      "Notifies every employee and manager included. Safe to re-run the same day (existing ones are skipped). Employees without a configured KPI profile are left out.",
+      "Notifies every employee included plus their reporting and dotted managers (either may submit the manager review). Safe to re-run the same day (existing ones are skipped). Employees without a configured KPI profile are left out.",
   },
   "POST /api/recruitment/applicants": {
     summary:

@@ -102,7 +102,8 @@ export const PROJECT_TOOLS: DescriptionMap = {
     summary:
       "Delete one entry from a project's password vault (stored client logins). [entryId] from GET /api/projects/[id]/passwords.",
     keywords: ["delete saved password", "remove vault entry", "delete client login"],
-    notes: "Permanent - the stored password is lost. Account Manager or project:write only.",
+    notes:
+      "Permanent - the stored password is lost. Account Manager or project:write only. Recorded in the audit log (who, and the entry's label).",
   },
   "DELETE /api/projects/[id]/seo/[propertyId]": {
     summary:
@@ -263,6 +264,8 @@ export const PROJECT_TOOLS: DescriptionMap = {
     summary:
       "List a project's password vault entries (stored client logins: label, username, URL, notes, who added it). The passwords themselves are NOT included and cannot be revealed through the AI connector. Account Manager or project:write only.",
     keywords: ["password vault", "client logins", "saved credentials", "account logins"],
+    notes:
+      "To see a password the person must use Reveal on the project's Passwords tab in the DNMS web app (each reveal is audit-logged); do not offer to fetch it.",
   },
   "GET /api/projects/[id]/seo": {
     summary:
@@ -417,10 +420,10 @@ export const PROJECT_TOOLS: DescriptionMap = {
   "PATCH /api/projects/[id]/passwords/[entryId]": {
     summary:
       "Edit a project password-vault entry (stored client login): label, username, URL, notes, or set a new password. [entryId] from GET /api/projects/[id]/passwords.",
-    body: "{ label?: string, username?: string, password?: string (new password; blank keeps the current one), url?: string, notes?: string }",
+    body: "{ label?: string (blank keeps the current one), username?: string, password?: string (new password; blank keeps the current one), url?: string, notes?: string } - empty string or null clears username, url or notes",
     keywords: ["update saved password", "edit client login", "change vault entry"],
     notes:
-      "Stores a secret (encrypted). Account Manager or project:write only. The response never includes the password.",
+      "Stores a secret (encrypted). Account Manager or project:write only. The response never includes the password. Recorded in the audit log: which fields changed, never their values.",
   },
   "PATCH /api/projects/[id]/seo/[propertyId]/content/[briefId]": {
     summary:
@@ -589,7 +592,7 @@ export const PROJECT_TOOLS: DescriptionMap = {
     body: "{ label: string (required), password: string (required), username?: string, url?: string, notes?: string }",
     keywords: ["save password", "add client login", "store credentials"],
     notes:
-      "Stores a secret (encrypted). Account Manager or project:write only. Passwords cannot be read back through the AI connector.",
+      "Stores a secret (encrypted). Account Manager or project:write only. Passwords cannot be read back through the AI connector. Recorded in the audit log (label only, never the password).",
   },
   "POST /api/projects/[id]/seo": {
     summary:

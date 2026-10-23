@@ -113,8 +113,10 @@ export const HR_OPS_CONTENT: DescriptionMap = {
   },
   "GET /api/clearances/count": {
     summary:
-      "Count of open onboarding/exit checklist items assigned to the caller (the clearances badge).",
-    keywords: ["clearance count", "pending clearances", "how many sign-offs"],
+      "The 'Waiting on you' badge number: open onboarding/exit checklist items assigned to the caller PLUS weekly joinee reviews due from them (Fridays not yet scored for people they manage as reporting or dotted manager). Returns { count }.",
+    keywords: ["clearance count", "pending clearances", "how many sign-offs", "waiting on you"],
+    notes:
+      "Can be higher than GET /api/clearances, which lists only the checklist items; the due weekly reviews are listed by GET /api/joinee-weekly-reviews/due.",
   },
   "GET /api/document-requests": {
     summary:
@@ -144,7 +146,9 @@ export const HR_OPS_CONTENT: DescriptionMap = {
   },
   "GET /api/exit-clearance/full-final": {
     summary:
-      "The Full & Final settlement register: every leaver (DNMS leavers are added automatically, past employees by hand) with last working day, FnF due date (two months after it unless changed), the date FnF was released, a status (pending, due soon, overdue, released on time or late), notice period and relieving letter. Needs exit:read.",
+      "The Full & Final settlement register: every leaver (DNMS leavers added automatically, past employees by hand) with last working day, FnF due date (two months after it unless changed), FnF released-on date, status, notice period and relieving letter. Open ones first, most urgent on top. Needs exit:read.",
+    notes:
+      "status = { state: PENDING|DUE_SOON (due within 7 days)|OVERDUE|RELEASED|RELEASED_LATE, days (left or late) }. Reading it also adds any new DNMS leavers to the register and moves their last working day/default due date to match their profile.",
     keywords: [
       "full and final",
       "fnf",
@@ -158,15 +162,15 @@ export const HR_OPS_CONTENT: DescriptionMap = {
   "POST /api/exit-clearance/full-final": {
     summary:
       "Add a past employee (someone who left before DNMS) to the Full & Final register. Needs exit:write.",
-    body: "{ name (required); lastWorkingDate (required): YYYY-MM-DD; designation?; dueDate?: YYYY-MM-DD (default two months after the last working day); releasedOn?: YYYY-MM-DD; noticePeriod?: SERVED|NOT_SERVED|COMPANY_EXIT; relievingGiven?: boolean; relievingDate?: YYYY-MM-DD; notes? }",
+    body: "{ name (required unless employeeId); employeeId?: a DNMS employee id instead of name (409 if already in the register); lastWorkingDate (required): YYYY-MM-DD; designation?; dueDate?: YYYY-MM-DD, not before lastWorkingDate (default two months after it); releasedOn?: YYYY-MM-DD; noticePeriod?: SERVED|NOT_SERVED|COMPANY_EXIT; relievingGiven?: boolean; relievingDate?: YYYY-MM-DD (kept only when relievingGiven is true); notes? (max 2000) }",
     keywords: ["add fnf", "record full and final", "past employee settlement"],
   },
   "PATCH /api/exit-clearance/full-final/[id]": {
     summary:
       "Update one Full & Final record: FnF due date, released-on date (null to clear), notice period, relieving letter and its date, notes. Needs exit:write.",
-    body: "{ dueDate?; releasedOn?: YYYY-MM-DD | null; noticePeriod?: SERVED|NOT_SERVED|COMPANY_EXIT|null; relievingGiven?: boolean; relievingDate?: YYYY-MM-DD | null; designation?; notes?; name?/lastWorkingDate?: past employees only }",
+    body: "{ dueDate?: YYYY-MM-DD (not before the last working day); releasedOn?: YYYY-MM-DD | null; noticePeriod?: SERVED|NOT_SERVED|COMPANY_EXIT|null; relievingGiven?: boolean (false also clears relievingDate); relievingDate?: YYYY-MM-DD | null; designation?: string | null; notes?: string | null; name?/lastWorkingDate?: YYYY-MM-DD, past employees only }",
     notes:
-      "For a leaver who was in DNMS the last working day follows their profile, so lastWorkingDate is refused (409) - change it on the profile. Releasing FnF = set releasedOn.",
+      "For a leaver who was in DNMS the last working day follows their profile, so lastWorkingDate is refused (409) - change it on the profile - and name is ignored. Releasing FnF = set releasedOn. id from GET /api/exit-clearance/full-final.",
     keywords: ["mark fnf released", "fnf paid", "update full and final"],
   },
   "DELETE /api/exit-clearance/full-final/[id]": {
@@ -222,7 +226,7 @@ export const HR_OPS_CONTENT: DescriptionMap = {
   },
   "GET /api/resignations/review": {
     summary:
-      "Pending resignations waiting for the caller's decision: HR (resignation:approve) sees all, a manager sees their direct reports'. Others get an empty list with authorized:false.",
+      "Pending resignations waiting for the caller's decision: HR (resignation:approve) sees all, a manager sees those of people they manage directly (as reporting or dotted manager). Others get an empty list with authorized:false.",
     query: "page; limit (default 10, max 100).",
     keywords: [
       "resignations to approve",
@@ -233,7 +237,7 @@ export const HR_OPS_CONTENT: DescriptionMap = {
   },
   "GET /api/resignations/review/count": {
     summary:
-      "Number of pending resignations the caller can review (all for HR with resignation:approve, otherwise their direct reports').",
+      "Number of pending resignations the caller can review (all for HR with resignation:approve, otherwise those of their direct reports, reporting or dotted).",
     keywords: ["pending resignation count", "resignations waiting"],
   },
   "GET /api/seo/sites": {
@@ -443,7 +447,7 @@ export const HR_OPS_CONTENT: DescriptionMap = {
   },
   "POST /api/hr-checklists/[id]/complete-exit": {
     summary:
-      "HR's final exit sign-off (relieving): closes the exit checklist, marks the employee RESIGNED and deactivates their account, removes them from project teams. Needs exit:write. Refused (409) while required clearances are unsigned; cannot sign off your own exit.",
+      "HR's final exit sign-off (relieving): closes the exit checklist, marks the employee RESIGNED, deactivates the account, takes them off project teams and passes their projects/services to the secondary owner, and ticks relieving on their Full & Final record. Needs exit:write. 409 while required clearances are unsigned; not for your own exit.",
     keywords: [
       "relieve employee",
       "complete exit",
@@ -471,7 +475,7 @@ export const HR_OPS_CONTENT: DescriptionMap = {
   },
   "POST /api/resignations/[id]/review": {
     summary:
-      "Approve or reject a pending resignation. Allowed for the employee's manager or HR (resignation:approve), never for your own. Approving starts the notice period and the exit clearance checklist. Id from GET /api/resignations/review.",
+      "Approve or reject a pending resignation. Allowed for the employee's reporting or dotted manager or HR (resignation:approve), never for your own. Approving starts the notice period and the exit clearance checklist. Id from GET /api/resignations/review.",
     body: "{ action: APPROVE|REJECT (required), note?: string }",
     keywords: [
       "approve resignation",
@@ -480,7 +484,7 @@ export const HR_OPS_CONTENT: DescriptionMap = {
       "decline resignation",
     ],
     notes:
-      "Emails and notifies the employee (manager cc). Approval sets their last working day (requested date, or today if none) and notifies exit checklist owners. Cannot be undone.",
+      "Emails and notifies the employee (both managers cc). Approval sets their last working day (requested date, or today if none) and notifies exit checklist owners. Cannot be undone.",
   },
   "POST /api/stock/import": {
     summary:

@@ -25,7 +25,7 @@ export const PROJECTS_CORE: DescriptionMap = {
       "permanent: 1 = delete forever with sub-goals, targets and history (otherwise it is only deactivated and can be restored via POST .../reactivate); reason: optional text recorded when deactivating",
     keywords: ["remove goal", "deactivate goal", "archive goal", "delete objective"],
     notes:
-      "permanent=1 is irreversible - confirm first. Deactivated goals stop counting toward progress.",
+      "permanent=1 is irreversible - confirm first. Deactivated goals stop counting toward progress. On a repeating goal this touches only that month's edition; to stop future months use PATCH /api/projects/[id]/goal-series/[seriesId] { stopped: true }.",
   },
   "DELETE /api/projects/[id]/goals/[goalId]/targets/[targetId]": {
     summary:
@@ -58,7 +58,7 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "DELETE /api/tasks/[id]": {
     summary:
-      "Permanently delete a task (project or adhoc). Only the task's manager - its team manager, or for adhoc work the assignee's line manager - or project:write holders; an assignee may also delete an untouched hold follow-up the app created.",
+      "Permanently delete a task (project or adhoc). Only the task's manager - its team manager, or for adhoc work the assignee's reporting or dotted manager - the project's Account Manager or project:write holders; an assignee may also delete an untouched hold follow-up the app created.",
     keywords: ["delete task", "remove task"],
     notes:
       "Irreversible: logged hours, comments, checklist and status history go with it - confirm first. [id] = task id.",
@@ -76,7 +76,7 @@ export const PROJECTS_CORE: DescriptionMap = {
 
   "GET /api/projects": {
     summary:
-      "List projects, most important first (Active, then On hold, Planning, Completed/Cancelled; within that Urgent > High > Medium > Low priority, then most tasks), with their Account Managers (owner = primary, secondaryAccountManager), client, teams, members, service owners (each with its secondary owner), task counts and kick-off checklist progress. project:write and project:view_all (read-only, e.g. HR) holders see every project; everyone else only projects they are an Account Manager of or on a team of.",
+      "List projects, most important first, with their Account Managers (owner = primary, secondaryAccountManager), client, teams, members, service owners (each with its secondary owner), task counts and kick-off checklist progress. project:write and project:view_all (read-only, e.g. HR) holders see every project; everyone else only projects they are an Account Manager of or on a team of.",
     query:
       "status: PLANNING|ACTIVE|ON_HOLD|COMPLETED|CANCELLED; mine: true = only projects I am an Account Manager of (primary or secondary) or a team member on; clientId: client id; page (default 1); limit (default 20, max 100)",
     keywords: [
@@ -88,7 +88,7 @@ export const PROJECTS_CORE: DescriptionMap = {
       "account manager",
     ],
     notes:
-      "No name search - page through, or filter by clientId/status. Each row's id (or slug) is the [id] for every /api/projects/[id] route. kickoff is null on projects you do not manage.",
+      "Order: Active, then On hold, Planning, Completed/Cancelled; within that Urgent > High > Medium > Low priority, then most tasks. No name search - page through, or filter by clientId/status. Each row's id (or slug) is the [id] for every /api/projects/[id] route. kickoff is null on projects you do not manage.",
   },
   "GET /api/projects/[id]": {
     summary:
@@ -139,10 +139,12 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "GET /api/projects/[id]/goals": {
     summary:
-      "A project's goals, nested (main goals with sub-goals): status, progress %, target date, owner, tags, deliverable targets, linked tasks and history, plus totals (done, overdue, at risk) and the count of open tasks serving no goal. Goals with a number show metricLabel, targetValue, actualValue (entered results, Meta purchases, or the sum of their service parts), paceValue and results; service parts carry `service`. Repeating goals show one month's edition (seriesId, periodStart/End); `series` lists them with their months. Anyone with access to the project.",
+      "A project's goals, nested (main goals with sub-goals, e.g. one part per service): status, progress %, target date, owner, tags, number and results, deliverable targets, linked tasks, planned work by team and history, plus totals (done, overdue, at risk) and the count of open tasks serving no goal. Repeating goals show one month's edition. Anyone with access to the project.",
     query:
       "includeInactive: 1 = also return deactivated goals; month: YYYY-MM = which month of the repeating goals to show (default this month)",
-    keywords: ["project goals", "objectives", "OKR", "goal progress", "milestones"],
+    keywords: ["project goals", "objectives", "OKR", "goal progress", "milestones", "goal plan"],
+    notes:
+      "Goals with a number carry metricLabel, targetValue, actualValue (entered results, Meta purchases, or the sum of their service parts), paceValue (where it should be by today) and results[] (ids for DELETE .../results/[resultId]); service parts carry `service`. Editions carry seriesId and periodStart/End; `series` lists each repeating goal with its months and stoppedAt; `plans` = goal id -> its planned work by team (planned, made, overdue, unclaimed, items).",
   },
   "GET /api/projects/[id]/kickoff": {
     summary:
@@ -215,7 +217,7 @@ export const PROJECTS_CORE: DescriptionMap = {
     summary:
       "Whether AI planning drafts are available for this project (AI configured on the server).",
     keywords: ["ai available", "ai planning status"],
-    notes: "Returns { available }.",
+    notes: "Returns { data: { available } }.",
   },
   "POST /api/projects/[id]/ai": {
     summary:
@@ -231,7 +233,7 @@ export const PROJECTS_CORE: DescriptionMap = {
       "next month target",
     ],
     notes:
-      "Who may ask: goal_split and deliverables the Account Manager; tasks the owing team or its managers; explain_goal and calendar anyone on the project. goal_split returns { id, total, parts: [{ service, target, reason }], reason } with parts adding up to the total (with seriesId and no targetValue it proposes the total); deliverables { id, lines: [{ teamId, teamName, type, title, quantity, reason }] }; tasks { id, tasks: [{ title, estimatedHours, logHint }] }; explain_goal { id, text, verdict }; calendar { summary: { headline, counts, upcoming, gaps }, generatedAt, cached }. 503 when AI is not set up.",
+      "Slow (one AI call, several seconds). Who may ask: goal_split and deliverables the Account Manager; tasks the owing team or its managers; explain_goal (only a goal with a number) and calendar anyone on the project. Results come under data: goal_split { id, total, parts: [{ service, target, reason }], reason } with parts adding up to the total (with seriesId and no targetValue it proposes the total); deliverables { id, lines: [{ teamId, teamName, type, title, quantity, reason }] }; tasks { id, tasks: [{ title, estimatedHours, logHint }] }; explain_goal { id, text, verdict }; calendar { summary: { headline, counts, upcoming, gaps }, generatedAt, cached }. 503 when AI is not set up; 429/502 when the AI call fails - try again.",
   },
   "POST /api/projects/[id]/ai/[suggestionId]": {
     summary:
@@ -249,12 +251,13 @@ export const PROJECTS_CORE: DescriptionMap = {
       "content calendar status",
     ],
     notes:
-      "Returns { month, calendars: [{ id, name, service, owner, secondary, progress, teams, tabs }] }.",
+      "Returns { data: { month, calendars: [{ id, name, service, owner, secondary, progress, teams, tabs }] } }.",
   },
   "GET /api/projects/delivery-scores": {
     summary:
-      "Delivery scores for a month (Team Performance): one 0-100 score per person and per team with its parts - goals they own (40%, reached vs expected by now, capped), deliverables made by their due day (35%) and tasks done by their due day (25%); a part with nothing in it is left out and the rest rescaled. Held and discarded tasks don't count. Scoped like Progress: admins everyone, account managers their projects, team managers their teams and reports, members only themselves.",
-    query: "month?: YYYY-MM (default this month); projectId?: one project",
+      "Delivery scores for a month (Team Performance tab of Progress & Performance): one 0-100 score per person and per team from goals they own (40%), deliverables made by their due day (35%) and tasks done by their due day (25%). Scoped like Progress: admins everyone, account managers their projects, team managers their teams and reports, members only themselves.",
+    query:
+      "month?: YYYY-MM (default this month); projectId?: one project's id (not slug - a slug silently matches nothing)",
     keywords: [
       "delivery score",
       "team performance",
@@ -264,21 +267,22 @@ export const PROJECTS_CORE: DescriptionMap = {
       "on time rate",
     ],
     notes:
-      "Returns { month, role, people: [{ id, name, designation, score }], teams: [{ id, name, projectName, score }] }; score = { score, goals: { score, count }, deliverables: { score, onTime, due }, tasks: { score, onTime, due }, basedOn }.",
+      "Goals count reached vs expected by now (capped); a part with nothing in it is left out and the rest rescaled; held and discarded tasks don't count. Returns { data: { month, role, people: [{ id, name, designation, score }], teams: [{ id, name, projectName, score }] } }; score = { score, goals: { score, count }, deliverables: { score, onTime, due }, tasks: { score, onTime, due }, basedOn }.",
   },
   "GET /api/projects/delivery-scores/items": {
     summary:
       "One person's or one team's month on Team Performance, item by item: the goals they own (reached, target, expected by now, achievement), and every deliverable and task due in the month with how it counted (on time, late, not due yet, not counted), each with its project for linking. Same scope as the list.",
-    query: "month?: YYYY-MM; projectId?; personId or teamId (one is required)",
+    query:
+      "month?: YYYY-MM; projectId?: project id (not slug); personId (employee id) or teamId (project team id) - one is required",
     keywords: ["score breakdown", "why is my score", "performance details", "late items"],
     notes:
-      "Returns { month, title, score, goals: [...], deliverables: [{ id, title, project, dueOn, result }], tasks: [{ id, title, project, dueDate, result }] }. 403 for someone outside the caller's scope.",
+      "Returns { data: { month, title, score, goals: [...], deliverables: [{ id, title, project, dueOn, result }], tasks: [{ id, title, project, dueDate, result }] } }. 403 for someone outside the caller's scope or when neither personId nor teamId is sent.",
   },
   "GET /api/projects/[id]/teams/[teamId]/assignable": {
     summary:
-      "Whom the caller may give a task on this team to: themselves and their reports on it, or everyone on it for the team manager and project managers.",
+      "Whom the caller may give a task on this team to: themselves and their reports on it (solid line at any depth, or dotted line), or everyone on it for the team manager and project managers. Anyone with access to the project.",
     keywords: ["who can I assign", "assignable people", "delegate to my reports"],
-    notes: "Returns { ids, canAssignAnyone }.",
+    notes: "Returns { data: { ids: employee ids, canAssignAnyone } }.",
   },
   "GET /api/projects/[id]/teams/[teamId]/tasks": {
     summary:
@@ -333,7 +337,7 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "GET /api/projects/goals": {
     summary:
-      "Goals across all projects you can see (portfolio): each project's active goals with status, progress and target dates, plus totals (done, overdue, at risk, overall progress, next target date) and all tags. project:read/project:write holders see every project; others only their own.",
+      "Goals across all projects you can see (portfolio): each project's active goals with status, progress and target dates, plus totals (done, overdue, at risk, overall progress, next target date) and all tags. Repeating goals count with this month's edition only. project:read/project:write holders see every project; others only their own.",
     query: "projectId: project id (not slug) to narrow to one project",
     keywords: ["all goals", "goals portfolio", "objectives across projects", "at risk goals"],
   },
@@ -347,6 +351,8 @@ export const PROJECTS_CORE: DescriptionMap = {
     summary:
       "Task performance metrics: assigned, completed, on time, late, overdue, in progress, on hold, due/done this week, allocated vs logged hours, completion and on-time rates; 8-week trend; by employee and project (by team for one project). project:write sees all; others their teams, owned projects and own tasks.",
     query: "projectId: project id (not slug); from, to: YYYY-MM-DD - only tasks DUE in the window",
+    notes:
+      "Overdue = open, past its due day and NOT on hold; every held task counts as on hold, never overdue, so the five states (to-do, in progress, on hold, overdue, done/discarded) don't overlap.",
     keywords: [
       "team performance",
       "employee performance",
@@ -364,7 +370,7 @@ export const PROJECTS_CORE: DescriptionMap = {
     summary:
       "Tasks across projects filtered by state (overdue, to-do, in progress, on hold, done, open), project, person, team, goal and due window - the list behind Progress/Performance counts. project:write sees all; others tasks of teams they manage, projects they are Account Manager of, or their own.",
     query:
-      "state: overdue|todo|progress|hold|done|open|all (default all); projectId (id, not slug); assigneeId; teamId; goalId; unlinked: 1 = only tasks serving no goal; from, to: YYYY-MM-DD due window; limit (default 150, max 900)",
+      "state: overdue (open, past due, not on hold)|todo|progress (not late)|hold (every on-hold task, late or not)|done|open (all unfinished)|all (default all); projectId (id, not slug); assigneeId; teamId; goalId; unlinked: 1 = only tasks serving no goal; from, to: YYYY-MM-DD due window; limit (default 150, max 900)",
     keywords: [
       "overdue tasks",
       "late tasks",
@@ -388,7 +394,7 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "GET /api/projects/work": {
     summary:
-      "One person's project work for a month: services they own (with calendar progress), calendars they own, calendar team-plan rows naming them, and projects they are Account Manager of or on a team of. Default you; another person needs project:write/HR or to be in your reporting line.",
+      "One person's project work for a month: services they own (with calendar progress), calendars they own, calendar team-plan rows naming them, and projects they are Account Manager of, on a team of or own a service on (with their teams per project). Default you; another person needs project:write/HR or to be in your reporting line.",
     query: "month: YYYY-MM (default this month); employeeId (default yourself)",
     keywords: [
       "employee work",
@@ -400,7 +406,7 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "GET /api/tasks": {
     summary:
-      "My Work task list: tasks assigned to me by default; with mine=true, also a team I manage, one direct report/team member, or everyone I manage (project:write: anyone). Includes project, team, goal and blocking requirement; meta lists the teams and people I may pick.",
+      "My Work task list: tasks assigned to me by default; with mine=true, also a team I manage, one direct report (as reporting or dotted manager) or team member, or everyone I manage (project:write: anyone). Includes project, team, goal and blocking requirement; meta lists the teams and people I may pick.",
     query:
       "mine: true = enable the scope picker (required for any scope other than me); scope: me (default) | all | team:<teamId> | user:<employeeId> - unknown or unauthorised values silently fall back to me; status: TODO|IN_PROGRESS|DONE|ON_HOLD|DISCARDED",
     keywords: ["my work", "my tasks", "my to-do", "team tasks", "report's tasks", "adhoc tasks"],
@@ -416,14 +422,14 @@ export const PROJECTS_CORE: DescriptionMap = {
       "A task's work log, newest day first: what was done each day, how many were made, links, and who logged it. Also where the task sits (its goal and parent goal, and the planned deliverable it is part of, with made of quantity) and whether the caller may log. Anyone who can see the task.",
     keywords: ["work log", "what was done", "daily progress", "task progress notes", "task chain"],
     notes:
-      "Returns { chain: { goal, deliverable }, logs: [{ id, workedOn, note, quantity, links, employeeName, canDelete }], canLog }.",
+      "Returns { data: { chain: { goal, deliverable }, logs: [{ id, workedOn, note, quantity, links, employeeName, canDelete }], canLog } }.",
   },
   "POST /api/tasks/[id]/work-logs": {
     summary:
-      "Log work on a task for a day. The assignee can always log, whoever raised the task; their team manager and project managers too. A quantity adds to the made count of the deliverable the task is part of while it is still owed (a planned one moves to In progress).",
-    body: "{ note (required, max 2000), workedOn?: YYYY-MM-DD (default today, not future; members up to 90 days back), quantity?: whole number >= 1 (only on a task that is part of an owed deliverable), links?: http(s) URLs (max 10) }",
+      "Log work on a task for a day. The assignee can always log, whoever raised the task; the task's manager (team manager; for adhoc work the assignee's reporting or dotted manager) and project managers too. A quantity adds to the made count of the deliverable the task is part of while it is still owed (a planned one moves to In progress).",
+    body: "{ note (required, max 2000), workedOn?: YYYY-MM-DD (default today, not future; non-managers up to 90 days back), quantity?: whole number >= 1, at most the units still left to make (only on a task that is part of an owed deliverable), links?: http(s) URLs (max 10) }",
     keywords: ["log work", "add work log", "record progress", "how many made", "report done work"],
-    notes: "Returns { id }.",
+    notes: "Returns { data: { id } }.",
   },
   "DELETE /api/tasks/[id]/work-logs/[logId]": {
     summary:
@@ -437,7 +443,7 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "GET /api/tasks/[id]/timeline": {
     summary:
-      "A task's status history: each period it spent in To-do, In Progress, On Hold etc., who moved it and why, across hold follow-ups. Anyone who can see the project (adhoc work: assignee, creator or their manager).",
+      "A task's status history: each period it spent in To-do, In Progress, On Hold etc., who moved it and why, across hold follow-ups. Anyone who can see the project (adhoc work: assignee, creator, or the assignee's reporting or dotted manager).",
     keywords: ["task history", "status history", "time in progress", "how long did it take"],
   },
 
@@ -472,8 +478,8 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "PATCH /api/projects/[id]/goals/[goalId]": {
     summary:
-      "Edit a project goal: title, description, status, target date, tags or the person accountable for it. Only the Account Manager or project:write holders. Send only what changes.",
-    body: "{ title?: max 200; description?: string or null; status?: NOT_STARTED|IN_PROGRESS|AT_RISK|DONE|DISCARDED; reason?: required with AT_RISK or DISCARDED; targetDate?: YYYY-MM-DD or null (not on a monthly edition); tags?: string[] (max 6, each max 24 chars; replaces the set); ownerId?: accountable employee id, or null = the Account Manager; metricLabel?: what is counted, or null; targetValue?: number > 0, or null to remove the number; actualSource?: MANUAL|META_PURCHASES; service?: a project service code, on a sub-goal only }",
+      "Edit a project goal: title, description, status, target date, tags, the person accountable for it, its number (what is counted and the target), where its results come from, or a part's service. Only the Account Manager or project:write holders. Send only what changes.",
+    body: "{ title?: max 200; description?: string or null; status?: NOT_STARTED|IN_PROGRESS|AT_RISK|DONE|DISCARDED; reason?: required with AT_RISK or DISCARDED; targetDate?: YYYY-MM-DD or null (not on a monthly edition); tags?: string[] (max 6, each max 24 chars; replaces the set); ownerId?: accountable employee id, or null = the Account Manager; metricLabel?: what is counted (max 40), or null; targetValue?: number > 0 (needs a metricLabel), or null to remove the number; actualSource?: MANUAL|META_PURCHASES (META_PURCHASES only on a goal with a number); service?: a project service code, on a sub-goal only }",
     keywords: ["update goal", "goal at risk", "goal status", "goal owner", "goal due date"],
     notes:
       "A goal with sub-goals or linked tasks takes its status from them - you can only flag it AT_RISK/DISCARDED or clear that flag. Progress % is not settable (it comes from sub-goals, tasks or deliverable targets). Status changes go into the goal history.",
@@ -521,8 +527,8 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "PATCH /api/tasks/[id]": {
     summary:
-      "Update a task: move its status (start, complete, hold, discard), edit details, reassign, change due date, priority, hours, links, goal or milestone flag. For the assignee, the task's manager (team manager; for adhoc work the assignee's line manager), the project's Account Manager or project:write holders.",
-    body: "{ status?: TODO|IN_PROGRESS|DONE|ON_HOLD|DISCARDED; holdReason + holdExpectedDate (YYYY-MM-DD): required for ON_HOLD; discardReason: required for DISCARDED; keepFollowUp?: true to go ahead after a 409 about a hold follow-up; title?; description?; priority?: LOW|MEDIUM|HIGH|URGENT; startDate?, dueDate?: YYYY-MM-DD or null; estimatedHours?: number or null; tags?: string[]; assigneeId?: active employee id or null (manager/admin; the assignee may also hand it to their own report on the same team); links?: http(s) URLs, max 20; isMilestone?: boolean; goalId?: goal on the task's project or null; producesOutput?: boolean; outputSkipped?: true = nothing came out of this }",
+      "Update a task: move its status (start, complete, hold, discard), edit details, reassign, change due date, priority, hours, links, goal or milestone flag. For the assignee, the task's manager (team manager; for adhoc work the assignee's reporting or dotted manager), the project's Account Manager or project:write holders.",
+    body: "{ status?: TODO|IN_PROGRESS|DONE|ON_HOLD|DISCARDED; holdReason + holdExpectedDate (YYYY-MM-DD): required for ON_HOLD; discardReason: required for DISCARDED; keepFollowUp?: true to go ahead after a 409 about a hold follow-up; title?; description?; priority?: LOW|MEDIUM|HIGH|URGENT; startDate?, dueDate?: YYYY-MM-DD or null; estimatedHours?: number or null; tags?: string[]; assigneeId?: active employee id or null (manager/admin; the assignee may also hand it to their own report - solid line any depth or dotted - who is on the same team); links?: http(s) URLs, max 20; isMilestone?: boolean; goalId?: goal on the task's project or null; producesOutput?: boolean; outputSkipped?: true = nothing came out of this }",
     keywords: [
       "update task",
       "complete task",
@@ -543,7 +549,7 @@ export const PROJECTS_CORE: DescriptionMap = {
 
   "POST /api/projects": {
     summary:
-      "Create a new project. It gets the next DN code, a URL slug, all 11 fixed teams (its Account Manager managing AM) and a calendar per service. Needs project:write. The Account Manager defaults to you.",
+      "Create a new project. It gets the next DN code, a URL slug, all 12 fixed teams (AM, WEB, DESIGN, VIDEO, CONTENT, SMO, ORGANIC PROMOTION, PAID PROMOTION, DATA ANALYTICS, PR, ALLIANCES & PARTNERSHIPS, ADMIN; its Account Manager managing AM) and a calendar per service. Needs project:write. The Account Manager defaults to you.",
     body: "{ name (required); accountManagerId?: active employee id, the primary Account Manager (default you); secondaryAccountManagerId?: active employee id, someone other than the primary; clientId?; description?; status?: PLANNING (default)|ACTIVE|ON_HOLD|COMPLETED|CANCELLED; priority?: LOW|MEDIUM (default)|HIGH|URGENT; stage?: LAUNCH|GROWTH|REBRANDING|DECLINE (the Phase); startDate?: YYYY-MM-DD; budget?: number (INR); shortName?: up to 24 chars, unique; services?: array of SMO (Social Media), SEO (SEO/AEO/GEO), PM (Paid Performance), DA (Data & Analytics), MSG (Email/WhatsApp/SMS), INF (Influencers), ALL (Alliances & Partnerships), DPR (Digital PR), WEB (Website), CAMP (Campaign Planning), OFF (Offline), BD (BD/Sales), BRAND (Branding Kit) }",
     keywords: ["new project", "create project", "add project", "start project", "onboard client"],
     notes:
@@ -576,7 +582,7 @@ export const PROJECTS_CORE: DescriptionMap = {
       "The tasks a planned deliverable is split into (title, assignee, status, due, hours, units logged), whom the caller may give a new one to, and whether they may split it. Anyone on the project.",
     keywords: ["deliverable tasks", "split tasks", "who is working on this deliverable"],
     notes:
-      "Returns { deliverable: { id, title, type, quantity, made, status, dueOn, teamName, goal }, tasks, assignable: [{ id, name }], canSplit }.",
+      "Returns { data: { deliverable: { id, title, type, quantity, made, status, dueOn, teamName, goal }, tasks, assignable: [{ id, name }], canSplit } }.",
   },
   "POST /api/projects/[id]/deliverables/[deliverableId]/tasks": {
     summary:
@@ -584,7 +590,7 @@ export const PROJECTS_CORE: DescriptionMap = {
     body: "{ tasks (required, 1-30): [{ title (required), assigneeId (required), dueDate?: YYYY-MM-DD (default the deliverable's due day), estimatedHours?: 0-500 }] }",
     keywords: ["split deliverable", "break into tasks", "assign deliverable work", "delegate work"],
     notes:
-      "Claims an unclaimed deliverable (the caller if on the team, else the first assignee). Each other assignee is notified. Returns { created }.",
+      "Only open work owed by a team can be split. Claims an unclaimed deliverable (the caller if on the team, else the first assignee). Each other assignee is notified. Returns { data: { created } }.",
   },
   "POST /api/projects/[id]/deliverables/[deliverableId]/status": {
     summary:
@@ -617,7 +623,7 @@ export const PROJECTS_CORE: DescriptionMap = {
   "POST /api/projects/[id]/goals": {
     summary:
       "Create a project goal, or a sub-goal under a main goal (one level of nesting only). Only the Account Manager or project:write holders.",
-    body: "{ title (required, max 200); description?; parentId?: main goal id to make this a sub-goal; status?: NOT_STARTED (default)|IN_PROGRESS|AT_RISK|DONE|DISCARDED; reason?: required for AT_RISK/DISCARDED; targetDate?: YYYY-MM-DD; tags?: string[] (max 6); ownerId?: accountable employee id (default the Account Manager, or the service's owner for a service part); metricLabel?: what is counted, e.g. 'Orders'; targetValue?: number > 0; actualSource?: MANUAL (default) | META_PURCHASES; service?: project service code (sub-goals only); recurring?: true = repeats monthly (main goals); startMonth?: YYYY-MM (default this month); split?: [{ service, targetValue, actualSource? }] = one numbered part per service, created with the goal }",
+    body: "{ title (required, max 200); description?; parentId?: main goal id to make this a sub-goal; status?: NOT_STARTED (default)|IN_PROGRESS|AT_RISK|DONE|DISCARDED; reason?: required for AT_RISK/DISCARDED; targetDate?: YYYY-MM-DD; tags?: string[] (max 6); ownerId?: accountable employee id (default the Account Manager, or the service's owner for a service part); metricLabel?: what is counted, e.g. 'Orders' (max 40; a sub-goal inherits its parent's); targetValue?: number > 0 (needs a metricLabel); actualSource?: MANUAL (default) | META_PURCHASES (only with a targetValue); service?: a service code ticked on the project, one part per service (sub-goals only); recurring?: true = repeats monthly (main goals; targetDate is then the month's last day); startMonth?: YYYY-MM (default this month); split?: [{ service, targetValue, actualSource? }] = one numbered part per service, created with the goal (needs the goal's targetValue) }",
     keywords: [
       "create goal",
       "add objective",
@@ -628,15 +634,15 @@ export const PROJECTS_CORE: DescriptionMap = {
       "split goal by service",
     ],
     notes:
-      "Returns { id }. Add countable targets with POST .../goals/[goalId]/targets and link tasks with POST .../goals/[goalId]/tasks.",
+      "Returns { id }. Add countable targets with POST .../goals/[goalId]/targets and link tasks with POST .../goals/[goalId]/tasks; plan its work by team with POST .../deliverables/plan (lines[].goalId). A repeating goal gets each new month's edition copied from the last (parts, targets, and planned work owed again and unclaimed; results and tasks are not copied).",
   },
   "POST /api/projects/[id]/goals/[goalId]/results": {
     summary:
       "Enter an actual number against a goal with a number (e.g. 180 orders for a day or week). Its owner, its service's owners, or the Account Manager / project:write. Results add up to the goal's actual; a goal whose service parts have numbers takes its total from them, so enter on the parts.",
-    body: "{ value: number >= 0; recordedFor?: YYYY-MM-DD (default today; inside the month for a monthly edition); note?: string (max 300) }",
+    body: "{ value (required): number >= 0; recordedFor?: YYYY-MM-DD (default today, not in the future; inside the month for a monthly edition); note?: string (max 300) }",
     keywords: ["enter goal result", "record orders", "goal actual", "log results against goal"],
     notes:
-      "Refused on goals whose results come from Meta Ads (actualSource META_PURCHASES). Owners can add to a month until 7 days after it ends; managers any time.",
+      "Refused on goals with no number, deactivated goals, and goals whose results come from Meta Ads (actualSource META_PURCHASES). Owners can add to a month until 7 days after it ends; managers any time. Recorded in the goal's history. Returns { data: { id } }.",
   },
   "DELETE /api/projects/[id]/goals/[goalId]/results/[resultId]": {
     summary:
@@ -729,11 +735,11 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "POST /api/projects/[id]/teams/[teamId]/tasks": {
     summary:
-      "Create a task in a project team. A team member may add their own task (send their own id as assigneeId) or give it to someone who reports to them on that team; the team manager, Account Manager or project:write may assign it to any member of the team.",
+      "Create a task in a project team. A team member may add their own task (send their own id as assigneeId) or give it to someone on that team who reports to them (solid line at any depth, or dotted line); the team manager, Account Manager or project:write may assign it to any member of the team.",
     body: "{ title (required); assigneeId?: a member of this team - defaults to the TEAM MANAGER, so non-managers must send their own id; description?; priority?: LOW|MEDIUM (default)|HIGH|URGENT; dueDate?: YYYY-MM-DD; estimatedHours?: number; tags?: string[]; goalId?: goal on this project; producesOutput?: boolean; seoPropertyId?: an SEO site of this project }",
     keywords: ["create team task", "assign task", "add my task", "new task"],
     notes:
-      "Starts as TODO. A manager assigning someone else notifies them in-app and by email; a member adding their own task notifies the team manager in-app.",
+      "Starts as TODO. GET .../teams/[teamId]/assignable lists whom the caller may pick. A manager assigning someone else notifies them in-app and by email; a member's task (their own or one given to a report) notifies the team manager in-app only, not the assignee.",
   },
   "POST /api/projects/performance/report": {
     summary:
@@ -751,7 +757,7 @@ export const PROJECTS_CORE: DescriptionMap = {
   },
   "POST /api/tasks": {
     summary:
-      "Create an ADHOC task - work with no project or client (meetings, interviews, internal QC) - on yourself, on a direct report, or on anyone if you hold project:write.",
+      "Create an ADHOC task - work with no project or client (meetings, interviews, internal QC) - on yourself, on a direct report (you are their reporting or dotted manager), or on anyone if you hold project:write.",
     body: "{ title (required); assigneeId?: active employee id (default you); description?; priority?: LOW|MEDIUM (default)|HIGH|URGENT; dueDate?: YYYY-MM-DD; estimatedHours?: number; tags?: string[] }",
     keywords: ["adhoc task", "personal task", "meeting task", "my work", "create task"],
     notes:

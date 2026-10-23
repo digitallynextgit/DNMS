@@ -82,13 +82,14 @@ export const PEOPLE_COMPANY: DescriptionMap = {
   },
   "GET /api/analytics": {
     summary:
-      "Company-wide executive analytics: headcount (total including leavers, working now, new this month vs last), headcount of people working now by department plus those with no department, pending/approved leave, attendance status counts this month, last month's payroll totals, open jobs and applicants by stage, active projects, tasks completed, 6-month hiring trend, total documents and the most recent joiners. Needs analytics:read.",
+      "Company-wide numbers (moved here from the dashboard): headcount (total incl. leavers, working now, new this vs last month, by department incl. no department, by status), leave, attendance this month, last month's payroll, open jobs and applicants by stage, active projects, tasks completed, 6-month hiring trend, total documents and the 6 latest joiners (admins left out). Needs analytics:read.",
     keywords: [
       "company analytics",
       "HR metrics",
       "headcount report",
       "executive dashboard",
       "KPIs",
+      "company numbers",
     ],
     notes:
       "payroll covers the PREVIOUS month even though payroll.periodLabel shows the current month name. Figures can be up to a minute old.",
@@ -136,11 +137,15 @@ export const PEOPLE_COMPANY: DescriptionMap = {
       "projects at risk",
       "company overview",
     ],
+    notes:
+      "403 for everyone else, HR included - they use GET /api/dashboard/me (and GET /api/analytics for company numbers). Payroll is the previous month's net total. Delivery scores rank only people with 3+ scored items.",
   },
   "GET /api/dashboard/stats": {
     summary:
-      "Org-wide HR dashboard numbers: active headcount, joiners in the last 30 days, headcount by status and by department, total company documents, unread notifications across everyone, and the 5 most recent joiners. Needs dashboard:read.",
+      "Org-wide HR headcount numbers: people working now, joiners in the last 30 days, headcount by status and by department, total company documents, the caller's OWN unread notification count, and the 5 latest joiners by joining date (admins left out). Needs dashboard:read.",
     keywords: ["HR dashboard", "headcount", "recent joiners", "company stats"],
+    notes:
+      "For the fuller company picture use GET /api/analytics; the admin home page is GET /api/dashboard/leadership.",
   },
   "GET /api/departments": {
     summary:
@@ -161,9 +166,9 @@ export const PEOPLE_COMPANY: DescriptionMap = {
   },
   "GET /api/employees": {
     summary:
-      "HR employee directory with full records (contact, personal details, department, designation, status, probation). Needs employee:read; people without it should use dnms_search_people, GET /api/employees/org-chart or GET /api/employees/[id]/card.",
+      "HR employee directory (Employee and Intern Directory) with full records: contact, department, designation with its level, job role, reporting and dotted manager, status, probation, and live projects - those they run as primary/secondary account manager, teams they are on or manage, services they own. Needs employee:read; others use dnms_search_people, GET /api/employees/org-chart or GET /api/employees/[id]/card.",
     query:
-      "search: partial name, work email or employee code; departmentId (includes its sub-departments); designationId; status: ACTIVE|INACTIVE (login enabled / deactivated) or ON_LEAVE|SUSPENDED|RESIGNED|TERMINATED; employmentType: FULL_TIME|PART_TIME|CONTRACT|INTERN (INTERN = the Intern Directory); excludeEmploymentType: same values, leaves that type out (the Employee Directory uses INTERN); page, limit (default 20, max 100)",
+      "search: partial name, work email or employee code; departmentId (includes its sub-departments); designationId; status: ACTIVE|INACTIVE (login enabled / deactivated) or ON_LEAVE|SUSPENDED|RESIGNED|TERMINATED; employmentType: FULL_TIME|PART_TIME|CONTRACT|INTERN (INTERN = the Intern Directory); excludeEmploymentType: same values, leaves that type out (the Employee Directory uses INTERN; ignored when employmentType is sent); page, limit (default 20, max 100)",
     keywords: [
       "employee list",
       "staff directory",
@@ -174,7 +179,7 @@ export const PEOPLE_COMPANY: DescriptionMap = {
   },
   "GET /api/employees/[id]": {
     summary:
-      "One employee's full HR record: personal and contact details, addresses, emergency contact, department, designation, job role, reporting manager, access roles, probation, employment type, direct-report count. Your own record always; anyone else's needs employee:read.",
+      "One employee's full HR record: personal and contact details, addresses, emergency contact, department, designation, job role, reporting manager and dotted manager, access roles, probation (incl. any explicit probationEndDate), employment type, direct-report count. Your own record always; anyone else's needs employee:read.",
     keywords: [
       "employee profile",
       "employee details",
@@ -333,8 +338,8 @@ export const PEOPLE_COMPANY: DescriptionMap = {
   },
   "PATCH /api/employees/[id]": {
     summary:
-      "HR edit of an employee record: name, employee code, emails, phone, personal details, department, designation, job role, reporting manager, employment type, joining date, probation, addresses, emergency contact. Needs employee:write. id = employee id.",
-    body: "{ firstName?, lastName?, employeeNo?: unique code, email?: work email (also their login), personalEmail?, phone?, personalPhone?, dateOfBirth?: YYYY-MM-DD, gender?: MALE|FEMALE|OTHER|PREFER_NOT_TO_SAY, nationality?, bloodGroup?, departmentId?, designationId?, jobRoleId?: id or '' to clear, managerId?: reporting manager's employee id, employmentType?: FULL_TIME|PART_TIME|CONTRACT|INTERN, dateOfJoining?, probationEndDate?, onProbation?: boolean, probationMonths?: 0-6, workLocation?, deviceId?: biometric code, gmailAppPassword?: 16 chars, currentAddress?/permanentAddress?: { line1, line2, city, state, zip, country }, emergencyContact?: { name, relation, phone } }",
+      "HR edit of an employee record: name, employee code, emails, phone, personal details, department, designation, job role, reporting manager, dotted manager, employment type, joining date, probation (incl. an explicit end date / extension), addresses, emergency contact. Needs employee:write. id = employee id. Send only the fields to change.",
+    body: "{ firstName?, lastName?, employeeNo?: unique code, email?: work email (also their login), personalEmail?, phone?, personalPhone?, dateOfBirth?: YYYY-MM-DD, gender?: MALE|FEMALE|OTHER|PREFER_NOT_TO_SAY, nationality?, bloodGroup?, departmentId?, designationId?, jobRoleId?: id or '' to clear, managerId?: reporting manager's employee id, dottedManagerId?: dotted manager's employee id or '' to clear, employmentType?: FULL_TIME|PART_TIME|CONTRACT|INTERN (INTERN moves them to the Intern Directory), dateOfJoining?: YYYY-MM-DD, probationEndDate?: YYYY-MM-DD explicit probation end, e.g. an extension (wins over joining date + probationMonths; '' clears it), onProbation?: boolean, probationMonths?: 0-6, workLocation?, deviceId?: biometric code, gmailAppPassword?: 16 chars (blank keeps the saved one), currentAddress?/permanentAddress?: { line1, line2, city, state, zip, country }, emergencyContact?: { name, relation, phone } }",
     keywords: [
       "change reporting manager",
       "transfer department",
@@ -342,9 +347,11 @@ export const PEOPLE_COMPANY: DescriptionMap = {
       "edit employee",
       "confirm probation",
       "promote",
+      "dotted manager",
+      "extend probation",
     ],
     notes:
-      "ALWAYS include the employee's current employmentType (read it first) - if omitted it silently resets to FULL_TIME. status, resignationDate, lastWorkingDate, roleId, password and mustChangePassword are accepted but ignored (use deactivate/bulk-terminate and PUT /api/employees/[id]/roles). dottedManagerId sets the dotted manager (same powers as the reporting manager; must differ from it; an empty string clears it). Department/designation/manager can be changed but not cleared. onProbation:false confirms probation and recalculates leave. The employee gets an in-app notification.",
+      "Omitted fields are left unchanged. status, resignationDate, lastWorkingDate, roleId, password and mustChangePassword are accepted but ignored (use deactivate/bulk-terminate and PUT /api/employees/[id]/roles). The dotted manager shares every manager power (approvals, reviews, alerts); it must be neither the employee nor the reporting manager, and making the dotted manager the reporting manager clears the dotted slot. Department/designation/reporting manager can be changed but not cleared. Probation applies only while onProbation is true; onProbation:false confirms it and recalculates leave. The employee gets an in-app notification.",
   },
   "PATCH /api/employees/[id]/task-access": {
     summary:
@@ -381,11 +388,11 @@ export const PEOPLE_COMPANY: DescriptionMap = {
   },
   "PATCH /api/profile": {
     summary:
-      "Update the signed-in person's own self-service details: phone, current address, emergency contact, Gmail App Password, or sign-in password. Everything else (name, department, manager) is HR's job via PATCH /api/employees/[id].",
-    body: "{ phone?: string, currentAddress?: { line1, line2, city, state, zip, country }, emergencyContact?: { name, relation, phone }, gmailAppPassword?: 16-char Google App Password or '' to remove, currentPassword?: string, newPassword?: string min 8 (both needed to change password) }",
+      "Update the signed-in person's own self-service details: phone, current address, emergency contact or Gmail App Password. Everything else (name, department, manager) is HR's job via PATCH /api/employees/[id].",
+    body: "{ phone?: string, currentAddress?: { line1, line2, city, state, zip, country }, emergencyContact?: { name, relation, phone }, gmailAppPassword?: 16-char Google App Password or '' to remove }",
     keywords: ["update my phone", "change my address", "my emergency contact", "edit my profile"],
     notes:
-      "Changing the password or Gmail App Password handles credentials - only do it when the person explicitly asks and supplies them.",
+      "The sign-in password (currentPassword/newPassword) cannot be changed through the AI connector - it refuses those fields; the person does it in DNMS. The Gmail App Password is a credential - only set it when the person explicitly asks and supplies it.",
   },
   "PATCH /api/roles/[id]": {
     summary:
@@ -424,11 +431,11 @@ export const PEOPLE_COMPANY: DescriptionMap = {
   },
   "POST /api/employees": {
     summary:
-      "Add (onboard) a new employee. Needs employee:write. Creates their login, assigns an access role, seeds leave balances, starts the onboarding checklist and 15-day joinee scorecard.",
-    body: "{ firstName, lastName, email: work email - all required; employeeNo?: code (auto EMP-YYYY-#### if blank), personalEmail?, phone?, personalPhone?, dateOfBirth?: YYYY-MM-DD, gender?: MALE|FEMALE|OTHER|PREFER_NOT_TO_SAY, nationality?, bloodGroup?, departmentId?, designationId?, jobRoleId?, managerId?: reporting manager id, dottedManagerId?: dotted manager id - same powers as the reporting manager (approvals, reviews, alerts), must differ from it, an empty string clears, roleId?: access role id (default 'employee'), employmentType?: FULL_TIME|PART_TIME|CONTRACT|INTERN, dateOfJoining?: YYYY-MM-DD, probationEndDate?, onProbation?: boolean, probationMonths?: 0-6, deviceId?: biometric code, workLocation?, currentAddress?/permanentAddress?: { line1, line2, city, state, zip, country }, emergencyContact?: { name, relation, phone }, password?: min 8 (generated if omitted), mustChangePassword?: boolean }",
-    keywords: ["add employee", "onboard new hire", "create employee", "new joiner"],
+      "Add (onboard) a new employee. Needs employee:write. Creates their login, assigns an access role, seeds leave balances, starts the onboarding checklist, the 15-day joinee scorecard and the weekly review that follows it.",
+    body: "{ firstName, lastName, email: work email - all required; employeeNo?: code (auto EMP-YYYY-#### if blank), personalEmail?, phone?, personalPhone?, dateOfBirth?: YYYY-MM-DD, gender?: MALE|FEMALE|OTHER|PREFER_NOT_TO_SAY, nationality?, bloodGroup?, departmentId?, designationId?, jobRoleId?, managerId?: reporting manager id, dottedManagerId?: dotted manager id - same powers as the reporting manager (approvals, reviews, alerts), must differ from it, roleId?: access role id (default 'employee'), employmentType?: FULL_TIME|PART_TIME|CONTRACT|INTERN (default FULL_TIME; INTERN = Intern Directory), dateOfJoining?: YYYY-MM-DD, probationEndDate?: YYYY-MM-DD explicit probation end (else joining date + probationMonths), onProbation?: boolean (default true), probationMonths?: 0-6 (default 6), deviceId?: biometric code, workLocation?, currentAddress?/permanentAddress?: { line1, line2, city, state, zip, country }, emergencyContact?: { name, relation, phone }, mustChangePassword?: boolean }",
+    keywords: ["add employee", "onboard new hire", "create employee", "new joiner", "add intern"],
     notes:
-      "Emails a welcome message WITH the login password to the work and personal emails, and notifies HR/admins. Fails with 402 if the plan's headcount limit is reached. status/resignationDate/lastWorkingDate are ignored.",
+      "Never send password - the AI connector refuses it; leave it out and a password is generated. Emails a welcome message WITH the login password to the work and personal emails, and notifies HR/admins. Fails with 402 if the plan's headcount limit is reached. status/resignationDate/lastWorkingDate are ignored.",
   },
   "POST /api/employees/[id]/activate": {
     summary:
