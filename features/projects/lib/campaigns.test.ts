@@ -14,11 +14,16 @@ describe("campaignTiming", () => {
   it("is upcoming, live or ended around its dates", () => {
     expect(campaignTiming(halloween, "2026-10-10")).toEqual({ state: "UPCOMING", days: 5 })
     expect(campaignTiming(halloween, "2026-10-15")).toEqual({ state: "LIVE", days: 16 })
+    // Nobody has started: due, not live.
+    expect(campaignTiming(halloween, "2026-10-15", false)).toEqual({ state: "DUE", days: 16 })
+    expect(campaignTiming(halloween, "2026-10-10", false)).toEqual({ state: "UPCOMING", days: 5 })
     expect(campaignTiming(halloween, "2026-10-31")).toEqual({ state: "LIVE", days: 0 })
     expect(campaignTiming(halloween, "2026-11-02")).toEqual({ state: "ENDED", days: 2 })
   })
   it("reads in plain words", () => {
     expect(campaignTimingLabel({ state: "UPCOMING", days: 1 })).toBe("Starts tomorrow")
+    expect(campaignTimingLabel({ state: "DUE", days: 3 })).toBe("Due in 3 days")
+    expect(campaignTimingLabel({ state: "DUE", days: 0 })).toBe("Due today")
     expect(campaignTimingLabel({ state: "LIVE", days: 0 })).toBe("Live - last day")
     expect(campaignTimingLabel({ state: "LIVE", days: 9 })).toBe("Live - 9 days left")
     expect(campaignTimingLabel({ state: "ENDED", days: 3 })).toBe("Ended 3 days ago")

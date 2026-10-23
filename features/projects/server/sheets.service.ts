@@ -519,6 +519,8 @@ export async function createWorkbook(
     periodMonth?: string | null
     /** The project service this calendar is for (PROJECT_SERVICES code). */
     service?: string | null
+    /** A campaign's own calendar: set here so its first tab already gets the campaign columns. */
+    campaignId?: string | null
     /** Start from an existing edition - see copyEditionInto for what is (not) copied. */
     copyFrom?: {
       workbookId: string
@@ -580,6 +582,7 @@ export async function createWorkbook(
       assignedToId: source?.assignedToId ?? null,
       secondaryAssignedToId: source?.secondaryAssignedToId ?? null,
       service,
+      campaignId: input.campaignId ?? null,
     },
   })
 

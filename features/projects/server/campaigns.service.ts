@@ -7,6 +7,7 @@ import { createNotifications } from "@/lib/notifications"
 import { addDays, daysFromTo, indiaToday, toDateOnly } from "@/lib/dates"
 import {
   campaignDatesProblem,
+  campaignStarted,
   campaignTiming,
   planProgress,
   reminderStage,
@@ -93,19 +94,20 @@ function toRow(c: StoredCampaign, today: string): CampaignRow {
     services: c.services,
     owner: c.owner,
     workbookId: c.workbook?.id ?? null,
-    timing: campaignTiming({ startDate, deadline }, today),
+    timing: campaignTiming({ startDate, deadline }, today, campaignStarted(teams)),
     progress: planProgress(teams, today),
     teams,
   }
 }
 
-const STATE_ORDER = { LIVE: 0, UPCOMING: 1, ENDED: 2 } as const
+const STATE_ORDER = { LIVE: 0, DUE: 0, UPCOMING: 1, ENDED: 2 } as const
 
 /** Live ones first (nearest deadline on top), then upcoming (soonest first), then past (latest first). */
 function byTiming(a: CampaignRow, b: CampaignRow): number {
   const s = STATE_ORDER[a.timing.state] - STATE_ORDER[b.timing.state]
   if (s) return s
-  if (a.timing.state === "LIVE") return a.deadline.localeCompare(b.deadline)
+  if (a.timing.state === "LIVE" || a.timing.state === "DUE")
+    return a.deadline.localeCompare(b.deadline)
   if (a.timing.state === "UPCOMING") return a.startDate.localeCompare(b.startDate)
   return b.deadline.localeCompare(a.deadline)
 }
@@ -177,14 +179,16 @@ export async function createCampaign(
 
   try {
     const [first, ...rest] = services
-    const book = await createWorkbook(projectId, actorId, { name, firstTab: tabName(first!) })
+    // Linked to the campaign from the start, so every tab opens with the service's fixed columns.
+    const book = await createWorkbook(projectId, actorId, {
+      name,
+      firstTab: tabName(first!),
+      campaignId: campaign.id,
+    })
     for (const code of rest) {
       await createSheet(projectId, actorId, { workbookId: book.id, name: tabName(code) })
     }
-    await db.projectWorkbook.update({
-      where: { id: book.id },
-      data: { campaignId: campaign.id, assignedToId: ownerId },
-    })
+    await db.projectWorkbook.update({ where: { id: book.id }, data: { assignedToId: ownerId } })
 
     const usual = new Set(services.flatMap((code) => serviceTeams(code)))
     const teams = await db.projectTeam.findMany({

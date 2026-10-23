@@ -3,23 +3,30 @@
 import { daysFromTo } from "@/lib/dates"
 import type { WorkbookTeamStatus } from "./workbook-team-progress"
 
-export type CampaignState = "UPCOMING" | "LIVE" | "ENDED"
+export type CampaignState = "UPCOMING" | "DUE" | "LIVE" | "ENDED"
 
 export interface CampaignTiming {
   state: CampaignState
-  /** UPCOMING: days until it starts. LIVE: days left (0 = last day). ENDED: days since the deadline. */
+  /** UPCOMING: days until it starts. DUE / LIVE: days left (0 = last day). ENDED: days since the deadline. */
   days: number
 }
 
+/** A running campaign is "due", not live, until a team has started (`started`). */
 export function campaignTiming(
   c: { startDate: string; deadline: string },
   today: string,
+  started = true,
 ): CampaignTiming {
   const toStart = daysFromTo(today, c.startDate)
   if (toStart > 0) return { state: "UPCOMING", days: toStart }
   const left = daysFromTo(today, c.deadline)
-  if (left >= 0) return { state: "LIVE", days: left }
+  if (left >= 0) return { state: started ? "LIVE" : "DUE", days: left }
   return { state: "ENDED", days: -left }
+}
+
+/** Work has begun once any team is In progress or Done (Stuck can be blocked before starting). */
+export function campaignStarted(teams: readonly { status: WorkbookTeamStatus }[]): boolean {
+  return teams.some((t) => t.status === "IN_PROGRESS" || t.status === "DONE")
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`
@@ -27,6 +34,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`
 export function campaignTimingLabel({ state, days }: CampaignTiming): string {
   if (state === "UPCOMING")
     return days === 1 ? "Starts tomorrow" : `Starts in ${plural(days, "day")}`
+  if (state === "DUE") return days === 0 ? "Due today" : `Due in ${plural(days, "day")}`
   if (state === "LIVE") return days === 0 ? "Live - last day" : `Live - ${plural(days, "day")} left`
   return days === 0 ? "Ended today" : `Ended ${plural(days, "day")} ago`
 }
