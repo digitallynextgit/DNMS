@@ -115,6 +115,8 @@ function getTransporter(cfg: SmtpConfig): nodemailer.Transporter {
 }
 
 interface SendEmailOptions {
+  /** Extra message headers, e.g. List-Unsubscribe for bulk mail. */
+  headers?: Record<string, string>
   to: string | string[]
   cc?: string | string[]
   subject: string
@@ -246,6 +248,7 @@ export async function sendEmailWithSmtp(
     subject: options.subject,
     html: options.html,
     text: options.text,
+    headers: options.headers,
     attachments: options.attachments,
     replyTo: options.replyTo ?? smtp.replyTo,
     inReplyTo: options.inReplyTo,

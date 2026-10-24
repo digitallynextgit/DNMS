@@ -10,6 +10,7 @@ import { sendEmailWithSmtp, type ExplicitSmtp } from "@/lib/mailer"
 import { buildVars, renderMerge } from "../lib/merge"
 import { absolutizeMailerImages } from "../lib/image-url"
 import { makeImagesResponsive } from "../lib/email-html"
+import { htmlToText } from "../lib/email-text"
 import { getConfig } from "@/server/app-config"
 
 /** Emails per tick. Keeps well under typical SMTP per-minute limits. */
@@ -26,7 +27,9 @@ export interface RunnerSummary {
 }
 
 /** Transport for the account the campaign was queued with - a project can have several. */
-async function smtpFor(mailerId: string | null): Promise<ExplicitSmtp | null> {
+async function smtpFor(
+  mailerId: string | null,
+): Promise<(ExplicitSmtp & { unsubscribeTo: string }) | null> {
   if (!mailerId) return null
   const mailer = await db.projectMailer.findUnique({ where: { id: mailerId } })
   if (!mailer || !mailer.isActive) return null
@@ -45,6 +48,7 @@ async function smtpFor(mailerId: string | null): Promise<ExplicitSmtp | null> {
     pass,
     from: `"${mailer.fromName}" <${mailer.fromEmail}>`,
     replyTo: mailer.replyTo ?? undefined,
+    unsubscribeTo: mailer.replyTo ?? mailer.fromEmail,
   }
 }
 
@@ -148,11 +152,15 @@ export async function runCampaignQueue(): Promise<RunnerSummary> {
         company: row.recipient?.company ?? null,
         fields: (row.recipient?.fields as Record<string, unknown> | null) ?? null,
       })
+      const html = makeImagesResponsive(
+        absolutizeMailerImages(renderMerge(campaign.bodyHtml, vars), appUrl),
+      )
       const rendered = {
         subject: renderMerge(campaign.subject, vars),
-        html: makeImagesResponsive(
-          absolutizeMailerImages(renderMerge(campaign.bodyHtml, vars), appUrl),
-        ),
+        html,
+        // A text part and a List-Unsubscribe header: what mailbox providers expect of bulk mail.
+        text: htmlToText(html),
+        headers: { "List-Unsubscribe": `<mailto:${smtp.unsubscribeTo}?subject=unsubscribe>` },
       }
 
       try {
@@ -160,6 +168,8 @@ export async function runCampaignQueue(): Promise<RunnerSummary> {
           to: row.email,
           subject: rendered.subject,
           html: rendered.html,
+          text: rendered.text,
+          headers: rendered.headers,
         })
         await db.projectCampaignSend.update({
           where: { id: row.id },
