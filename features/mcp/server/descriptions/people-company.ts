@@ -386,6 +386,20 @@ export const PEOPLE_COMPANY: DescriptionMap = {
     notes:
       "Always resend the current mergeFields and isActive - when omitted they reset to [] and true.",
   },
+  "GET /api/profile/telegram": {
+    summary:
+      "Whether the asking user's Telegram is linked to DNMS as a notification channel, and the bot's name.",
+    keywords: ["telegram", "telegram linked", "notification channel"],
+  },
+  "POST /api/profile/telegram": {
+    summary:
+      "Start linking the asking user's Telegram: returns a t.me link to open; pressing Start in Telegram completes it. Takes no body.",
+    keywords: ["link telegram", "connect telegram"],
+  },
+  "DELETE /api/profile/telegram": {
+    summary: "Unlink the asking user's Telegram; DNMS stops messaging them there.",
+    keywords: ["unlink telegram", "stop telegram"],
+  },
   "PATCH /api/profile": {
     summary:
       "Update the signed-in person's own self-service details: phone, current address, emergency contact or Gmail App Password. Everything else (name, department, manager) is HR's job via PATCH /api/employees/[id].",

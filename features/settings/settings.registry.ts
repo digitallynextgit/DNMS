@@ -232,6 +232,31 @@ export const SETTING_FIELDS: SettingField[] = [
     placeholder: "10",
     help: "Paid to the referrer once the person they referred completes one year. Calculated from that new joiner's monthly salary at the time of payout. Blank or 0 disables the reward, and referrals are still tracked.",
   },
+  {
+    key: "TELEGRAM_BOT_TOKEN",
+    label: "Bot token",
+    type: "password",
+    group: "Telegram",
+    secret: true,
+    help: "From @BotFather in Telegram. Save, then press Connect below.",
+  },
+
+  {
+    key: "ATTENDANCE_SUMMARY_TIMES",
+    label: "Entry summary times",
+    type: "text",
+    group: "Attendance summary",
+    placeholder: "09:30,10:00",
+    help: "India time, comma-separated. Admins and HR managers get who is in and who is not at each time.",
+  },
+  {
+    key: "OFFICE_START",
+    label: "Office start",
+    type: "text",
+    group: "Attendance summary",
+    placeholder: "10:00",
+    help: "From this time, people not in are counted as late.",
+  },
 ]
 
 export const SETTING_KEYS = SETTING_FIELDS.map((f) => f.key)

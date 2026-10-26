@@ -592,6 +592,7 @@ model Employee {
   mobileSessions  MobileSession[]
   deviceTokens    DeviceToken[]
   mobilePairCodes MobilePairCode[]
+  telegramLink    TelegramLink?
 
   attendanceLogs          AttendanceLog[]
   regularizations         AttendanceRegularization[] @relation("RegularizationEmployee")
@@ -5381,4 +5382,25 @@ model MobilePairCode {
   /// "One live code per person": a mint replaces the caller's previous code through this.
   @@index([membershipId])
   @@map("mobile_pair_codes")
+}
+
+/// Telegram as a notification channel: one private chat per employee, linked from their profile.
+model TelegramLink {
+  tenantId      String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id            String    @id @default(uuid()) @map("id")
+  employeeId    String    @unique @map("employee_id")
+  chatId        String?   @map("chat_id")
+  username      String?   @map("username")
+  /// Short-lived: set when a link starts, cleared when /start arrives.
+  code          String?   @unique @map("code")
+  codeExpiresAt DateTime? @map("code_expires_at")
+  linkedAt      DateTime? @map("linked_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
+  @@index([tenantId])
+  @@map("telegram_links")
 }

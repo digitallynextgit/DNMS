@@ -82,6 +82,8 @@ const globalForScheduler = globalThis as unknown as {
   fullFinalRunning?: boolean
   plannerTimer?: NodeJS.Timeout
   plannerRunning?: boolean
+  entrySummaryTimer?: NodeJS.Timeout
+  entrySummaryRunning?: boolean
 }
 
 export function startTaskReminderScheduler(): void {
@@ -579,5 +581,47 @@ async function plannerTick(): Promise<void> {
     console.error("[scheduler] planner failed:", err)
   } finally {
     globalForScheduler.plannerRunning = false
+  }
+}
+
+/**
+ * Morning entry summary (who is in, who is not) to admins and HR at the configured times. Checked
+ * every minute; each time slot is claimed per day. Production only: a dev machine shares the
+ * database and could take the claim.
+ */
+const ENTRY_SUMMARY_INTERVAL_MS = 60_000
+const ENTRY_SUMMARY_FIRST_RUN_DELAY_MS = 40_000
+
+export function startEntrySummaryScheduler(): void {
+  if (globalForScheduler.entrySummaryTimer) return
+  if (process.env.DISABLE_INLINE_SCHEDULER === "1") {
+    console.log("[scheduler] entry summary disabled (DISABLE_INLINE_SCHEDULER=1)")
+    return
+  }
+  if (process.env.NODE_ENV !== "production") return
+
+  const timer = setInterval(entrySummaryTick, ENTRY_SUMMARY_INTERVAL_MS)
+  timer.unref?.()
+  globalForScheduler.entrySummaryTimer = timer
+
+  const first = setTimeout(entrySummaryTick, ENTRY_SUMMARY_FIRST_RUN_DELAY_MS)
+  first.unref?.()
+
+  console.log("[scheduler] entry summary started (every minute, sends at the configured times)")
+}
+
+async function entrySummaryTick(): Promise<void> {
+  if (globalForScheduler.entrySummaryRunning) return
+  globalForScheduler.entrySummaryRunning = true
+  try {
+    await forEachTenant("entry-summary", async () => {
+      const { runEntrySummary } = await import("@/features/attendance/server/entry-summary.service")
+      const r = await runEntrySummary()
+      if (r.sent > 0) console.log(`[scheduler] entry summary ${r.slot}: ${r.sent} recipient(s)`)
+    })
+  } catch (err) {
+    console.error("[scheduler] entry summary failed:", err)
+  } finally {
+    globalForScheduler.entrySummaryRunning = false
   }
 }

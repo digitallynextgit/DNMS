@@ -3,6 +3,7 @@
 import { Fragment, useState } from "react"
 import { CheckCircle2, Info, Pencil, XCircle } from "lucide-react"
 import { DriveConnectCard } from "@/features/drive"
+import { TelegramSetupCard } from "./telegram-setup-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -29,6 +30,10 @@ const GROUP_IMPACT: Record<string, string> = {
     "This is the SMTP server used for HR emails. An incorrect value will stop HR emails from being delivered.",
   "Google Drive":
     "The OAuth client lets DNMS reach the company's Google account, where Repository files are stored. A wrong value stops Repository files opening until it is put right.",
+  Telegram:
+    "The bot that delivers DNMS notifications to employees' phones. A wrong token stops Telegram messages until it is fixed.",
+  "Attendance summary":
+    "When the morning entry summary goes to admins and HR managers, and from what time someone counts as late.",
 }
 
 export function IntegrationsForm({ settings }: { settings: SettingValue[] }) {
@@ -39,6 +44,7 @@ export function IntegrationsForm({ settings }: { settings: SettingValue[] }) {
         <Fragment key={group}>
           {/* The account sits above its keys: connecting is the step people come here for. */}
           {group === "Google Drive" && <DriveConnectCard />}
+          {group === "Telegram" && <TelegramSetupCard />}
           <SettingsGroupCard
             group={group}
             fields={SETTING_FIELDS.filter((f) => f.group === group)}

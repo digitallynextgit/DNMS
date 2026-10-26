@@ -41,7 +41,7 @@ import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { ProfileSelfActions } from "@/features/employees"
 import { PairPhoneClient, SignedInDevices } from "@/features/auth"
 import { ResignationNotice } from "@/features/resignations"
-import { TaskReminderSettings } from "@/features/notifications"
+import { TaskReminderSettings, TelegramLinkCard } from "@/features/notifications"
 import { DocumentList } from "@/features/documents"
 import { DocumentUploadDialog } from "@/features/documents"
 import { useSession } from "next-auth/react"
@@ -650,6 +650,8 @@ export default function ProfilePage() {
         {/* Same preference record as /notifications, so they can't disagree. */}
         <TabsContent value="notifications" className="space-y-6">
           <TaskReminderSettings />
+          {/* Telegram as a channel: every notification above also lands in their chat. */}
+          <TelegramLinkCard />
         </TabsContent>
 
         {hasScorecard && userId && (

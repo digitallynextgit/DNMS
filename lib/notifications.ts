@@ -3,6 +3,7 @@ import { getSession } from "@/server/api-handler"
 import { isAdmin_Session } from "@/lib/audit"
 import { sendPushToEmployee, type PushPayload } from "@/lib/web-push"
 import { sendMobilePushToEmployee } from "@/lib/push-mobile"
+import { sendTelegramToEmployee } from "@/lib/telegram"
 import { managerIdsOf } from "@/lib/reporting-line"
 
 type NotificationType = "info" | "success" | "warning" | "error"
@@ -22,6 +23,9 @@ function fanOutPush(employeeId: string, payload: PushPayload): void {
   )
   void sendMobilePushToEmployee(employeeId, payload).catch((err) =>
     console.error("[notifications] mobile push failed:", err),
+  )
+  void sendTelegramToEmployee(employeeId, payload).catch((err) =>
+    console.error("[notifications] telegram failed:", err),
   )
 }
 
