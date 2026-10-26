@@ -10,6 +10,7 @@ import {
   dueSlots,
   istClock,
   istMinutes,
+  minutesOf,
   parseTimes,
   type EntryPerson,
 } from "../lib/entry-summary"
@@ -72,7 +73,13 @@ export async function runEntrySummary(
       select: { employeeId: true },
     }),
   ])
-  const checkIn = new Map(logs.filter((l) => l.checkIn).map((l) => [l.employeeId, l.checkIn!]))
+  // Only check-ins by the slot's time: a late run must not list someone who came at 12:04 as in by 9:30.
+  const cutoff = minutesOf(latest)
+  const checkIn = new Map(
+    logs
+      .filter((l) => l.checkIn && istMinutes(l.checkIn) <= cutoff)
+      .map((l) => [l.employeeId, l.checkIn!]),
+  )
   // A quiet weekend or holiday is not worth a message; one person in the office is.
   if (offDay && checkIn.size === 0) return { sent: 0, slot: latest }
 

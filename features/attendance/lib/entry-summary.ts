@@ -29,10 +29,10 @@ export function istMinutes(now: Date): number {
   return ist.getUTCHours() * 60 + ist.getUTCMinutes()
 }
 
-/** "9:02" in India for a check-in time. */
+/** "09:02" in India for a check-in time. */
 export function istClock(at: Date): string {
   const ist = new Date(at.getTime() + 5.5 * 3_600_000)
-  return `${ist.getUTCHours()}:${String(ist.getUTCMinutes()).padStart(2, "0")}`
+  return `${String(ist.getUTCHours()).padStart(2, "0")}:${String(ist.getUTCMinutes()).padStart(2, "0")}`
 }
 
 /** Every slot that has passed today, earliest first. */
@@ -42,7 +42,7 @@ export function dueSlots(times: string[], nowMinutes: number): string[] {
 
 export interface EntryPerson {
   name: string
-  /** "9:02", or null when not in. */
+  /** "09:02", or null when not in. */
   checkIn: string | null
   /** Why they are not expected in: on leave, half day, or working from home. */
   away: "leave" | "half-day" | "wfh" | null
@@ -55,7 +55,12 @@ export interface SummaryOptions {
   offDay?: string | null
 }
 
-const names = (list: EntryPerson[]) => list.map((p) => p.name).join(", ")
+/** One block per group: a heading with the count, then one person per line (time first). */
+function block(heading: string, list: EntryPerson[], withTime = false): string | null {
+  if (list.length === 0) return null
+  const rows = list.map((p) => (withTime ? `${p.checkIn}  ${p.name}` : p.name))
+  return [`${heading} (${list.length})`, ...rows].join("\n")
+}
 
 /** The title and body of one summary. */
 export function buildEntrySummary(
@@ -66,39 +71,32 @@ export function buildEntrySummary(
 ): { title: string; message: string } {
   const inSoFar = people
     .filter((p) => p.checkIn)
-    .sort((a, b) => minutesOf(a.checkIn!.padStart(5, "0")) - minutesOf(b.checkIn!.padStart(5, "0")))
-  const inList = inSoFar.map((p) => `${p.name} ${p.checkIn}`).join(", ")
+    .sort((a, b) => minutesOf(a.checkIn!) - minutesOf(b.checkIn!) || a.name.localeCompare(b.name))
+  const byName = (list: EntryPerson[]) => [...list].sort((a, b) => a.name.localeCompare(b.name))
 
   if (opts.offDay) {
     return {
       title: `Entries at ${slot} (${opts.offDay}) · ${inSoFar.length} in`,
-      message: inSoFar.length ? `In (${inSoFar.length}): ${inList}` : "In: nobody",
+      message: block("✅ In", inSoFar, true) ?? "In: nobody",
     }
   }
 
-  const notIn = people.filter((p) => !p.checkIn && !p.away)
-  const leave = people.filter((p) => !p.checkIn && p.away === "leave")
-  const half = people.filter((p) => !p.checkIn && p.away === "half-day")
-  const wfh = people.filter((p) => !p.checkIn && p.away === "wfh")
+  const notIn = byName(people.filter((p) => !p.checkIn && !p.away))
+  const leave = byName(people.filter((p) => !p.checkIn && p.away === "leave"))
+  const half = byName(people.filter((p) => !p.checkIn && p.away === "half-day"))
+  const wfh = byName(people.filter((p) => !p.checkIn && p.away === "wfh"))
   const afterStart = minutesOf(slot) >= minutesOf(officeStart)
 
-  const lines: string[] = []
-  if (opts.final) {
-    lines.push(inSoFar.length ? `Present (${inSoFar.length}): ${inList}` : "Present: nobody")
-    if (notIn.length) lines.push(`Absent (${notIn.length}): ${names(notIn)}`)
-  } else {
-    lines.push(inSoFar.length ? `In (${inSoFar.length}): ${inList}` : "In: nobody yet")
-    if (notIn.length)
-      lines.push(
-        `${afterStart ? `Not in by ${officeStart}` : "Not in yet"} (${notIn.length}): ${names(notIn)}`,
-      )
-  }
-  if (wfh.length) lines.push(`WFH (${wfh.length}): ${names(wfh)}`)
-  if (leave.length) lines.push(`On leave (${leave.length}): ${names(leave)}`)
-  if (half.length) lines.push(`Half day (${half.length}): ${names(half)}`)
+  const blocks = opts.final
+    ? [block("✅ Present", inSoFar, true) ?? "Present: nobody", block("❌ Absent", notIn)]
+    : [
+        block("✅ In", inSoFar, true) ?? "In: nobody yet",
+        block(afterStart ? `⏰ Not in by ${officeStart}` : "⏳ Not in yet", notIn),
+      ]
+  blocks.push(block("🏠 WFH", wfh), block("🌴 On leave", leave), block("🌗 Half day", half))
 
   const title = opts.final
     ? `Attendance at ${slot} · ${inSoFar.length} present, ${notIn.length} absent`
     : `Entries at ${slot} · ${inSoFar.length} in, ${notIn.length} ${afterStart ? "late" : "not yet"}`
-  return { title, message: lines.join("\n") }
+  return { title, message: blocks.filter((b): b is string => !!b).join("\n\n") }
 }
