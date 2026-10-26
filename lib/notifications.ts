@@ -51,6 +51,12 @@ interface NotifyControl {
   force?: boolean
 }
 
+/** Push an existing notification again (a refreshed unread chat row): no new row, every transport. */
+export async function repushNotification(employeeId: string, payload: PushPayload): Promise<void> {
+  if (await suppressedForAdmin_()) return
+  fanOutPush(employeeId, payload)
+}
+
 /** Never throws - a notification failure must not disrupt the caller. */
 export async function createNotification(
   opts: CreateNotificationOptions,
