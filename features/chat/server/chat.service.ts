@@ -56,25 +56,18 @@ async function notifyRecipient(args: {
 
     const existing = await db.notification.findFirst({
       where: { employeeId: args.toEmployeeId, isRead: false, link },
-      select: { id: true, createdAt: true },
+      select: { id: true },
     })
 
     if (existing) {
-      // No new row (the list keeps one line per conversation), but the phone still hears about
-      // it: at most once a minute per conversation, so a burst doesn't buzz ten times.
-      const buzz = Date.now() - existing.createdAt.getTime() > 60_000
+      // No new row (the list keeps one line per conversation), but every message still reaches
+      // the phone, as any chat app would.
       await db.notification.update({
         where: { id: existing.id },
         data: { message: preview, createdAt: new Date() },
       })
-      if (buzz) {
-        const { repushNotification } = await import("@/lib/notifications")
-        await repushNotification(args.toEmployeeId, {
-          title: args.fromName,
-          message: preview,
-          link,
-        })
-      }
+      const { repushNotification } = await import("@/lib/notifications")
+      await repushNotification(args.toEmployeeId, { title: args.fromName, message: preview, link })
       return
     }
 
