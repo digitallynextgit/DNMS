@@ -1,6 +1,7 @@
-// The morning entry summary ("who is in by 9:30 / 10:00"), pure: shared by the job and its tests.
+// The morning entry summary ("who is in by 9:30 / 10:00 / 11:00"), pure: shared by the job and
+// its tests.
 
-export const DEFAULT_SUMMARY_TIMES = ["09:30", "10:00"]
+export const DEFAULT_SUMMARY_TIMES = ["09:30", "10:00", "11:00"]
 export const DEFAULT_OFFICE_START = "10:00"
 
 const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/
@@ -47,6 +48,13 @@ export interface EntryPerson {
   away: "leave" | "half-day" | "wfh" | null
 }
 
+export interface SummaryOptions {
+  /** The day's last slot: a present / absent list, not "not in yet". */
+  final?: boolean
+  /** A weekend or holiday ("weekend", "holiday: Diwali"): only who came in is worth saying. */
+  offDay?: string | null
+}
+
 const names = (list: EntryPerson[]) => list.map((p) => p.name).join(", ")
 
 /** The title and body of one summary. */
@@ -54,10 +62,20 @@ export function buildEntrySummary(
   slot: string,
   officeStart: string,
   people: EntryPerson[],
+  opts: SummaryOptions = {},
 ): { title: string; message: string } {
   const inSoFar = people
     .filter((p) => p.checkIn)
     .sort((a, b) => minutesOf(a.checkIn!.padStart(5, "0")) - minutesOf(b.checkIn!.padStart(5, "0")))
+  const inList = inSoFar.map((p) => `${p.name} ${p.checkIn}`).join(", ")
+
+  if (opts.offDay) {
+    return {
+      title: `Entries at ${slot} (${opts.offDay}) · ${inSoFar.length} in`,
+      message: inSoFar.length ? `In (${inSoFar.length}): ${inList}` : "In: nobody",
+    }
+  }
+
   const notIn = people.filter((p) => !p.checkIn && !p.away)
   const leave = people.filter((p) => !p.checkIn && p.away === "leave")
   const half = people.filter((p) => !p.checkIn && p.away === "half-day")
@@ -65,19 +83,22 @@ export function buildEntrySummary(
   const afterStart = minutesOf(slot) >= minutesOf(officeStart)
 
   const lines: string[] = []
-  lines.push(
-    inSoFar.length
-      ? `In (${inSoFar.length}): ${inSoFar.map((p) => `${p.name} ${p.checkIn}`).join(", ")}`
-      : "In: nobody yet",
-  )
-  if (notIn.length)
-    lines.push(
-      `${afterStart ? `Not in by ${officeStart}` : "Not in yet"} (${notIn.length}): ${names(notIn)}`,
-    )
+  if (opts.final) {
+    lines.push(inSoFar.length ? `Present (${inSoFar.length}): ${inList}` : "Present: nobody")
+    if (notIn.length) lines.push(`Absent (${notIn.length}): ${names(notIn)}`)
+  } else {
+    lines.push(inSoFar.length ? `In (${inSoFar.length}): ${inList}` : "In: nobody yet")
+    if (notIn.length)
+      lines.push(
+        `${afterStart ? `Not in by ${officeStart}` : "Not in yet"} (${notIn.length}): ${names(notIn)}`,
+      )
+  }
   if (wfh.length) lines.push(`WFH (${wfh.length}): ${names(wfh)}`)
   if (leave.length) lines.push(`On leave (${leave.length}): ${names(leave)}`)
   if (half.length) lines.push(`Half day (${half.length}): ${names(half)}`)
 
-  const title = `Entries at ${slot} · ${inSoFar.length} in, ${notIn.length} ${afterStart ? "late" : "not yet"}`
+  const title = opts.final
+    ? `Attendance at ${slot} · ${inSoFar.length} present, ${notIn.length} absent`
+    : `Entries at ${slot} · ${inSoFar.length} in, ${notIn.length} ${afterStart ? "late" : "not yet"}`
   return { title, message: lines.join("\n") }
 }

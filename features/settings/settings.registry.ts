@@ -246,8 +246,8 @@ export const SETTING_FIELDS: SettingField[] = [
     label: "Entry summary times",
     type: "text",
     group: "Attendance summary",
-    placeholder: "09:30,10:00",
-    help: "India time, comma-separated. Admins and HR managers get who is in and who is not at each time.",
+    placeholder: "09:30,10:00,11:00",
+    help: "India time, comma-separated. Admins and HR managers get who is in at each time; the last one is the present / absent list. Weekends and holidays go out only if someone came in.",
   },
   {
     key: "OFFICE_START",

@@ -14,10 +14,11 @@ import {
   type EntryPerson,
 } from "../lib/entry-summary"
 
-// Morning entry summary to admins and HR managers, at the configured times (09:30 and 10:00 by
-// default). Each slot is claimed per day in digest_runs, so the minute-tick and the cron route
-// can both call this. When several slots are overdue at once (server was down), only the latest
-// is sent; the earlier ones are claimed silently so they never fire late.
+// Entry summary to admins and HR managers at the configured times (09:30, 10:00 and 11:00 India
+// by default; the last one is the present / absent list). Each slot is claimed per day in
+// digest_runs, so the minute-tick and the cron route can both call this. When several slots are
+// overdue at once (server was down), only the latest is sent; the earlier ones are claimed
+// silently so they never fire late. Weekends and holidays go out only when someone came in.
 
 const SUMMARY_ROLES = ["admin", "hr_manager"]
 
@@ -44,15 +45,11 @@ export async function runEntrySummary(
   for (const slot of due.slice(0, -1)) await claim(`entry-summary-${slot}`, todayDate)
   if (!(await claim(`entry-summary-${latest}`, todayDate))) return { sent: 0, slot: null }
 
-  // Claimed first, so a holiday is skipped once and not re-checked every minute.
-  if (isWeekend(todayDate)) return { sent: 0, slot: latest }
-  if (
-    await db.holiday.findFirst({
-      where: { date: todayDate, isOptional: false },
-      select: { id: true },
-    })
-  )
-    return { sent: 0, slot: latest }
+  const holiday = await db.holiday.findFirst({
+    where: { date: todayDate, isOptional: false },
+    select: { name: true },
+  })
+  const offDay = holiday ? `holiday: ${holiday.name}` : isWeekend(todayDate) ? "weekend" : null
 
   const notHidden = { NOT: { employeeRoles: { some: { role: { name: "admin_" } } } } }
   const employees = await db.employee.findMany({
@@ -76,6 +73,9 @@ export async function runEntrySummary(
     }),
   ])
   const checkIn = new Map(logs.filter((l) => l.checkIn).map((l) => [l.employeeId, l.checkIn!]))
+  // A quiet weekend or holiday is not worth a message; one person in the office is.
+  if (offDay && checkIn.size === 0) return { sent: 0, slot: latest }
+
   const away = new Map<string, EntryPerson["away"]>()
   for (const w of wfh) away.set(w.employeeId, "wfh")
   for (const l of leaves) away.set(l.employeeId, l.totalDays < 1 ? "half-day" : "leave")
@@ -89,7 +89,10 @@ export async function runEntrySummary(
     }
   })
   const officeStart = (await getConfig("OFFICE_START")) || DEFAULT_OFFICE_START
-  const { title, message } = buildEntrySummary(latest, officeStart, people)
+  const { title, message } = buildEntrySummary(latest, officeStart, people, {
+    final: latest === times[times.length - 1],
+    offDay,
+  })
 
   const recipients = await db.employee.findMany({
     where: {
