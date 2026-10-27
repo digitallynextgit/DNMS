@@ -2,6 +2,7 @@ import "server-only"
 
 import { db } from "@/server/db"
 import { isDemoEmail } from "@/lib/demo"
+import { PERMISSIONS } from "@/lib/constants"
 import { ensureProjectDriveFolder } from "@/lib/drive-media"
 import { connectedDriveAccount } from "@/lib/google-drive-oauth"
 import {
@@ -23,27 +24,59 @@ import {
 
 const PERSON = { select: { email: true, isActive: true, status: true } } as const
 // Leavers lose access the moment they are marked as gone, not when someone tidies the team.
-const GONE = new Set(["RESIGNED", "TERMINATED", "SUSPENDED"])
+const GONE = ["RESIGNED", "TERMINATED", "SUSPENDED"] as const
+const GONE_SET = new Set<string>(GONE)
 
-/** Both Account Managers + every team member who still works here, by work email. */
-async function projectMemberEmails(projectId: string): Promise<string[]> {
-  const project = await db.project.findUnique({
-    where: { id: projectId },
-    select: {
-      owner: PERSON,
-      secondaryAccountManager: PERSON,
-      teams: { select: { members: { select: { employee: PERSON } } } },
+/**
+ * Anyone whose role shows them every project in DNMS (listProjects widens on exactly these two).
+ * Drive has to match that, or an admin sees a file list it cannot open.
+ */
+async function everyProjectViewers(): Promise<Array<{ email: string; isActive: boolean; status: string }>> {
+  return db.employee.findMany({
+    where: {
+      isActive: true,
+      status: { notIn: [...GONE] },
+      employeeRoles: {
+        some: {
+          role: {
+            rolePermissions: {
+              some: {
+                permission: {
+                  scope: { in: [PERMISSIONS.PROJECT_WRITE, PERMISSIONS.PROJECT_VIEW_ALL] },
+                },
+              },
+            },
+          },
+        },
+      },
     },
+    select: { email: true, isActive: true, status: true },
   })
+}
+
+/** Both Account Managers, every team member who still works here, and the all-project roles. */
+async function projectMemberEmails(projectId: string): Promise<string[]> {
+  const [project, viewers] = await Promise.all([
+    db.project.findUnique({
+      where: { id: projectId },
+      select: {
+        owner: PERSON,
+        secondaryAccountManager: PERSON,
+        teams: { select: { members: { select: { employee: PERSON } } } },
+      },
+    }),
+    everyProjectViewers(),
+  ])
   if (!project) return []
   const people = [
     project.owner,
     project.secondaryAccountManager,
     ...project.teams.flatMap((t) => t.members.map((m) => m.employee)),
+    ...viewers,
   ]
   const emails = new Set<string>()
   for (const p of people) {
-    if (!p?.email || !p.isActive || GONE.has(p.status)) continue
+    if (!p?.email || !p.isActive || GONE_SET.has(p.status)) continue
     // Demo-company addresses aren't real Google accounts; Drive would reject the share.
     if (isDemoEmail(p.email)) continue
     emails.add(p.email.toLowerCase())
