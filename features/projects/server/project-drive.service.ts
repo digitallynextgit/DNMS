@@ -76,8 +76,12 @@ export async function syncProjectFolderAccess(
     if (email.endsWith(".gserviceaccount.com")) continue // the robot itself
     if (email === self) continue
     if (!wanted.has(email)) {
-      await revokeAccess(folder.id, p.id).catch(() => {})
-      revoked++
+      try {
+        await revokeAccess(folder.id, p.id)
+        revoked++
+      } catch (e) {
+        console.error("[drive] revoke failed", projectId, email, e)
+      }
     }
   }
 
@@ -86,8 +90,13 @@ export async function syncProjectFolderAccess(
   )
   for (const email of wanted) {
     if (!have.has(email)) {
-      await grantAccess(folder.id, email, "writer").catch(() => {})
-      granted++
+      // Logged, not thrown: one bad address must not stop the rest of the team getting access.
+      try {
+        await grantAccess(folder.id, email, "writer")
+        granted++
+      } catch (e) {
+        console.error("[drive] share failed", projectId, email, e)
+      }
     }
   }
 

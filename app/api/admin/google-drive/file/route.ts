@@ -6,7 +6,7 @@ import { assertPlatformScope } from "@/server/platform-admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { getAccountFile } from "@/lib/google-drive"
 import { driveFileResponse } from "@/server/drive-stream"
-import { assertDriveId } from "@/features/drive/server/drive-browse.queries"
+import { assertDriveId, assertInDnmsFolder } from "@/features/drive/server/drive-browse.queries"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -18,6 +18,7 @@ export const GET = withAuth(
     assertPlatformScope(session)
     const id = req.nextUrl.searchParams.get("id") ?? ""
     assertDriveId(id)
+    await assertInDnmsFolder(id)
     const file = await getAccountFile(id)
     if (!file || file.isFolder || file.mimeType.startsWith("application/vnd.google-apps.")) {
       return new NextResponse("Not found", { status: 404 })

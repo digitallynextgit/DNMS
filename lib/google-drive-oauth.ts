@@ -7,9 +7,10 @@ import { encrypt } from "@/lib/crypto"
 import { getConfig, reloadConfig } from "@/server/app-config"
 
 // The Google account DNMS stores Repository files in, connected once from Admin -> Integrations.
-// drive.file only: DNMS sees the files it created, never the rest of the account's Drive.
+// Full Drive scope: drive.file can't share a project folder once a member creates a file in it
+// straight from Drive. Every read and write still stays under the company's DNMS folder.
 
-export const DRIVE_OAUTH_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+export const DRIVE_OAUTH_SCOPES = ["https://www.googleapis.com/auth/drive"]
 export const DRIVE_CALLBACK_PATH = "/api/integrations/google-drive/callback"
 /** Ties the callback to the browser that clicked Connect. */
 export const DRIVE_STATE_COOKIE = "dnms_gdrive_state"
