@@ -129,19 +129,39 @@ const GOOGLE_EDITORS: [RegExp, RegExp, string][] = [
   [/presentationml|ms-powerpoint/, /\.(pptx|ppt)$/i, "presentation"],
 ]
 
+/**
+ * Open the file as the person's WORK account. Without this Google uses whichever account the
+ * browser defaults to - usually a personal Gmail - and shows "You need access" for a file that is
+ * in fact shared with them.
+ */
+export function withAuthUser(url: string, email?: string | null): string {
+  if (!url || !email || !email.includes("@")) return url
+  if (/[?&]authuser=/.test(url)) return url
+  return `${url}${url.includes("?") ? "&" : "?"}authuser=${encodeURIComponent(email)}`
+}
+
 /** Where a Drive file opens: Sheets/Docs/Slides for Office files, else Drive's own viewer. */
-export function driveOpenUrl(f: {
-  driveFileId: string
-  mimeType: string
-  fileName: string
-  webViewLink: string | null
-}): string {
+export function driveOpenUrl(
+  f: {
+    driveFileId: string
+    mimeType: string
+    fileName: string
+    webViewLink: string | null
+  },
+  authuser?: string | null,
+): string {
   for (const [mime, ext, app] of GOOGLE_EDITORS) {
     if (mime.test(f.mimeType) || ext.test(f.fileName)) {
-      return `https://docs.google.com/${app}/d/${f.driveFileId}/edit?rtpof=true&sd=true`
+      return withAuthUser(
+        `https://docs.google.com/${app}/d/${f.driveFileId}/edit?rtpof=true&sd=true`,
+        authuser,
+      )
     }
   }
-  return f.webViewLink ?? `https://drive.google.com/file/d/${f.driveFileId}/view`
+  return withAuthUser(
+    f.webViewLink ?? `https://drive.google.com/file/d/${f.driveFileId}/view`,
+    authuser,
+  )
 }
 
 /** The one-line summary under a name, in both the table and the cards. */

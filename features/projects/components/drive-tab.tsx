@@ -79,6 +79,7 @@ import {
   TYPE_LABEL,
   type FileType,
   driveOpenUrl,
+  withAuthUser,
   storageOf,
   type Source,
   type UnifiedFile,
@@ -202,6 +203,8 @@ function useThumbnails(projectId: string, rows: UnifiedFile[], enabled: boolean)
 export function DriveTab({ projectId, canManage }: { projectId: string; canManage: boolean }) {
   const { data: session } = useSession()
   const me = session?.user?.id ?? null
+  // Drive links open as the work account, not the browser's default Google account.
+  const authuser = session?.user?.email ?? null
 
   // The folder lives in the URL (?folder=), so links are shareable and Back walks up.
   const router = useRouter()
@@ -336,12 +339,15 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       description: r.description,
       storedIn: r.driveFileId ? "drive" : "b2",
       webViewLink: r.driveFileId
-        ? driveOpenUrl({
-            driveFileId: r.driveFileId,
-            mimeType: r.mimeType,
-            fileName: r.fileName,
-            webViewLink: r.driveWebViewLink ?? null,
-          })
+        ? driveOpenUrl(
+            {
+              driveFileId: r.driveFileId,
+              mimeType: r.mimeType,
+              fileName: r.fileName,
+              webViewLink: r.driveWebViewLink ?? null,
+            },
+            authuser,
+          )
         : null,
       ...where(`b2-${r.id}`),
     }))
@@ -353,13 +359,16 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       mimeType: f.mimeType,
       modified: f.modifiedTime,
       webViewLink: f.mimeType.startsWith("application/vnd.google-apps.")
-        ? f.webViewLink
-        : driveOpenUrl({
-            driveFileId: f.id,
-            mimeType: f.mimeType,
-            fileName: f.name,
-            webViewLink: f.webViewLink,
-          }),
+        ? f.webViewLink && withAuthUser(f.webViewLink, authuser)
+        : driveOpenUrl(
+            {
+              driveFileId: f.id,
+              mimeType: f.mimeType,
+              fileName: f.name,
+              webViewLink: f.webViewLink,
+            },
+            authuser,
+          ),
       type: classify(f.mimeType, "drive"),
       // Drive files have no row of ours to store a tag on, so theirs is always computed.
       tag: classifyDoc({ name: f.name, mimeType: f.mimeType }),
@@ -388,7 +397,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       ...where(`link-${l.id}`),
     }))
     return [...folders, ...b2, ...drive, ...links]
-  }, [data, results])
+  }, [data, results, authuser])
 
   const q = search.trim().toLowerCase()
   const rows = useMemo(() => {
