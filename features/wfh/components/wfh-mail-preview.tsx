@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Loader2, AlertTriangle, Pencil } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { apiFetch } from "@/lib/api-fetch"
+import { formatLetterDate } from "@/lib/utils"
 import { MailSignature, type MailSignatureData } from "@/components/shared/mail-signature"
 
 interface PreviewData {
@@ -43,12 +44,7 @@ export function WfhMailPreview({
     staleTime: 5 * 60_000,
   })
 
-  // Parse as a local date: `new Date("2026-08-24")` is UTC midnight, the previous day behind UTC.
-  const toLongDay = (value: string): string | null => {
-    const [y, m, d] = value.split("-").map(Number)
-    if (!y || !m || !d) return null
-    return new Date(y, m - 1, d).toDateString()
-  }
+  const toLongDay = (value: string): string | null => formatLetterDate(value) || null
 
   // Mirrors renderWfhRequestEmail().
   const { dateLine, whenPhrase } = useMemo(() => {

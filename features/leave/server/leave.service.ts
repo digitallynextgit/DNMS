@@ -19,7 +19,7 @@ import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { startOfDayUTC } from "@/lib/dates"
 import { managedBy, managerIdsOf } from "@/lib/reporting-line"
-import { SHORT_LEAVE_DAYS } from "@/lib/utils"
+import { formatLetterDate, SHORT_LEAVE_DAYS } from "@/lib/utils"
 import { renderLeaveDecisionLetter, renderLeaveRequestEmail } from "@/lib/email-layout"
 import { getConfig } from "@/server/app-config"
 import { recomputeAccrued } from "./leave-accrual.service"
@@ -326,8 +326,8 @@ async function notifyApprovers(
   const envelope = await resolveLeaveMailEnvelope(applicantId, route)
   if (envelope.autoApprove) return
 
-  const start = new Date(request.startDate).toDateString()
-  const end = new Date(request.endDate).toDateString()
+  const start = formatLetterDate(request.startDate)
+  const end = formatLetterDate(request.endDate)
   const detail = `${applicantName} · ${leaveTypeName} · ${start} - ${end} (${request.totalDays} day${request.totalDays !== 1 ? "s" : ""})`
 
   for (const employeeId of envelope.notifyIds) {
@@ -1349,7 +1349,7 @@ export async function updateLeaveRequest(
       if (emp && action !== "CANCEL") {
         // First decision wins, so whoever decides (manager, HR or admin) mails the employee.
         const isApproved = action === "APPROVE"
-        const startDate = new Date(request.startDate).toDateString()
+        const startDate = formatLetterDate(request.startDate)
         await createNotification({
           employeeId: request.employeeId,
           title: isApproved ? "Leave Approved" : "Leave Rejected",

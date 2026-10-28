@@ -2,6 +2,7 @@ import "server-only"
 
 import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
+import { formatLetterDate } from "@/lib/utils"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import { createNotification, notifyApprovers } from "@/lib/notifications"
 import { addEmailJob, addEmailAsJob } from "@/lib/queue"
@@ -79,10 +80,10 @@ async function loadHolidayKeys(start: Date, end: Date): Promise<Set<string>> {
   return new Set(holidays.map((h) => toDateOnly(h.date)))
 }
 
-/** "Wed Sep 23 2026", or "Wed Sep 23 2026 - Thu Sep 24 2026" for a real range. */
+/** "23 Sep 2026", or "23 Sep 2026 - 24 Sep 2026" for a real range. */
 function formatWfhRange(date: Date | string, endDate: Date | string): string {
-  const start = new Date(date).toDateString()
-  const end = new Date(endDate).toDateString()
+  const start = formatLetterDate(date)
+  const end = formatLetterDate(endDate)
   return start === end ? start : `${start} - ${end}`
 }
 
@@ -452,7 +453,7 @@ export async function applyWfh(body: {
     for (const bound of wfhEnd > wfhDate ? [wfhDate, wfhEnd] : [wfhDate]) {
       if (!holidayKeys.has(toDateOnly(bound))) continue
       const holiday = await db.holiday.findFirst({ where: { date: bound, isOptional: false } })
-      return fail(`${bound.toDateString()} is a holiday (${holiday?.name ?? "company holiday"})`)
+      return fail(`${formatLetterDate(bound)} is a holiday (${holiday?.name ?? "company holiday"})`)
     }
 
     // Weekends and holidays inside the range don't count, so Fri-Mon is 2 days.

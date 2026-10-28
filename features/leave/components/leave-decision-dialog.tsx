@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { cn, cleanLeaveTypeForLetter, leaveLengthLabel } from "@/lib/utils"
+import { cn, cleanLeaveTypeForLetter, formatLetterDate, leaveLengthLabel } from "@/lib/utils"
 import { apiFetch } from "@/lib/api-fetch"
 import { MailSignature, type MailSignatureData } from "@/components/shared/mail-signature"
 import {
@@ -32,7 +32,7 @@ interface Variant {
   text: string
 }
 
-const fmtDate = (d: string) => new Date(d).toDateString()
+const fmtDate = (d: string) => formatLetterDate(d)
 
 /** Default reply letter, kept in sync with the server's renderLeaveDecisionLetter fallback. */
 function composeBody(args: {
@@ -54,9 +54,9 @@ function composeBody(args: {
     return [
       `Dear ${firstName},`,
       ``,
-      `I am pleased to inform you that your application for ${type} for ${days}, from ${dates}, has been approved.`,
+      `Your application for ${type} for ${days}, from ${dates}, has been approved.`,
       ``,
-      `Please ensure your responsibilities are handed over before you go. Do reach out if anything needs to be sorted beforehand.`,
+      `Make sure your responsibilities are handed over before you go. Do reach out if anything needs to be sorted beforehand.`,
       ``,
       `Best Regards,`,
     ].join("\n")
@@ -64,7 +64,7 @@ function composeBody(args: {
   return [
     `Dear ${firstName},`,
     ``,
-    `Thank you for your application for ${type} for ${days}, from ${dates}. After review, I am unable to approve it at this time.`,
+    `After review, I am unable to approve your application for ${type} for ${days}, from ${dates}.`,
     ``,
     ...(reason.trim() ? [`Reason: ${reason.trim()}`, ``] : []),
     `Please feel free to reach out if you would like to discuss this further.`,

@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { ShieldCheck, Loader2, AlertTriangle, Pencil } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { apiFetch } from "@/lib/api-fetch"
-import { cleanLeaveTypeForLetter, leaveLengthLabel } from "@/lib/utils"
+import { cleanLeaveTypeForLetter, formatLetterDate, leaveLengthLabel } from "@/lib/utils"
 import { MailSignature, type MailSignatureData } from "@/components/shared/mail-signature"
 
 type Signature = MailSignatureData
@@ -48,7 +48,7 @@ export function LeaveMailPreview({
     staleTime: 5 * 60_000,
   })
 
-  const fmt = (d: string) => (d ? new Date(d).toDateString() : "-")
+  const fmt = (d: string) => (d ? formatLetterDate(d) : "-")
   const start = fmt(startDate)
   const end = fmt(endDate || startDate)
   const dateLine = !startDate ? "-" : start === end ? start : `${start} to ${end}`

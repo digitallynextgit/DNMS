@@ -1,7 +1,7 @@
 // Shared branded email layout. Table-based with inline styles: Gmail/Outlook strip <style> blocks.
 
 import { getConfigSync } from "@/server/app-config"
-import { cleanLeaveTypeForLetter, leaveLengthLabel } from "@/lib/utils"
+import { cleanLeaveTypeForLetter, formatLetterDate, leaveLengthLabel } from "@/lib/utils"
 
 export const BRAND_NAME = "Digitally Next"
 
@@ -85,23 +85,7 @@ function escapeHtml(value?: string | null): string {
 // "2026-08-23" -> "23 Aug 2026" (no Date dependency, timezone-safe).
 function formatEmailDate(ymd?: string | null): string | null {
   if (!ymd) return null
-  const [y, m, d] = ymd.split("-").map(Number)
-  if (!y || !m || !d) return ymd
-  const months = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ]
-  return `${d} ${months[m - 1]} ${y}`
+  return formatLetterDate(ymd) || ymd
 }
 
 /** Sent from the employee's own mailbox so the manager can be CC'd and reply. */
@@ -734,16 +718,16 @@ export function renderLeaveDecisionLetter(input: {
     ? [
         `Dear ${employeeFirstName},`,
         ``,
-        `I am pleased to inform you that your application for ${type} for ${dayLabel}, from ${dates}, has been approved.`,
+        `Your application for ${type} for ${dayLabel}, from ${dates}, has been approved.`,
         ``,
-        `Please ensure your responsibilities are handed over before you go. Do reach out if anything needs to be sorted beforehand.`,
+        `Make sure your responsibilities are handed over before you go. Do reach out if anything needs to be sorted beforehand.`,
         ``,
         `Best Regards,`,
       ]
     : [
         `Dear ${employeeFirstName},`,
         ``,
-        `Thank you for your application for ${type} for ${dayLabel}, from ${dates}. After review, I am unable to approve it at this time.`,
+        `After review, I am unable to approve your application for ${type} for ${dayLabel}, from ${dates}.`,
         ``,
         ...(reasonTrimmed ? [`Reason: ${reasonTrimmed}`, ``] : []),
         `Please feel free to reach out if you would like to discuss this further.`,

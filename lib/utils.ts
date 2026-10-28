@@ -92,6 +92,39 @@ export function getAvatarColor(name: string): string {
   return colors[Math.abs(hash) % colors.length]
 }
 
+const LETTER_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+]
+
+/**
+ * "28 Oct 2026" for letters and emails. Takes "yyyy-MM-dd" or an ISO timestamp.
+ * Never `toDateString()`, which writes "Wed Oct 28 2026" into an otherwise written sentence.
+ */
+export function formatLetterDate(value?: string | Date | null): string {
+  if (!value) return ""
+  // UTC throughout: leave dates are stored as UTC midnight and read elsewhere via toISOString().
+  const ymd =
+    typeof value === "string"
+      ? value.slice(0, 10)
+      : Number.isNaN(value.getTime())
+        ? ""
+        : value.toISOString().slice(0, 10)
+  const [y, m, d] = ymd.split("-").map(Number)
+  if (!y || !m || !d) return typeof value === "string" ? value : ""
+  return `${d} ${LETTER_MONTHS[m - 1]} ${y}`
+}
+
 /** A short leave is 2 hours, charged as a quarter day. */
 export const SHORT_LEAVE_DAYS = 0.25
 
