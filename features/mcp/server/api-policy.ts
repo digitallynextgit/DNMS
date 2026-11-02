@@ -35,6 +35,8 @@ export const BLOCKED_API_METHODS: Readonly<Record<string, readonly string[]>> = 
   "/api/projects/[id]/passwords/[entryId]": ["GET"],
   // Returns decrypted Meta (ads) credentials.
   "/api/projects/[id]/integration/credentials": ["GET"],
+  // Returns the decrypted Shopify access token.
+  "/api/projects/[id]/integration/shopify/credentials": ["GET"],
 }
 
 /** Body fields the AI may not send because they set a sign-in password. The rest of the call is fine. */

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Pencil, Trash2, RefreshCw, Lock } from "lucide-react"
+import { Check, Pencil, Trash2, RefreshCw, Lock, ShoppingBag } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,13 +18,18 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { TONE } from "@/lib/constants"
-import { FacebookIcon, PROVIDERS } from "./meta-shared"
+import { FacebookIcon, PROVIDERS, SHOPIFY_GREEN } from "./meta-shared"
 import {
   useProjectIntegration,
   useConnectMeta,
   useSyncMeta,
   useDisconnectMeta,
   fetchMetaCredentials,
+  useShopifyIntegration,
+  useConnectShopify,
+  useSyncShopify,
+  useDisconnectShopify,
+  fetchShopifyCredentials,
 } from "../hooks/use-integration"
 
 /** The connections manager, opened from Analytics. */
@@ -45,8 +50,8 @@ export function IntegrationDialog({
         <DialogHeader>
           <DialogTitle>Connections</DialogTitle>
           <DialogDescription>
-            Connect this project&apos;s ad platforms. What syncs shows up in the charts behind this
-            dialog.
+            Connect this project&apos;s ad platforms and store. What syncs shows up in the charts
+            behind this dialog.
           </DialogDescription>
         </DialogHeader>
         {/* Only while open, so each opening re-reads the connection state. */}
@@ -65,12 +70,14 @@ export function IntegrationTab({
   canManage: boolean
 }) {
   const { data, isLoading } = useProjectIntegration(projectId)
+  const shopify = useShopifyIntegration(projectId)
 
-  if (isLoading) return <ListSkeleton rows={3} height="h-24" />
+  if (isLoading || shopify.isLoading) return <ListSkeleton rows={3} height="h-24" />
 
   return (
     <div className="space-y-3">
       <MetaConnectionCard projectId={projectId} canManage={canManage} data={data} />
+      <ShopifyConnectionCard projectId={projectId} canManage={canManage} data={shopify.data} />
 
       {/* Not-yet-live platforms, shown so it's clear more are coming. */}
       {PROVIDERS.filter((p) => !p.live).map((p) => (
@@ -262,6 +269,179 @@ function MetaConnectionCard({
         onOpenChange={setDisconnectOpen}
         title="Disconnect Meta Ads?"
         description="This removes the stored credentials and all synced campaign data for this project. You can reconnect anytime."
+        variant="destructive"
+        confirmLabel="Disconnect"
+        isLoading={disconnect.isPending}
+        onConfirm={() =>
+          disconnect.mutate(undefined, { onSuccess: () => setDisconnectOpen(false) })
+        }
+      />
+    </Card>
+  )
+}
+
+function ShopifyConnectionCard({
+  projectId,
+  canManage,
+  data,
+}: {
+  projectId: string
+  canManage: boolean
+  data: ReturnType<typeof useShopifyIntegration>["data"]
+}) {
+  const connect = useConnectShopify(projectId)
+  const sync = useSyncShopify(projectId)
+  const disconnect = useDisconnectShopify(projectId)
+
+  // "pending" = saved but Shopify refused the token; it still has something to edit or remove.
+  const connected = !!data?.connected
+  const saved = connected || data?.status === "pending"
+  const [editing, setEditing] = useState(false)
+  const [loadingCreds, setLoadingCreds] = useState(false)
+  const [form, setForm] = useState({ storeDomain: "", accessToken: "" })
+  const [disconnectOpen, setDisconnectOpen] = useState(false)
+
+  async function startEdit() {
+    if (saved) {
+      setLoadingCreds(true)
+      const creds = await fetchShopifyCredentials(projectId).catch(() => null)
+      setLoadingCreds(false)
+      setForm(creds ?? { storeDomain: data?.storeDomain ?? "", accessToken: "" })
+    } else {
+      setForm({ storeDomain: "", accessToken: "" })
+    }
+    setEditing(true)
+  }
+
+  return (
+    <Card>
+      <CardContent className="space-y-4 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-sm"
+              style={{ backgroundColor: `${SHOPIFY_GREEN}1A` }}
+            >
+              <ShoppingBag className="h-4 w-4" style={{ color: SHOPIFY_GREEN }} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold">Shopify</p>
+                <StatusBadge
+                  status={connected ? "connected" : "pending"}
+                  colorMap={{ connected: TONE.green, pending: TONE.neutral }}
+                  labelMap={{ connected: "Connected", pending: "Not connected" }}
+                  size="xs"
+                />
+              </div>
+              <p className="text-muted-foreground text-xs">
+                Store orders, sales and top products, updated every 15 minutes.
+              </p>
+            </div>
+          </div>
+
+          {canManage && !editing && (
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" onClick={startEdit} loading={loadingCreds}>
+                <Pencil className="mr-1.5 h-3.5 w-3.5" /> {saved ? "Edit" : "Connect"}
+              </Button>
+              {saved && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  title="Disconnect"
+                  onClick={() => setDisconnectOpen(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {connected && !editing && (
+          <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            {data?.shopName && <span>{data.shopName}</span>}
+            {data?.storeDomain && <span>{data.storeDomain}</span>}
+            {data?.lastSyncedAt && (
+              <span>Last synced {new Date(data.lastSyncedAt).toLocaleString("en-IN")}</span>
+            )}
+            {canManage && (
+              <Button
+                variant="ghost"
+                className="ml-auto"
+                onClick={() => sync.mutate()}
+                loading={sync.isPending}
+              >
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Sync now
+              </Button>
+            )}
+          </div>
+        )}
+
+        {data?.lastSyncError && !editing && (
+          <p className="text-destructive text-xs">Last error: {data.lastSyncError}</p>
+        )}
+
+        {editing && (
+          <>
+            <div className="grid gap-3">
+              <Field
+                label="Store address"
+                required
+                value={form.storeDomain}
+                onChange={(v) => setForm((f) => ({ ...f, storeDomain: v }))}
+                placeholder="your-store.myshopify.com"
+              />
+              <Field
+                label="Admin API access token"
+                required={!saved}
+                value={form.accessToken}
+                onChange={(v) => setForm((f) => ({ ...f, accessToken: v }))}
+                placeholder="shpat_..."
+              />
+              <p className="text-muted-foreground text-xs">
+                From the store&apos;s custom app, with the read_orders and read_products scopes. Use
+                the .myshopify.com address, not the shop&apos;s own domain.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setForm({ storeDomain: "", accessToken: "" })
+                  setEditing(false)
+                }}
+                disabled={connect.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() =>
+                  connect.mutate(form, {
+                    onSuccess: () => {
+                      setEditing(false)
+                      // Pull the first batch so the Analytics tab isn't empty.
+                      sync.mutate()
+                    },
+                  })
+                }
+                loading={connect.isPending || sync.isPending}
+                // Token is required only on first connect; blank keeps the saved one when editing.
+                disabled={!form.storeDomain.trim() || (!saved && !form.accessToken.trim())}
+              >
+                <ShoppingBag className="mr-1.5 h-3.5 w-3.5" /> {saved ? "Save" : "Connect"}
+              </Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+
+      <ConfirmDialog
+        open={disconnectOpen}
+        onOpenChange={setDisconnectOpen}
+        title="Disconnect Shopify?"
+        description="This removes the stored token, every synced order and the products it brought in. Shopify only gives back the last 60 days of orders, so older history can't be synced again."
         variant="destructive"
         confirmLabel="Disconnect"
         isLoading={disconnect.isPending}

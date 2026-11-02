@@ -56,6 +56,11 @@ const PLANNER_INTERVAL_MS = 60 * 60_000
 const PLANNER_FIRST_RUN_DELAY_MS = 270_000
 const PLANNER_EARLIEST_HOUR = 9
 
+// Shopify sales: orders changed since each store's last sync. The run skips a store synced in the
+// last 10 minutes, so both blue/green servers ticking costs one sync, not two.
+const SHOPIFY_INTERVAL_MS = 15 * 60_000
+const SHOPIFY_FIRST_RUN_DELAY_MS = 300_000
+
 const FIRST_RUN_DELAY_MS = 15_000
 
 // On globalThis so dev hot-reload doesn't start duplicate intervals.
@@ -84,6 +89,8 @@ const globalForScheduler = globalThis as unknown as {
   plannerRunning?: boolean
   entrySummaryTimer?: NodeJS.Timeout
   entrySummaryRunning?: boolean
+  shopifyTimer?: NodeJS.Timeout
+  shopifyRunning?: boolean
 }
 
 export function startTaskReminderScheduler(): void {
@@ -623,5 +630,50 @@ async function entrySummaryTick(): Promise<void> {
     console.error("[scheduler] entry summary failed:", err)
   } finally {
     globalForScheduler.entrySummaryRunning = false
+  }
+}
+
+/** Live Shopify sales on project Analytics: each connected store re-synced every 15 minutes. */
+export function startShopifyScheduler(): void {
+  if (globalForScheduler.shopifyTimer) return
+  if (process.env.DISABLE_INLINE_SCHEDULER === "1") {
+    console.log("[scheduler] shopify disabled (DISABLE_INLINE_SCHEDULER=1)")
+    return
+  }
+
+  const timer = setInterval(shopifyTick, SHOPIFY_INTERVAL_MS)
+  timer.unref?.()
+  globalForScheduler.shopifyTimer = timer
+
+  const first = setTimeout(shopifyTick, SHOPIFY_FIRST_RUN_DELAY_MS)
+  first.unref?.()
+
+  console.log("[scheduler] shopify sync started (every 15m)")
+}
+
+async function shopifyTick(): Promise<void> {
+  if (globalForScheduler.shopifyRunning) return
+  globalForScheduler.shopifyRunning = true
+  try {
+    await forEachTenant("shopify-sync", async () => {
+      const { db } = await import("@/server/db")
+      // Checked before importing the sync module.
+      const stores = await db.marketplaceChannel.count({
+        where: { provider: "SHOPIFY", status: "connected" },
+      })
+      if (stores === 0) return
+
+      const { runShopifySweep } = await import("@/features/projects/server/shopify-sync.service")
+      const r = await runShopifySweep()
+      if (r.synced || r.failed) {
+        console.log(
+          `[scheduler] shopify: ${r.synced} synced (${r.orders} orders), ${r.failed} failed, ${r.skipped} skipped`,
+        )
+      }
+    })
+  } catch (err) {
+    console.error("[scheduler] shopify sync failed:", err)
+  } finally {
+    globalForScheduler.shopifyRunning = false
   }
 }

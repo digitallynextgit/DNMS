@@ -3,6 +3,7 @@ import "server-only"
 import { Prisma } from "@prisma/client"
 import { db } from "@/server/db"
 import { encrypt, tryDecrypt } from "@/lib/crypto"
+import { metricDateFilter, type MetricRange } from "./metric-range"
 
 // Meta Ads sync: Graph API campaigns + daily insights into the meta_campaign tables, per project.
 
@@ -185,43 +186,9 @@ export interface MetaDashboard {
 
 const num = (v: unknown): number => (v == null ? 0 : Number(v))
 
-/** Metrics slice: inclusive yyyy-MM-dd `from`/`to` (wins over `days`); empty = all synced days. */
-export interface MetaDashboardRange {
-  days?: number
-  from?: string
-  to?: string
-}
-
-/** yyyy-MM-dd -> UTC midnight (how @db.Date stores it); junk -> null, which widens the range. */
-function parseDay(value: string | undefined): Date | null {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
-  const date = new Date(`${value}T00:00:00.000Z`)
-  return Number.isNaN(date.getTime()) ? null : date
-}
-
-/** Prisma filter for a range (null = none). Inclusive: DATE columns sit at UTC midnight. */
-function metricDateFilter(range?: MetaDashboardRange): { gte?: Date; lte?: Date } | null {
-  if (!range) return null
-
-  const from = parseDay(range.from)
-  const to = parseDay(range.to)
-  if (from || to) {
-    // A backwards range is read as the span between the two dates.
-    if (from && to && from > to) return { gte: to, lte: from }
-    return { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) }
-  }
-
-  if (range.days && range.days > 0) {
-    return {
-      gte: new Date(new Date(Date.now() - range.days * 86_400_000).toISOString().slice(0, 10)),
-    }
-  }
-  return null
-}
-
 export async function getMetaDashboard(
   projectId: string,
-  range?: MetaDashboardRange,
+  range?: MetricRange,
 ): Promise<MetaDashboard> {
   const integration = await db.projectIntegration.findUnique({ where: { projectId } })
   const empty: MetaDashboard = {

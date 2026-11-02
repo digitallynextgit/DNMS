@@ -21,7 +21,10 @@ export const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
   completed: TONE.neutral,
 }
 
-/** The ad platforms shown in the Integration tab. Only `meta` is live today. */
+/** Shopify's brand green, used for its tab icon and connection card. */
+export const SHOPIFY_GREEN = "#96BF47"
+
+/** The platforms shown in the Integration tab. Meta Ads and Shopify are live today. */
 export interface ProviderMeta {
   id: string
   label: string
@@ -31,5 +34,5 @@ export interface ProviderMeta {
 export const PROVIDERS: ProviderMeta[] = [
   { id: "meta", label: "Meta Ads", color: "#1877F2", live: true },
   { id: "google", label: "Google Ads", color: "#4285F4", live: false },
-  { id: "shopify", label: "Shopify", color: "#96BF47", live: false },
+  { id: "shopify", label: "Shopify", color: SHOPIFY_GREEN, live: true },
 ]

@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react"
 import {
-  RefreshCw,
   Plug,
   IndianRupee,
   Eye,
   MousePointerClick,
+  ShoppingBag,
   ShoppingCart,
   TrendingUp,
   Users,
@@ -35,13 +35,13 @@ import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { TableSearch } from "@/components/shared/table-search"
 import { TableViewMenu } from "@/components/shared/table-view-menu"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { SegmentedControl } from "@/components/shared/segmented-control"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { TONE } from "@/lib/constants"
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme"
-import { FacebookIcon, inr, compact, CAMPAIGN_STATUS_COLORS } from "./meta-shared"
-import { DateRangePicker, type DayRange } from "./date-range-picker"
+import { FacebookIcon, inr, compact, CAMPAIGN_STATUS_COLORS, SHOPIFY_GREEN } from "./meta-shared"
+import { InsightsRangeBar, useInsightsRange } from "./insights-range"
+import { ShopifyInsights } from "./shopify-insights"
 import { useProjectIntegration, useSyncMeta } from "../hooks/use-integration"
 import {
   AnalyticsCalendars,
@@ -65,6 +65,7 @@ export function InsightsTab({ projectId, canManage }: { projectId: string; canMa
             { value: "people", label: "Teams & people", icon: Users },
             { value: "calendars", label: "Calendars", icon: CalendarDays },
             { value: "meta", label: "Meta Ads", icon: MetaAdsIcon },
+            { value: "shopify", label: "Shopify", icon: ShopifyTabIcon },
           ]}
         />
         <Button variant="outline" className="gap-1.5" onClick={() => setConnections(true)}>
@@ -86,6 +87,9 @@ export function InsightsTab({ projectId, canManage }: { projectId: string; canMa
       <TabsContent value="meta">
         <MetaInsights projectId={projectId} canManage={canManage} />
       </TabsContent>
+      <TabsContent value="shopify">
+        <ShopifyInsights projectId={projectId} canManage={canManage} />
+      </TabsContent>
       <IntegrationDialog
         projectId={projectId}
         canManage={canManage}
@@ -101,14 +105,9 @@ function MetaAdsIcon() {
   return <FacebookIcon className="text-[#1877F2]" />
 }
 
-const ALL_RANGE = "all"
-
-const RANGES: { label: string; days?: number }[] = [
-  { label: "7d", days: 7 },
-  { label: "14d", days: 14 },
-  { label: "30d", days: 30 },
-  { label: "All", days: undefined },
-]
+function ShopifyTabIcon() {
+  return <ShoppingBag style={{ color: SHOPIFY_GREEN }} />
+}
 
 const CAMPAIGN_STATUSES = [
   { value: "active", label: "Active" },
@@ -117,13 +116,9 @@ const CAMPAIGN_STATUSES = [
 ] as const
 
 function MetaInsights({ projectId, canManage }: { projectId: string; canManage: boolean }) {
-  const [rangeDays, setRangeDays] = useState<number | undefined>(30)
-  // Overrides the preset rather than replacing it, so clearing it falls back to the last preset.
-  const [customRange, setCustomRange] = useState<DayRange | undefined>()
-  const { data, isLoading } = useProjectIntegration(
-    projectId,
-    customRange ? { from: customRange.from, to: customRange.to } : { days: rangeDays },
-  )
+  const rangeState = useInsightsRange()
+  const { rangeKey } = rangeState
+  const { data, isLoading } = useProjectIntegration(projectId, rangeState.range)
   const sync = useSyncMeta(projectId)
 
   const [search, setSearch] = useState("")
@@ -143,7 +138,6 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
         .sort((a, b) => b.spend - a.spend),
     [allCampaigns, statusFilter, q],
   )
-  const rangeKey = customRange ? `${customRange.from}~${customRange.to}` : String(rangeDays)
 
   if (isLoading && !data) return <ListSkeleton rows={3} height="h-24" />
 
@@ -229,44 +223,13 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <SegmentedControl
-          aria-label="Date range"
-          // "All" has no day count, so it needs a sentinel value.
-          value={rangeDays === undefined ? ALL_RANGE : String(rangeDays)}
-          // A preset is only "on" when no custom span is overriding it.
-          muted={Boolean(customRange)}
-          onChange={(days) => {
-            setRangeDays(days === ALL_RANGE ? undefined : Number(days))
-            setCustomRange(undefined)
-          }}
-          options={RANGES.map((r) => ({
-            value: r.days === undefined ? ALL_RANGE : String(r.days),
-            label: r.label,
-          }))}
-        />
-
-        <DateRangePicker
-          value={customRange}
-          onChange={setCustomRange}
-          onClear={() => setCustomRange(undefined)}
-        />
-        {data.lastSyncedAt && (
-          <span className="text-muted-foreground text-xs">
-            Last synced {new Date(data.lastSyncedAt).toLocaleString("en-IN")}
-          </span>
-        )}
-        {canManage && (
-          <Button
-            variant="outline"
-            className="ml-auto"
-            onClick={() => sync.mutate(undefined)}
-            loading={sync.isPending}
-          >
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Sync now
-          </Button>
-        )}
-      </div>
+      <InsightsRangeBar
+        state={rangeState}
+        lastSyncedAt={data.lastSyncedAt}
+        canManage={canManage}
+        onSync={() => sync.mutate(undefined)}
+        syncing={sync.isPending}
+      />
 
       {data.lastSyncError && (
         <p className="text-destructive text-xs">Last sync error: {data.lastSyncError}</p>

@@ -35,6 +35,7 @@ export async function register() {
         startFullFinalScheduler,
         startPlannerScheduler,
         startEntrySummaryScheduler,
+        startShopifyScheduler,
       } = await import("@/server/scheduler")
       startTaskReminderScheduler()
       startCampaignScheduler()
@@ -48,6 +49,7 @@ export async function register() {
       startFullFinalScheduler()
       startPlannerScheduler()
       startEntrySummaryScheduler()
+      startShopifyScheduler()
     }
   }
 }

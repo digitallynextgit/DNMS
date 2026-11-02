@@ -4158,13 +4158,80 @@ model MarketplaceChannel {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  products Product[]
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  products      Product[]
+  shopifyOrders ShopifyOrder[]
 
   @@unique([projectId, provider, name])
   @@index([projectId])
   @@index([tenantId])
   @@map("marketplace_channels")
+}
+
+// One row per Shopify order, re-written whenever Shopify reports it changed. No customer
+// details are kept: just the money, where it came from and the shipping state.
+model ShopifyOrder {
+  tenantId  String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id        String @id @default(uuid())
+  projectId String @map("project_id")
+  channelId String @map("channel_id")
+  orderId   String @map("order_id") // Shopify's numeric order id
+
+  placedAt          DateTime @map("placed_at")
+  /// The day the order was placed, in the shop's own timezone.
+  date              DateTime @map("date") @db.Date
+  financialStatus   String   @map("financial_status")
+  fulfillmentStatus String?  @map("fulfillment_status")
+  cancelled         Boolean  @default(false) @map("cancelled")
+  /// Whether it counts as a sale (see COUNTED_FINANCIAL_STATUSES).
+  counted           Boolean  @default(true) @map("counted")
+
+  salesChannel      String   @map("sales_channel") // Shopify's source_name: web, pos, ...
+  referrer          String   @map("referrer") // referring host, or "direct"
+  state             String?  @map("state") // shipping province
+  /// Null when Shopify doesn't say which order this was for the customer.
+  returningCustomer Boolean? @map("returning_customer")
+
+  grossSales Decimal @default(0) @map("gross_sales") @db.Decimal(14, 2)
+  discounts  Decimal @default(0) @map("discounts") @db.Decimal(14, 2)
+  returns    Decimal @default(0) @map("returns") @db.Decimal(14, 2)
+  netSales   Decimal @default(0) @map("net_sales") @db.Decimal(14, 2)
+  shipping   Decimal @default(0) @map("shipping") @db.Decimal(14, 2)
+  taxes      Decimal @default(0) @map("taxes") @db.Decimal(14, 2)
+  totalSales Decimal @default(0) @map("total_sales") @db.Decimal(14, 2)
+  unitsSold  Int     @default(0) @map("units_sold")
+  currency   String  @default("INR") @map("currency")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  channel MarketplaceChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  lines   ShopifyOrderLine[]
+
+  @@unique([channelId, orderId])
+  @@index([projectId, date])
+  @@index([tenantId])
+  @@map("shopify_orders")
+}
+
+model ShopifyOrderLine {
+  tenantId     String  @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id           String  @id @default(uuid())
+  orderId      String  @map("order_id") // FK -> ShopifyOrder.id
+  variantId    String? @map("variant_id")
+  productId    String? @map("product_id")
+  title        String  @map("title")
+  variantTitle String? @map("variant_title")
+  sku          String? @map("sku")
+  quantity     Int     @default(0) @map("quantity")
+  /// Unit price x quantity, before discounts.
+  revenue      Decimal @default(0) @map("revenue") @db.Decimal(14, 2)
+
+  order ShopifyOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([tenantId])
+  @@map("shopify_order_lines")
 }
 
 model Product {

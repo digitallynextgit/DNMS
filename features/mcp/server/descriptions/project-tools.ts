@@ -38,6 +38,13 @@ export const PROJECT_TOOLS: DescriptionMap = {
     notes:
       "Irreversible: synced ad data is deleted; reconnecting needs the access token again plus a re-sync. Account Manager or project:write only.",
   },
+  "DELETE /api/projects/[id]/integration/shopify": {
+    summary:
+      "Disconnect a project's Shopify store and delete its synced orders and the products it brought into the catalog.",
+    keywords: ["disconnect shopify", "remove shopify store", "unlink shopify"],
+    notes:
+      "Irreversible: synced orders older than Shopify's 60-day window cannot be fetched again. Account Manager or project:write only.",
+  },
   "DELETE /api/projects/[id]/logo": {
     summary: "Remove a project's logo (the client / brand logo shown on the projects list).",
     keywords: ["remove project logo", "delete client logo"],
@@ -181,6 +188,22 @@ export const PROJECT_TOOLS: DescriptionMap = {
       "ad campaigns",
     ],
     notes: "Spend is in the ad account's currency. Never returns the access token or app secret.",
+  },
+  "GET /api/projects/[id]/integration/shopify": {
+    summary:
+      "Shopify store sales for a project (e.g. H2S): connection status, last sync, totals (total sales, net sales, gross, discounts, returns, shipping, taxes, orders, units, average order value, new vs returning customer orders), the same numbers for the previous period, a daily series, sales by sales channel, by referring site and by shipping state, top products, and Meta Ads spend over the same days for blended ROAS. Synced every 15 minutes.",
+    query:
+      "days: last N days; or from, to: YYYY-MM-DD inclusive (win over days). Omit all for every synced day.",
+    keywords: [
+      "shopify sales",
+      "store revenue",
+      "orders report",
+      "ecommerce sales",
+      "top products",
+      "blended roas",
+    ],
+    notes:
+      "Refunded, voided and cancelled orders are not counted. Amounts are in the store's currency. Never returns the access token.",
   },
   "GET /api/projects/[id]/logo": {
     summary: "The project's logo image (client / brand logo). 404 when the project has no logo.",
@@ -496,6 +519,20 @@ export const PROJECT_TOOLS: DescriptionMap = {
     body: "{ lookbackDays?: number (default 30; use 7, 14, 28, 30 or 90 - Meta's supported windows) }",
     keywords: ["sync meta ads", "refresh facebook ads data", "update ad spend"],
     notes: "Calls Meta's API and can take a while. Account Manager or project:write only.",
+  },
+  "POST /api/projects/[id]/integration/shopify": {
+    summary:
+      "Connect or update a project's Shopify store by saving its .myshopify.com address and an Admin API access token; the token is checked against Shopify before the store is marked connected.",
+    body: "{ storeDomain: string (required; the store's xxx.myshopify.com address or just its handle), accessToken: string (required on first connect; blank keeps the stored one) }",
+    keywords: ["connect shopify", "shopify integration", "link shopify store"],
+    notes:
+      "Stores the token (encrypted). If Shopify rejects it, returns 400 but the details are still saved with status 'pending'. Changing to a different store deletes the old store's synced data. Account Manager or project:write only. Then POST .../integration/shopify/sync to pull data.",
+  },
+  "POST /api/projects/[id]/integration/shopify/sync": {
+    summary:
+      "Pull fresh Shopify data now: every order in the last 60 days (the most Shopify allows without extra permission) and the product catalog. Runs on its own every 15 minutes too.",
+    keywords: ["sync shopify", "refresh shopify sales", "update store orders"],
+    notes: "Calls Shopify's API and can take a while. Account Manager or project:write only.",
   },
   "POST /api/projects/[id]/logo": {
     summary: "Upload or replace a project's logo image.",

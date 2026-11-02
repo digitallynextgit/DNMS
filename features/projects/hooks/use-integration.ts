@@ -4,8 +4,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import type { MetaDashboard } from "../server/meta-sync.service"
+import type { ShopifyDashboard } from "../server/shopify-sync.service"
 
 const key = (projectId: string) => ["project-integration", projectId]
+const shopifyKey = (projectId: string) => ["project-shopify", projectId]
 
 /** A rolling `days` count or an inclusive yyyy-MM-dd `from`/`to` span; omit for all data. */
 export interface IntegrationRange {
@@ -14,7 +16,7 @@ export interface IntegrationRange {
   to?: string
 }
 
-export function useProjectIntegration(projectId: string, range?: IntegrationRange) {
+function rangeQuery(range?: IntegrationRange): string {
   const { days, from, to } = range ?? {}
   // An explicit span wins over the rolling window, matching the server.
   const query = new URLSearchParams()
@@ -24,7 +26,11 @@ export function useProjectIntegration(projectId: string, range?: IntegrationRang
   } else if (days) {
     query.set("days", String(days))
   }
-  const qs = query.toString()
+  return query.toString()
+}
+
+export function useProjectIntegration(projectId: string, range?: IntegrationRange) {
+  const qs = rangeQuery(range)
 
   return useQuery({
     queryKey: [...key(projectId), qs || "all"],
@@ -96,6 +102,91 @@ export function useDisconnectMeta(projectId: string) {
     onSuccess: (r) => {
       toast.success(r.message)
       qc.invalidateQueries({ queryKey: key(projectId) })
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Disconnect failed"),
+  })
+}
+
+// --- Shopify ---
+
+export function useShopifyIntegration(projectId: string, range?: IntegrationRange) {
+  const qs = rangeQuery(range)
+
+  return useQuery({
+    queryKey: [...shopifyKey(projectId), qs || "all"],
+    queryFn: () =>
+      apiFetch<{ data: ShopifyDashboard }>(
+        `/api/projects/${projectId}/integration/shopify${qs ? `?${qs}` : ""}`,
+      ).then((r) => r.data),
+    staleTime: 30_000,
+    // The server re-syncs every 15 minutes; an open dashboard picks that up on its own.
+    refetchInterval: 5 * 60_000,
+    placeholderData: (prev) => prev, // keep previous data while a new range loads
+  })
+}
+
+export interface ShopifyConnectInput {
+  storeDomain: string
+  accessToken: string
+}
+
+/** Fetch the decrypted token to pre-fill the Edit form (manager-only route). */
+export async function fetchShopifyCredentials(
+  projectId: string,
+): Promise<ShopifyConnectInput | null> {
+  const r = await apiFetch<{ data: ShopifyConnectInput | null }>(
+    `/api/projects/${projectId}/integration/shopify/credentials`,
+  )
+  return r.data
+}
+
+export function useConnectShopify(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: ShopifyConnectInput) =>
+      apiFetch<{ data: { message: string } }>(`/api/projects/${projectId}/integration/shopify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }).then((r) => r.data),
+    onSuccess: (r) => {
+      toast.success(r.message)
+      qc.invalidateQueries({ queryKey: shopifyKey(projectId) })
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Could not connect"),
+  })
+}
+
+export function useSyncShopify(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ data: { message: string } }>(
+        `/api/projects/${projectId}/integration/shopify/sync`,
+        { method: "POST" },
+      ).then((r) => r.data),
+    onSuccess: (r) => {
+      toast.success(r.message)
+      qc.invalidateQueries({ queryKey: shopifyKey(projectId) })
+    },
+    onError: (e) => {
+      toast.error(e instanceof Error ? e.message : "Sync failed")
+      // The error is stored on the connection; show it.
+      qc.invalidateQueries({ queryKey: shopifyKey(projectId) })
+    },
+  })
+}
+
+export function useDisconnectShopify(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ data: { message: string } }>(`/api/projects/${projectId}/integration/shopify`, {
+        method: "DELETE",
+      }).then((r) => r.data),
+    onSuccess: (r) => {
+      toast.success(r.message)
+      qc.invalidateQueries({ queryKey: shopifyKey(projectId) })
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Disconnect failed"),
   })
