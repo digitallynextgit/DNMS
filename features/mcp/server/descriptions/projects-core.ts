@@ -159,6 +159,21 @@ export const PROJECTS_CORE: DescriptionMap = {
     notes:
       "sections[].items[].key (e.g. strategy.usp) is the [key] for PATCH /api/projects/[id]/kickoff/[key].",
   },
+  "GET /api/projects/[id]/web-checklist": {
+    summary:
+      "The project's web analytics checklist (Analytics tab): one item per tool - Google Analytics, Google Tag Manager, Microsoft Clarity, Google Search Console, Google Cloud Console, Meta Pixel, Google Ads conversion tracking, Mails initiated. Each has a key, status (NOT_STARTED, DONE, NOT_APPLICABLE), who changed it and when, and a note. Also counts per status and applicable = items not marked Not applicable. Anyone with access to the project.",
+    keywords: [
+      "web analytics checklist",
+      "tracking setup",
+      "Google Analytics setup",
+      "Clarity",
+      "Search Console",
+      "Cloud Console",
+      "mails initiated",
+    ],
+    notes:
+      "items[].key (e.g. google-analytics, mails-initiated) is the [key] for PATCH /api/projects/[id]/web-checklist/[key].",
+  },
   "GET /api/projects/[id]/members": {
     summary:
       "Everyone on a project, once each: the Account Manager (isManager: true) plus every member of any project team, with designation. Anyone with access to the project. Use it to find a person's employee id on the project.",
@@ -502,6 +517,18 @@ export const PROJECTS_CORE: DescriptionMap = {
       "pre-campaign",
     ],
     notes: "Records who ticked it and when. Returns the whole updated checklist.",
+  },
+  "PATCH /api/projects/[id]/web-checklist/[key]": {
+    summary:
+      "Set the status and/or note of one tool on the project's web analytics checklist. Anyone with access to the project. [key] = item key from GET /api/projects/[id]/web-checklist (e.g. google-analytics, microsoft-clarity, mails-initiated).",
+    body: '{ status?: "NOT_STARTED" | "DONE" | "NOT_APPLICABLE"; note?: string up to 2000 chars, or null to clear } - at least one is required',
+    keywords: [
+      "web analytics checklist",
+      "mark setup done",
+      "not applicable",
+      "tracking setup item",
+    ],
+    notes: "Records who changed the status and when. Returns the whole updated checklist.",
   },
   "PATCH /api/projects/[id]/requirements/[requirementId]": {
     summary:

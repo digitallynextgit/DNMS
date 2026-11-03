@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   Target,
   CalendarDays,
+  ListChecks,
 } from "lucide-react"
 import {
   ResponsiveContainer,
@@ -42,6 +43,7 @@ import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_LABEL_STYLE } from "@/lib/chart-them
 import { FacebookIcon, inr, compact, CAMPAIGN_STATUS_COLORS, SHOPIFY_GREEN } from "./meta-shared"
 import { InsightsRangeBar, useInsightsRange } from "./insights-range"
 import { ShopifyInsights } from "./shopify-insights"
+import { WebChecklistTab } from "./web-checklist-tab"
 import { useProjectIntegration, useSyncMeta } from "../hooks/use-integration"
 import {
   AnalyticsCalendars,
@@ -66,6 +68,7 @@ export function InsightsTab({ projectId, canManage }: { projectId: string; canMa
             { value: "calendars", label: "Calendars", icon: CalendarDays },
             { value: "meta", label: "Meta Ads", icon: MetaAdsIcon },
             { value: "shopify", label: "Shopify", icon: ShopifyTabIcon },
+            { value: "web-checklist", label: "Web analytics checklist", icon: ListChecks },
           ]}
         />
         <Button variant="outline" className="gap-1.5" onClick={() => setConnections(true)}>
@@ -89,6 +92,9 @@ export function InsightsTab({ projectId, canManage }: { projectId: string; canMa
       </TabsContent>
       <TabsContent value="shopify">
         <ShopifyInsights projectId={projectId} canManage={canManage} />
+      </TabsContent>
+      <TabsContent value="web-checklist">
+        <WebChecklistTab projectId={projectId} />
       </TabsContent>
       <IntegrationDialog
         projectId={projectId}

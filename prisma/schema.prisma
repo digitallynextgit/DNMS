@@ -672,6 +672,7 @@ model Employee {
   checklistItems      ChecklistInstanceItem[] @relation("ChecklistItemAssignee")
   checklistItemsDone  ChecklistInstanceItem[] @relation("ChecklistItemDoneBy")
   kickoffItemsDone    ProjectKickoffItem[]    @relation("KickoffDoneBy")
+  webChecklistUpdates ProjectWebChecklistItem[] @relation("WebChecklistUpdatedBy")
 
   joineeScorecard      JoineeScorecard?  @relation("JoineeScorecardEmployee")
   joineeScorecardsSpoc JoineeScorecard[] @relation("JoineeScorecardHrSpoc")
@@ -1778,6 +1779,7 @@ model Project {
   seoProperties           SeoProperty[]
   requirements            ProjectRequirement[]
   kickoffItems            ProjectKickoffItem[]
+  webChecklistItems       ProjectWebChecklistItem[]
 
   mailers        ProjectMailer[]
   emailTemplates ProjectEmailTemplate[]
@@ -3046,6 +3048,30 @@ model ProjectKickoffItem {
   @@unique([projectId, key])
   @@index([tenantId])
   @@map("project_kickoff_items")
+}
+
+// Web analytics checklist: one item per tool (Google Analytics, Clarity, Search Console, Cloud Console,
+// mails initiated...). Items come from lib/web-checklist-template.ts; a row exists only once someone
+// changes an item, so an untouched item is NOT_STARTED. Anyone on the project can update it.
+model ProjectWebChecklistItem {
+  tenantId   String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id         String    @id @default(uuid()) @map("id")
+  projectId  String    @map("project_id")
+  key        String    @map("key")
+  /// NOT_STARTED | DONE | NOT_APPLICABLE
+  status     String    @default("NOT_STARTED") @map("status")
+  statusAt   DateTime? @map("status_at")
+  statusById String?   @map("status_by_id")
+  note       String?   @map("note") @db.Text
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  statusBy Employee? @relation("WebChecklistUpdatedBy", fields: [statusById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, key])
+  @@index([tenantId])
+  @@map("project_web_checklist_items")
 }
 
 model ProjectActivity {
