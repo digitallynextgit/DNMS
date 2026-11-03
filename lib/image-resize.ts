@@ -14,12 +14,12 @@ export interface ResizeResult {
 }
 
 /** Loaded lazily. `null` means sharp is unusable here. */
-let sharpModule: typeof import("sharp") | null | undefined
+let sharpModule: typeof import("sharp").default | null | undefined
 
-async function loadSharp(): Promise<typeof import("sharp") | null> {
+async function loadSharp(): Promise<typeof import("sharp").default | null> {
   if (sharpModule !== undefined) return sharpModule
   try {
-    sharpModule = (await import("sharp")).default as unknown as typeof import("sharp")
+    sharpModule = (await import("sharp")).default
   } catch (err) {
     // Logged once, not per upload.
     console.error("[image-resize] sharp unavailable - storing originals instead:", err)
