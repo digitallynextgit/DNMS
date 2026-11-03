@@ -40,7 +40,12 @@ export const POST = withProjectManager(
       })
       if (!r.ok)
         return NextResponse.json({ error: r.error ?? "Could not connect" }, { status: 400 })
-      return NextResponse.json({ data: { message: "Shopify connected." } })
+      // Says how much history the token reaches, so a missing read_all_orders shows at once.
+      const message =
+        r.historyDays && r.historyDays > 60
+          ? `Shopify connected, with ${r.historyDays} days of order history.`
+          : "Shopify connected, with the last 60 days of orders. Give the app read_all_orders for 3 years."
+      return NextResponse.json({ data: { message } })
     } catch (error) {
       console.error("[PROJECT_SHOPIFY_POST]", error)
       return NextResponse.json({ error: "Failed to save Shopify" }, { status: 500 })

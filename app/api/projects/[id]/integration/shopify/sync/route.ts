@@ -10,7 +10,10 @@ export const POST = withProjectManager(
     try {
       const r = await syncShopifyProject(ctx.params.id)
       return NextResponse.json({
-        data: { ...r, message: `Synced ${r.orders} orders and ${r.products} products.` },
+        data: {
+          ...r,
+          message: `Synced ${r.orders} orders from the last ${r.historyDays} days and ${r.products} products.`,
+        },
       })
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Sync failed"

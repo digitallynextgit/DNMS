@@ -272,7 +272,8 @@ describe("saveShopifyIntegration", () => {
       storeDomain: "https://Test-Store.myshopify.com/admin",
       accessToken: " shpat_new ",
     })
-    expect(r).toEqual({ ok: true })
+    // This token has no read_all_orders, and the caller is told so.
+    expect(r).toEqual({ ok: true, historyDays: 60 })
     expect(requests[0]!.url).toBe("https://test-store.myshopify.com/admin/api/2026-10/graphql.json")
     expect(requests[0]!.token).toBe("shpat_new")
     expect(state.channel).toMatchObject({
@@ -442,6 +443,41 @@ describe("syncShopifyProject", () => {
     await syncShopifyProject("proj1")
     await syncShopifyProject("proj1")
     expect(state.lines).toHaveLength(1)
+  })
+
+  it("reads 3 years when the token has read_all_orders, 60 days when it doesn't", async () => {
+    const daysBack = (q: string) =>
+      (Date.now() - new Date(q.match(/'(.+)'/)![1]!).getTime()) / 86_400_000
+    const ordersQuery = () =>
+      requests.find((x) => x.query.includes("orders("))!.variables.q as string
+
+    connected()
+    const without = await syncShopifyProject("proj1")
+    expect(without.historyDays).toBe(60)
+    expect(Math.round(daysBack(ordersQuery()))).toBe(60)
+
+    requests.length = 0
+    const withScope = {
+      ...SHOP,
+      currentAppInstallation: {
+        accessScopes: [{ handle: "read_orders" }, { handle: "read_all_orders" }],
+      },
+    }
+    shopify = (query) => {
+      if (query.includes("shop {")) return { body: { data: withScope } }
+      if (query.includes("products(")) return emptyProducts()
+      return {
+        body: {
+          data: { orders: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [] } },
+        },
+      }
+    }
+    const all = await syncShopifyProject("proj1")
+    expect(all.historyDays).toBe(1095)
+    expect(Math.round(daysBack(ordersQuery()))).toBe(1095)
+    // And the clean-up of deleted orders spans the same 3 years, less the margin.
+    const where = (state.orderDeletes.at(-1) as { where: { placedAt: { gte: Date } } }).where
+    expect(Math.round((Date.now() - where.placedAt.gte.getTime()) / 86_400_000)).toBe(1093)
   })
 
   it("only deletes missing orders inside what Shopify serves, minus a safety margin", async () => {

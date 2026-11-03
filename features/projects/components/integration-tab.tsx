@@ -401,8 +401,9 @@ function ShopifyConnectionCard({
                 placeholder="shpat_..."
               />
               <p className="text-muted-foreground text-xs">
-                From the store&apos;s custom app, with the read_orders and read_products scopes. Use
-                the .myshopify.com address, not the shop&apos;s own domain.
+                From the store&apos;s custom app, with the read_orders and read_products scopes,
+                plus read_all_orders for 3 years of history (without it, 60 days). Use the
+                .myshopify.com address, not the shop&apos;s own domain.
               </p>
             </div>
             <div className="flex justify-end gap-2">
@@ -441,7 +442,7 @@ function ShopifyConnectionCard({
         open={disconnectOpen}
         onOpenChange={setDisconnectOpen}
         title="Disconnect Shopify?"
-        description="This removes the stored token, every synced order and the products it brought in. Shopify only gives back the last 60 days of orders, so older history can't be synced again."
+        description="This removes the stored token, every synced order and the products it brought in. Without the read_all_orders permission Shopify only gives back the last 60 days of orders, so older history may not sync again."
         variant="destructive"
         confirmLabel="Disconnect"
         isLoading={disconnect.isPending}

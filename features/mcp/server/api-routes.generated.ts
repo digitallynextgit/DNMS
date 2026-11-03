@@ -3414,7 +3414,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       },
       DELETE: {
         guard: "withProjectManager",
-        doc: "Disconnect a project's Shopify store and delete its synced orders and the products it brought into the catalog. Note: Irreversible: synced orders older than Shopify's 60-day window cannot be fetched again. Account Manager or project:write only.",
+        doc: "Disconnect a project's Shopify store and delete its synced orders and the products it brought into the catalog. Note: Irreversible: without the read_all_orders permission, orders older than 60 days cannot be fetched again. Account Manager or project:write only.",
         keywords: ["disconnect shopify", "remove shopify store", "unlink shopify"],
       },
     },
@@ -3425,7 +3425,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
     methods: {
       POST: {
         guard: "withProjectManager",
-        doc: "Pull fresh Shopify data now: every order in the last 60 days (the most Shopify allows without extra permission) and the product catalog. Runs on its own every 15 minutes too. Note: Calls Shopify's API and can take a while. Account Manager or project:write only.",
+        doc: "Pull fresh Shopify data now: every order in the last 3 years (60 days unless the store's app has the read_all_orders permission) and the product catalog. Runs on its own every 15 minutes too. Note: Calls Shopify's API and can take a while. Account Manager or project:write only.",
         keywords: ["sync shopify", "refresh shopify sales", "update store orders"],
       },
     },

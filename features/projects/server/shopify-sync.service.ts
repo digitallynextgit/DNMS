@@ -24,10 +24,11 @@ import { metricDateFilter, type MetricRange } from "./metric-range"
 const API_VERSION = "2026-10"
 
 /**
- * How far back a full sync reads. Shopify serves only the last 60 days of orders unless the app
- * has the read_all_orders scope; days already synced stay in the database after that.
+ * How far back a full sync reads: 3 years. Shopify serves only the last 60 days of orders unless
+ * the store's app has the read_all_orders scope (see servedHistoryDays); days already synced stay
+ * in the database after that.
  */
-export const SHOPIFY_HISTORY_DAYS = 60
+export const SHOPIFY_HISTORY_DAYS = 1095
 
 /** What Shopify serves without read_all_orders. */
 const SHOPIFY_DEFAULT_ORDER_DAYS = 60
@@ -272,7 +273,7 @@ export async function getShopifyCredentials(
 export async function saveShopifyIntegration(
   projectId: string,
   input: { storeDomain: string; accessToken: string },
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; historyDays?: number }> {
   const shopDomain = normalizeShopDomain(input.storeDomain)
   if (!shopDomain) {
     return {
@@ -321,7 +322,9 @@ export async function saveShopifyIntegration(
   } else {
     await db.marketplaceChannel.create({ data: { projectId, provider: "SHOPIFY", ...data } })
   }
-  return err ? { ok: false, error: err } : { ok: true }
+  return err
+    ? { ok: false, error: err }
+    : { ok: true, historyDays: servedHistoryDays(shop!.scopes) }
 }
 
 /** Removes the store, its synced orders and the products it brought in. */
@@ -342,6 +345,8 @@ export interface ShopifySyncResult {
   products: number
   /** True when the whole history window was read, not just recent changes. */
   full: boolean
+  /** Days of orders this token can read: 60, or SHOPIFY_HISTORY_DAYS with read_all_orders. */
+  historyDays: number
 }
 
 /** "Sync now": re-reads the whole window, so it also picks up anything a scheduled run missed. */
@@ -439,7 +444,7 @@ async function syncChannel(channel: ChannelRow, full: boolean): Promise<ShopifyS
       where: { id: channel.id },
       data: { status: "connected", lastSyncedAt: startedAt, lastSyncError: null },
     })
-    return { orders, products, full: readAll }
+    return { orders, products, full: readAll, historyDays: servedHistoryDays(shop.scopes) }
   } catch (e) {
     // Everyone on the project sees lastSyncError: Shopify's own words are fine, a database
     // error (table names, file paths) is not.

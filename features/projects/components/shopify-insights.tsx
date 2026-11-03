@@ -158,8 +158,9 @@ export function ShopifyInsights({
       )}
       {beyondHistory && (
         <p className="text-muted-foreground text-xs">
-          Shopify hands over only the last {data.historyDays} days of orders. Earlier days fill in
-          as DNMS keeps syncing, so they may be missing for now.
+          Shopify hands over up to {Math.round(data.historyDays / 365)} years of orders when the
+          store&apos;s app has the read_all_orders permission, and only the last 60 days without it.
+          Days before that may be missing.
         </p>
       )}
 

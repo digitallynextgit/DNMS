@@ -43,7 +43,7 @@ export const PROJECT_TOOLS: DescriptionMap = {
       "Disconnect a project's Shopify store and delete its synced orders and the products it brought into the catalog.",
     keywords: ["disconnect shopify", "remove shopify store", "unlink shopify"],
     notes:
-      "Irreversible: synced orders older than Shopify's 60-day window cannot be fetched again. Account Manager or project:write only.",
+      "Irreversible: without the read_all_orders permission, orders older than 60 days cannot be fetched again. Account Manager or project:write only.",
   },
   "DELETE /api/projects/[id]/logo": {
     summary: "Remove a project's logo (the client / brand logo shown on the projects list).",
@@ -530,7 +530,7 @@ export const PROJECT_TOOLS: DescriptionMap = {
   },
   "POST /api/projects/[id]/integration/shopify/sync": {
     summary:
-      "Pull fresh Shopify data now: every order in the last 60 days (the most Shopify allows without extra permission) and the product catalog. Runs on its own every 15 minutes too.",
+      "Pull fresh Shopify data now: every order in the last 3 years (60 days unless the store's app has the read_all_orders permission) and the product catalog. Runs on its own every 15 minutes too.",
     keywords: ["sync shopify", "refresh shopify sales", "update store orders"],
     notes: "Calls Shopify's API and can take a while. Account Manager or project:write only.",
   },
