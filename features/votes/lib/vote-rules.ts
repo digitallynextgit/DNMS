@@ -23,10 +23,11 @@ export function eventStatus(e: EventWindow, now: Date = new Date()): VoteEventSt
 }
 
 /**
- * Staff vote and can be voted for. An admin who also holds the employee role is staff too;
- * a pure admin account and the hidden owner account never are.
+ * Who can be on the ballot. Everyone on staff votes, admins included, but only employees are
+ * voted for: an admin who also holds the employee role is one; a pure admin account and the
+ * hidden owner account never are.
  */
-export function isVoterRoles(roles: readonly string[]): boolean {
+export function isNomineeRoles(roles: readonly string[]): boolean {
   if (roles.includes(SYSTEM_ROLES.ADMIN_)) return false
   if (roles.includes(SYSTEM_ROLES.ADMIN)) return roles.includes(SYSTEM_ROLES.EMPLOYEE)
   return true
@@ -80,8 +81,9 @@ export function employeeLabel(firstName: string, lastName: string): string {
   return `${firstName} ${last}`.replace(/\s+/g, " ").trim()
 }
 
-export function canCastVote(roles: readonly string[], status: VoteEventStatus): boolean {
-  return status === "OPEN" && isVoterRoles(roles)
+/** Anyone on staff votes once while voting is open; the vote is final. */
+export function canCastVote(status: VoteEventStatus, alreadyVoted: boolean): boolean {
+  return status === "OPEN" && !alreadyVoted
 }
 
 export interface Tally {

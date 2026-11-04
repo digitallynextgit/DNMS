@@ -3,8 +3,8 @@ import {
   canCastVote,
   employeeLabel,
   eventStatus,
+  isNomineeRoles,
   isVoteManagerRoles,
-  isVoterRoles,
   rankByVotes,
   tally,
   timeLeft,
@@ -111,21 +111,21 @@ describe("eventStatus", () => {
   })
 })
 
-describe("who votes and who manages", () => {
-  it("gives every non-admin employee a ballot, interns and HR included", () => {
-    expect(isVoterRoles(["employee"])).toBe(true)
-    expect(isVoterRoles(["hr_manager"])).toBe(true)
-    expect(isVoterRoles([])).toBe(true)
+describe("who is on the ballot and who manages", () => {
+  it("puts every employee on the ballot, interns and HR included", () => {
+    expect(isNomineeRoles(["employee"])).toBe(true)
+    expect(isNomineeRoles(["hr_manager"])).toBe(true)
+    expect(isNomineeRoles([])).toBe(true)
   })
-  it("gives pure admin accounts no ballot", () => {
-    expect(isVoterRoles(["admin"])).toBe(false)
-    expect(isVoterRoles(["admin_"])).toBe(false)
+  it("keeps pure admin accounts off the ballot", () => {
+    expect(isNomineeRoles(["admin"])).toBe(false)
+    expect(isNomineeRoles(["admin_"])).toBe(false)
   })
-  it("treats an admin who also holds the employee role as staff", () => {
-    expect(isVoterRoles(["employee", "admin"])).toBe(true)
+  it("keeps an admin who also holds the employee role on the ballot", () => {
+    expect(isNomineeRoles(["employee", "admin"])).toBe(true)
   })
-  it("never gives the hidden owner account a ballot", () => {
-    expect(isVoterRoles(["admin_", "employee"])).toBe(false)
+  it("never puts the hidden owner account on the ballot", () => {
+    expect(isNomineeRoles(["admin_", "employee"])).toBe(false)
   })
   it("lets admins and the HR team run events, nobody else", () => {
     expect(isVoteManagerRoles(["admin_"])).toBe(true)
@@ -134,11 +134,11 @@ describe("who votes and who manages", () => {
     expect(isVoteManagerRoles(["hr_employee"])).toBe(true)
     expect(isVoteManagerRoles(["employee"])).toBe(false)
   })
-  it("only allows a ballot while voting is open", () => {
-    expect(canCastVote(["employee"], "OPEN")).toBe(true)
-    expect(canCastVote(["employee"], "UPCOMING")).toBe(false)
-    expect(canCastVote(["employee"], "CLOSED")).toBe(false)
-    expect(canCastVote(["admin"], "OPEN")).toBe(false)
+  it("lets anyone vote once while voting is open, admins included", () => {
+    expect(canCastVote("OPEN", false)).toBe(true)
+    expect(canCastVote("OPEN", true)).toBe(false)
+    expect(canCastVote("UPCOMING", false)).toBe(false)
+    expect(canCastVote("CLOSED", false)).toBe(false)
   })
 })
 

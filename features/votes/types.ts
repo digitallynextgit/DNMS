@@ -45,8 +45,6 @@ export interface VoteEventView {
   myOptionId: string | null
   /** The reader may cast a ballot right now: open, a voter, and not voted yet (votes are final). */
   canVote: boolean
-  /** False for admins: they run the events and never vote. */
-  isVoter: boolean
   /** Null while results are hidden from the reader. */
   totalVotes: number | null
   eligibleVoters: number | null

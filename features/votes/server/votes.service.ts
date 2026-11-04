@@ -8,7 +8,7 @@ import type { Session } from "next-auth"
 import { db } from "@/server/db"
 import { createAuditLog } from "@/lib/audit"
 import { isAdmin_ } from "@/lib/permissions"
-import { SYSTEM_ROLES } from "@/lib/constants"
+import { HIDDEN_ROLES, SYSTEM_ROLES } from "@/lib/constants"
 import { deleteFile, getObjectKey, isB2Configured, uploadFile } from "@/lib/storage"
 import { resizeImage } from "@/lib/image-resize"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
@@ -29,10 +29,10 @@ import {
   type VoteOptionInput,
 } from "../schemas/votes.schema"
 import {
+  canCastVote,
   employeeLabel,
   eventStatus,
   isVoteManagerRoles,
-  isVoterRoles,
   tally,
 } from "../lib/vote-rules"
 import { OPTION_PHOTO_MAX_BYTES, OPTION_PHOTO_TYPES } from "../constants"
@@ -73,8 +73,8 @@ type EventRow = Prisma.VoteEventGetPayload<{ select: typeof EVENT_SELECT }>
 type OptionRow = Prisma.VoteOptionGetPayload<{ select: typeof OPTION_SELECT }>
 type Person = Prisma.EmployeeGetPayload<{ select: typeof EMPLOYEE_SUMMARY_SELECT }>
 
-/** Staff who vote and can be voted for - the database twin of isVoterRoles. */
-const VOTER_WHERE = {
+/** Who can be on the ballot - the database twin of isNomineeRoles. Admins are never on it. */
+const NOMINEE_WHERE = {
   isActive: true,
   AND: [
     { employeeRoles: { none: { role: { name: SYSTEM_ROLES.ADMIN_ } } } },
@@ -87,13 +87,33 @@ const VOTER_WHERE = {
   ],
 } satisfies Prisma.EmployeeWhereInput
 
-/** Who can be voted for: the same people who vote, so admins are never on the ballot. */
-const eligibleEmployees = () =>
+const NAME_ORDER = [{ firstName: "asc" as const }, { lastName: "asc" as const }]
+
+const nominees = () =>
   db.employee.findMany({
-    where: VOTER_WHERE,
+    where: NOMINEE_WHERE,
     select: EMPLOYEE_SUMMARY_SELECT,
-    orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+    orderBy: NAME_ORDER,
   })
+
+/** Hidden: the owner account, which votes but is never listed (e.g. as "not voted yet"). */
+type Voter = Person & { hidden: boolean }
+
+/** Everyone on staff votes, admins included. */
+async function voters(): Promise<Voter[]> {
+  const rows = await db.employee.findMany({
+    where: { isActive: true },
+    select: {
+      ...EMPLOYEE_SUMMARY_SELECT,
+      employeeRoles: { select: { role: { select: { name: true } } } },
+    },
+    orderBy: NAME_ORDER,
+  })
+  return rows.map(({ employeeRoles, ...p }) => ({
+    ...p,
+    hidden: employeeRoles.some((r) => (HIDDEN_ROLES as readonly string[]).includes(r.role.name)),
+  }))
+}
 
 type Viewer = { id: string; roles: string[] }
 
@@ -133,11 +153,10 @@ function toView(
   row: EventRow,
   viewer: Viewer,
   manage: boolean,
-  eligible: Person[],
+  eligible: Voter[],
   now = new Date(),
 ): VoteEventView {
   const status = eventStatus(row, now)
-  const voter = isVoterRoles(viewer.roles)
   // Everyone sees the live standings once voting opens; only admins and HR see names.
   const showResults = manage || status === "OPEN" || status === "CLOSED"
   const t = tally(
@@ -166,12 +185,12 @@ function toView(
       optionView(o, showResults ? (t.counts[o.id] ?? 0) : null, viewer.id, votersOf(o.id)),
     ),
     myOptionId,
-    // One vote each, and it is final.
-    canVote: status === "OPEN" && voter && myOptionId === null,
-    isVoter: voter,
+    canVote: canCastVote(status, myOptionId !== null),
     totalVotes: showResults ? t.total : null,
     eligibleVoters: showResults ? eligible.length : null,
-    notVoted: manage ? eligible.filter((p) => !voted.has(p.id)) : null,
+    notVoted: manage
+      ? eligible.filter((p) => !voted.has(p.id) && !p.hidden).map(({ hidden: _h, ...p }) => p)
+      : null,
     winnerOptionIds: showResults ? t.winners : [],
     canReopen:
       manage &&
@@ -198,7 +217,7 @@ export async function listEvents(
         select: EVENT_SELECT,
         orderBy: { closesAt: "desc" },
       }),
-      eligibleEmployees(),
+      voters(),
     ])
     const views = rows.map((r) => toView(r, session.user, manage, eligible))
     // Open first (closing soonest on top), then upcoming, drafts, and closed (latest first).
@@ -218,7 +237,7 @@ export async function getEvent(id: string, session: Session): Promise<ActionResu
     const manage = isVoteManager(session)
     const row = await loadEvent(id)
     if (!row || (!manage && !row.publishedAt)) return fail("Vote not found", undefined, 404)
-    return ok(serialize({ data: toView(row, session.user, manage, await eligibleEmployees()) }))
+    return ok(serialize({ data: toView(row, session.user, manage, await voters()) }))
   })
 }
 
@@ -232,7 +251,7 @@ async function resolveOptions(
   ]
   const employees = employeeIds.length
     ? await db.employee.findMany({
-        where: { id: { in: employeeIds }, ...VOTER_WHERE },
+        where: { id: { in: employeeIds }, ...NOMINEE_WHERE },
         select: { id: true, firstName: true, lastName: true },
       })
     : []
@@ -268,7 +287,7 @@ async function resolveOptions(
 
 async function notifyVoters(row: EventRow, actorId: string): Promise<void> {
   const recipients = await db.employee.findMany({
-    where: { ...VOTER_WHERE, id: { not: actorId } },
+    where: { isActive: true, id: { not: actorId } },
     select: { id: true },
   })
   if (recipients.length === 0) return
@@ -300,7 +319,7 @@ export async function createEvent(body: unknown, session: Session): Promise<Acti
     const input = voteEventSchema.parse(body)
     // "Every employee" puts the whole staff on the ballot, admins left out, sorted by name.
     const inputs: VoteOptionInput[] = input.allEmployees
-      ? [...(await eligibleEmployees()).map((e) => ({ employeeId: e.id })), ...input.options]
+      ? [...(await nominees()).map((e) => ({ employeeId: e.id })), ...input.options]
       : input.options
     const options = await resolveOptions(inputs, 0)
     const row = await db.voteEvent.create({
@@ -321,7 +340,7 @@ export async function createEvent(body: unknown, session: Session): Promise<Acti
       entityId: row.id,
       changes: { title: input.title, closesAt: input.closesAt, options: options.length },
     })
-    return ok(serialize({ data: toView(row, session.user, true, await eligibleEmployees()) }))
+    return ok(serialize({ data: toView(row, session.user, true, await voters()) }))
   })
 }
 
@@ -397,7 +416,7 @@ export async function updateEvent(
       changes: { ...input },
     })
     if (published) await notifyVoters(row, session.user.id)
-    return ok(serialize({ data: toView(row, session.user, true, await eligibleEmployees(), now) }))
+    return ok(serialize({ data: toView(row, session.user, true, await voters(), now) }))
   })
 }
 
@@ -487,7 +506,7 @@ export async function addAllEmployees(
       return fail("Voting has closed; the options can no longer change", undefined, 409)
     }
     const listed = new Set(event.options.map((o) => o.employeeId).filter(Boolean))
-    const missing = (await eligibleEmployees()).filter((e) => !listed.has(e.id))
+    const missing = (await nominees()).filter((e) => !listed.has(e.id))
     const rows = await resolveOptions(
       missing.map((e) => ({ employeeId: e.id })),
       event.options.length,
@@ -506,7 +525,7 @@ export async function addAllEmployees(
 export async function listCandidates(session: Session): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     requireManager(session)
-    return ok(serialize({ data: await eligibleEmployees() }))
+    return ok(serialize({ data: await nominees() }))
   })
 }
 
@@ -612,9 +631,7 @@ export async function castBallot(
   session: Session,
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
-    if (!isVoterRoles(session.user.roles)) {
-      return fail("Admins run the votes and do not cast a ballot", undefined, 403)
-    }
+    // Everyone on staff votes, admins included.
     const { optionId } = ballotSchema.parse(body)
     const event = await db.voteEvent.findUnique({
       where: { id: eventId },

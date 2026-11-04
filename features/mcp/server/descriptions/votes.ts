@@ -24,7 +24,7 @@ export const VOTES: DescriptionMap = {
       "who has not voted",
     ],
     notes:
-      "Everyone sees live counts and the leaders once voting opens; only admins and HR see voter names. Admins never vote; isVoter is false for them.",
+      "Everyone sees live counts and the leaders once voting opens; only admins and HR see voter names. Everyone on staff votes, admins included; admins are never on the ballot.",
   },
   "POST /api/votes/events": {
     summary:
@@ -68,7 +68,7 @@ export const VOTES: DescriptionMap = {
     body: "{ optionId }",
     keywords: ["vote for", "cast vote", "submit ballot", "vote for myself"],
     notes:
-      "Only while the event is open. Admins cannot vote; anyone else may vote for any option, themselves included. Admins and HR can see who voted for whom.",
+      "Only while the event is open. Everyone on staff votes, admins included, for any option, themselves included. Admins and HR can see who voted for whom.",
   },
   "PATCH /api/votes/options/[optionId]": {
     summary:

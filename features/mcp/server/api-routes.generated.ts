@@ -6186,7 +6186,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       PUT: {
         body: "{ optionId }",
         guard: "withSession",
-        doc: "Cast the caller's own vote in an open event. One vote per person per event, and it is final: a second call is refused. id = event id from GET /api/votes/events, optionId from its options. Note: Only while the event is open. Admins cannot vote; anyone else may vote for any option, themselves included. Admins and HR can see who voted for whom.",
+        doc: "Cast the caller's own vote in an open event. One vote per person per event, and it is final: a second call is refused. id = event id from GET /api/votes/events, optionId from its options. Note: Only while the event is open. Everyone on staff votes, admins included, for any option, themselves included. Admins and HR can see who voted for whom.",
         keywords: ["vote for", "cast vote", "submit ballot", "vote for myself"],
       },
     },
@@ -6238,7 +6238,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["manage"],
         guard: "withSession",
-        doc: "List the company's vote events (Best Rangoli, Best Dressed...) with their options, the caller's own ballot and the live standings once voting opens. Every employee sees published events; ?manage=1 is the admin/HR view with drafts, live counts, who voted for each option and who has not voted yet. Note: Everyone sees live counts and the leaders once voting opens; only admins and HR see voter names. Admins never vote; isVoter is false for them.",
+        doc: "List the company's vote events (Best Rangoli, Best Dressed...) with their options, the caller's own ballot and the live standings once voting opens. Every employee sees published events; ?manage=1 is the admin/HR view with drafts, live counts, who voted for each option and who has not voted yet. Note: Everyone sees live counts and the leaders once voting opens; only admins and HR see voter names. Everyone on staff votes, admins included; admins are never on the ballot.",
         queryHelp:
           "manage: 1 = include drafts, live counts, options[].voters and notVoted (admins and the HR team only)",
         keywords: [

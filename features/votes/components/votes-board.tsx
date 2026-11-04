@@ -30,7 +30,6 @@ export function VotesBoard() {
     { title: "Coming up", items: events.filter((e) => e.status === "UPCOMING") },
     { title: "Results", items: events.filter((e) => e.status === "CLOSED") },
   ].filter((g) => g.items.length > 0)
-  const adminReader = events.some((e) => !e.isVoter)
 
   return (
     <div className="space-y-6">
@@ -38,12 +37,6 @@ export function VotesBoard() {
         title="Votes"
         description="Vote for the nominee you like most. One vote each, and it is final. Standings update live, and admins and HR can see who voted for whom."
       />
-
-      {adminReader && (
-        <p className="border-border bg-muted/40 text-muted-foreground rounded-sm border px-4 py-3 text-sm">
-          Admins run the votes and do not cast a ballot.
-        </p>
-      )}
 
       {isPending && (
         <div className="space-y-4">

@@ -5,7 +5,13 @@ export { VotesAdmin } from "./components/votes-admin"
 export * from "./hooks/use-votes"
 export * from "./types"
 export * from "./constants"
-export { eventStatus, isVoterRoles, isVoteManagerRoles, canCastVote, tally } from "./lib/vote-rules"
+export {
+  eventStatus,
+  isNomineeRoles,
+  isVoteManagerRoles,
+  canCastVote,
+  tally,
+} from "./lib/vote-rules"
 export type {
   VoteEventInput,
   VoteEventFormInput,
