@@ -10,7 +10,7 @@ export const VOTES: DescriptionMap = {
   },
   "GET /api/votes/events": {
     summary:
-      "List the company's vote events (Best Rangoli, Best Dressed...) with their options, the caller's own ballot and, once voting has closed, the results. Every employee sees published events; ?manage=1 is the admin/HR view with drafts, live counts, who voted for each option and who has not voted yet.",
+      "List the company's vote events (Best Rangoli, Best Dressed...) with their options, the caller's own ballot and the live standings once voting opens. Every employee sees published events; ?manage=1 is the admin/HR view with drafts, live counts, who voted for each option and who has not voted yet.",
     query:
       "manage: 1 = include drafts, live counts, options[].voters and notVoted (admins and the HR team only)",
     keywords: [
@@ -24,7 +24,7 @@ export const VOTES: DescriptionMap = {
       "who has not voted",
     ],
     notes:
-      "Results stay hidden from voters until an event closes, and voters never see names. Admins never vote; isVoter is false for them.",
+      "Everyone sees live counts and the leaders once voting opens; only admins and HR see voter names. Admins never vote; isVoter is false for them.",
   },
   "POST /api/votes/events": {
     summary:

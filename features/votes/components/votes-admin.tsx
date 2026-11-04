@@ -4,8 +4,10 @@
 
 import * as React from "react"
 import {
+  CheckCircle2,
   CheckSquare,
   Clock,
+  Crown,
   ImagePlus,
   Lock,
   Megaphone,
@@ -48,8 +50,9 @@ import {
   useVoteCandidates,
   useVoteEvents,
 } from "../hooks/use-votes"
+import { useNow } from "../hooks/use-now"
 import { OPTION_PHOTO_TYPES, VOTE_STATUS_COLORS, VOTE_STATUS_LABELS } from "../constants"
-import { employeeLabel } from "../lib/vote-rules"
+import { employeeLabel, rankByVotes, timeLeft } from "../lib/vote-rules"
 import type { VoteEventStatus, VoteEventView, VoteOptionEmployee, VoteOptionView } from "../types"
 
 type Filter = "ALL" | VoteEventStatus
@@ -89,7 +92,7 @@ export function VotesAdmin() {
     <div className="space-y-6">
       <PageHeader
         title="Votes & Events"
-        description="Create an event and every employee goes on the ballot, admins left out. Publish it and each employee votes once; votes are final. You see who voted for whom and who has not voted yet."
+        description="Run company votes. You see live standings, who voted for whom and who has not voted yet."
         actions={
           <Button className="gap-1.5" onClick={() => setEditing("new")}>
             <Plus className="h-4 w-4" />
@@ -274,174 +277,270 @@ interface AdminEventCardProps {
   onDeleteOption: (option: VoteOptionView) => void
 }
 
+const MEDAL_BADGE: Record<number, string> = {
+  1: "bg-amber-400 text-amber-950",
+  2: "bg-slate-300 text-slate-900",
+  3: "bg-orange-400 text-orange-950",
+}
+
 function AdminEventCard({ event, missing, ...actions }: AdminEventCardProps) {
   const upload = useUploadOptionPhoto()
   const addAll = useAddAllEmployees()
+  const now = useNow()
   const fileRef = React.useRef<HTMLInputElement>(null)
   const [photoFor, setPhotoFor] = React.useState<string | null>(null)
 
   const total = event.totalVotes ?? 0
-  const turnout = event.eligibleVoters ? Math.round((total / event.eligibleVoters) * 100) : 0
+  const eligible = event.eligibleVoters ?? 0
+  const turnout = eligible > 0 ? Math.round((total / eligible) * 100) : 0
   const locked = event.status === "CLOSED"
-  const canReopen = event.canReopen
+  const published = event.status !== "DRAFT"
+  // Once voting has started the list reads as standings; a draft keeps its ballot order.
+  const rows = published
+    ? rankByVotes(event.options)
+    : [...event.options].sort((a, b) => a.position - b.position).map((item) => ({ item, rank: 0 }))
+  const notVoted = event.notVoted ?? []
+  const left =
+    event.status === "OPEN" && now > 0 ? timeLeft(new Date(event.closesAt).getTime() - now) : null
 
   return (
-    <article className="bg-card border-border rounded-sm border">
-      <header className="border-border flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold">{event.title}</h3>
-            <StatusBadge
-              status={event.status}
-              colorMap={VOTE_STATUS_COLORS}
-              labelMap={VOTE_STATUS_LABELS}
-            />
+    <article className="bg-card border-border overflow-hidden rounded-sm border">
+      <header className="border-border relative border-b px-5 py-4">
+        <div className="from-primary/10 pointer-events-none absolute inset-0 bg-gradient-to-br via-transparent to-transparent" />
+        <div className="relative flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <span className="bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-sm">
+              {locked ? <Trophy className="h-5 w-5" /> : <Vote className="h-5 w-5" />}
+            </span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base leading-tight font-semibold">{event.title}</h3>
+                <StatusBadge
+                  status={event.status}
+                  colorMap={VOTE_STATUS_COLORS}
+                  labelMap={VOTE_STATUS_LABELS}
+                />
+              </div>
+              {event.description && (
+                <p className="text-muted-foreground mt-1 text-sm whitespace-pre-line">
+                  {event.description}
+                </p>
+              )}
+              <p className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+                <Clock className="h-3.5 w-3.5" />
+                {event.opensAt ? `Opens ${formatDateTime(event.opensAt)} · ` : ""}
+                Closes {formatDateTime(event.closesAt)}
+                {left && <span className="text-foreground font-medium">· {left}</span>}
+                {event.closedAt ? ` · closed early ${formatDateTime(event.closedAt)}` : ""}
+              </p>
+              {event.status === "DRAFT" && (
+                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                  Only admins and HR can see this draft. Click Publish to open voting for everyone.
+                </p>
+              )}
+            </div>
           </div>
-          {event.description && (
-            <p className="text-muted-foreground mt-1 text-sm whitespace-pre-line">
-              {event.description}
-            </p>
-          )}
-          <p className="text-muted-foreground mt-1 text-xs">
-            {event.opensAt ? `Opens ${formatDateTime(event.opensAt)} · ` : ""}
-            Closes {formatDateTime(event.closesAt)}
-            {event.closedAt ? ` · closed early ${formatDateTime(event.closedAt)}` : ""}
-          </p>
-          {event.status === "DRAFT" && (
-            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-              Only admins and HR can see this draft. Click Publish to open voting for everyone.
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {event.status === "DRAFT" && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {event.status === "DRAFT" && (
+              <Button
+                className="gap-1.5"
+                onClick={actions.onPublish}
+                disabled={event.options.length < 2}
+                title={event.options.length < 2 ? "Add at least two options first" : undefined}
+              >
+                <Megaphone className="h-4 w-4" />
+                Publish
+              </Button>
+            )}
+            {(event.status === "OPEN" || event.status === "UPCOMING") && (
+              <Button variant="outline" className="gap-1.5" onClick={actions.onClose}>
+                <Lock className="h-4 w-4" />
+                Close voting
+              </Button>
+            )}
+            {event.canReopen && (
+              <Button variant="outline" className="gap-1.5" onClick={actions.onReopen}>
+                <Unlock className="h-4 w-4" />
+                Reopen
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" aria-label="Edit event" onClick={actions.onEdit}>
+              <Pencil className="h-4 w-4" />
+            </Button>
             <Button
-              className="gap-1.5"
-              onClick={actions.onPublish}
-              disabled={event.options.length < 2}
-              title={event.options.length < 2 ? "Add at least two options first" : undefined}
+              variant="ghost"
+              size="icon"
+              aria-label="Delete event"
+              onClick={actions.onDelete}
             >
-              <Megaphone className="h-4 w-4" />
-              Publish
+              <Trash2 className="text-destructive h-4 w-4" />
             </Button>
-          )}
-          {(event.status === "OPEN" || event.status === "UPCOMING") && (
-            <Button variant="outline" className="gap-1.5" onClick={actions.onClose}>
-              <Lock className="h-4 w-4" />
-              Close voting
-            </Button>
-          )}
-          {canReopen && (
-            <Button variant="outline" className="gap-1.5" onClick={actions.onReopen}>
-              <Unlock className="h-4 w-4" />
-              Reopen
-            </Button>
-          )}
-          <Button variant="ghost" size="icon" aria-label="Edit event" onClick={actions.onEdit}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" aria-label="Delete event" onClick={actions.onDelete}>
-            <Trash2 className="text-destructive h-4 w-4" />
-          </Button>
+          </div>
         </div>
       </header>
 
-      <div className="border-border border-b px-5 py-3">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Turnout</span>
-          <span className="tabular-nums">
-            {total} of {event.eligibleVoters ?? "?"} voted · {turnout}%
-          </span>
-        </div>
-        <Progress value={turnout} className="mt-2" />
-        {event.status !== "DRAFT" && event.notVoted && event.notVoted.length > 0 && (
-          <p className="text-muted-foreground mt-2 text-xs">
-            <span className="text-foreground font-medium">
-              Not voted yet ({event.notVoted.length}):
-            </span>{" "}
-            {event.notVoted.map((p) => employeeLabel(p.firstName, p.lastName)).join(", ")}
-          </p>
-        )}
-      </div>
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_300px]">
+        <section className="min-w-0">
+          <div className="border-border flex items-center justify-between border-b px-5 py-2.5">
+            <h4 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              {published ? "Standings" : "Ballot"}
+            </h4>
+            <span className="text-muted-foreground text-xs">
+              {event.options.length} {event.options.length === 1 ? "nominee" : "nominees"}
+            </span>
+          </div>
 
-      <div className="divide-border divide-y">
-        {event.options.length === 0 && (
-          <p className="text-muted-foreground px-5 py-4 text-sm">
-            No options yet. Add at least two to publish.
-          </p>
-        )}
-        {event.options.map((o) => {
-          const pct = total > 0 ? Math.round(((o.votes ?? 0) / total) * 100) : 0
-          const leading = event.winnerOptionIds.includes(o.id)
-          return (
-            <div key={o.id} className="flex items-center gap-3 px-5 py-3">
-              <AvatarDisplay
-                src={o.photoUrl}
-                firstName={o.employee?.firstName ?? o.label}
-                lastName={o.employee?.lastName ?? ""}
-                size="lg"
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="truncate text-sm font-medium">{o.label}</span>
-                  {o.employee && (
-                    <span className="text-muted-foreground text-xs">{o.employee.employeeNo}</span>
-                  )}
-                  {leading && <Trophy className="h-4 w-4 shrink-0 text-amber-500" />}
-                </div>
-                {o.description && (
-                  <p className="text-muted-foreground truncate text-xs">{o.description}</p>
-                )}
-                <div className="mt-1.5 flex items-center gap-2">
-                  <Progress value={pct} className="h-1.5 max-w-xs flex-1" />
-                  <span className="text-muted-foreground text-xs tabular-nums">
-                    {o.votes ?? 0} · {pct}%
+          {event.options.length === 0 && (
+            <p className="text-muted-foreground px-5 py-6 text-sm">
+              No options yet. Add at least two to publish.
+            </p>
+          )}
+
+          <ol className="divide-border divide-y">
+            {rows.map(({ item: o, rank }) => {
+              const votes = o.votes ?? 0
+              const pct = total > 0 ? Math.round((votes / total) * 100) : 0
+              const medal = published && votes > 0 ? MEDAL_BADGE[rank] : undefined
+              return (
+                <li key={o.id} className="group flex items-start gap-3 px-5 py-3">
+                  <span
+                    className={cn(
+                      "mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums",
+                      medal ?? "text-muted-foreground",
+                    )}
+                  >
+                    {published ? rank : "·"}
                   </span>
-                </div>
-                {o.voters && o.voters.length > 0 && (
-                  <p className="text-muted-foreground mt-1 text-xs">
-                    <span className="text-foreground font-medium">Voted by:</span>{" "}
-                    {o.voters.map((v) => employeeLabel(v.firstName, v.lastName)).join(", ")}
-                  </p>
-                )}
-              </div>
-              {!locked && (
-                <div className="flex items-center gap-0.5">
-                  {!o.employee && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={o.hasPhoto ? "Replace photo" : "Upload photo"}
-                      disabled={upload.isPending}
-                      onClick={() => {
-                        setPhotoFor(o.id)
-                        fileRef.current?.click()
-                      }}
-                    >
-                      <ImagePlus className="h-4 w-4" />
-                    </Button>
+                  <AvatarDisplay
+                    src={o.photoUrl}
+                    firstName={o.employee?.firstName ?? o.label}
+                    lastName={o.employee?.lastName ?? ""}
+                    size="md"
+                    className="rounded-full"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-sm font-medium">{o.label}</span>
+                      {o.employee && (
+                        <span className="text-muted-foreground text-xs">
+                          {o.employee.employeeNo}
+                        </span>
+                      )}
+                      {published && rank === 1 && votes > 0 && (
+                        <Crown className="h-4 w-4 shrink-0 fill-amber-400 text-amber-400" />
+                      )}
+                    </div>
+                    {o.description && (
+                      <p className="text-muted-foreground truncate text-xs">{o.description}</p>
+                    )}
+                    {published && (
+                      <div className="mt-1.5 flex items-center gap-3">
+                        <Progress value={pct} className="h-1.5 flex-1" />
+                        <span className="w-28 shrink-0 text-right text-xs tabular-nums">
+                          <span className="font-semibold">{votes}</span>
+                          <span className="text-muted-foreground">
+                            {" "}
+                            {votes === 1 ? "vote" : "votes"} · {pct}%
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                    {o.voters && o.voters.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {o.voters.map((v) => (
+                          <span
+                            key={v.id}
+                            title={`Voted ${formatDateTime(v.votedAt)}`}
+                            className="bg-muted inline-flex items-center gap-1 rounded-full py-0.5 pr-2 pl-0.5 text-[11px]"
+                          >
+                            <AvatarDisplay
+                              src={v.profilePhoto}
+                              firstName={v.firstName}
+                              lastName={v.lastName}
+                              size="xs"
+                              className="rounded-full"
+                            />
+                            {employeeLabel(v.firstName, v.lastName)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {!locked && (
+                    <div className="flex items-center gap-0.5 transition sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+                      {!o.employee && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={o.hasPhoto ? "Replace photo" : "Upload photo"}
+                          disabled={upload.isPending}
+                          onClick={() => {
+                            setPhotoFor(o.id)
+                            fileRef.current?.click()
+                          }}
+                        >
+                          <ImagePlus className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Edit option"
+                        onClick={() => actions.onEditOption(o)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Remove option"
+                        onClick={() => actions.onDeleteOption(o)}
+                      >
+                        <Trash2 className="text-destructive h-4 w-4" />
+                      </Button>
+                    </div>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Edit option"
-                    onClick={() => actions.onEditOption(o)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Remove option"
-                    onClick={() => actions.onDeleteOption(o)}
-                  >
-                    <Trash2 className="text-destructive h-4 w-4" />
-                  </Button>
-                </div>
-              )}
+                </li>
+              )
+            })}
+          </ol>
+        </section>
+
+        <aside className="border-border space-y-5 border-t p-5 lg:border-t-0 lg:border-l">
+          <TurnoutRing pct={turnout} voted={total} eligible={eligible} />
+          {!published && (
+            <p className="text-muted-foreground text-xs">
+              Turnout and who still has to vote show here once you publish.
+            </p>
+          )}
+          {published && notVoted.length === 0 && (
+            <p className="flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-4 w-4" />
+              Everyone has voted.
+            </p>
+          )}
+          {published && notVoted.length > 0 && (
+            <div>
+              <p className="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase">
+                Not voted yet · {notVoted.length}
+              </p>
+              <ul className="max-h-80 space-y-1.5 overflow-y-auto pr-1">
+                {notVoted.map((p) => (
+                  <li key={p.id} className="flex items-center gap-2 text-sm">
+                    <AvatarDisplay
+                      src={p.profilePhoto}
+                      firstName={p.firstName}
+                      lastName={p.lastName}
+                      size="chip"
+                      className="rounded-full"
+                    />
+                    <span className="truncate">{employeeLabel(p.firstName, p.lastName)}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-          )
-        })}
+          )}
+        </aside>
       </div>
 
       {!locked && (
@@ -475,6 +574,44 @@ function AdminEventCard({ event, missing, ...actions }: AdminEventCardProps) {
         }}
       />
     </article>
+  )
+}
+
+/** Share of eligible employees who have voted, as a ring. */
+function TurnoutRing({ pct, voted, eligible }: { pct: number; voted: number; eligible: number }) {
+  const r = 32
+  const c = 2 * Math.PI * r
+  return (
+    <div className="flex items-center gap-4">
+      <div className="relative h-20 w-20 shrink-0">
+        <svg viewBox="0 0 80 80" className="h-20 w-20 -rotate-90" aria-hidden>
+          <circle cx="40" cy="40" r={r} fill="none" strokeWidth="8" className="stroke-muted" />
+          {pct > 0 && (
+            <circle
+              cx="40"
+              cy="40"
+              r={r}
+              fill="none"
+              strokeWidth="8"
+              strokeLinecap="round"
+              strokeDasharray={c}
+              strokeDashoffset={c * (1 - pct / 100)}
+              className="stroke-primary transition-[stroke-dashoffset] duration-500"
+            />
+          )}
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold tabular-nums">
+          {pct}%
+        </span>
+      </div>
+      <div>
+        <p className="text-2xl font-semibold tabular-nums">
+          {voted}
+          <span className="text-muted-foreground text-base font-normal"> / {eligible}</span>
+        </p>
+        <p className="text-muted-foreground text-xs">employees have voted</p>
+      </div>
+    </div>
   )
 }
 

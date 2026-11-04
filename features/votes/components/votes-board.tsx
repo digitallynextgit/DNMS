@@ -1,14 +1,13 @@
 "use client"
 
-/** The employee page: open events to vote in, upcoming ones, and results once voting closes. */
+/** The employee page: open events to vote in, with live standings, and results once closed. */
 
 import * as React from "react"
-import { CheckCircle2, Trophy, Vote } from "lucide-react"
+import { CheckCircle2, Clock, Search, Trophy, Users, Vote } from "lucide-react"
 
 import { cn, formatDateTime } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
@@ -17,7 +16,10 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { useCastBallot, useVoteEvents } from "../hooks/use-votes"
+import { useNow } from "../hooks/use-now"
+import { rankByVotes, timeLeft } from "../lib/vote-rules"
 import { VOTE_STATUS_COLORS, VOTE_STATUS_LABELS } from "../constants"
+import { VotePodium } from "./vote-podium"
 import type { VoteEventView, VoteOptionView } from "../types"
 
 export function VotesBoard() {
@@ -34,18 +36,18 @@ export function VotesBoard() {
     <div className="space-y-6">
       <PageHeader
         title="Votes"
-        description="One vote per person per event, and it is final once you submit. You can vote for anyone, yourself included. Admins and HR can see who voted for whom."
+        description="Vote for the nominee you like most. One vote each, and it is final. Standings update live, and admins and HR can see who voted for whom."
       />
 
       {adminReader && (
         <p className="border-border bg-muted/40 text-muted-foreground rounded-sm border px-4 py-3 text-sm">
-          Admins run the votes and do not cast a ballot. Results show here once voting closes.
+          Admins run the votes and do not cast a ballot.
         </p>
       )}
 
       {isPending && (
-        <div className="space-y-3">
-          <Skeleton className="h-56 rounded-sm" />
+        <div className="space-y-4">
+          <Skeleton className="h-72 rounded-sm" />
           <Skeleton className="h-56 rounded-sm" />
         </div>
       )}
@@ -72,110 +74,210 @@ export function VotesBoard() {
   )
 }
 
-function windowText(e: VoteEventView): string {
-  if (e.status === "UPCOMING" && e.opensAt) return `Opens ${formatDateTime(e.opensAt)}`
-  if (e.status === "OPEN") return `Closes ${formatDateTime(e.closesAt)}`
-  return `Closed ${formatDateTime(e.closedAt ?? e.closesAt)}`
-}
-
 function EventCard({ event }: { event: VoteEventView }) {
   const cast = useCastBallot()
-  // The pick is only local until it is submitted; the server's ballot is the truth.
+  const now = useNow()
   const [picked, setPicked] = React.useState<string | null>(null)
   const [confirming, setConfirming] = React.useState(false)
-  const selected = event.myOptionId ?? picked
-  const showResults = event.totalVotes !== null
-  const canSubmit = event.canVote && selected !== null
-  const pickedLabel = event.options.find((o) => o.id === selected)?.label ?? ""
   const [query, setQuery] = React.useState("")
+
+  const total = event.totalVotes ?? 0
+  const eligible = event.eligibleVoters ?? 0
+  const showResults = event.totalVotes !== null
+  const turnout = eligible > 0 ? Math.round((total / eligible) * 100) : 0
+  const isOpen = event.status === "OPEN"
+  const isClosed = event.status === "CLOSED"
+
+  const ranks = new Map(rankByVotes(event.options).map((r) => [r.item.id, r.rank]))
+  const myOption = event.options.find((o) => o.id === event.myOptionId) ?? null
+  const pickedOption = event.options.find((o) => o.id === picked) ?? null
+
+  // Closed events read as a leaderboard; an open ballot keeps its name order, so it stays fair.
+  const ordered = isClosed
+    ? rankByVotes(event.options).map((r) => r.item)
+    : [...event.options].sort((a, b) => a.position - b.position)
   const q = query.trim().toLowerCase()
-  // Finished events read as a leaderboard; open ones keep the ballot order.
-  const ordered =
-    event.status === "CLOSED" && showResults
-      ? [...event.options].sort((a, b) => (b.votes ?? 0) - (a.votes ?? 0))
-      : event.options
   const shown = q ? ordered.filter((o) => o.label.toLowerCase().includes(q)) : ordered
 
+  const when =
+    event.status === "UPCOMING" && event.opensAt
+      ? `Opens ${formatDateTime(event.opensAt)}`
+      : isOpen
+        ? now > 0
+          ? timeLeft(new Date(event.closesAt).getTime() - now)
+          : `Closes ${formatDateTime(event.closesAt)}`
+        : `Closed ${formatDateTime(event.closedAt ?? event.closesAt)}`
+
   return (
-    <article className="bg-card border-border rounded-sm border">
-      <header className="border-border flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
-        <div className="min-w-0">
-          <h3 className="text-base font-semibold">{event.title}</h3>
-          {event.description && (
-            <p className="text-muted-foreground mt-1 text-sm whitespace-pre-line">
-              {event.description}
-            </p>
-          )}
+    <article className="bg-card border-border overflow-hidden rounded-sm border">
+      <header className="border-border relative border-b px-5 py-5 sm:px-6">
+        <div className="from-primary/10 pointer-events-none absolute inset-0 bg-gradient-to-br via-transparent to-transparent" />
+        <div className="relative flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-sm">
+              {isClosed ? <Trophy className="h-5 w-5" /> : <Vote className="h-5 w-5" />}
+            </span>
+            <div className="min-w-0">
+              <h3 className="text-lg leading-tight font-semibold">{event.title}</h3>
+              {event.description && (
+                <p className="text-muted-foreground mt-1 text-sm whitespace-pre-line">
+                  {event.description}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-1.5">
+            <StatusBadge
+              status={event.status}
+              colorMap={VOTE_STATUS_COLORS}
+              labelMap={VOTE_STATUS_LABELS}
+            />
+            <span className="text-muted-foreground flex items-center gap-1 text-xs">
+              <Clock className="h-3.5 w-3.5" />
+              {when}
+            </span>
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-1 text-right">
-          <StatusBadge
-            status={event.status}
-            colorMap={VOTE_STATUS_COLORS}
-            labelMap={VOTE_STATUS_LABELS}
-          />
-          <span className="text-muted-foreground text-xs">{windowText(event)}</span>
-        </div>
+        {showResults && eligible > 0 && (
+          <div className="relative mt-4 flex items-center gap-3">
+            <Users className="text-muted-foreground h-4 w-4 shrink-0" />
+            <Progress value={turnout} className="h-1.5 max-w-60" />
+            <span className="text-muted-foreground text-xs whitespace-nowrap tabular-nums">
+              {total} of {eligible} have voted
+            </span>
+          </div>
+        )}
       </header>
 
-      {event.options.length > 9 && (
-        <div className="px-5 pt-4">
-          <Input
-            placeholder="Search a name"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="max-w-xs"
+      {showResults && (
+        <section className="border-border border-b px-5 pt-5 pb-0 sm:px-6">
+          <div className="mb-6 flex items-center justify-between">
+            <h4 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              {isClosed
+                ? event.winnerOptionIds.length > 1
+                  ? "Winners · it is a tie"
+                  : "Winner"
+                : "Leading now"}
+            </h4>
+            {isOpen && (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                Live
+              </span>
+            )}
+          </div>
+          <VotePodium options={event.options} total={total} />
+        </section>
+      )}
+
+      {myOption && (
+        <div className="border-border flex flex-wrap items-center gap-2 border-b bg-emerald-500/5 px-5 py-3 text-sm sm:px-6">
+          <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          <span>You voted for</span>
+          <AvatarDisplay
+            src={myOption.photoUrl}
+            firstName={myOption.employee?.firstName ?? myOption.label}
+            lastName={myOption.employee?.lastName ?? ""}
+            size="chip"
+            className="rounded-full"
           />
+          <span className="font-semibold">{myOption.label}</span>
+          <span className="text-muted-foreground">· votes are final</span>
         </div>
       )}
 
-      <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3">
-        {shown.map((o) => (
-          <OptionTile
-            key={o.id}
-            option={o}
-            total={event.totalVotes ?? 0}
-            selected={selected === o.id}
-            mine={event.myOptionId === o.id}
-            winner={event.winnerOptionIds.includes(o.id)}
-            showResults={showResults}
-            selectable={event.canVote}
-            onSelect={() => setPicked(o.id)}
-          />
-        ))}
+      <section className="px-5 py-5 sm:px-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h4 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            {event.canVote ? "Pick your vote" : isClosed ? "Full results" : "Nominees"} ·{" "}
+            {event.options.length}
+          </h4>
+          {event.options.length > 8 && (
+            <div className="relative w-full sm:w-64">
+              <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
+              <Input
+                placeholder="Search a name"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {shown.map((o) => (
+            <CandidateCard
+              key={o.id}
+              option={o}
+              rank={ranks.get(o.id) ?? null}
+              total={total}
+              showResults={showResults}
+              selected={picked === o.id}
+              mine={event.myOptionId === o.id}
+              winner={isClosed && event.winnerOptionIds.includes(o.id)}
+              selectable={event.canVote}
+              onSelect={() => setPicked(o.id)}
+            />
+          ))}
+        </div>
         {shown.length === 0 && (
-          <p className="text-muted-foreground text-sm">No one matches that name.</p>
+          <p className="text-muted-foreground py-6 text-center text-sm">
+            No one matches that name.
+          </p>
         )}
-      </div>
+      </section>
 
       {event.canVote && (
-        <footer className="border-border flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3">
-          <p className="text-muted-foreground text-sm">
-            Pick an option, then submit. You cannot change your vote afterwards.
-          </p>
-          <Button disabled={!canSubmit || cast.isPending} onClick={() => setConfirming(true)}>
+        <footer className="border-border bg-card/95 sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3 backdrop-blur sm:px-6">
+          {pickedOption ? (
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              <AvatarDisplay
+                src={pickedOption.photoUrl}
+                firstName={pickedOption.employee?.firstName ?? pickedOption.label}
+                lastName={pickedOption.employee?.lastName ?? ""}
+                size="sm"
+                className="rounded-full"
+              />
+              <span className="text-muted-foreground">Your pick:</span>
+              <span className="truncate font-semibold">{pickedOption.label}</span>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              Tap a nominee to pick them. You cannot change your vote afterwards.
+            </p>
+          )}
+          <Button
+            disabled={!pickedOption || cast.isPending}
+            onClick={() => setConfirming(true)}
+            className="gap-1.5"
+          >
+            <Vote className="h-4 w-4" />
             Submit vote
           </Button>
         </footer>
       )}
 
-      {event.status === "OPEN" && event.isVoter && event.myOptionId && (
-        <footer className="border-border flex items-center gap-2 border-t px-5 py-3 text-sm text-emerald-600 dark:text-emerald-400">
-          <CheckCircle2 className="h-4 w-4" />
-          Your vote is in. Results appear here when voting closes.
+      {event.status === "UPCOMING" && (
+        <footer className="border-border text-muted-foreground border-t px-5 py-3 text-sm sm:px-6">
+          Voting has not opened yet.
         </footer>
       )}
 
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title={`Vote for ${pickedLabel}?`}
+        title={`Vote for ${pickedOption?.label ?? ""}?`}
         description="Your vote is final. You cannot change it after you submit."
         confirmLabel="Submit vote"
         isLoading={cast.isPending}
         onConfirm={() =>
-          selected &&
+          pickedOption &&
           cast.mutate(
-            { eventId: event.id, optionId: selected },
+            { eventId: event.id, optionId: pickedOption.id },
             {
               onSuccess: () => {
                 setPicked(null)
@@ -185,54 +287,36 @@ function EventCard({ event }: { event: VoteEventView }) {
           )
         }
       />
-
-      {event.status === "OPEN" && !event.isVoter && (
-        <footer className="border-border text-muted-foreground border-t px-5 py-3 text-sm">
-          Results appear here when voting closes.
-        </footer>
-      )}
-
-      {event.status === "UPCOMING" && (
-        <footer className="border-border text-muted-foreground border-t px-5 py-3 text-sm">
-          Voting has not opened yet.
-        </footer>
-      )}
-
-      {showResults && (
-        <footer className="border-border text-muted-foreground border-t px-5 py-3 text-sm">
-          {event.totalVotes} {event.totalVotes === 1 ? "vote" : "votes"}
-          {event.eligibleVoters ? ` from ${event.eligibleVoters} eligible voters` : ""}
-          {event.winnerOptionIds.length > 1 ? " · it is a tie" : ""}
-        </footer>
-      )}
     </article>
   )
 }
 
-interface OptionTileProps {
+interface CandidateCardProps {
   option: VoteOptionView
+  rank: number | null
   total: number
+  showResults: boolean
   selected: boolean
   mine: boolean
   winner: boolean
-  showResults: boolean
   selectable: boolean
   onSelect: () => void
 }
 
-function OptionTile({
+function CandidateCard({
   option: o,
+  rank,
   total,
+  showResults,
   selected,
   mine,
   winner,
-  showResults,
   selectable,
   onSelect,
-}: OptionTileProps) {
-  const pct = showResults && total > 0 ? Math.round(((o.votes ?? 0) / total) * 100) : 0
-  const first = o.employee?.firstName ?? o.label
-  const last = o.employee?.lastName ?? ""
+}: CandidateCardProps) {
+  const votes = o.votes ?? 0
+  const pct = showResults && total > 0 ? Math.round((votes / total) * 100) : 0
+  const onTop = showResults && votes > 0 && rank !== null && rank <= 3
 
   return (
     <button
@@ -241,45 +325,59 @@ function OptionTile({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        "border-border bg-background flex items-center gap-3 rounded-sm border p-3 text-left transition",
-        selectable ? "hover:border-primary/60 cursor-pointer" : "cursor-default",
-        selected && selectable && "border-primary ring-primary/30 ring-2",
-        winner && "border-amber-500/60",
+        "border-border bg-background relative flex flex-col items-center gap-2 rounded-sm border px-3 pt-5 pb-3 text-center transition",
+        selectable ? "hover:border-primary/50 hover:bg-accent/40 cursor-pointer" : "cursor-default",
+        selected && "border-primary bg-primary/5 ring-primary/30 ring-2",
+        mine && "border-emerald-500/60 bg-emerald-500/5",
+        winner && "border-amber-400/60 bg-amber-400/5",
       )}
     >
+      {onTop && (
+        <span
+          className={cn(
+            "absolute top-2 left-2 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
+            rank === 1
+              ? "bg-amber-400 text-amber-950"
+              : rank === 2
+                ? "bg-slate-300 text-slate-900"
+                : "bg-orange-400 text-orange-950",
+          )}
+        >
+          #{rank}
+        </span>
+      )}
+      {(selected || mine) && (
+        <CheckCircle2
+          className={cn(
+            "absolute top-2 right-2 h-4 w-4",
+            mine ? "text-emerald-500" : "text-primary",
+          )}
+        />
+      )}
       <AvatarDisplay
         src={o.photoUrl}
-        firstName={first}
-        lastName={last}
-        size="xl"
-        className="shrink-0"
+        firstName={o.employee?.firstName ?? o.label}
+        lastName={o.employee?.lastName ?? ""}
+        size="lg"
+        className="rounded-full"
       />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-medium">{o.label}</span>
-          {o.isMe && (
-            <Badge variant="outline" className="shrink-0 text-[10px]">
-              You
-            </Badge>
-          )}
-          {winner && <Trophy className="h-4 w-4 shrink-0 text-amber-500" />}
-        </div>
-        {o.description && <p className="text-muted-foreground truncate text-xs">{o.description}</p>}
-        {showResults && (
-          <div className="mt-2 flex items-center gap-2">
-            <Progress value={pct} className="h-1.5 flex-1" />
-            <span className="text-muted-foreground w-16 shrink-0 text-right text-xs tabular-nums">
-              {o.votes ?? 0} · {pct}%
-            </span>
-          </div>
-        )}
-        {mine && (
-          <Badge variant="secondary" className="mt-1.5 gap-1 text-[10px]">
-            <CheckCircle2 className="h-3 w-3" />
-            Your vote
-          </Badge>
-        )}
+      <div className="w-full min-w-0">
+        <p className="truncate text-sm font-medium">{o.label}</p>
+        <p className="text-muted-foreground h-4 text-[11px]">
+          {mine ? "Your vote" : o.isMe ? "You" : (o.description ?? "")}
+        </p>
       </div>
+      {showResults && (
+        <div className="w-full">
+          <div className="text-muted-foreground mb-1 flex justify-between text-[11px] tabular-nums">
+            <span>
+              {votes} {votes === 1 ? "vote" : "votes"}
+            </span>
+            <span>{pct}%</span>
+          </div>
+          <Progress value={pct} className="h-1" />
+        </div>
+      )}
     </button>
   )
 }

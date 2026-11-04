@@ -40,6 +40,40 @@ export function isVoteManagerRoles(roles: readonly string[]): boolean {
   )
 }
 
+export interface Ranked<T> {
+  item: T
+  /** 1 = most votes; ties share a rank (1, 1, 3). */
+  rank: number
+}
+
+/** Most votes first; ties share a rank and keep their ballot order. */
+export function rankByVotes<T extends { votes: number | null; position: number }>(
+  items: readonly T[],
+): Ranked<T>[] {
+  const sorted = [...items].sort(
+    (a, b) => (b.votes ?? 0) - (a.votes ?? 0) || a.position - b.position,
+  )
+  let rank = 0
+  return sorted.map((item, i) => {
+    const prev = sorted[i - 1]
+    if (!prev || (prev.votes ?? 0) !== (item.votes ?? 0)) rank = i + 1
+    return { item, rank }
+  })
+}
+
+/** Countdown text for the time left until voting closes: "3h 12m left", "45m left". */
+export function timeLeft(ms: number): string {
+  if (ms <= 0) return "Closing now"
+  const mins = Math.ceil(ms / 60_000)
+  if (mins < 60) return `${mins}m left`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  if (h < 24) return m ? `${h}h ${m}m left` : `${h}h left`
+  const d = Math.floor(h / 24)
+  const hh = h % 24
+  return hh ? `${d}d ${hh}h left` : `${d}d left`
+}
+
 /** An employee option's name: "Dev  Lal" and "Prashant ." read as "Dev Lal" and "Prashant". */
 export function employeeLabel(firstName: string, lastName: string): string {
   const last = lastName.trim().replace(/^\.+$/, "")

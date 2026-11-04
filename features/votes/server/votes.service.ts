@@ -138,8 +138,8 @@ function toView(
 ): VoteEventView {
   const status = eventStatus(row, now)
   const voter = isVoterRoles(viewer.roles)
-  // Voters see numbers only once it is over; the people running it always do.
-  const showResults = manage || status === "CLOSED"
+  // Everyone sees the live standings once voting opens; only admins and HR see names.
+  const showResults = manage || status === "OPEN" || status === "CLOSED"
   const t = tally(
     row.options.map((o) => o.id),
     row.ballots,

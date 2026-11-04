@@ -5,8 +5,56 @@ import {
   eventStatus,
   isVoteManagerRoles,
   isVoterRoles,
+  rankByVotes,
   tally,
+  timeLeft,
 } from "./vote-rules"
+
+describe("rankByVotes", () => {
+  const opt = (id: string, votes: number | null, position: number) => ({ id, votes, position })
+  it("puts the most votes first", () => {
+    const r = rankByVotes([opt("a", 1, 0), opt("b", 3, 1), opt("c", 2, 2)])
+    expect(r.map((x) => [x.item.id, x.rank])).toEqual([
+      ["b", 1],
+      ["c", 2],
+      ["a", 3],
+    ])
+  })
+  it("gives ties the same rank and skips the next one", () => {
+    const r = rankByVotes([opt("a", 2, 0), opt("b", 2, 1), opt("c", 1, 2)])
+    expect(r.map((x) => [x.item.id, x.rank])).toEqual([
+      ["a", 1],
+      ["b", 1],
+      ["c", 3],
+    ])
+  })
+  it("keeps ballot order when nobody has votes yet", () => {
+    const r = rankByVotes([opt("b", null, 1), opt("a", null, 0)])
+    expect(r.map((x) => [x.item.id, x.rank])).toEqual([
+      ["a", 1],
+      ["b", 1],
+    ])
+  })
+})
+
+describe("timeLeft", () => {
+  const min = 60_000
+  it("counts minutes under an hour", () => {
+    expect(timeLeft(45 * min)).toBe("45m left")
+    expect(timeLeft(30_000)).toBe("1m left")
+  })
+  it("counts hours and minutes under a day", () => {
+    expect(timeLeft(192 * min)).toBe("3h 12m left")
+    expect(timeLeft(120 * min)).toBe("2h left")
+  })
+  it("counts days beyond that", () => {
+    expect(timeLeft((26 * 60 + 5) * min)).toBe("1d 2h left")
+    expect(timeLeft(48 * 60 * min)).toBe("2d left")
+  })
+  it("says closing now once the time is up", () => {
+    expect(timeLeft(0)).toBe("Closing now")
+  })
+})
 
 describe("employeeLabel", () => {
   it("joins first and last name", () => {

@@ -6238,7 +6238,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["manage"],
         guard: "withSession",
-        doc: "List the company's vote events (Best Rangoli, Best Dressed...) with their options, the caller's own ballot and, once voting has closed, the results. Every employee sees published events; ?manage=1 is the admin/HR view with drafts, live counts, who voted for each option and who has not voted yet. Note: Results stay hidden from voters until an event closes, and voters never see names. Admins never vote; isVoter is false for them.",
+        doc: "List the company's vote events (Best Rangoli, Best Dressed...) with their options, the caller's own ballot and the live standings once voting opens. Every employee sees published events; ?manage=1 is the admin/HR view with drafts, live counts, who voted for each option and who has not voted yet. Note: Everyone sees live counts and the leaders once voting opens; only admins and HR see voter names. Admins never vote; isVoter is false for them.",
         queryHelp:
           "manage: 1 = include drafts, live counts, options[].voters and notVoted (admins and the HR team only)",
         keywords: [
