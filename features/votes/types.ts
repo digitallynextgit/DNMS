@@ -43,7 +43,7 @@ export interface VoteEventView {
   options: VoteOptionView[]
   /** The reader's own ballot. */
   myOptionId: string | null
-  /** The reader may cast a ballot right now: open, a voter, and not voted yet (votes are final). */
+  /** The reader may cast or change their one ballot right now (voting is open). */
   canVote: boolean
   /** Null while results are hidden from the reader. */
   totalVotes: number | null

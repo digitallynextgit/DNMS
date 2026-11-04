@@ -134,11 +134,11 @@ describe("who is on the ballot and who manages", () => {
     expect(isVoteManagerRoles(["hr_employee"])).toBe(true)
     expect(isVoteManagerRoles(["employee"])).toBe(false)
   })
-  it("lets anyone vote once while voting is open, admins included", () => {
-    expect(canCastVote("OPEN", false)).toBe(true)
-    expect(canCastVote("OPEN", true)).toBe(false)
-    expect(canCastVote("UPCOMING", false)).toBe(false)
-    expect(canCastVote("CLOSED", false)).toBe(false)
+  it("lets anyone vote or change their vote only while voting is open", () => {
+    expect(canCastVote("OPEN")).toBe(true)
+    expect(canCastVote("UPCOMING")).toBe(false)
+    expect(canCastVote("CLOSED")).toBe(false)
+    expect(canCastVote("DRAFT")).toBe(false)
   })
 })
 

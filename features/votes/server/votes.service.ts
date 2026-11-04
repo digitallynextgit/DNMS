@@ -185,7 +185,7 @@ function toView(
       optionView(o, showResults ? (t.counts[o.id] ?? 0) : null, viewer.id, votersOf(o.id)),
     ),
     myOptionId,
-    canVote: canCastVote(status, myOptionId !== null),
+    canVote: canCastVote(status),
     totalVotes: showResults ? t.total : null,
     eligibleVoters: showResults ? eligible.length : null,
     notVoted: manage
@@ -655,20 +655,24 @@ export async function castBallot(
     }
 
     const voterId = session.user.id
-    const already = () => fail("You have already voted in this event", undefined, 409)
     const mine = await db.voteBallot.findFirst({
       where: { eventId, voterId },
-      select: { id: true },
+      select: { id: true, optionId: true },
     })
-    // One vote each, and it is final.
-    if (mine) return already()
+    // One ballot each; voting again while it is open changes it.
+    if (mine) {
+      if (mine.optionId !== optionId) {
+        await db.voteBallot.update({ where: { id: mine.id }, data: { optionId } })
+      }
+      return ok({ data: { optionId, changed: mine.optionId !== optionId } })
+    }
     try {
       await db.voteBallot.create({ data: { eventId, optionId, voterId } })
     } catch (e) {
       // A double-click can race the first insert; the unique (event, voter) index catches it.
-      if ((e as { code?: string }).code === "P2002") return already()
-      throw e
+      if ((e as { code?: string }).code !== "P2002") throw e
+      await db.voteBallot.updateMany({ where: { eventId, voterId }, data: { optionId } })
     }
-    return ok({ data: { optionId } })
+    return ok({ data: { optionId, changed: false } })
   })
 }

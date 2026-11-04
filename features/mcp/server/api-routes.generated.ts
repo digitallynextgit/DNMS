@@ -6186,8 +6186,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       PUT: {
         body: "{ optionId }",
         guard: "withSession",
-        doc: "Cast the caller's own vote in an open event. One vote per person per event, and it is final: a second call is refused. id = event id from GET /api/votes/events, optionId from its options. Note: Only while the event is open. Everyone on staff votes, admins included, for any option, themselves included. Admins and HR can see who voted for whom.",
-        keywords: ["vote for", "cast vote", "submit ballot", "vote for myself"],
+        doc: "Cast or change the caller's own vote in an open event. One vote per person per event; calling again while voting is open moves it to the new option. id = event id from GET /api/votes/events, optionId from its options. Note: Only while the event is open. Everyone on staff votes, admins included, for any option, themselves included. Admins and HR can see who voted for whom.",
+        keywords: ["vote for", "cast vote", "change my vote", "submit ballot", "vote for myself"],
       },
     },
     load: () => import("@/app/api/votes/events/[id]/ballot/route"),

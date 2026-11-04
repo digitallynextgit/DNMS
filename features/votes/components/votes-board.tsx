@@ -35,7 +35,7 @@ export function VotesBoard() {
     <div className="space-y-6">
       <PageHeader
         title="Votes"
-        description="Vote for the nominee you like most. One vote each, and it is final. Standings update live, and admins and HR can see who voted for whom."
+        description="Vote for the nominee you like most. One vote each, and you can change it until voting closes. Standings update live, and admins and HR can see who voted for whom."
       />
 
       {isPending && (
@@ -178,15 +178,25 @@ function EventCard({ event }: { event: VoteEventView }) {
             className="rounded-full"
           />
           <span className="font-semibold">{myOption.label}</span>
-          <span className="text-muted-foreground">· votes are final</span>
+          {event.canVote && (
+            <span className="text-muted-foreground">
+              · to change it, pick someone else below and click Change vote
+            </span>
+          )}
         </div>
       )}
 
       <section className="px-5 py-5 sm:px-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h4 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-            {event.canVote ? "Pick your vote" : isClosed ? "Full results" : "Nominees"} ·{" "}
-            {event.options.length}
+            {event.canVote
+              ? myOption
+                ? "Change your vote"
+                : "Pick your vote"
+              : isClosed
+                ? "Full results"
+                : "Nominees"}{" "}
+            · {event.options.length}
           </h4>
           {event.options.length > 8 && (
             <div className="relative w-full sm:w-64">
@@ -209,11 +219,11 @@ function EventCard({ event }: { event: VoteEventView }) {
               rank={ranks.get(o.id) ?? null}
               total={total}
               showResults={showResults}
-              selected={picked === o.id}
+              selected={picked === o.id && picked !== event.myOptionId}
               mine={event.myOptionId === o.id}
               winner={isClosed && event.winnerOptionIds.includes(o.id)}
               selectable={event.canVote}
-              onSelect={() => setPicked(o.id)}
+              onSelect={() => setPicked(o.id === event.myOptionId ? null : o.id)}
             />
           ))}
         </div>
@@ -235,12 +245,16 @@ function EventCard({ event }: { event: VoteEventView }) {
                 size="sm"
                 className="rounded-full"
               />
-              <span className="text-muted-foreground">Your pick:</span>
+              <span className="text-muted-foreground">
+                {myOption ? "Change to:" : "Your pick:"}
+              </span>
               <span className="truncate font-semibold">{pickedOption.label}</span>
             </div>
           ) : (
             <p className="text-muted-foreground text-sm">
-              Tap a nominee to pick them. You cannot change your vote afterwards.
+              {myOption
+                ? "Pick someone else to change your vote. You can change it until voting closes."
+                : "Tap a nominee to pick them. You can change your vote until voting closes."}
             </p>
           )}
           <Button
@@ -249,7 +263,7 @@ function EventCard({ event }: { event: VoteEventView }) {
             className="gap-1.5"
           >
             <Vote className="h-4 w-4" />
-            Submit vote
+            {myOption ? "Change vote" : "Submit vote"}
           </Button>
         </footer>
       )}
@@ -263,9 +277,17 @@ function EventCard({ event }: { event: VoteEventView }) {
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title={`Vote for ${pickedOption?.label ?? ""}?`}
-        description="Your vote is final. You cannot change it after you submit."
-        confirmLabel="Submit vote"
+        title={
+          myOption
+            ? `Change your vote to ${pickedOption?.label ?? ""}?`
+            : `Vote for ${pickedOption?.label ?? ""}?`
+        }
+        description={
+          myOption
+            ? `Your vote moves from ${myOption.label} to ${pickedOption?.label ?? ""}. You can change it again until voting closes.`
+            : "You can change your vote until voting closes."
+        }
+        confirmLabel={myOption ? "Change vote" : "Submit vote"}
         isLoading={cast.isPending}
         onConfirm={() =>
           pickedOption &&

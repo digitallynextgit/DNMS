@@ -195,7 +195,7 @@ export function useCastBallot() {
       mutationFn: ({ eventId, optionId }) =>
         apiFetch(`/api/votes/events/${eventId}/ballot`, json("PUT", { optionId })),
       invalidate: [voteKeys.all],
-      success: "Your vote is in",
+      success: "Vote saved",
     }),
   )
 }
