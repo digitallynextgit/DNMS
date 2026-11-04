@@ -81,9 +81,16 @@ export function employeeLabel(firstName: string, lastName: string): string {
   return `${firstName} ${last}`.replace(/\s+/g, " ").trim()
 }
 
-/** Anyone on staff holds one ballot per event, and can cast or change it while voting is open. */
-export function canCastVote(status: VoteEventStatus): boolean {
-  return status === "OPEN"
+/**
+ * Anyone on staff holds one ballot per event while voting is open. Changing it afterwards is a
+ * per-event switch; with it off, the first vote is final.
+ */
+export function canCastVote(
+  status: VoteEventStatus,
+  alreadyVoted: boolean,
+  allowVoteChange: boolean,
+): boolean {
+  return status === "OPEN" && (!alreadyVoted || allowVoteChange)
 }
 
 export interface Tally {

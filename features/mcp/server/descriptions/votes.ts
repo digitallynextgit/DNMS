@@ -29,7 +29,7 @@ export const VOTES: DescriptionMap = {
   "POST /api/votes/events": {
     summary:
       "Create a vote event as a draft: a title, an optional description, an optional opening time and a closing time, plus optional options (employees by id, or custom entries by label). Admins and the HR team only.",
-    body: "{ title, description?, opensAt?: ISO date-time (empty = opens when published), closesAt: ISO date-time, allEmployees?: boolean (true = every active non-admin employee becomes an option), options?: [{ employeeId? } | { label, description? }] }",
+    body: "{ title, description?, opensAt?: ISO date-time (empty = opens when published), closesAt: ISO date-time, allEmployees?: boolean (true = every active non-admin employee becomes an option), allowVoteChange?: boolean (default false = the first vote is final), options?: [{ employeeId? } | { label, description? }] }",
     keywords: ["create vote", "new voting event", "start a poll", "diwali contest"],
     notes:
       "Nothing is visible to employees until it is published with PATCH { publish: true }, which needs at least two options.",
@@ -42,7 +42,7 @@ export const VOTES: DescriptionMap = {
   "PATCH /api/votes/events/[id]": {
     summary:
       "Edit a vote event's title, description or opening/closing times, publish it, pull it back to draft, close voting early or reopen it. Admins and the HR team only. id from GET /api/votes/events.",
-    body: "{ title?, description?, opensAt?, closesAt?, publish?: boolean, close?: boolean }",
+    body: "{ title?, description?, opensAt?, closesAt?, publish?: boolean, close?: boolean, allowVoteChange?: boolean }",
     keywords: ["publish vote", "close voting", "reopen voting", "extend voting", "edit vote event"],
     notes:
       "publish: true notifies every eligible voter in the app. publish: false only works while nobody has voted. close: true ends voting now and reveals the results to everyone.",
@@ -64,7 +64,7 @@ export const VOTES: DescriptionMap = {
   },
   "PUT /api/votes/events/[id]/ballot": {
     summary:
-      "Cast or change the caller's own vote in an open event. One vote per person per event; calling again while voting is open moves it to the new option. id = event id from GET /api/votes/events, optionId from its options.",
+      "Cast or change the caller's own vote in an open event. One vote per person per event; calling again moves it to the new option only when the event has allowVoteChange on, otherwise it is refused. id = event id from GET /api/votes/events, optionId from its options.",
     body: "{ optionId }",
     keywords: ["vote for", "cast vote", "change my vote", "submit ballot", "vote for myself"],
     notes:

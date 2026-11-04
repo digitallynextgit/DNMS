@@ -35,7 +35,7 @@ export function VotesBoard() {
     <div className="space-y-6">
       <PageHeader
         title="Votes"
-        description="Vote for the nominee you like most. One vote each, and you can change it until voting closes. Standings update live, and admins and HR can see who voted for whom."
+        description="Vote for the nominee you like most. One vote each. Standings update live, and admins and HR can see who voted for whom."
       />
 
       {isPending && (
@@ -254,7 +254,9 @@ function EventCard({ event }: { event: VoteEventView }) {
             <p className="text-muted-foreground text-sm">
               {myOption
                 ? "Pick someone else to change your vote. You can change it until voting closes."
-                : "Tap a nominee to pick them. You can change your vote until voting closes."}
+                : event.allowVoteChange
+                  ? "Tap a nominee to pick them. You can change your vote until voting closes."
+                  : "Tap a nominee to pick them. Your vote is final once you submit."}
             </p>
           )}
           <Button
@@ -285,7 +287,9 @@ function EventCard({ event }: { event: VoteEventView }) {
         description={
           myOption
             ? `Your vote moves from ${myOption.label} to ${pickedOption?.label ?? ""}. You can change it again until voting closes.`
-            : "You can change your vote until voting closes."
+            : event.allowVoteChange
+              ? "You can change your vote until voting closes."
+              : "Your vote is final. You cannot change it after you submit."
         }
         confirmLabel={myOption ? "Change vote" : "Submit vote"}
         isLoading={cast.isPending}

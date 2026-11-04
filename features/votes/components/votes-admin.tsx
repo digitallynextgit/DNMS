@@ -332,6 +332,7 @@ function AdminEventCard({ event, missing, ...actions }: AdminEventCardProps) {
                 Closes {formatDateTime(event.closesAt)}
                 {left && <span className="text-foreground font-medium">· {left}</span>}
                 {event.closedAt ? ` · closed early ${formatDateTime(event.closedAt)}` : ""}
+                <span>· {event.allowVoteChange ? "Vote changes on" : "Votes are final"}</span>
               </p>
               {event.status === "DRAFT" && (
                 <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
@@ -650,6 +651,7 @@ function EventFormDialog({
   const isEdit = event !== null
 
   const [allEmployees, setAllEmployees] = React.useState(true)
+  const [allowVoteChange, setAllowVoteChange] = React.useState(event?.allowVoteChange ?? false)
   const [title, setTitle] = React.useState(event?.title ?? "")
   const [description, setDescription] = React.useState(event?.description ?? "")
   const [opensLater, setOpensLater] = React.useState(Boolean(event?.opensAt))
@@ -669,6 +671,7 @@ function EventFormDialog({
       description: description.trim(),
       opensAt: opensLater && opens.date ? joinDateTime(opens.date, opens.time || "09:00") : "",
       closesAt: joinDateTime(closes.date, closes.time),
+      allowVoteChange,
     }
     if (event) update.mutate({ id: event.id, body }, { onSuccess: () => onOpenChange(false) })
     else create.mutate({ ...body, allEmployees }, { onSuccess: () => onOpenChange(false) })
@@ -727,6 +730,16 @@ function EventFormDialog({
           <Switch checked={allEmployees} onCheckedChange={setAllEmployees} />
         </div>
       )}
+
+      <div className="border-border flex items-center justify-between gap-3 rounded-sm border px-3 py-2">
+        <div>
+          <p className="text-sm font-medium">Let people change their vote</p>
+          <p className="text-muted-foreground text-xs">
+            Off: the first vote is final. On: people can switch until voting closes.
+          </p>
+        </div>
+        <Switch checked={allowVoteChange} onCheckedChange={setAllowVoteChange} />
+      </div>
 
       <div className="border-border flex items-center justify-between gap-3 rounded-sm border px-3 py-2">
         <div>

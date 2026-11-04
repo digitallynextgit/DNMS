@@ -43,6 +43,8 @@ export const voteEventSchema = z
     options: z.array(voteOptionSchema).max(100).default([]),
     /** Put every active employee (admins left out) on the ballot. */
     allEmployees: z.boolean().default(false),
+    /** Let voters change a cast vote while voting is open. Off = the first vote is final. */
+    allowVoteChange: z.boolean().default(false),
   })
   .refine((e) => !e.opensAt || Date.parse(e.opensAt) < Date.parse(e.closesAt), {
     message: "Voting must close after it opens",
@@ -60,6 +62,8 @@ export const voteEventUpdateSchema = z.object({
   publish: z.boolean().optional(),
   /** true closes voting now; false reopens it while the closing time is still ahead. */
   close: z.boolean().optional(),
+  /** Turn changing a cast vote on or off; votes already cast stay as they are. */
+  allowVoteChange: z.boolean().optional(),
 })
 export type VoteEventUpdateInput = z.infer<typeof voteEventUpdateSchema>
 

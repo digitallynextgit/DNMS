@@ -6186,7 +6186,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       PUT: {
         body: "{ optionId }",
         guard: "withSession",
-        doc: "Cast or change the caller's own vote in an open event. One vote per person per event; calling again while voting is open moves it to the new option. id = event id from GET /api/votes/events, optionId from its options. Note: Only while the event is open. Everyone on staff votes, admins included, for any option, themselves included. Admins and HR can see who voted for whom.",
+        doc: "Cast or change the caller's own vote in an open event. One vote per person per event; calling again moves it to the new option only when the event has allowVoteChange on, otherwise it is refused. id = event id from GET /api/votes/events, optionId from its options. Note: Only while the event is open. Everyone on staff votes, admins included, for any option, themselves included. Admins and HR can see who voted for whom.",
         keywords: ["vote for", "cast vote", "change my vote", "submit ballot", "vote for myself"],
       },
     },
@@ -6213,7 +6213,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         keywords: ["vote details", "vote results", "poll results"],
       },
       PATCH: {
-        body: "{ title?, description?, opensAt?, closesAt?, publish?: boolean, close?: boolean }",
+        body: "{ title?, description?, opensAt?, closesAt?, publish?: boolean, close?: boolean, allowVoteChange?: boolean }",
         guard: "withSession",
         doc: "Edit a vote event's title, description or opening/closing times, publish it, pull it back to draft, close voting early or reopen it. Admins and the HR team only. id from GET /api/votes/events. Note: publish: true notifies every eligible voter in the app. publish: false only works while nobody has voted. close: true ends voting now and reveals the results to everyone.",
         keywords: [
@@ -6253,7 +6253,7 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
         ],
       },
       POST: {
-        body: "{ title, description?, opensAt?: ISO date-time (empty = opens when published), closesAt: ISO date-time, allEmployees?: boolean (true = every active non-admin employee becomes an option), options?: [{ employeeId? } | { label, description? }] }",
+        body: "{ title, description?, opensAt?: ISO date-time (empty = opens when published), closesAt: ISO date-time, allEmployees?: boolean (true = every active non-admin employee becomes an option), allowVoteChange?: boolean (default false = the first vote is final), options?: [{ employeeId? } | { label, description? }] }",
         guard: "withSession",
         doc: "Create a vote event as a draft: a title, an optional description, an optional opening time and a closing time, plus optional options (employees by id, or custom entries by label). Admins and the HR team only. Note: Nothing is visible to employees until it is published with PATCH { publish: true }, which needs at least two options.",
         keywords: ["create vote", "new voting event", "start a poll", "diwali contest"],

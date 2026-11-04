@@ -55,6 +55,7 @@ const EVENT_SELECT = {
   closesAt: true,
   publishedAt: true,
   closedAt: true,
+  allowVoteChange: true,
   createdAt: true,
   options: { select: OPTION_SELECT, orderBy: { position: "asc" } },
   // Voter names leave this module only in the admin/HR view (see toView).
@@ -185,7 +186,8 @@ function toView(
       optionView(o, showResults ? (t.counts[o.id] ?? 0) : null, viewer.id, votersOf(o.id)),
     ),
     myOptionId,
-    canVote: canCastVote(status),
+    canVote: canCastVote(status, myOptionId !== null, row.allowVoteChange),
+    allowVoteChange: row.allowVoteChange,
     totalVotes: showResults ? t.total : null,
     eligibleVoters: showResults ? eligible.length : null,
     notVoted: manage
@@ -328,6 +330,7 @@ export async function createEvent(body: unknown, session: Session): Promise<Acti
         description: input.description || null,
         opensAt: input.opensAt ? new Date(input.opensAt) : null,
         closesAt: new Date(input.closesAt),
+        allowVoteChange: input.allowVoteChange,
         createdById: session.user.id,
         options: options.length ? { createMany: { data: options } } : undefined,
       },
@@ -361,6 +364,7 @@ export async function updateEvent(
     if (input.description !== undefined) data.description = input.description || null
     if (input.opensAt !== undefined) data.opensAt = input.opensAt ? new Date(input.opensAt) : null
     if (input.closesAt !== undefined) data.closesAt = new Date(input.closesAt)
+    if (input.allowVoteChange !== undefined) data.allowVoteChange = input.allowVoteChange
 
     const opensAt =
       input.opensAt !== undefined
@@ -641,6 +645,7 @@ export async function castBallot(
         opensAt: true,
         closesAt: true,
         closedAt: true,
+        allowVoteChange: true,
         options: { select: { id: true } },
       },
     })
@@ -659,8 +664,15 @@ export async function castBallot(
       where: { eventId, voterId },
       select: { id: true, optionId: true },
     })
-    // One ballot each; voting again while it is open changes it.
+    // One ballot each. Voting again changes it only when the event allows changes.
     if (mine) {
+      if (!event.allowVoteChange && mine.optionId !== optionId) {
+        return fail(
+          "You have already voted, and changing votes is turned off for this event",
+          undefined,
+          409,
+        )
+      }
       if (mine.optionId !== optionId) {
         await db.voteBallot.update({ where: { id: mine.id }, data: { optionId } })
       }
@@ -671,7 +683,10 @@ export async function castBallot(
     } catch (e) {
       // A double-click can race the first insert; the unique (event, voter) index catches it.
       if ((e as { code?: string }).code !== "P2002") throw e
-      await db.voteBallot.updateMany({ where: { eventId, voterId }, data: { optionId } })
+      // With changes off the first insert stands; with them on, the latest pick wins.
+      if (event.allowVoteChange) {
+        await db.voteBallot.updateMany({ where: { eventId, voterId }, data: { optionId } })
+      }
     }
     return ok({ data: { optionId, changed: false } })
   })

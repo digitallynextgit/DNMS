@@ -5504,18 +5504,20 @@ model TelegramLink {
 /// Something people vote on (Best Rangoli, Best Ethnic Wear). Status comes from the dates, so no
 /// job has to flip it; closedAt is an early close by an admin.
 model VoteEvent {
-  tenantId    String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
-  id          String    @id @default(uuid()) @map("id")
-  title       String    @map("title")
-  description String?   @map("description") @db.Text
+  tenantId        String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id              String    @id @default(uuid()) @map("id")
+  title           String    @map("title")
+  description     String?   @map("description") @db.Text
   /// Null = open from the moment it is published.
-  opensAt     DateTime? @map("opens_at")
-  closesAt    DateTime  @map("closes_at")
-  publishedAt DateTime? @map("published_at")
-  closedAt    DateTime? @map("closed_at")
-  createdById String    @map("created_by_id")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  opensAt         DateTime? @map("opens_at")
+  closesAt        DateTime  @map("closes_at")
+  publishedAt     DateTime? @map("published_at")
+  closedAt        DateTime? @map("closed_at")
+  /// Voters may change their ballot while voting is open. Off = the first vote is final.
+  allowVoteChange Boolean   @default(false) @map("allow_vote_change")
+  createdById     String    @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   createdBy Employee     @relation("VoteEventCreator", fields: [createdById], references: [id], onDelete: Cascade)
   options   VoteOption[]
