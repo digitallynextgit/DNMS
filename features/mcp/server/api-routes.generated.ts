@@ -6186,8 +6186,8 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       PUT: {
         body: "{ optionId }",
         guard: "withSession",
-        doc: "Cast or change the caller's own vote in an open event. One ballot per person per event; a second call replaces the first. id = event id from GET /api/votes/events, optionId from its options. Note: Only while the event is open. Admins cannot vote, and nobody can vote for themselves. Ballots are secret: the API never says who voted for whom.",
-        keywords: ["vote for", "cast vote", "change my vote", "submit ballot"],
+        doc: "Cast the caller's own vote in an open event. One vote per person per event, and it is final: a second call is refused. id = event id from GET /api/votes/events, optionId from its options. Note: Only while the event is open. Admins cannot vote; anyone else may vote for any option, themselves included. Admins and HR can see who voted for whom.",
+        keywords: ["vote for", "cast vote", "submit ballot", "vote for myself"],
       },
     },
     load: () => import("@/app/api/votes/events/[id]/ballot/route"),
@@ -6238,9 +6238,19 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
       GET: {
         query: ["manage"],
         guard: "withSession",
-        doc: "List the company's vote events (Best Rangoli, Best Dressed...) with their options, the caller's own ballot and, once voting has closed, the results. Every employee sees published events; ?manage=1 is the admin/HR view with drafts and live counts. Note: Results stay hidden from voters until an event closes. Admins never vote; isVoter is false for them.",
-        queryHelp: "manage: 1 = include drafts and live vote counts (admins and the HR team only)",
-        keywords: ["votes", "voting", "poll", "event voting", "best rangoli", "who is winning"],
+        doc: "List the company's vote events (Best Rangoli, Best Dressed...) with their options, the caller's own ballot and, once voting has closed, the results. Every employee sees published events; ?manage=1 is the admin/HR view with drafts, live counts, who voted for each option and who has not voted yet. Note: Results stay hidden from voters until an event closes, and voters never see names. Admins never vote; isVoter is false for them.",
+        queryHelp:
+          "manage: 1 = include drafts, live counts, options[].voters and notVoted (admins and the HR team only)",
+        keywords: [
+          "votes",
+          "voting",
+          "poll",
+          "event voting",
+          "best rangoli",
+          "who is winning",
+          "who voted for whom",
+          "who has not voted",
+        ],
       },
       POST: {
         body: "{ title, description?, opensAt?: ISO date-time (empty = opens when published), closesAt: ISO date-time, allEmployees?: boolean (true = every active non-admin employee becomes an option), options?: [{ employeeId? } | { label, description? }] }",

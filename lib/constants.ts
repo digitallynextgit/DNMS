@@ -81,9 +81,6 @@ export const VOTE_MANAGER_ROLES: readonly string[] = [
   SYSTEM_ROLES.HR_EMPLOYEE,
 ]
 
-/** Roles that never hold a ballot: votes are for the staff, not the people running the company. */
-export const NON_VOTING_ROLES: readonly string[] = [SYSTEM_ROLES.ADMIN_, SYSTEM_ROLES.ADMIN]
-
 // admin_ intentionally omitted.
 export const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",

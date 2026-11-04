@@ -21,8 +21,14 @@ export interface VoteOptionView {
   hasPhoto: boolean
   /** Null while results are hidden from the reader. */
   votes: number | null
-  /** This option is the reader, who cannot vote for themselves. */
+  /** This option is the reader. */
   isMe: boolean
+  /** Who voted for this option, earliest first. Admin / HR view only, otherwise null. */
+  voters: VoteBallotVoter[] | null
+}
+
+export interface VoteBallotVoter extends VoteOptionEmployee {
+  votedAt: string
 }
 
 export interface VoteEventView {
@@ -37,13 +43,15 @@ export interface VoteEventView {
   options: VoteOptionView[]
   /** The reader's own ballot. */
   myOptionId: string | null
-  /** The reader may cast or change a ballot right now. */
+  /** The reader may cast a ballot right now: open, a voter, and not voted yet (votes are final). */
   canVote: boolean
   /** False for admins: they run the events and never vote. */
   isVoter: boolean
   /** Null while results are hidden from the reader. */
   totalVotes: number | null
   eligibleVoters: number | null
+  /** Eligible employees who have not voted yet. Admin / HR view only, otherwise null. */
+  notVoted: VoteOptionEmployee[] | null
   /** Leading option(s) once results are visible; several on a tie. */
   winnerOptionIds: string[]
   /** Closed early by an admin with the closing time still ahead, so it can be reopened. */

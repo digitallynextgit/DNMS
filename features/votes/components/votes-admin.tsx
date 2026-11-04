@@ -49,6 +49,7 @@ import {
   useVoteEvents,
 } from "../hooks/use-votes"
 import { OPTION_PHOTO_TYPES, VOTE_STATUS_COLORS, VOTE_STATUS_LABELS } from "../constants"
+import { employeeLabel } from "../lib/vote-rules"
 import type { VoteEventStatus, VoteEventView, VoteOptionEmployee, VoteOptionView } from "../types"
 
 type Filter = "ALL" | VoteEventStatus
@@ -88,7 +89,7 @@ export function VotesAdmin() {
     <div className="space-y-6">
       <PageHeader
         title="Votes & Events"
-        description="Create an event and every employee goes on the ballot, admins left out. Publish it and each employee votes once. Ballots are secret: you see counts, never names."
+        description="Create an event and every employee goes on the ballot, admins left out. Publish it and each employee votes once; votes are final. You see who voted for whom and who has not voted yet."
         actions={
           <Button className="gap-1.5" onClick={() => setEditing("new")}>
             <Plus className="h-4 w-4" />
@@ -353,6 +354,14 @@ function AdminEventCard({ event, missing, ...actions }: AdminEventCardProps) {
           </span>
         </div>
         <Progress value={turnout} className="mt-2" />
+        {event.status !== "DRAFT" && event.notVoted && event.notVoted.length > 0 && (
+          <p className="text-muted-foreground mt-2 text-xs">
+            <span className="text-foreground font-medium">
+              Not voted yet ({event.notVoted.length}):
+            </span>{" "}
+            {event.notVoted.map((p) => employeeLabel(p.firstName, p.lastName)).join(", ")}
+          </p>
+        )}
       </div>
 
       <div className="divide-border divide-y">
@@ -389,6 +398,12 @@ function AdminEventCard({ event, missing, ...actions }: AdminEventCardProps) {
                     {o.votes ?? 0} · {pct}%
                   </span>
                 </div>
+                {o.voters && o.voters.length > 0 && (
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    <span className="text-foreground font-medium">Voted by:</span>{" "}
+                    {o.voters.map((v) => employeeLabel(v.firstName, v.lastName)).join(", ")}
+                  </p>
+                )}
               </div>
               {!locked && (
                 <div className="flex items-center gap-0.5">

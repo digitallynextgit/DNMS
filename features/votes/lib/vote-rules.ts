@@ -1,6 +1,6 @@
 // The vote rules, pure so they are unit-tested and shared by the service and the UI.
 
-import { HIDDEN_ROLES, NON_VOTING_ROLES, VOTE_MANAGER_ROLES } from "@/lib/constants"
+import { HIDDEN_ROLES, SYSTEM_ROLES, VOTE_MANAGER_ROLES } from "@/lib/constants"
 import type { VoteEventStatus } from "../types"
 
 export interface EventWindow {
@@ -22,9 +22,14 @@ export function eventStatus(e: EventWindow, now: Date = new Date()): VoteEventSt
   return "OPEN"
 }
 
-/** Admins run the company, so they hold no ballot; everyone else on staff does. */
+/**
+ * Staff vote and can be voted for. An admin who also holds the employee role is staff too;
+ * a pure admin account and the hidden owner account never are.
+ */
 export function isVoterRoles(roles: readonly string[]): boolean {
-  return !roles.some((r) => NON_VOTING_ROLES.includes(r))
+  if (roles.includes(SYSTEM_ROLES.ADMIN_)) return false
+  if (roles.includes(SYSTEM_ROLES.ADMIN)) return roles.includes(SYSTEM_ROLES.EMPLOYEE)
+  return true
 }
 
 /** Admins and the HR team run events (admin_ always passes). */

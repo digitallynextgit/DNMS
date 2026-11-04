@@ -69,10 +69,15 @@ describe("who votes and who manages", () => {
     expect(isVoterRoles(["hr_manager"])).toBe(true)
     expect(isVoterRoles([])).toBe(true)
   })
-  it("gives admins no ballot", () => {
+  it("gives pure admin accounts no ballot", () => {
     expect(isVoterRoles(["admin"])).toBe(false)
     expect(isVoterRoles(["admin_"])).toBe(false)
-    expect(isVoterRoles(["employee", "admin"])).toBe(false)
+  })
+  it("treats an admin who also holds the employee role as staff", () => {
+    expect(isVoterRoles(["employee", "admin"])).toBe(true)
+  })
+  it("never gives the hidden owner account a ballot", () => {
+    expect(isVoterRoles(["admin_", "employee"])).toBe(false)
   })
   it("lets admins and the HR team run events, nobody else", () => {
     expect(isVoteManagerRoles(["admin_"])).toBe(true)

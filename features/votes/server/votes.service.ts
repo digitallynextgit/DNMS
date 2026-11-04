@@ -1,5 +1,5 @@
-// Votes: events admins and HR run, ballots every other employee casts. Secret ballot - the API only
-// ever hands out counts, never who voted for whom.
+// Votes: events admins and HR run, ballots every other employee casts - one each, and final.
+// Admins and HR see who voted for whom; everyone else only ever gets counts.
 
 import "server-only"
 
@@ -8,7 +8,7 @@ import type { Session } from "next-auth"
 import { db } from "@/server/db"
 import { createAuditLog } from "@/lib/audit"
 import { isAdmin_ } from "@/lib/permissions"
-import { NON_VOTING_ROLES } from "@/lib/constants"
+import { SYSTEM_ROLES } from "@/lib/constants"
 import { deleteFile, getObjectKey, isB2Configured, uploadFile } from "@/lib/storage"
 import { resizeImage } from "@/lib/image-resize"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
@@ -36,7 +36,7 @@ import {
   tally,
 } from "../lib/vote-rules"
 import { OPTION_PHOTO_MAX_BYTES, OPTION_PHOTO_TYPES } from "../constants"
-import type { VoteEventStatus, VoteEventView, VoteOptionView } from "../types"
+import type { VoteBallotVoter, VoteEventStatus, VoteEventView, VoteOptionView } from "../types"
 
 const OPTION_SELECT = {
   id: true,
@@ -57,16 +57,34 @@ const EVENT_SELECT = {
   closedAt: true,
   createdAt: true,
   options: { select: OPTION_SELECT, orderBy: { position: "asc" } },
-  ballots: { select: { optionId: true, voterId: true } },
+  // Voter names leave this module only in the admin/HR view (see toView).
+  ballots: {
+    select: {
+      optionId: true,
+      voterId: true,
+      votedAt: true,
+      voter: { select: EMPLOYEE_SUMMARY_SELECT },
+    },
+    orderBy: { votedAt: "asc" },
+  },
 } satisfies Prisma.VoteEventSelect
 
 type EventRow = Prisma.VoteEventGetPayload<{ select: typeof EVENT_SELECT }>
 type OptionRow = Prisma.VoteOptionGetPayload<{ select: typeof OPTION_SELECT }>
+type Person = Prisma.EmployeeGetPayload<{ select: typeof EMPLOYEE_SUMMARY_SELECT }>
 
-/** Staff who hold a ballot: active and not an admin (admin_ is in NON_VOTING_ROLES too). */
+/** Staff who vote and can be voted for - the database twin of isVoterRoles. */
 const VOTER_WHERE = {
   isActive: true,
-  employeeRoles: { none: { role: { name: { in: [...NON_VOTING_ROLES] } } } },
+  AND: [
+    { employeeRoles: { none: { role: { name: SYSTEM_ROLES.ADMIN_ } } } },
+    {
+      OR: [
+        { employeeRoles: { none: { role: { name: SYSTEM_ROLES.ADMIN } } } },
+        { employeeRoles: { some: { role: { name: SYSTEM_ROLES.EMPLOYEE } } } },
+      ],
+    },
+  ],
 } satisfies Prisma.EmployeeWhereInput
 
 /** Who can be voted for: the same people who vote, so admins are never on the ballot. */
@@ -91,7 +109,12 @@ function requireManager(session: Session): void {
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null)
 
-function optionView(o: OptionRow, votes: number | null, viewerId?: string): VoteOptionView {
+function optionView(
+  o: OptionRow,
+  votes: number | null,
+  viewerId?: string,
+  voters: VoteBallotVoter[] | null = null,
+): VoteOptionView {
   return {
     id: o.id,
     label: o.label,
@@ -102,6 +125,7 @@ function optionView(o: OptionRow, votes: number | null, viewerId?: string): Vote
     photoUrl: o.photoKey ? `/api/votes/options/${o.id}/photo` : (o.employee?.profilePhoto ?? null),
     votes,
     isMe: Boolean(viewerId && o.employee?.id === viewerId),
+    voters,
   }
 }
 
@@ -109,7 +133,7 @@ function toView(
   row: EventRow,
   viewer: Viewer,
   manage: boolean,
-  eligibleVoters: number,
+  eligible: Person[],
   now = new Date(),
 ): VoteEventView {
   const status = eventStatus(row, now)
@@ -120,6 +144,15 @@ function toView(
     row.options.map((o) => o.id),
     row.ballots,
   )
+  const myOptionId = row.ballots.find((b) => b.voterId === viewer.id)?.optionId ?? null
+  // Admins and HR see who voted for whom, and who still has to vote.
+  const votersOf = (optionId: string): VoteBallotVoter[] | null =>
+    manage
+      ? row.ballots
+          .filter((b) => b.optionId === optionId)
+          .map((b) => ({ ...b.voter, votedAt: b.votedAt.toISOString() }))
+      : null
+  const voted = new Set(row.ballots.map((b) => b.voterId))
   return {
     id: row.id,
     title: row.title,
@@ -130,13 +163,15 @@ function toView(
     closedAt: iso(row.closedAt),
     status,
     options: row.options.map((o) =>
-      optionView(o, showResults ? (t.counts[o.id] ?? 0) : null, viewer.id),
+      optionView(o, showResults ? (t.counts[o.id] ?? 0) : null, viewer.id, votersOf(o.id)),
     ),
-    myOptionId: row.ballots.find((b) => b.voterId === viewer.id)?.optionId ?? null,
-    canVote: status === "OPEN" && voter,
+    myOptionId,
+    // One vote each, and it is final.
+    canVote: status === "OPEN" && voter && myOptionId === null,
     isVoter: voter,
     totalVotes: showResults ? t.total : null,
-    eligibleVoters: showResults ? eligibleVoters : null,
+    eligibleVoters: showResults ? eligible.length : null,
+    notVoted: manage ? eligible.filter((p) => !voted.has(p.id)) : null,
     winnerOptionIds: showResults ? t.winners : [],
     canReopen:
       manage &&
@@ -148,8 +183,6 @@ function toView(
 }
 
 const STATUS_ORDER: Record<VoteEventStatus, number> = { OPEN: 0, UPCOMING: 1, DRAFT: 2, CLOSED: 3 }
-
-const eligibleCount = () => db.employee.count({ where: VOTER_WHERE })
 
 const loadEvent = (id: string) => db.voteEvent.findUnique({ where: { id }, select: EVENT_SELECT })
 
@@ -165,7 +198,7 @@ export async function listEvents(
         select: EVENT_SELECT,
         orderBy: { closesAt: "desc" },
       }),
-      eligibleCount(),
+      eligibleEmployees(),
     ])
     const views = rows.map((r) => toView(r, session.user, manage, eligible))
     // Open first (closing soonest on top), then upcoming, drafts, and closed (latest first).
@@ -185,7 +218,7 @@ export async function getEvent(id: string, session: Session): Promise<ActionResu
     const manage = isVoteManager(session)
     const row = await loadEvent(id)
     if (!row || (!manage && !row.publishedAt)) return fail("Vote not found", undefined, 404)
-    return ok(serialize({ data: toView(row, session.user, manage, await eligibleCount()) }))
+    return ok(serialize({ data: toView(row, session.user, manage, await eligibleEmployees()) }))
   })
 }
 
@@ -288,7 +321,7 @@ export async function createEvent(body: unknown, session: Session): Promise<Acti
       entityId: row.id,
       changes: { title: input.title, closesAt: input.closesAt, options: options.length },
     })
-    return ok(serialize({ data: toView(row, session.user, true, await eligibleCount()) }))
+    return ok(serialize({ data: toView(row, session.user, true, await eligibleEmployees()) }))
   })
 }
 
@@ -364,7 +397,7 @@ export async function updateEvent(
       changes: { ...input },
     })
     if (published) await notifyVoters(row, session.user.id)
-    return ok(serialize({ data: toView(row, session.user, true, await eligibleCount(), now) }))
+    return ok(serialize({ data: toView(row, session.user, true, await eligibleEmployees(), now) }))
   })
 }
 
@@ -591,7 +624,7 @@ export async function castBallot(
         opensAt: true,
         closesAt: true,
         closedAt: true,
-        options: { select: { id: true, employeeId: true } },
+        options: { select: { id: true } },
       },
     })
     if (!event || !event.publishedAt) return fail("Vote not found", undefined, 404)
@@ -599,25 +632,25 @@ export async function castBallot(
     if (status === "UPCOMING") return fail("Voting has not opened yet", undefined, 409)
     if (status !== "OPEN") return fail("Voting has closed", undefined, 409)
 
-    const option = event.options.find((o) => o.id === optionId)
-    if (!option) return fail("That option is not part of this vote", undefined, 422)
-    if (option.employeeId === session.user.id) {
-      return fail("You cannot vote for yourself", undefined, 422)
+    // Voting for yourself is allowed.
+    if (!event.options.some((o) => o.id === optionId)) {
+      return fail("That option is not part of this vote", undefined, 422)
     }
 
     const voterId = session.user.id
+    const already = () => fail("You have already voted in this event", undefined, 409)
     const mine = await db.voteBallot.findFirst({
       where: { eventId, voterId },
       select: { id: true },
     })
-    if (mine) {
-      await db.voteBallot.update({ where: { id: mine.id }, data: { optionId } })
-    } else {
+    // One vote each, and it is final.
+    if (mine) return already()
+    try {
+      await db.voteBallot.create({ data: { eventId, optionId, voterId } })
+    } catch (e) {
       // A double-click can race the first insert; the unique (event, voter) index catches it.
-      await db.voteBallot.create({ data: { eventId, optionId, voterId } }).catch(async (e) => {
-        if ((e as { code?: string }).code !== "P2002") throw e
-        await db.voteBallot.updateMany({ where: { eventId, voterId }, data: { optionId } })
-      })
+      if ((e as { code?: string }).code === "P2002") return already()
+      throw e
     }
     return ok({ data: { optionId } })
   })

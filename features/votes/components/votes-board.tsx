@@ -13,6 +13,7 @@ import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState } from "@/components/shared/empty-state"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { useCastBallot, useVoteEvents } from "../hooks/use-votes"
@@ -33,7 +34,7 @@ export function VotesBoard() {
     <div className="space-y-6">
       <PageHeader
         title="Votes"
-        description="One vote per person per event. You can change your vote until voting closes."
+        description="One vote per person per event, and it is final once you submit. You can vote for anyone, yourself included. Admins and HR can see who voted for whom."
       />
 
       {adminReader && (
@@ -81,9 +82,11 @@ function EventCard({ event }: { event: VoteEventView }) {
   const cast = useCastBallot()
   // The pick is only local until it is submitted; the server's ballot is the truth.
   const [picked, setPicked] = React.useState<string | null>(null)
-  const selected = picked ?? event.myOptionId
+  const [confirming, setConfirming] = React.useState(false)
+  const selected = event.myOptionId ?? picked
   const showResults = event.totalVotes !== null
-  const canSubmit = event.canVote && selected !== null && selected !== event.myOptionId
+  const canSubmit = event.canVote && selected !== null
+  const pickedLabel = event.options.find((o) => o.id === selected)?.label ?? ""
   const [query, setQuery] = React.useState("")
   const q = query.trim().toLowerCase()
   // Finished events read as a leaderboard; open ones keep the ballot order.
@@ -135,7 +138,7 @@ function EventCard({ event }: { event: VoteEventView }) {
             mine={event.myOptionId === o.id}
             winner={event.winnerOptionIds.includes(o.id)}
             showResults={showResults}
-            selectable={event.canVote && !o.isMe}
+            selectable={event.canVote}
             onSelect={() => setPicked(o.id)}
           />
         ))}
@@ -147,24 +150,41 @@ function EventCard({ event }: { event: VoteEventView }) {
       {event.canVote && (
         <footer className="border-border flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3">
           <p className="text-muted-foreground text-sm">
-            {event.myOptionId
-              ? "Your vote is in. Pick another option to change it."
-              : "Pick an option, then submit your vote."}
+            Pick an option, then submit. You cannot change your vote afterwards.
           </p>
-          <Button
-            disabled={!canSubmit || cast.isPending}
-            onClick={() =>
-              selected &&
-              cast.mutate(
-                { eventId: event.id, optionId: selected },
-                { onSuccess: () => setPicked(null) },
-              )
-            }
-          >
-            {event.myOptionId ? "Change vote" : "Submit vote"}
+          <Button disabled={!canSubmit || cast.isPending} onClick={() => setConfirming(true)}>
+            Submit vote
           </Button>
         </footer>
       )}
+
+      {event.status === "OPEN" && event.isVoter && event.myOptionId && (
+        <footer className="border-border flex items-center gap-2 border-t px-5 py-3 text-sm text-emerald-600 dark:text-emerald-400">
+          <CheckCircle2 className="h-4 w-4" />
+          Your vote is in. Results appear here when voting closes.
+        </footer>
+      )}
+
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Vote for ${pickedLabel}?`}
+        description="Your vote is final. You cannot change it after you submit."
+        confirmLabel="Submit vote"
+        isLoading={cast.isPending}
+        onConfirm={() =>
+          selected &&
+          cast.mutate(
+            { eventId: event.id, optionId: selected },
+            {
+              onSuccess: () => {
+                setPicked(null)
+                setConfirming(false)
+              },
+            },
+          )
+        }
+      />
 
       {event.status === "OPEN" && !event.isVoter && (
         <footer className="border-border text-muted-foreground border-t px-5 py-3 text-sm">
@@ -223,7 +243,6 @@ function OptionTile({
       className={cn(
         "border-border bg-background flex items-center gap-3 rounded-sm border p-3 text-left transition",
         selectable ? "hover:border-primary/60 cursor-pointer" : "cursor-default",
-        o.isMe && !showResults && "opacity-60",
         selected && selectable && "border-primary ring-primary/30 ring-2",
         winner && "border-amber-500/60",
       )}

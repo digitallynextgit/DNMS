@@ -1,7 +1,7 @@
 import type { DescriptionMap } from "./types"
 
 // Votes & Events: admins/HR run events (Best Rangoli, Best Ethnic Wear...), every other employee
-// votes. Secret ballot - the API only ever returns counts.
+// votes once. Admins and HR see who voted for whom; voters only ever get counts.
 export const VOTES: DescriptionMap = {
   "GET /api/votes/candidates": {
     summary:
@@ -10,11 +10,21 @@ export const VOTES: DescriptionMap = {
   },
   "GET /api/votes/events": {
     summary:
-      "List the company's vote events (Best Rangoli, Best Dressed...) with their options, the caller's own ballot and, once voting has closed, the results. Every employee sees published events; ?manage=1 is the admin/HR view with drafts and live counts.",
-    query: "manage: 1 = include drafts and live vote counts (admins and the HR team only)",
-    keywords: ["votes", "voting", "poll", "event voting", "best rangoli", "who is winning"],
+      "List the company's vote events (Best Rangoli, Best Dressed...) with their options, the caller's own ballot and, once voting has closed, the results. Every employee sees published events; ?manage=1 is the admin/HR view with drafts, live counts, who voted for each option and who has not voted yet.",
+    query:
+      "manage: 1 = include drafts, live counts, options[].voters and notVoted (admins and the HR team only)",
+    keywords: [
+      "votes",
+      "voting",
+      "poll",
+      "event voting",
+      "best rangoli",
+      "who is winning",
+      "who voted for whom",
+      "who has not voted",
+    ],
     notes:
-      "Results stay hidden from voters until an event closes. Admins never vote; isVoter is false for them.",
+      "Results stay hidden from voters until an event closes, and voters never see names. Admins never vote; isVoter is false for them.",
   },
   "POST /api/votes/events": {
     summary:
@@ -54,11 +64,11 @@ export const VOTES: DescriptionMap = {
   },
   "PUT /api/votes/events/[id]/ballot": {
     summary:
-      "Cast or change the caller's own vote in an open event. One ballot per person per event; a second call replaces the first. id = event id from GET /api/votes/events, optionId from its options.",
+      "Cast the caller's own vote in an open event. One vote per person per event, and it is final: a second call is refused. id = event id from GET /api/votes/events, optionId from its options.",
     body: "{ optionId }",
-    keywords: ["vote for", "cast vote", "change my vote", "submit ballot"],
+    keywords: ["vote for", "cast vote", "submit ballot", "vote for myself"],
     notes:
-      "Only while the event is open. Admins cannot vote, and nobody can vote for themselves. Ballots are secret: the API never says who voted for whom.",
+      "Only while the event is open. Admins cannot vote; anyone else may vote for any option, themselves included. Admins and HR can see who voted for whom.",
   },
   "PATCH /api/votes/options/[optionId]": {
     summary:
