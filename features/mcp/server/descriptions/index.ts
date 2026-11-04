@@ -7,6 +7,7 @@ import { HR_OPS_CONTENT } from "./hr-ops-content"
 import { PROJECTS_CORE } from "./projects-core"
 import { PROJECT_CONTENT } from "./project-content"
 import { PROJECT_TOOLS } from "./project-tools"
+import { VOTES } from "./votes"
 
 export type { DescriptionMap, EndpointDescription } from "./types"
 
@@ -18,4 +19,5 @@ export const ENDPOINT_DESCRIPTIONS: DescriptionMap = {
   ...PROJECTS_CORE,
   ...PROJECT_CONTENT,
   ...PROJECT_TOOLS,
+  ...VOTES,
 }

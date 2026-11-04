@@ -34,9 +34,10 @@ import {
   LifeBuoy,
   Wrench,
   Sparkles,
+  Vote,
 } from "lucide-react"
 
-import { ADMIN_DOCUMENT_ROLES, PERMISSIONS } from "@/lib/constants"
+import { ADMIN_DOCUMENT_ROLES, PERMISSIONS, VOTE_MANAGER_ROLES } from "@/lib/constants"
 
 // The one nav list, shared by the desktop sidebar and the mobile tab bar / More menu.
 
@@ -86,6 +87,8 @@ export const COMPANY_ITEMS: NavItem[] = [
   { label: "Chat", href: "/chat", icon: MessageSquare, badge: "unread-chat" },
   { label: "Announcements", href: "/announcements", icon: Megaphone },
   { label: "Photo Gallery", href: "/gallery", icon: Images },
+  // Ungated: every employee votes; admins see results only (the page says so).
+  { label: "Votes", href: "/votes", icon: Vote },
   { label: "Documents", href: "/documents", icon: FileText },
   // Admins and the HR team only; the server refuses everyone else too.
   {
@@ -277,6 +280,13 @@ export const ADMIN_ITEMS: NavItem[] = [
     href: "/admin/ai-models",
     icon: Sparkles,
     permission: PERMISSIONS.SETTINGS_WRITE,
+  },
+  // Admins and the HR team run the events; the page and the API refuse everyone else too.
+  {
+    label: "Votes & Events",
+    href: "/admin/votes",
+    icon: Vote,
+    roles: VOTE_MANAGER_ROLES,
   },
 ]
 

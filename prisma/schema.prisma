@@ -708,6 +708,9 @@ model Employee {
   acknowledgedIncidents UptimeIncident[]  @relation("IncidentAcknowledger")
   pollVotes             MessagePollVote[] @relation("PollVoter")
   sharedContacts        MessageContact[]  @relation("SharedContact")
+  voteEventsCreated     VoteEvent[]       @relation("VoteEventCreator")
+  voteOptions           VoteOption[]      @relation("VoteOptionEmployee")
+  voteBallots           VoteBallot[]      @relation("VoteBallotVoter")
 
   goalsCreated         ProjectGoal[]             @relation("GoalCreator")
   goalsOwned           ProjectGoal[]             @relation("GoalOwner")
@@ -5496,4 +5499,74 @@ model TelegramLink {
   @@index([chatId])
   @@index([tenantId])
   @@map("telegram_links")
+}
+
+/// Something people vote on (Best Rangoli, Best Ethnic Wear). Status comes from the dates, so no
+/// job has to flip it; closedAt is an early close by an admin.
+model VoteEvent {
+  tenantId    String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String    @id @default(uuid()) @map("id")
+  title       String    @map("title")
+  description String?   @map("description") @db.Text
+  /// Null = open from the moment it is published.
+  opensAt     DateTime? @map("opens_at")
+  closesAt    DateTime  @map("closes_at")
+  publishedAt DateTime? @map("published_at")
+  closedAt    DateTime? @map("closed_at")
+  createdById String    @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  createdBy Employee     @relation("VoteEventCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  options   VoteOption[]
+  ballots   VoteBallot[]
+
+  @@index([tenantId])
+  @@index([publishedAt, closesAt])
+  @@map("vote_events")
+}
+
+/// One choice in an event: an employee, or a custom entry (a team, a desk) with its own photo.
+model VoteOption {
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String   @id @default(uuid()) @map("id")
+  eventId     String   @map("event_id")
+  /// Null for a custom entry.
+  employeeId  String?  @map("employee_id")
+  label       String   @map("label")
+  description String?  @map("description")
+  /// B2 object key of an uploaded photo; employee options show the profile photo instead.
+  photoKey    String?  @map("photo_key")
+  position    Int      @default(0) @map("position")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  event    VoteEvent    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  employee Employee?    @relation("VoteOptionEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  ballots  VoteBallot[]
+
+  @@unique([eventId, employeeId])
+  @@index([eventId])
+  @@index([tenantId])
+  @@map("vote_options")
+}
+
+/// One ballot per person per event; changing your mind updates the row. Who voted for whom is
+/// never shown anywhere - only counts.
+model VoteBallot {
+  tenantId  String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id        String   @id @default(uuid()) @map("id")
+  eventId   String   @map("event_id")
+  optionId  String   @map("option_id")
+  voterId   String   @map("voter_id")
+  votedAt   DateTime @default(now()) @map("voted_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  event  VoteEvent  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  option VoteOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  voter  Employee   @relation("VoteBallotVoter", fields: [voterId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, voterId])
+  @@index([optionId])
+  @@index([tenantId])
+  @@map("vote_ballots")
 }
