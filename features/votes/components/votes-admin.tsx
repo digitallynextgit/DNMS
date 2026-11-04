@@ -155,6 +155,8 @@ export function VotesAdmin() {
             onPublish={() => setPublishing(e)}
             onClose={() => setClosing(e)}
             onReopen={() => update.mutate({ id: e.id, body: { close: false } })}
+            onToggleVoteChange={(on) => update.mutate({ id: e.id, body: { allowVoteChange: on } })}
+            togglingVoteChange={update.isPending && update.variables?.id === e.id}
             onAddOption={() => setOptionTarget({ event: e })}
             onEditOption={(option) => setOptionTarget({ event: e, option })}
             onDeleteOption={(option) => setRemovingOption({ event: e, option })}
@@ -272,6 +274,9 @@ interface AdminEventCardProps {
   onPublish: () => void
   onClose: () => void
   onReopen: () => void
+  /** Turn changing a cast vote on or off for this event, right from the card. */
+  onToggleVoteChange: (on: boolean) => void
+  togglingVoteChange: boolean
   onAddOption: () => void
   onEditOption: (option: VoteOptionView) => void
   onDeleteOption: (option: VoteOptionView) => void
@@ -332,7 +337,6 @@ function AdminEventCard({ event, missing, ...actions }: AdminEventCardProps) {
                 Closes {formatDateTime(event.closesAt)}
                 {left && <span className="text-foreground font-medium">· {left}</span>}
                 {event.closedAt ? ` · closed early ${formatDateTime(event.closedAt)}` : ""}
-                <span>· {event.allowVoteChange ? "Vote changes on" : "Votes are final"}</span>
               </p>
               {event.status === "DRAFT" && (
                 <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
@@ -342,6 +346,40 @@ function AdminEventCard({ event, missing, ...actions }: AdminEventCardProps) {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
+            {!locked && (
+              <label
+                htmlFor={`vote-change-${event.id}`}
+                title={
+                  event.allowVoteChange
+                    ? "People can switch their vote until voting closes. Turn off to make votes final."
+                    : "Votes are final. Turn on to let people switch their vote."
+                }
+                className={cn(
+                  "border-border flex h-9 cursor-pointer items-center gap-2 rounded-sm border px-2.5 text-sm select-none",
+                  event.allowVoteChange && "border-emerald-500/50 bg-emerald-500/5",
+                )}
+              >
+                <Switch
+                  id={`vote-change-${event.id}`}
+                  checked={event.allowVoteChange}
+                  disabled={actions.togglingVoteChange}
+                  onCheckedChange={actions.onToggleVoteChange}
+                />
+                <span className="whitespace-nowrap">
+                  Vote changes{" "}
+                  <span
+                    className={cn(
+                      "font-semibold",
+                      event.allowVoteChange
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {event.allowVoteChange ? "on" : "off"}
+                  </span>
+                </span>
+              </label>
+            )}
             {event.status === "DRAFT" && (
               <Button
                 className="gap-1.5"

@@ -100,7 +100,12 @@ export function useUpdateVoteEvent() {
               ? "Voting closed"
               : body.close === false
                 ? "Voting reopened"
-                : "Saved",
+                : // The card's switch sends only this field; the edit dialog sends everything.
+                  Object.keys(body).length === 1 && body.allowVoteChange !== undefined
+                  ? body.allowVoteChange
+                    ? "Vote changes turned on. People can switch their vote."
+                    : "Vote changes turned off. Votes are final."
+                  : "Saved",
     }),
   )
 }
