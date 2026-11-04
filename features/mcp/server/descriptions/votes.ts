@@ -3,6 +3,11 @@ import type { DescriptionMap } from "./types"
 // Votes & Events: admins/HR run events (Best Rangoli, Best Ethnic Wear...), every other employee
 // votes. Secret ballot - the API only ever returns counts.
 export const VOTES: DescriptionMap = {
+  "GET /api/votes/candidates": {
+    summary:
+      "The employees who can be options in a vote event: every active employee except admins, sorted by name. Admins and the HR team only.",
+    keywords: ["vote candidates", "who can be nominated", "eligible nominees"],
+  },
   "GET /api/votes/events": {
     summary:
       "List the company's vote events (Best Rangoli, Best Dressed...) with their options, the caller's own ballot and, once voting has closed, the results. Every employee sees published events; ?manage=1 is the admin/HR view with drafts and live counts.",
@@ -14,7 +19,7 @@ export const VOTES: DescriptionMap = {
   "POST /api/votes/events": {
     summary:
       "Create a vote event as a draft: a title, an optional description, an optional opening time and a closing time, plus optional options (employees by id, or custom entries by label). Admins and the HR team only.",
-    body: "{ title, description?, opensAt?: ISO date-time (empty = opens when published), closesAt: ISO date-time, options?: [{ employeeId? } | { label, description? }] }",
+    body: "{ title, description?, opensAt?: ISO date-time (empty = opens when published), closesAt: ISO date-time, allEmployees?: boolean (true = every active non-admin employee becomes an option), options?: [{ employeeId? } | { label, description? }] }",
     keywords: ["create vote", "new voting event", "start a poll", "diwali contest"],
     notes:
       "Nothing is visible to employees until it is published with PATCH { publish: true }, which needs at least two options.",
@@ -41,11 +46,11 @@ export const VOTES: DescriptionMap = {
   },
   "POST /api/votes/events/[id]/options": {
     summary:
-      "Add an option to a vote event: an employee (employeeId) or a custom entry such as a team or a desk (label). Admins and the HR team only. id = event id from GET /api/votes/events.",
-    body: "{ employeeId?: employee id, label?: name for a custom entry (required without employeeId), description? }",
-    keywords: ["add nominee", "add candidate", "add option to vote"],
+      "Add an option to a vote event: an employee (employeeId), a custom entry such as a team or a desk (label), or every eligible employee not yet listed ({ allEmployees: true }). Admins and the HR team only. id = event id from GET /api/votes/events.",
+    body: "{ allEmployees: true } or { employeeId?: employee id from GET /api/votes/candidates, label?: name for a custom entry (required without employeeId), description? }",
+    keywords: ["add nominee", "add candidate", "add option to vote", "add all employees"],
     notes:
-      "Not allowed once voting has closed. Each employee can be an option only once per event.",
+      "Not allowed once voting has closed. Each employee can be an option only once per event, and admins can never be options.",
   },
   "PUT /api/votes/events/[id]/ballot": {
     summary:

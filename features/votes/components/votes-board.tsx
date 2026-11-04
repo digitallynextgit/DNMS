@@ -7,6 +7,7 @@ import { CheckCircle2, Trophy, Vote } from "lucide-react"
 
 import { cn, formatDateTime } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -83,6 +84,14 @@ function EventCard({ event }: { event: VoteEventView }) {
   const selected = picked ?? event.myOptionId
   const showResults = event.totalVotes !== null
   const canSubmit = event.canVote && selected !== null && selected !== event.myOptionId
+  const [query, setQuery] = React.useState("")
+  const q = query.trim().toLowerCase()
+  // Finished events read as a leaderboard; open ones keep the ballot order.
+  const ordered =
+    event.status === "CLOSED" && showResults
+      ? [...event.options].sort((a, b) => (b.votes ?? 0) - (a.votes ?? 0))
+      : event.options
+  const shown = q ? ordered.filter((o) => o.label.toLowerCase().includes(q)) : ordered
 
   return (
     <article className="bg-card border-border rounded-sm border">
@@ -105,8 +114,19 @@ function EventCard({ event }: { event: VoteEventView }) {
         </div>
       </header>
 
+      {event.options.length > 9 && (
+        <div className="px-5 pt-4">
+          <Input
+            placeholder="Search a name"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="max-w-xs"
+          />
+        </div>
+      )}
+
       <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3">
-        {event.options.map((o) => (
+        {shown.map((o) => (
           <OptionTile
             key={o.id}
             option={o}
@@ -115,10 +135,13 @@ function EventCard({ event }: { event: VoteEventView }) {
             mine={event.myOptionId === o.id}
             winner={event.winnerOptionIds.includes(o.id)}
             showResults={showResults}
-            selectable={event.canVote}
+            selectable={event.canVote && !o.isMe}
             onSelect={() => setPicked(o.id)}
           />
         ))}
+        {shown.length === 0 && (
+          <p className="text-muted-foreground text-sm">No one matches that name.</p>
+        )}
       </div>
 
       {event.canVote && (
@@ -200,6 +223,7 @@ function OptionTile({
       className={cn(
         "border-border bg-background flex items-center gap-3 rounded-sm border p-3 text-left transition",
         selectable ? "hover:border-primary/60 cursor-pointer" : "cursor-default",
+        o.isMe && !showResults && "opacity-60",
         selected && selectable && "border-primary ring-primary/30 ring-2",
         winner && "border-amber-500/60",
       )}
@@ -214,6 +238,11 @@ function OptionTile({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="truncate text-sm font-medium">{o.label}</span>
+          {o.isMe && (
+            <Badge variant="outline" className="shrink-0 text-[10px]">
+              You
+            </Badge>
+          )}
           {winner && <Trophy className="h-4 w-4 shrink-0 text-amber-500" />}
         </div>
         {o.description && <p className="text-muted-foreground truncate text-xs">{o.description}</p>}

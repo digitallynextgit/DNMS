@@ -38,7 +38,12 @@ const eventFields = {
 }
 
 export const voteEventSchema = z
-  .object({ ...eventFields, options: z.array(voteOptionSchema).max(100).default([]) })
+  .object({
+    ...eventFields,
+    options: z.array(voteOptionSchema).max(100).default([]),
+    /** Put every active employee (admins left out) on the ballot. */
+    allEmployees: z.boolean().default(false),
+  })
   .refine((e) => !e.opensAt || Date.parse(e.opensAt) < Date.parse(e.closesAt), {
     message: "Voting must close after it opens",
     path: ["closesAt"],

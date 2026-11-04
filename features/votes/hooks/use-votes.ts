@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
-import type { VoteEventView, VoteOptionView } from "../types"
+import type { VoteEventView, VoteOptionEmployee, VoteOptionView } from "../types"
 import type {
   VoteEventFormInput,
   VoteEventUpdateInput,
@@ -17,6 +17,7 @@ export type VoteScope = "mine" | "manage"
 export const voteKeys = {
   all: ["votes"] as const,
   list: (scope: VoteScope) => ["votes", scope] as const,
+  candidates: ["votes", "candidates"] as const,
 }
 
 type Envelope<T> = { data: { data: T } }
@@ -39,6 +40,34 @@ export function useVoteEvents(scope: VoteScope) {
     // Live counts for the people running it; voters only need a fresh page load.
     refetchInterval: scope === "manage" ? 30_000 : false,
   })
+}
+
+/** Who can be an option: active employees, admins left out. Admin / HR view only. */
+export function useVoteCandidates() {
+  return useQuery({
+    queryKey: voteKeys.candidates,
+    queryFn: async () =>
+      (await apiFetch<Envelope<VoteOptionEmployee[]>>("/api/votes/candidates")).data.data,
+    staleTime: 60_000,
+  })
+}
+
+export function useAddAllEmployees() {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast<{ added: number }, string>(qc, {
+      mutationFn: async (eventId) =>
+        (
+          await apiFetch<Envelope<{ added: number }>>(
+            `/api/votes/events/${eventId}/options`,
+            json("POST", { allEmployees: true }),
+          )
+        ).data.data,
+      invalidate: [voteKeys.all],
+      success: (d) =>
+        d.added > 0 ? `Added ${d.added} employees` : "Everyone is already on the list",
+    }),
+  )
 }
 
 export function useCreateVoteEvent() {

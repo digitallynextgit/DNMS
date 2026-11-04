@@ -1,5 +1,26 @@
 import { describe, expect, it } from "vitest"
-import { canCastVote, eventStatus, isVoteManagerRoles, isVoterRoles, tally } from "./vote-rules"
+import {
+  canCastVote,
+  employeeLabel,
+  eventStatus,
+  isVoteManagerRoles,
+  isVoterRoles,
+  tally,
+} from "./vote-rules"
+
+describe("employeeLabel", () => {
+  it("joins first and last name", () => {
+    expect(employeeLabel("Aman", "Agarwal")).toBe("Aman Agarwal")
+  })
+  it("collapses stray spaces", () => {
+    expect(employeeLabel("Dev ", " Lal")).toBe("Dev Lal")
+    expect(employeeLabel("Harsh  ", "Kumar")).toBe("Harsh Kumar")
+  })
+  it("drops a placeholder dot for a missing last name", () => {
+    expect(employeeLabel("Prashant", ".")).toBe("Prashant")
+    expect(employeeLabel("Prashant", "")).toBe("Prashant")
+  })
+})
 
 const now = new Date("2026-11-06T10:00:00.000Z")
 const hour = 60 * 60 * 1000

@@ -28,7 +28,13 @@ import {
   voteOptionUpdateSchema,
   type VoteOptionInput,
 } from "../schemas/votes.schema"
-import { eventStatus, isVoteManagerRoles, isVoterRoles, tally } from "../lib/vote-rules"
+import {
+  employeeLabel,
+  eventStatus,
+  isVoteManagerRoles,
+  isVoterRoles,
+  tally,
+} from "../lib/vote-rules"
 import { OPTION_PHOTO_MAX_BYTES, OPTION_PHOTO_TYPES } from "../constants"
 import type { VoteEventStatus, VoteEventView, VoteOptionView } from "../types"
 
@@ -63,6 +69,14 @@ const VOTER_WHERE = {
   employeeRoles: { none: { role: { name: { in: [...NON_VOTING_ROLES] } } } },
 } satisfies Prisma.EmployeeWhereInput
 
+/** Who can be voted for: the same people who vote, so admins are never on the ballot. */
+const eligibleEmployees = () =>
+  db.employee.findMany({
+    where: VOTER_WHERE,
+    select: EMPLOYEE_SUMMARY_SELECT,
+    orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+  })
+
 type Viewer = { id: string; roles: string[] }
 
 export function isVoteManager(session: Session): boolean {
@@ -77,7 +91,7 @@ function requireManager(session: Session): void {
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null)
 
-function optionView(o: OptionRow, votes: number | null): VoteOptionView {
+function optionView(o: OptionRow, votes: number | null, viewerId?: string): VoteOptionView {
   return {
     id: o.id,
     label: o.label,
@@ -87,6 +101,7 @@ function optionView(o: OptionRow, votes: number | null): VoteOptionView {
     hasPhoto: Boolean(o.photoKey),
     photoUrl: o.photoKey ? `/api/votes/options/${o.id}/photo` : (o.employee?.profilePhoto ?? null),
     votes,
+    isMe: Boolean(viewerId && o.employee?.id === viewerId),
   }
 }
 
@@ -114,7 +129,9 @@ function toView(
     publishedAt: iso(row.publishedAt),
     closedAt: iso(row.closedAt),
     status,
-    options: row.options.map((o) => optionView(o, showResults ? (t.counts[o.id] ?? 0) : null)),
+    options: row.options.map((o) =>
+      optionView(o, showResults ? (t.counts[o.id] ?? 0) : null, viewer.id),
+    ),
     myOptionId: row.ballots.find((b) => b.voterId === viewer.id)?.optionId ?? null,
     canVote: status === "OPEN" && voter,
     isVoter: voter,
@@ -182,7 +199,7 @@ async function resolveOptions(
   ]
   const employees = employeeIds.length
     ? await db.employee.findMany({
-        where: { id: { in: employeeIds } },
+        where: { id: { in: employeeIds }, ...VOTER_WHERE },
         select: { id: true, firstName: true, lastName: true },
       })
     : []
@@ -193,12 +210,14 @@ async function resolveOptions(
   for (const o of inputs) {
     if (o.employeeId) {
       const e = byId.get(o.employeeId)
-      if (!e) throw new ActionError("One of the employees no longer exists", 422)
+      if (!e) {
+        throw new ActionError("Admins and inactive employees cannot be voted for", 422)
+      }
       if (seen.has(e.id)) continue
       seen.add(e.id)
       rows.push({
         employeeId: e.id,
-        label: o.label || `${e.firstName} ${e.lastName}`.trim(),
+        label: o.label || employeeLabel(e.firstName, e.lastName),
         description: o.description || null,
         position: startAt + rows.length,
       })
@@ -246,7 +265,11 @@ export async function createEvent(body: unknown, session: Session): Promise<Acti
   return runAction(async () => {
     requireManager(session)
     const input = voteEventSchema.parse(body)
-    const options = await resolveOptions(input.options, 0)
+    // "Every employee" puts the whole staff on the ballot, admins left out, sorted by name.
+    const inputs: VoteOptionInput[] = input.allEmployees
+      ? [...(await eligibleEmployees()).map((e) => ({ employeeId: e.id })), ...input.options]
+      : input.options
+    const options = await resolveOptions(inputs, 0)
     const row = await db.voteEvent.create({
       data: {
         title: input.title,
@@ -406,6 +429,51 @@ export async function addOption(
     }
     const option = await db.voteOption.create({ data: { eventId, ...row }, select: OPTION_SELECT })
     return ok(serialize({ data: optionView(option, 0) }))
+  })
+}
+
+/** Puts every eligible employee not yet on the ballot onto it, after the existing options. */
+export async function addAllEmployees(
+  eventId: string,
+  session: Session,
+): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    requireManager(session)
+    const event = await db.voteEvent.findUnique({
+      where: { id: eventId },
+      select: {
+        publishedAt: true,
+        opensAt: true,
+        closesAt: true,
+        closedAt: true,
+        options: { select: { employeeId: true } },
+      },
+    })
+    if (!event) return fail("Vote not found", undefined, 404)
+    if (eventStatus(event) === "CLOSED") {
+      return fail("Voting has closed; the options can no longer change", undefined, 409)
+    }
+    const listed = new Set(event.options.map((o) => o.employeeId).filter(Boolean))
+    const missing = (await eligibleEmployees()).filter((e) => !listed.has(e.id))
+    const rows = await resolveOptions(
+      missing.map((e) => ({ employeeId: e.id })),
+      event.options.length,
+    )
+    if (rows.length) {
+      await db.voteOption.createMany({
+        data: rows.map((r) => ({ ...r, eventId })),
+        skipDuplicates: true,
+      })
+    }
+    return ok({ data: { added: rows.length } })
+  })
+}
+
+/** The people an option can be: active employees, admins left out. */
+export async function listCandidates(session: Session): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    requireManager(session)
+    return ok(serialize({ data: await eligibleEmployees() }))
   })
 }
 

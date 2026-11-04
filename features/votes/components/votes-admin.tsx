@@ -36,8 +36,8 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { DateField, toDateString } from "@/components/shared/date-field"
 import { TimeField } from "@/components/shared/time-field"
-import { useEmployeeCodes } from "@/features/employees"
 import {
+  useAddAllEmployees,
   useAddVoteOption,
   useCreateVoteEvent,
   useDeleteVoteEvent,
@@ -45,10 +45,11 @@ import {
   useUpdateVoteEvent,
   useUpdateVoteOption,
   useUploadOptionPhoto,
+  useVoteCandidates,
   useVoteEvents,
 } from "../hooks/use-votes"
 import { OPTION_PHOTO_TYPES, VOTE_STATUS_COLORS, VOTE_STATUS_LABELS } from "../constants"
-import type { VoteEventStatus, VoteEventView, VoteOptionView } from "../types"
+import type { VoteEventStatus, VoteEventView, VoteOptionEmployee, VoteOptionView } from "../types"
 
 type Filter = "ALL" | VoteEventStatus
 const FILTERS: { value: Filter; label: string }[] = [
@@ -64,6 +65,8 @@ type OptionTarget = { event: VoteEventView; option?: VoteOptionView }
 export function VotesAdmin() {
   const { data, isPending } = useVoteEvents("manage")
   const events = data ?? []
+  const { data: candidateData } = useVoteCandidates()
+  const candidates = candidateData ?? []
   const update = useUpdateVoteEvent()
   const remove = useDeleteVoteEvent()
   const removeOption = useDeleteVoteOption()
@@ -85,7 +88,7 @@ export function VotesAdmin() {
     <div className="space-y-6">
       <PageHeader
         title="Votes & Events"
-        description="Create an event, add the options, publish it. Employees vote once each; admins never vote. Ballots are secret: you see counts, never names."
+        description="Create an event and every employee goes on the ballot, admins left out. Publish it and each employee votes once. Ballots are secret: you see counts, never names."
         actions={
           <Button className="gap-1.5" onClick={() => setEditing("new")}>
             <Plus className="h-4 w-4" />
@@ -140,6 +143,9 @@ export function VotesAdmin() {
           <AdminEventCard
             key={e.id}
             event={e}
+            missing={
+              candidates.filter((c) => !e.options.some((o) => o.employee?.id === c.id)).length
+            }
             onEdit={() => setEditing(e)}
             onDelete={() => setRemoving(e)}
             onPublish={() => setPublishing(e)}
@@ -156,6 +162,7 @@ export function VotesAdmin() {
         <EventFormDialog
           key={editing === "new" ? "new" : editing.id}
           event={editing === "new" ? null : editing}
+          candidateCount={candidates.length}
           open
           onOpenChange={(o) => !o && setEditing(null)}
         />
@@ -166,6 +173,7 @@ export function VotesAdmin() {
           key={optionTarget.option?.id ?? `new-${optionTarget.event.id}`}
           event={optionTarget.event}
           option={optionTarget.option ?? null}
+          candidates={candidates}
           open
           onOpenChange={(o) => !o && setOptionTarget(null)}
         />
@@ -253,6 +261,8 @@ export function VotesAdmin() {
 
 interface AdminEventCardProps {
   event: VoteEventView
+  /** Eligible employees not yet on this ballot. */
+  missing: number
   onEdit: () => void
   onDelete: () => void
   onPublish: () => void
@@ -263,8 +273,9 @@ interface AdminEventCardProps {
   onDeleteOption: (option: VoteOptionView) => void
 }
 
-function AdminEventCard({ event, ...actions }: AdminEventCardProps) {
+function AdminEventCard({ event, missing, ...actions }: AdminEventCardProps) {
   const upload = useUploadOptionPhoto()
+  const addAll = useAddAllEmployees()
   const fileRef = React.useRef<HTMLInputElement>(null)
   const [photoFor, setPhotoFor] = React.useState<string | null>(null)
 
@@ -295,6 +306,11 @@ function AdminEventCard({ event, ...actions }: AdminEventCardProps) {
             Closes {formatDateTime(event.closesAt)}
             {event.closedAt ? ` · closed early ${formatDateTime(event.closedAt)}` : ""}
           </p>
+          {event.status === "DRAFT" && (
+            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+              Only admins and HR can see this draft. Click Publish to open voting for everyone.
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {event.status === "DRAFT" && (
@@ -414,10 +430,20 @@ function AdminEventCard({ event, ...actions }: AdminEventCardProps) {
       </div>
 
       {!locked && (
-        <footer className="border-border border-t px-5 py-3">
+        <footer className="border-border flex flex-wrap gap-2 border-t px-5 py-3">
+          {missing > 0 && (
+            <Button
+              className="gap-1.5"
+              disabled={addAll.isPending}
+              onClick={() => addAll.mutate(event.id)}
+            >
+              <Users className="h-4 w-4" />
+              Add all employees ({missing})
+            </Button>
+          )}
           <Button variant="outline" className="gap-1.5" onClick={actions.onAddOption}>
             <Plus className="h-4 w-4" />
-            Add option
+            Add one option
           </Button>
         </footer>
       )}
@@ -458,10 +484,12 @@ function defaultClose(): { date: string; time: string } {
 
 function EventFormDialog({
   event,
+  candidateCount,
   open,
   onOpenChange,
 }: {
   event: VoteEventView | null
+  candidateCount: number
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -469,6 +497,7 @@ function EventFormDialog({
   const update = useUpdateVoteEvent()
   const isEdit = event !== null
 
+  const [allEmployees, setAllEmployees] = React.useState(true)
   const [title, setTitle] = React.useState(event?.title ?? "")
   const [description, setDescription] = React.useState(event?.description ?? "")
   const [opensLater, setOpensLater] = React.useState(Boolean(event?.opensAt))
@@ -490,7 +519,7 @@ function EventFormDialog({
       closesAt: joinDateTime(closes.date, closes.time),
     }
     if (event) update.mutate({ id: event.id, body }, { onSuccess: () => onOpenChange(false) })
-    else create.mutate(body, { onSuccess: () => onOpenChange(false) })
+    else create.mutate({ ...body, allEmployees }, { onSuccess: () => onOpenChange(false) })
   }
 
   return (
@@ -499,9 +528,7 @@ function EventFormDialog({
       onOpenChange={onOpenChange}
       title={isEdit ? "Edit event" : "New event"}
       description={
-        isEdit
-          ? undefined
-          : "It stays a draft until you publish it, so you can add the options first."
+        isEdit ? undefined : "It stays a draft until you publish it, so you can check it first."
       }
       isEdit={isEdit}
       isPending={pending}
@@ -535,6 +562,19 @@ function EventFormDialog({
           maxLength={2000}
         />
       </div>
+
+      {!isEdit && (
+        <div className="border-border flex items-center justify-between gap-3 rounded-sm border px-3 py-2">
+          <div>
+            <p className="text-sm font-medium">Put every employee on the ballot</p>
+            <p className="text-muted-foreground text-xs">
+              {candidateCount > 0 ? `${candidateCount} employees. ` : ""}Admins are left out. Off:
+              add the options yourself, such as teams or entries with photos.
+            </p>
+          </div>
+          <Switch checked={allEmployees} onCheckedChange={setAllEmployees} />
+        </div>
+      )}
 
       <div className="border-border flex items-center justify-between gap-3 rounded-sm border px-3 py-2">
         <div>
@@ -590,17 +630,19 @@ function EventFormDialog({
 function OptionFormDialog({
   event,
   option,
+  candidates,
   open,
   onOpenChange,
 }: {
   event: VoteEventView
   option: VoteOptionView | null
+  /** Active employees, admins left out. */
+  candidates: VoteOptionEmployee[]
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
   const add = useAddVoteOption()
   const edit = useUpdateVoteOption()
-  const { data: codes } = useEmployeeCodes()
   const isEdit = option !== null
 
   const [mode, setMode] = React.useState<"employee" | "custom">(
@@ -615,7 +657,7 @@ function OptionFormDialog({
   // Someone already in the running cannot be added twice.
   const taken = new Set(event.options.map((o) => o.employee?.id).filter(Boolean))
   const q = query.trim().toLowerCase()
-  const people = (codes?.data ?? [])
+  const people = candidates
     .filter((p) => !taken.has(p.id))
     .filter((p) => !q || `${p.firstName} ${p.lastName} ${p.employeeNo}`.toLowerCase().includes(q))
     .slice(0, 40)

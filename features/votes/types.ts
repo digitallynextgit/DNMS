@@ -21,6 +21,8 @@ export interface VoteOptionView {
   hasPhoto: boolean
   /** Null while results are hidden from the reader. */
   votes: number | null
+  /** This option is the reader, who cannot vote for themselves. */
+  isMe: boolean
 }
 
 export interface VoteEventView {

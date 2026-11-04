@@ -35,6 +35,12 @@ export function isVoteManagerRoles(roles: readonly string[]): boolean {
   )
 }
 
+/** An employee option's name: "Dev  Lal" and "Prashant ." read as "Dev Lal" and "Prashant". */
+export function employeeLabel(firstName: string, lastName: string): string {
+  const last = lastName.trim().replace(/^\.+$/, "")
+  return `${firstName} ${last}`.replace(/\s+/g, " ").trim()
+}
+
 export function canCastVote(roles: readonly string[], status: VoteEventStatus): boolean {
   return status === "OPEN" && isVoterRoles(roles)
 }
