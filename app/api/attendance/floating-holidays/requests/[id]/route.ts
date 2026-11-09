@@ -3,6 +3,7 @@ import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { FLOATING_HOLIDAY_LIMIT, SYSTEM_ROLES } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
+import { sendFloatingHolidayDecisionLetter } from "@/features/attendance/server/floating-holiday-mail"
 import { actorStampId } from "@/lib/audit"
 import { isManagerOf } from "@/lib/reporting-line"
 import type { Session } from "next-auth"
@@ -141,6 +142,20 @@ export const PATCH = withSession(
             : `Your manager declined your floating holiday - ${holidayLabel} - it's awaiting HR's final call.`,
           type: "info",
           link: "/calendar?view=holidays&tab=floating",
+        })
+      }
+
+      // Only HR's call is final; a manager's step stays in-app.
+      if (updated.status === "APPROVED" || updated.status === "REJECTED") {
+        await sendFloatingHolidayDecisionLetter({
+          selectionId: reqRow.id,
+          employeeId: reqRow.employeeId,
+          approved: updated.status === "APPROVED",
+          holidayName: reqRow.holiday.name,
+          holidayDate: new Date(reqRow.holiday.date),
+          reason: reason ?? null,
+          deciderId: approverId,
+          deciderIsHrManager: (session.user.roles ?? []).includes(SYSTEM_ROLES.HR_MANAGER),
         })
       }
 

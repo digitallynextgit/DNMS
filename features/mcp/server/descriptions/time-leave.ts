@@ -298,7 +298,8 @@ export const TIME_LEAVE: DescriptionMap = {
       "Approve or reject a floating (optional) holiday request. HR Manager/Admin decide finally (max 3 approved per year); a decision by the employee's reporting or dotted manager is only advisory and leaves it PENDING for HR. Nobody can review their own. id from GET /api/attendance/floating-holidays/requests.",
     body: "{ action: APPROVE|REJECT (required), rejectionReason?: string (required for REJECT) }",
     keywords: ["approve floating holiday", "reject optional holiday", "floating holiday decision"],
-    notes: "Notifies the employee in-app.",
+    notes:
+      "Notifies the employee in-app. HR's final decision also emails the employee, as a reply on the application's mail thread.",
   },
   "PATCH /api/attendance/holidays/[id]": {
     summary:

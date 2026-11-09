@@ -898,6 +898,82 @@ Approve or decline in ${BRAND_NAME}: ${reviewUrl}`
   return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
 }
 
+/** Shared so the decision's "Re:" subject matches the application and Gmail keeps one thread. */
+export function floatingHolidayRequestSubject(
+  applicantName: string,
+  holidayName: string,
+  date: string,
+): string {
+  return `Floating Holiday request - ${applicantName} - ${holidayName}, ${formatEmailDate(date) ?? date}`
+}
+
+/** Written as HR to the employee, as a reply on the application's thread. */
+export function renderFloatingHolidayDecisionLetter(input: {
+  employeeFirstName: string
+  approved: boolean
+  holidayName: string
+  /** "yyyy-MM-dd" */
+  date: string
+  reason?: string | null
+  /** The caller passes "Re: <original>". */
+  subject: string
+  approverName: string
+  approverDesignation?: string | null
+  approverEmail?: string | null
+  approverPhone?: string | null
+}): { subject: string; html: string; text: string } {
+  const { employeeFirstName, approved, holidayName, date, subject, approverName } = input
+  const { approverDesignation, approverEmail, approverPhone } = input
+
+  const day = formatEmailDate(date) ?? date
+  const reason = input.reason?.trim() || ""
+  const para = "margin:0 0 16px; font-size:15px; line-height:1.7; color:#374151;"
+
+  const lines = approved
+    ? [
+        `Dear ${employeeFirstName},`,
+        ``,
+        `Your application for a floating holiday on ${day} for ${holidayName} has been approved.`,
+        ``,
+        `Please hand over anything time-sensitive before you are away. Do reach out if anything needs to be sorted beforehand.`,
+        ``,
+        `Best Regards,`,
+      ]
+    : [
+        `Dear ${employeeFirstName},`,
+        ``,
+        `After review, I am unable to approve your application for a floating holiday on ${day} for ${holidayName}.`,
+        ``,
+        ...(reason ? [`Reason: ${reason}`, ``] : []),
+        `Please feel free to reach out if you would like to discuss this further.`,
+        ``,
+        `Best Regards,`,
+      ]
+
+  const paras = lines
+    .join("\n")
+    .split(/\n{2,}/)
+    .map((p) => `<p style="${para}">${escapeHtml(p).replace(/\n/g, "<br />")}</p>`)
+
+  const body = `
+    ${paras.join("\n")}
+    ${renderSignature({
+      name: approverName,
+      designation: approverDesignation,
+      email: approverEmail,
+      phone: approverPhone,
+    })}`
+
+  const text = lines
+    .concat([
+      approverName,
+      approverDesignation ? `${approverDesignation}, ${BRAND_NAME}` : BRAND_NAME,
+    ])
+    .join("\n")
+
+  return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
+}
+
 /** Same letter shape as leave and WFH; also states the yearly balance. HR makes the final call. */
 export function renderFloatingHolidayRequestEmail(input: {
   approverFirstName: string
@@ -937,7 +1013,7 @@ export function renderFloatingHolidayRequestEmail(input: {
 
   const day = formatEmailDate(date) ?? date
   const holiday = escapeHtml(holidayName)
-  const subject = `Floating Holiday request - ${applicantName} - ${holidayName}, ${day}`
+  const subject = floatingHolidayRequestSubject(applicantName, holidayName, date)
 
   const ordinal = (n: number) => {
     const teen = n % 100 >= 11 && n % 100 <= 13
