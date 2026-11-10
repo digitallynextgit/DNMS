@@ -75,14 +75,22 @@ import { followUpConflictFrom } from "@/features/projects/lib/follow-up-conflict
 import { afterTaskPatch } from "@/features/projects/lib/after-task-patch"
 import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
 import type { ProjectTeam } from "@/features/projects/hooks/use-projects"
+import {
+  useSaveWeeklyImpact,
+  useWeeklyImpact,
+  type WeeklyImpactScope,
+} from "@/features/projects/hooks/use-weekly-impact"
+import type { WeeklyImpactNote } from "@/features/projects/server/weekly-impact.service"
 
-// The weekly allocation sheet: per day, PLAN / ACTUAL / HRS / RESOURCES columns. Numbered lines tie the
+// The weekly allocation sheet: per day, PLAN / ACTUAL / HRS / RESOURCES / IMPACT columns. Numbered lines tie the
 // columns together; rows are clients (My Tasks) or people (a project's Tasks tab) - see SheetAxis.
 
 export interface SheetTask {
   id: string
   title: string
   description: string | null
+  /** What the work achieved; optional so task lists from older payloads still fit. */
+  impact?: string | null
   status: string
   dueDate: string | null
   estimatedHours: number | null
@@ -462,6 +470,12 @@ export function TasksSheetView({
     !readOnly && canEditTaskDetails(subjectOf(task, currentUserId), actor)
   const mayDelete = (task: SheetTask) =>
     !readOnly && canDeleteTask(subjectOf(task, currentUserId), actor)
+  // The assignee writes it and their manager can correct it; like Resources, it never locks.
+  const mayWriteImpact = (task: SheetTask) =>
+    !readOnly &&
+    (isAdmin ||
+      task.assignee?.id === currentUserId ||
+      subjectOf(task, currentUserId).teamManagerId === currentUserId)
 
   function editHint(task: SheetTask): string | undefined {
     if (readOnly) return undefined
@@ -668,6 +682,41 @@ export function TasksSheetView({
       delete next[cellKey]
       return next
     })
+  }
+
+  const impactScope: WeeklyImpactScope | null =
+    axis.by === "person"
+      ? { projectId: axis.project.id }
+      : axis.assigneeId
+        ? { employeeId: axis.assigneeId }
+        : null
+  const { data: weeklyNotes } = useWeeklyImpact(weekStart, impactScope)
+  const saveWeekly = useSaveWeeklyImpact()
+
+  // Keyed like the rows: by client (Adhoc for no client) on My Tasks, by person on a project.
+  const weeklyByRow = useMemo(() => {
+    const map = new Map<string, WeeklyImpactNote>()
+    for (const n of weeklyNotes ?? []) {
+      map.set(axis.by === "client" ? (n.projectId ?? ADHOC_ROW_ID) : n.employeeId, n)
+    }
+    return map
+  }, [weeklyNotes, axis.by])
+
+  async function saveWeeklyNote(row: SheetRow, note: string) {
+    const cellKey = `${row.id}|weekly-impact`
+    setBusy(cellKey, true)
+    try {
+      await saveWeekly.mutateAsync({
+        week: weekStart,
+        employeeId: row.assigneeId,
+        projectId: row.projectId === ADHOC_ROW_ID ? null : row.projectId,
+        note,
+      })
+    } catch {
+      // mutationWithToast has already shown the error.
+    } finally {
+      setBusy(cellKey, false)
+    }
   }
 
   async function runPlan(plan: CellPlan, cellKey: string) {
@@ -945,7 +994,7 @@ export function TasksSheetView({
                   return (
                     <th
                       key={c.key}
-                      colSpan={4}
+                      colSpan={5}
                       className={cn(
                         "border-r border-b px-3 py-1.5 text-center text-[11px] font-semibold tracking-wide uppercase",
                         c.key === todayKey && "bg-primary/10",
@@ -988,6 +1037,13 @@ export function TasksSheetView({
                 >
                   Week total
                 </th>
+                <th
+                  rowSpan={2}
+                  className="min-w-56 border-b border-l px-3 py-2 text-left text-[11px] font-semibold tracking-wide uppercase"
+                  title="What this week's work achieved, in a few lines"
+                >
+                  Weekly impact
+                </th>
               </tr>
               <tr className="bg-muted/40 text-muted-foreground text-[10px] tracking-wide uppercase">
                 {columns.map((c) => (
@@ -1026,6 +1082,15 @@ export function TasksSheetView({
                     >
                       Resources
                     </th>
+                    <th
+                      className={cn(
+                        "min-w-40 border-r border-b px-3 py-1 text-left font-medium",
+                        c.key === todayKey && "bg-primary/10",
+                      )}
+                      title="What the work achieved"
+                    >
+                      Impact
+                    </th>
                   </Fragment>
                 ))}
               </tr>
@@ -1056,6 +1121,7 @@ export function TasksSheetView({
                       const actualKey = `${row.id}|${c.key}|actual`
                       const hoursKey = `${row.id}|${c.key}|hours`
                       const resourcesKey = `${row.id}|${c.key}|resources`
+                      const impactKey = `${row.id}|${c.key}|impact`
                       const isToday = c.key === todayKey
                       // This person's absence; a whole-sheet absence is already in the header.
                       const away = awayByDay.has(c.key)
@@ -1092,7 +1158,7 @@ export function TasksSheetView({
                             />
                           </td>
                           <td className={cn("border-r border-b p-0", tint)} title={offHint}>
-                            <ActualCell
+                            <TaskNoteCell
                               tasks={cellTasks}
                               busy={!!busyCells[actualKey]}
                               canEdit={cellEdit}
@@ -1100,6 +1166,9 @@ export function TasksSheetView({
                               onCommit={(task, text) =>
                                 patchTask(task, { description: text || null }, actualKey, "Saved")
                               }
+                              valueOf={(task) => task.description}
+                              placeholder="What actually happened…"
+                              lockedTitle="Locked - only the team manager can change this now"
                             />
                           </td>
                           <td className={cn("border-r border-b p-0", tint)} title={offHint}>
@@ -1127,6 +1196,19 @@ export function TasksSheetView({
                               }
                             />
                           </td>
+                          <td className={cn("border-r border-b p-0", tint)} title={offHint}>
+                            <TaskNoteCell
+                              tasks={cellTasks}
+                              busy={!!busyCells[impactKey]}
+                              canEdit={(task) => !dayOff && mayWriteImpact(task)}
+                              onCommit={(task, text) =>
+                                patchTask(task, { impact: text || null }, impactKey, "Impact saved")
+                              }
+                              valueOf={(task) => task.impact}
+                              placeholder="What it achieved…"
+                              lockedTitle="Only the person on it or their manager can write the impact"
+                            />
+                          </td>
                         </Fragment>
                       )
                     })}
@@ -1143,6 +1225,14 @@ export function TasksSheetView({
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
+                    </td>
+                    <td className="border-b border-l p-0">
+                      <WeeklyImpactCell
+                        note={weeklyByRow.get(row.id) ?? null}
+                        busy={!!busyCells[`${row.id}|weekly-impact`]}
+                        canEdit={!readOnly && !!row.assigneeId && row.canPlan}
+                        onCommit={(text) => saveWeeklyNote(row, text)}
+                      />
                     </td>
                   </tr>
                 )
@@ -1178,6 +1268,7 @@ export function TasksSheetView({
                         )}
                       </td>
                       <td className="border-r px-2 py-2" />
+                      <td className="border-r px-2 py-2" />
                     </Fragment>
                   )
                 })}
@@ -1191,6 +1282,7 @@ export function TasksSheetView({
                     </span>
                   )}
                 </td>
+                <td className="border-l px-2 py-2" />
               </tr>
             </tfoot>
           </table>
@@ -1248,6 +1340,15 @@ export function TasksSheetView({
             <li>
               <Term>Resources</Term> attach the brief, the doc, the published page - one URL per
               line. Not time-limited, so you can add the live link whenever the work goes out.
+            </li>
+            <li>
+              <Term>Impact</Term> what each task achieved - the result, not the work:{" "}
+              <Chip>Form live, 12 leads</Chip>. The person on it writes it, their manager can change
+              it, and it never locks.
+            </li>
+            <li>
+              <Term>Weekly impact</Term> next to Week total, one note per row on what the whole week
+              achieved.
             </li>
             <li>
               Removing a line asks before it deletes the task, and only the team manager can. You
@@ -1619,13 +1720,16 @@ function PlanCell({
   )
 }
 
-/** One note per planned task, edited row by row (a multi-line note can't be split back safely). */
-function ActualCell({
+/** One note per planned task (Actual, Impact), edited row by row (a multi-line note can't be split back safely). */
+function TaskNoteCell({
   tasks,
   busy,
   canEdit,
   onOpenTask,
   onCommit,
+  valueOf,
+  placeholder,
+  lockedTitle,
 }: {
   tasks: SheetTask[]
   busy: boolean
@@ -1633,6 +1737,11 @@ function ActualCell({
   /** A locked note opens the task instead, where its work log can always be added to. */
   onOpenTask?: (task: SheetTask) => void
   onCommit: (task: SheetTask, text: string) => void
+  valueOf: (task: SheetTask) => string | null | undefined
+  /** Also the textarea's label, without the ellipsis. */
+  placeholder: string
+  /** Tooltip on a locked note that has no task to open. */
+  lockedTitle: string
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [text, setText] = useState("")
@@ -1661,7 +1770,7 @@ function ActualCell({
       return
     }
     settled.current = false
-    setText(task.description ?? "")
+    setText(valueOf(task) ?? "")
     setEditingId(task.id)
   }
 
@@ -1671,7 +1780,7 @@ function ActualCell({
     setEditingId(null)
     if (!save) return
     const next = text.trim()
-    if (next === (task.description ?? "").trim()) return
+    if (next === (valueOf(task) ?? "").trim()) return
     onCommit(task, next)
   }
 
@@ -1706,8 +1815,8 @@ function ActualCell({
                   }
                 }}
                 className="ring-primary min-w-0 flex-1 resize-none overflow-hidden bg-transparent text-xs leading-relaxed ring-2 outline-none"
-                placeholder="What actually happened…"
-                aria-label="What actually happened"
+                placeholder={placeholder}
+                aria-label={placeholder.replace(/…$/, "")}
               />
             ) : (
               <span
@@ -1725,24 +1834,121 @@ function ActualCell({
                     ? undefined
                     : opens
                       ? "Locked - open the task to add to its work log"
-                      : "Locked - only the team manager can change this now"
+                      : lockedTitle
                 }
                 className={cn(
                   "min-w-0 flex-1 break-words whitespace-pre-wrap",
                   editable &&
                     "hover:bg-muted/40 focus:ring-primary/60 cursor-text rounded-sm outline-none focus:ring-2",
                   opens && "hover:bg-muted/40 cursor-pointer rounded-sm",
-                  task.description
+                  valueOf(task)
                     ? (STATUS_TEXT[task.status] ?? "text-foreground")
                     : "text-muted-foreground/40",
                 )}
               >
-                {task.description || (editable ? "add…" : "-")}
+                {valueOf(task) || (editable ? "add…" : "-")}
               </span>
             )}
           </span>
         )
       })}
+    </div>
+  )
+}
+
+/** One note for the row's whole week, stored apart from the tasks. Same keys as the other notes. */
+function WeeklyImpactCell({
+  note,
+  busy,
+  canEdit,
+  onCommit,
+}: {
+  note: WeeklyImpactNote | null
+  busy: boolean
+  canEdit: boolean
+  onCommit: (text: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState("")
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const settled = useRef(false)
+
+  useAutoGrow(ref, text, editing)
+  useCommitOnOutsidePointer(ref, editing, () => finish(true))
+
+  useEffect(() => {
+    if (!editing) return
+    const el = ref.current
+    if (!el) return
+    el.focus()
+    el.setSelectionRange(el.value.length, el.value.length)
+  }, [editing])
+
+  function begin() {
+    if (!canEdit || busy) return
+    settled.current = false
+    setText(note?.note ?? "")
+    setEditing(true)
+  }
+
+  function finish(save: boolean) {
+    if (settled.current) return
+    settled.current = true
+    setEditing(false)
+    if (!save) return
+    const next = text.trim()
+    if (next === (note?.note ?? "")) return
+    onCommit(next)
+  }
+
+  if (busy) return <CellBusy />
+
+  return (
+    <div className="min-h-14 px-3 py-2 text-xs leading-relaxed">
+      {editing ? (
+        <textarea
+          ref={ref}
+          value={text}
+          rows={2}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={() => finish(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault()
+              finish(false)
+              return
+            }
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault()
+              finish(true)
+            }
+          }}
+          className="ring-primary w-full resize-none overflow-hidden bg-transparent text-xs leading-relaxed ring-2 outline-none"
+          placeholder="What this week achieved…"
+          aria-label="What this week achieved"
+        />
+      ) : (
+        <span
+          role={canEdit ? "button" : undefined}
+          tabIndex={canEdit ? 0 : undefined}
+          onClick={begin}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault()
+              begin()
+            }
+          }}
+          title={note?.updatedBy ? `Last edited by ${note.updatedBy.name}` : undefined}
+          className={cn(
+            "block break-words whitespace-pre-wrap",
+            canEdit &&
+              "hover:bg-muted/40 focus:ring-primary/60 cursor-text rounded-sm outline-none focus:ring-2",
+            note ? "text-foreground" : "text-muted-foreground/40",
+          )}
+        >
+          {note?.note || (canEdit ? "add…" : "-")}
+        </span>
+      )}
     </div>
   )
 }

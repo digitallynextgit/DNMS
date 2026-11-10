@@ -35,8 +35,8 @@ export const projectTasksGuide: HelpGuide = {
       id: "sheet",
       title: { en: "Read the week at a glance", hi: "पूरा हफ़्ता एक नज़र में देखें" },
       intro: {
-        en: "The Tasks tab is a weekly sheet, like the Excel sheet the team plans in. Each row is one person on the project, and each working day has four columns: Plan, Actual, Hrs and Resources.",
-        hi: "Tasks टैब एक हफ़्ते की शीट है, बिल्कुल उस Excel जैसी जिसमें टीम प्लान करती है। हर लाइन प्रोजेक्ट पर काम करने वाला एक व्यक्ति है, और हर वर्किंग डे के चार कॉलम हैं: Plan, Actual, Hrs और Resources।",
+        en: "The Tasks tab is a weekly sheet, like the Excel sheet the team plans in. Each row is one person on the project, and each working day has five columns: Plan, Actual, Hrs, Resources and Impact.",
+        hi: "Tasks टैब एक हफ़्ते की शीट है, बिल्कुल उस Excel जैसी जिसमें टीम प्लान करती है। हर लाइन प्रोजेक्ट पर काम करने वाला एक व्यक्ति है, और हर वर्किंग डे के पाँच कॉलम हैं: Plan, Actual, Hrs, Resources और Impact।",
       },
       steps: [
         {
@@ -61,8 +61,8 @@ export const projectTasksGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Plan (4) lists the day's tasks, numbered 1, 2, 3. Actual (5) is a note on what really happened. Hrs (6) shows the hours allocated on top and the time actually spent underneath. Resources (7) holds links - the brief, the doc, the published page. The same number ties a task together across all four columns.",
-            hi: "Plan (4) में उस दिन के tasks 1, 2, 3 नंबर के साथ होते हैं। Actual (5) में लिखा होता है कि असल में क्या हुआ। Hrs (6) में ऊपर दिए गए घंटे (allocation) और नीचे असल में लगा समय दिखता है। Resources (7) में लिंक होते हैं - brief, doc, या पब्लिश हुआ पेज। एक ही नंबर चारों कॉलम में एक ही task को जोड़ता है।",
+            en: "Plan (4) lists the day's tasks, numbered 1, 2, 3. Actual (5) is a note on what really happened. Hrs (6) shows the hours allocated on top and the time actually spent underneath. Resources (7) holds links - the brief, the doc, the published page. Impact is what the work achieved. The same number ties a task together across all five columns.",
+            hi: "Plan (4) में उस दिन के tasks 1, 2, 3 नंबर के साथ होते हैं। Actual (5) में लिखा होता है कि असल में क्या हुआ। Hrs (6) में ऊपर दिए गए घंटे (allocation) और नीचे असल में लगा समय दिखता है। Resources (7) में लिंक होते हैं - brief, doc, या पब्लिश हुआ पेज। Impact में लिखा होता है कि काम से क्या हासिल हुआ। एक ही नंबर पाँचों कॉलम में एक ही task को जोड़ता है।",
           },
         },
         {

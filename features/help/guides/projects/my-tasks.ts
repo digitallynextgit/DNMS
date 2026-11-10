@@ -92,14 +92,14 @@ export const myTasksGuide: HelpGuide = {
         },
         {
           text: {
-            en: "Each working day has four columns, starting with Plan (3): Plan is the tasks for that day, Actual is what really happened, Hrs is hours allocated (top) and spent (below), and Resources holds links like the brief or the published page.",
-            hi: "हर वर्किंग डे के चार कॉलम हैं, Plan (3) से शुरू: Plan में उस दिन के tasks, Actual में असल में क्या हुआ, Hrs में दिए गए घंटे (ऊपर) और लगे घंटे (नीचे), और Resources में लिंक जैसे brief या पब्लिश हुआ पेज।",
+            en: "Each working day has five columns, starting with Plan (3): Plan is the tasks for that day, Actual is what really happened, Hrs is hours allocated (top) and spent (below), Resources holds links like the brief or the published page, and Impact is what the work achieved.",
+            hi: "हर वर्किंग डे के पाँच कॉलम हैं, Plan (3) से शुरू: Plan में उस दिन के tasks, Actual में असल में क्या हुआ, Hrs में दिए गए घंटे (ऊपर) और लगे घंटे (नीचे), Resources में लिंक जैसे brief या पब्लिश हुआ पेज, और Impact में काम से क्या हासिल हुआ।",
           },
         },
         {
           text: {
-            en: "Scroll the sheet to the right end. Week total (1) adds up each client's hours for the week, and Daily total (2) at the bottom adds up each day. Use the arrow buttons and This week above the sheet to move between weeks.",
-            hi: "शीट को दाईं ओर आखिर तक स्क्रॉल करें। Week total (1) हर क्लाइंट के हफ़्ते भर के घंटे जोड़ता है, और नीचे Daily total (2) हर दिन के। हफ़्ते बदलने के लिए शीट के ऊपर तीर वाले बटन और This week इस्तेमाल करें।",
+            en: "Scroll the sheet to the right end. Week total (1) adds up each client's hours for the week, and Daily total (2) at the bottom adds up each day. Weekly impact, next to Week total, is a note on what the week achieved for each client. Use the arrow buttons and This week above the sheet to move between weeks.",
+            hi: "शीट को दाईं ओर आखिर तक स्क्रॉल करें। Week total (1) हर क्लाइंट के हफ़्ते भर के घंटे जोड़ता है, और नीचे Daily total (2) हर दिन के। Week total के बगल में Weekly impact में हर क्लाइंट के लिए लिखा जाता है कि हफ़्ते में क्या हासिल हुआ। हफ़्ते बदलने के लिए शीट के ऊपर तीर वाले बटन और This week इस्तेमाल करें।",
           },
           shot: {
             id: "my-tasks-sheet-totals",

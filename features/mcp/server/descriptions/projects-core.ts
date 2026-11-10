@@ -427,6 +427,14 @@ export const PROJECTS_CORE: DescriptionMap = {
     keywords: ["my work", "my tasks", "my to-do", "team tasks", "report's tasks", "adhoc tasks"],
     notes: "Up to 2000 tasks sorted by due date; meta.truncated when more.",
   },
+  "GET /api/tasks/weekly-impact": {
+    summary:
+      "The work sheet's Weekly impact notes for one week: what a person's week achieved per client row. Pass employeeId for one person's week across clients (yourself, someone you manage as reporting/dotted or team manager, or anyone with project:write), or projectId for everyone's notes on one project (anyone who can see the project).",
+    query: "week (required): the Monday, YYYY-MM-DD; employeeId or projectId (exactly one)",
+    keywords: ["weekly impact", "week outcome", "what the week achieved", "impact summary"],
+    notes:
+      "Returns [{ employeeId, projectId (null = Adhoc row), note, updatedAt, updatedBy: { id, name } | null }]. Per-task impact is the task's own impact field (GET /api/tasks).",
+  },
   "GET /api/tasks/[id]/checklist": {
     summary:
       "A task's checklist (sub-items) in order with checked state. [id] = task id. Anyone who can see the task (project access; for adhoc work its assignee, creator or their manager).",
@@ -555,7 +563,7 @@ export const PROJECTS_CORE: DescriptionMap = {
   "PATCH /api/tasks/[id]": {
     summary:
       "Update a task: move its status (start, complete, hold, discard), edit details, reassign, change due date, priority, hours, links, goal or milestone flag. For the assignee, the task's manager (team manager; for adhoc work the assignee's reporting or dotted manager), the project's Account Manager or project:write holders.",
-    body: "{ status?: TODO|IN_PROGRESS|DONE|ON_HOLD|DISCARDED; holdReason + holdExpectedDate (YYYY-MM-DD): required for ON_HOLD; discardReason: required for DISCARDED; keepFollowUp?: true to go ahead after a 409 about a hold follow-up; title?; description?; priority?: LOW|MEDIUM|HIGH|URGENT; startDate?, dueDate?: YYYY-MM-DD or null; estimatedHours?: number or null; tags?: string[]; assigneeId?: active employee id or null (manager/admin; the assignee may also hand it to their own report - solid line any depth or dotted - who is on the same team); links?: http(s) URLs, max 20; isMilestone?: boolean; goalId?: goal on the task's project or null; producesOutput?: boolean; outputSkipped?: true = nothing came out of this }",
+    body: "{ status?: TODO|IN_PROGRESS|DONE|ON_HOLD|DISCARDED; holdReason + holdExpectedDate (YYYY-MM-DD): required for ON_HOLD; discardReason: required for DISCARDED; keepFollowUp?: true to go ahead after a 409 about a hold follow-up; title?; description?; priority?: LOW|MEDIUM|HIGH|URGENT; startDate?, dueDate?: YYYY-MM-DD or null; estimatedHours?: number or null; tags?: string[]; assigneeId?: active employee id or null (manager/admin; the assignee may also hand it to their own report - solid line any depth or dotted - who is on the same team); links?: http(s) URLs, max 20; impact?: string or null, what the work achieved (max 2000); isMilestone?: boolean; goalId?: goal on the task's project or null; producesOutput?: boolean; outputSkipped?: true = nothing came out of this }",
     keywords: [
       "update task",
       "complete task",
@@ -565,7 +573,13 @@ export const PROJECTS_CORE: DescriptionMap = {
       "change due date",
     ],
     notes:
-      "Detail fields (title, description, priority, dates, hours, tags) are editable by the task's creator only for 15 minutes after creating it, otherwise only by its manager/admin. IN_PROGRESS starts the time clock and leaving it stops it (loggedHours is measured, not writable). ON_HOLD books the remaining hours onto a follow-up task. Done/hold/discard notifies the manager in-app.",
+      "Detail fields (title, description, priority, dates, hours, tags) are editable by the task's creator only for 15 minutes after creating it, otherwise only by its manager/admin. links and impact are never time-limited. IN_PROGRESS starts the time clock and leaving it stops it (loggedHours is measured, not writable). ON_HOLD books the remaining hours onto a follow-up task. Done/hold/discard notifies the manager in-app.",
+  },
+  "PUT /api/tasks/weekly-impact": {
+    summary:
+      "Write or clear one Weekly impact note on the work sheet: what a person's week achieved on one client (or Adhoc). The person themselves, their reporting/dotted or team manager, the project's Account Manager, or project:write.",
+    body: "{ week (required): the Monday, YYYY-MM-DD; employeeId (required); projectId: project id, or null for the Adhoc row; note: text up to 2000 chars, empty clears it }",
+    keywords: ["write weekly impact", "weekly outcome note", "clear weekly impact"],
   },
   "PATCH /api/tasks/[id]/checklist/[itemId]": {
     summary:

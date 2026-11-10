@@ -12,6 +12,7 @@ type FieldKind = "text" | "priority" | "date" | "hours" | "person" | "bool"
 const TRACKED: Record<string, { label: string; kind: FieldKind }> = {
   title: { label: "Title", kind: "text" },
   description: { label: "Actual", kind: "text" },
+  impact: { label: "Impact", kind: "text" },
   priority: { label: "Priority", kind: "priority" },
   dueDate: { label: "Due date", kind: "date" },
   startDate: { label: "Start date", kind: "date" },

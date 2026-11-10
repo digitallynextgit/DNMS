@@ -712,6 +712,9 @@ model Employee {
   voteOptions           VoteOption[]      @relation("VoteOptionEmployee")
   voteBallots           VoteBallot[]      @relation("VoteBallotVoter")
 
+  weeklyImpacts     TaskWeeklyImpact[] @relation("WeeklyImpactEmployee")
+  weeklyImpactEdits TaskWeeklyImpact[] @relation("WeeklyImpactEditor")
+
   goalsCreated         ProjectGoal[]             @relation("GoalCreator")
   goalsOwned           ProjectGoal[]             @relation("GoalOwner")
   deliverablesMade     ProjectDeliverable[]      @relation("DeliverableMaker")
@@ -1800,6 +1803,7 @@ model Project {
   projectGoals        ProjectGoal[]
   goalSeries          ProjectGoalSeries[]
   aiSuggestions       ProjectAiSuggestion[]
+  weeklyImpacts       TaskWeeklyImpact[]
 
   @@unique([tenantId, code])
   @@unique([tenantId, slug])
@@ -2831,6 +2835,8 @@ model ProjectTask {
   teamId           String?            @map("team_id") // v2 - null for legacy tasks and adhoc work
   title            String             @map("title")
   description      String?            @map("description") @db.Text
+  // What the work achieved ("Form live, 12 leads"). Written after the fact, so outside the edit window.
+  impact           String?            @map("impact") @db.Text
   status           TaskStatus         @default(TODO) @map("status")
   priority         TaskPriority       @default(MEDIUM) @map("priority")
   assigneeId       String?            @map("assignee_id")
@@ -2913,6 +2919,32 @@ model ProjectTask {
   @@index([projectId, status])
   @@index([tenantId])
   @@map("project_tasks")
+}
+
+// The work sheet's Weekly Impact: one written note per person, per client row, per week.
+model TaskWeeklyImpact {
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String   @id @default(uuid()) @map("id")
+  employeeId  String   @map("employee_id")
+  /// Null for the Adhoc row (work with no client).
+  projectId   String?  @map("project_id")
+  /// The project id, or "adhoc": a unique index treats NULLs as distinct, so it can't key on projectId.
+  rowKey      String   @map("row_key")
+  /// Monday of the week.
+  weekStart   DateTime @map("week_start") @db.Date
+  note        String   @map("note") @db.Text
+  updatedById String?  @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  employee  Employee  @relation("WeeklyImpactEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  updatedBy Employee? @relation("WeeklyImpactEditor", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([employeeId, rowKey, weekStart])
+  @@index([projectId, weekStart])
+  @@index([tenantId])
+  @@map("task_weekly_impacts")
 }
 
 model TaskComment {

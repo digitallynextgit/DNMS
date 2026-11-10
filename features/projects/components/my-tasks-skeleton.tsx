@@ -39,7 +39,7 @@ export function MyTasksSheetSkeleton() {
               {days.map((day) => (
                 <th
                   key={day}
-                  colSpan={4}
+                  colSpan={5}
                   className="border-r border-b px-3 py-1.5 text-center text-[11px] font-semibold tracking-wide uppercase"
                 >
                   <div className="flex items-center justify-center gap-1.5">
@@ -53,6 +53,12 @@ export function MyTasksSheetSkeleton() {
                 className="w-24 border-b px-2 py-2 text-center text-[11px] font-semibold tracking-wide uppercase"
               >
                 Week total
+              </th>
+              <th
+                rowSpan={2}
+                className="min-w-56 border-b border-l px-3 py-2 text-left text-[11px] font-semibold tracking-wide uppercase"
+              >
+                Weekly impact
               </th>
             </tr>
             <tr className="bg-muted/40 text-muted-foreground text-[10px] tracking-wide uppercase">
@@ -69,6 +75,9 @@ export function MyTasksSheetSkeleton() {
                   </th>
                   <th className="w-28 min-w-28 border-r border-b px-2 py-1 text-left font-medium">
                     Resources
+                  </th>
+                  <th className="min-w-36 border-r border-b px-3 py-1 text-left font-medium">
+                    Impact
                   </th>
                 </Fragment>
               ))}
@@ -104,10 +113,16 @@ export function MyTasksSheetSkeleton() {
                     <td className="border-r border-b p-2">
                       {rIdx % 3 === 0 ? <Skeleton className="h-3 w-12" /> : null}
                     </td>
+                    <td className="border-r border-b p-2">
+                      {rIdx % 2 === 0 ? <Skeleton className="h-3 w-16" /> : null}
+                    </td>
                   </Fragment>
                 ))}
                 <td className="border-b p-2 text-center">
                   <Skeleton className="mx-auto h-3 w-8" />
+                </td>
+                <td className="border-b border-l p-2">
+                  {rIdx % 2 === 0 ? <Skeleton className="h-3 w-32" /> : null}
                 </td>
               </tr>
             ))}

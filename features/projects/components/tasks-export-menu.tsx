@@ -22,6 +22,7 @@ import { TASK_STATUS_LABELS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 export interface ExportableTask {
   title: string
   description: string | null
+  impact?: string | null
   status: string
   priority: string
   dueDate: string | null
@@ -53,6 +54,7 @@ const COLUMNS = [
   "Approval",
   "Resources",
   "Notes",
+  "Impact",
   "Created",
 ] as const
 
@@ -79,6 +81,7 @@ function toRows(tasks: readonly ExportableTask[]) {
     t.approvalStatus === "APPROVED" ? "" : t.approvalStatus.replace(/_/g, " ").toLowerCase(),
     t.links.join(" "),
     t.description ?? "",
+    t.impact ?? "",
     day(t.createdAt),
   ])
 }

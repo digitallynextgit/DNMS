@@ -14,6 +14,7 @@ import {
 import { settleRunningTasks } from "@/features/projects/server/task-clock.service"
 import { diffTaskFields } from "@/features/projects/server/task-audit"
 import { dedupeLinks, isSafeHttpUrl } from "@/features/projects/lib/task-links"
+import { IMPACT_MAX_LENGTH } from "@/features/projects/schemas/weekly-impact.schema"
 import { myWorkHref, projectHref } from "@/features/projects/lib/project-href"
 import { formatHours } from "@/features/projects/lib/format-hours"
 import { hasPastTaskAccess } from "@/features/employees/server/task-access.service"
@@ -85,6 +86,7 @@ export const PATCH = withSession(
         estimatedHours,
         tags,
         links,
+        impact,
         isMilestone,
         goalId,
         producesOutput,
@@ -267,6 +269,17 @@ export const PATCH = withSession(
           return NextResponse.json({ error: `Not a valid web link: ${bad[0]}` }, { status: 422 })
         }
         data.links = cleaned.slice(0, 20)
+      }
+      // Like links, written once the work lands, so it sits outside the edit window.
+      if (impact !== undefined) {
+        const text = impact === null ? "" : String(impact).trim()
+        if (text.length > IMPACT_MAX_LENGTH) {
+          return NextResponse.json(
+            { error: `Impact can be at most ${IMPACT_MAX_LENGTH} characters` },
+            { status: 422 },
+          )
+        }
+        data.impact = text || null
       }
       if (typeof isMilestone === "boolean") data.isMilestone = isMilestone
       if (typeof producesOutput === "boolean") data.producesOutput = producesOutput
