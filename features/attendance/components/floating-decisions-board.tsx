@@ -89,7 +89,8 @@ export function FloatingDecisionsBoard({
     return map
   }, [data])
 
-  const sorted = [...holidays].sort((a, b) => a.date.localeCompare(b.date))
+  // Latest holiday first.
+  const sorted = [...holidays].sort((a, b) => b.date.localeCompare(a.date))
   const totals = COLUMNS.map((c) => ({
     ...c,
     count: (data ?? []).filter((d) => d.status === c.status).length,
