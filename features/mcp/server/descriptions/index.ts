@@ -8,6 +8,7 @@ import { PROJECTS_CORE } from "./projects-core"
 import { PROJECT_CONTENT } from "./project-content"
 import { PROJECT_TOOLS } from "./project-tools"
 import { VOTES } from "./votes"
+import { OYD } from "./oyd"
 
 export type { DescriptionMap, EndpointDescription } from "./types"
 
@@ -20,4 +21,5 @@ export const ENDPOINT_DESCRIPTIONS: DescriptionMap = {
   ...PROJECT_CONTENT,
   ...PROJECT_TOOLS,
   ...VOTES,
+  ...OYD,
 }

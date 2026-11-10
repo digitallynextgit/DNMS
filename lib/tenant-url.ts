@@ -41,6 +41,7 @@ export const TENANT_SCOPED_SEGMENTS: ReadonlySet<string> = new Set([
   "stock",
   "tools",
   "votes",
+  "oyd",
   "weekly-reviews",
   "wfh",
   "work-reports",

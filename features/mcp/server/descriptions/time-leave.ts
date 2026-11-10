@@ -119,6 +119,19 @@ export const TIME_LEAVE: DescriptionMap = {
       "restricted holiday",
     ],
   },
+  "GET /api/attendance/floating-holidays/decisions": {
+    summary:
+      "Every floating (optional) holiday request in a year with its outcome - who was approved, who was declined (with the reason) and who is still waiting - for the per-holiday board on the HR Calendar. HR Manager/Admin see everyone; anyone else only the people they manage directly. Withdrawn requests are left out.",
+    query: "year: YYYY (default this year)",
+    keywords: [
+      "who got the floating holiday",
+      "floating holiday approved list",
+      "floating holiday declined",
+      "bhai dooj approvals",
+    ],
+    notes:
+      "Returns [{ id, holidayId, status: PENDING|APPROVED|REJECTED, employee, reason, rejectionReason, decidedBy, decidedAt, managerDecision }]. Holiday names and dates come from GET /api/attendance/holidays.",
+  },
   "GET /api/attendance/floating-holidays/requests": {
     summary:
       "Floating (optional) holiday requests waiting for review. HR Manager/Admin see everyone's; anyone else sees only the requests of people they manage directly, as reporting or dotted manager (empty if they manage nobody). id of each row is used to approve/reject.",

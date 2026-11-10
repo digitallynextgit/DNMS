@@ -26,6 +26,7 @@ import { LeaveBalanceCard } from "@/features/leave"
 import { formatHours } from "@/features/projects/lib/format-hours"
 import { MyWorkCard } from "@/features/projects/components/my-work-card"
 import { PerformanceTile } from "@/features/performance"
+import { OydTile } from "@/features/oyd"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
 import { PAYROLL_STATUS_LABELS } from "@/lib/constants"
 import type { LeaveBalance } from "@/features/leave"
@@ -135,9 +136,7 @@ export function EmployeeDashboard({ showRating = true }: { showRating?: boolean 
       )}
 
       {/* Five at a glance; the rest (running clock, request detail) lives in the panels below. */}
-      <div
-        className={cn("grid grid-cols-2 gap-3", showRating ? "lg:grid-cols-5" : "lg:grid-cols-4")}
-      >
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           title="Due Today"
           value={work?.counts.dueToday ?? 0}
@@ -171,8 +170,9 @@ export function EmployeeDashboard({ showRating = true }: { showRating?: boolean 
           icon={CalendarDays}
           loading={isLoading}
         />
-        {/* Full width on phones, where the six tiles above fill three rows of two. */}
-        {showRating && <PerformanceTile className="col-span-2 lg:col-span-1" />}
+        {/* Side by side under the six tiles above: four rows of two on phones, two of four on desktop. */}
+        {showRating && <PerformanceTile />}
+        {showRating && <OydTile />}
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

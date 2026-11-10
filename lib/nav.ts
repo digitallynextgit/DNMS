@@ -14,6 +14,7 @@ import {
   FolderKanban,
   TrendingUp,
   Star,
+  Flag,
   Briefcase,
   BarChart3,
   Laptop,
@@ -65,6 +66,8 @@ export const EMPLOYEE_ITEMS: NavItem[] = [
   { label: "My Leave", href: "/leave", icon: CalendarDays },
   { label: "My Payslips", href: "/payroll/me", icon: DollarSign },
   { label: "My Performance", href: "/performance/me", icon: Star },
+  // Ungated: anyone can raise a flag; the page shows each person only what they may see.
+  { label: "Own Your Deadline", href: "/oyd", icon: Flag },
   { label: "Work From Home", href: "/wfh", icon: Laptop },
   { label: "Calendar", href: "/calendar", icon: CalendarRange },
   { label: "My Referrals", href: "/referrals", icon: UserPlus },

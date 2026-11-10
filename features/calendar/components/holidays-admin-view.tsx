@@ -24,6 +24,7 @@ import {
   useUpdateHoliday,
   useDeleteHoliday,
   FloatingRequestsInbox,
+  FloatingDecisionsBoard,
   HolidayMonthCalendar,
 } from "@/features/attendance"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
@@ -209,6 +210,7 @@ export function HolidaysAdminView() {
               { value: "table", label: "Table" },
               { value: "calendar", label: "Calendar" },
               canWrite && { value: "requests", label: "Floating Requests" },
+              canWrite && { value: "decisions", label: "Approved & Declined" },
             ]}
           />
           <div className="flex flex-wrap items-center gap-2">
@@ -297,6 +299,12 @@ export function HolidaysAdminView() {
         {canWrite && (
           <TabsContent value="requests">
             <FloatingRequestsInbox />
+          </TabsContent>
+        )}
+
+        {canWrite && (
+          <TabsContent value="decisions">
+            <FloatingDecisionsBoard year={year} holidays={holidays.filter((h) => h.isOptional)} />
           </TabsContent>
         )}
       </Tabs>

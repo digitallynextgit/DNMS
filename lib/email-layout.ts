@@ -974,6 +974,62 @@ export function renderFloatingHolidayDecisionLetter(input: {
   return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
 }
 
+/** An OYD (Own Your Deadline) flag, written as whoever raised it to the flagged employee. */
+export function renderOydFlagEmail(input: {
+  employeeFirstName: string
+  employeeName: string
+  /** e.g. "2nd": the employee's active flags, this one included. */
+  countLabel: string
+  level: { emoji: string; label: string; action: string }
+  categoryLabel: string
+  note: string
+  senderName: string
+  senderDesignation?: string | null
+  senderEmail?: string | null
+  senderPhone?: string | null
+}): { subject: string; html: string; text: string } {
+  const { employeeFirstName, employeeName, countLabel, level, categoryLabel, note } = input
+  const subject = `OYD ${level.label} - ${employeeName}`
+  const para = "margin:0 0 16px; font-size:15px; line-height:1.7; color:#374151;"
+
+  const lines = [
+    `Dear ${employeeFirstName},`,
+    ``,
+    `This is to flag a delay under OYD (Own Your Deadline): ${categoryLabel}.`,
+    ``,
+    note.trim(),
+    ``,
+    `This is your ${countLabel} active OYD flag - ${level.emoji} ${level.label}: ${level.action}.`,
+    ``,
+    `If you are facing blockers or see a delay coming, please tell your Reporting Manager early so the team can plan around it.`,
+    ``,
+    `Best Regards,`,
+  ]
+
+  const paras = lines
+    .join("\n")
+    .split(/\n{2,}/)
+    .map((p) => `<p style="${para}">${escapeHtml(p).replace(/\n/g, "<br />")}</p>`)
+
+  const body = `
+    ${paras.join("\n")}
+    ${renderSignature({
+      name: input.senderName,
+      designation: input.senderDesignation,
+      email: input.senderEmail,
+      phone: input.senderPhone,
+    })}`
+
+  const text = lines
+    .concat([
+      input.senderName,
+      input.senderDesignation ? `${input.senderDesignation}, ${BRAND_NAME}` : BRAND_NAME,
+    ])
+    .join("\n")
+
+  return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
+}
+
 /** Same letter shape as leave and WFH; also states the yearly balance. HR makes the final call. */
 export function renderFloatingHolidayRequestEmail(input: {
   approverFirstName: string

@@ -715,6 +715,11 @@ model Employee {
   weeklyImpacts     TaskWeeklyImpact[] @relation("WeeklyImpactEmployee")
   weeklyImpactEdits TaskWeeklyImpact[] @relation("WeeklyImpactEditor")
 
+  oydFlags         OydFlag[] @relation("OydFlagEmployee")
+  oydFlagsRaised   OydFlag[] @relation("OydFlagRaiser")
+  oydFlagsReviewed OydFlag[] @relation("OydFlagReviewer")
+  oydFlagsRemoved  OydFlag[] @relation("OydFlagRemover")
+
   goalsCreated         ProjectGoal[]             @relation("GoalCreator")
   goalsOwned           ProjectGoal[]             @relation("GoalOwner")
   deliverablesMade     ProjectDeliverable[]      @relation("DeliverableMaker")
@@ -2919,6 +2924,41 @@ model ProjectTask {
   @@index([projectId, status])
   @@index([tenantId])
   @@map("project_tasks")
+}
+
+// OYD (Own Your Deadline): a flag on an employee for a delay. Counts once HR or their Reporting
+// Manager confirms it; removing one keeps the row, so the history stays complete.
+model OydFlag {
+  tenantId     String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id           String    @id @default(uuid()) @map("id")
+  employeeId   String    @map("employee_id")
+  /// Null when the hidden owner account raised it: staff never see that account named.
+  raisedById   String?   @map("raised_by_id")
+  /// MISSED_DEADLINE | DELAYED_HANDOVER | BLOCKER_NOT_SHARED | REPEATED_DELAYS
+  category     String    @map("category")
+  note         String    @map("note") @db.Text
+  /// PENDING | CONFIRMED | REJECTED
+  status       String    @default("PENDING") @map("status")
+  /// Which active flag this was for the employee when confirmed (1 = coaching, 4 = management review).
+  level        Int?      @map("level")
+  reviewedById String?   @map("reviewed_by_id")
+  reviewedAt   DateTime? @map("reviewed_at")
+  reviewNote   String?   @map("review_note") @db.Text
+  removedById  String?   @map("removed_by_id")
+  removedAt    DateTime? @map("removed_at")
+  removeReason String?   @map("remove_reason") @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  employee   Employee  @relation("OydFlagEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  raisedBy   Employee? @relation("OydFlagRaiser", fields: [raisedById], references: [id], onDelete: SetNull)
+  reviewedBy Employee? @relation("OydFlagReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  removedBy  Employee? @relation("OydFlagRemover", fields: [removedById], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, status])
+  @@index([raisedById])
+  @@index([tenantId])
+  @@map("oyd_flags")
 }
 
 // The work sheet's Weekly Impact: one written note per person, per client row, per week.
