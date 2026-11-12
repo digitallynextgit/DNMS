@@ -3,8 +3,11 @@ import "server-only"
 import type { Session } from "next-auth"
 import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
-import { PERMISSIONS } from "@/lib/constants"
+import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import { actorStampId } from "@/lib/audit"
+
+// HR reads anyone's week, as in My Work; writing stays with the person and their manager.
+const HR_ROLES: string[] = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.ADMIN_]
 import { isManagerOf } from "@/lib/reporting-line"
 import { ActionError, ok, runAction, type ActionResult } from "@/server/action-result"
 import { canAccessProject, canManageProject } from "./project-access"
@@ -72,6 +75,7 @@ async function managesEmployee(userId: string, employeeId: string): Promise<bool
 async function canSeePersonWeek(session: Session, employeeId: string): Promise<boolean> {
   if (employeeId === session.user.id) return true
   if (hasPermission(session, PERMISSIONS.PROJECT_WRITE)) return true
+  if ((session.user.roles ?? []).some((r) => HR_ROLES.includes(r))) return true
   return managesEmployee(session.user.id, employeeId)
 }
 

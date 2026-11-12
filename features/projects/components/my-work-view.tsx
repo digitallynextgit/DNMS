@@ -115,9 +115,9 @@ interface MyTask {
 type TaskScope = string
 
 interface ScopeMeta {
-  /** isReport = a direct subordinate; false = only on a team you manage. */
-  people: { id: string; name: string; isReport: boolean; former?: boolean }[]
-  /** Project admin: `people` is the whole company. Decided (and authorised) by the server. */
+  /** isReport = a direct subordinate; false = only on a team you manage. viewOnly = HR looking in. */
+  people: { id: string; name: string; isReport: boolean; former?: boolean; viewOnly?: boolean }[]
+  /** Project admin or HR: `people` is the whole company. Decided (and authorised) by the server. */
   seesEveryone?: boolean
 }
 
@@ -317,6 +317,7 @@ export function MyWorkView() {
   const currentPeople = useMemo(() => selectablePeople.filter((p) => !p.former), [selectablePeople])
   const formerPeople = useMemo(() => selectablePeople.filter((p) => p.former), [selectablePeople])
   const viewingFormer = !isMine && formerPeople.some((p) => p.id === person)
+  const viewOnly = !isMine && selectablePeople.some((p) => p.id === person && p.viewOnly)
 
   // A report who moves away falls back to you - but only once the list has loaded.
   useEffect(() => {
@@ -614,6 +615,7 @@ export function MyWorkView() {
               }}
               currentUserId={session?.user?.id ?? ""}
               isAdmin={isAdmin}
+              readOnly={viewOnly}
             />
           ) : isError ? (
             <EmptyState

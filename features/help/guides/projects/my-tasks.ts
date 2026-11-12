@@ -343,8 +343,8 @@ export const myTasksGuide: HelpGuide = {
         hi: "मैनेजर्स के लिए: टीम के किसी व्यक्ति के tasks देखें",
       },
       intro: {
-        en: "If people report to you, a picker with your name appears at the top. Managers see their direct reports in it. Project admins see everyone in the company.",
-        hi: "अगर लोग आपको रिपोर्ट करते हैं, तो ऊपर आपके नाम वाला एक picker दिखता है। मैनेजर को इसमें अपने direct reports दिखते हैं। प्रोजेक्ट एडमिन को कंपनी के सारे लोग दिखते हैं।",
+        en: "If people report to you, a picker with your name appears at the top. Managers see their direct reports in it. Project admins and HR see everyone in the company; HR can look but not edit.",
+        hi: "अगर लोग आपको रिपोर्ट करते हैं, तो ऊपर आपके नाम वाला एक picker दिखता है। मैनेजर को इसमें अपने direct reports दिखते हैं। प्रोजेक्ट एडमिन और HR को कंपनी के सारे लोग दिखते हैं; HR सिर्फ देख सकता है, बदल नहीं सकता।",
       },
       steps: [
         {

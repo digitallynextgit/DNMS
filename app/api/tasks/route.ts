@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
-import { PERMISSIONS } from "@/lib/constants"
+import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
 import { createAuditLog } from "@/lib/audit"
 import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
@@ -12,6 +12,8 @@ import { sortProjectTeams } from "@/features/projects/lib/project-teams"
 import { myWorkHref } from "@/features/projects/lib/project-href"
 import type { Session } from "next-auth"
 
+const HR_ROLES: string[] = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.ADMIN_]
+
 // What the caller manages: teams they run and everyone under them (team members + line reports). It drives
 // both the picker and its authorisation. `seesEveryone` widens it to the whole company for project admins.
 type PickablePerson = {
@@ -20,9 +22,11 @@ type PickablePerson = {
   isReport: boolean
   /** Deactivated - offered under "archived", never in the live lists. */
   former?: boolean
+  /** Seen only through HR's company-wide view: their sheet opens read-only. */
+  viewOnly?: boolean
 }
 
-async function getManagedScope(userId: string, seesEveryone: boolean) {
+async function getManagedScope(userId: string, seesEveryone: boolean, viewOnlyEveryone = false) {
   const [reports, managedTeams, everyone, left] = await Promise.all([
     db.employee.findMany({
       where: { ...managedBy(userId), isActive: true },
@@ -74,7 +78,12 @@ async function getManagedScope(userId: string, seesEveryone: boolean) {
   const people = new Map<string, PickablePerson>()
   // Seeded first, so the passes below still flag an admin's own team members and reports.
   for (const e of everyone) {
-    people.set(e.id, { id: e.id, name: `${e.firstName} ${e.lastName}`.trim(), isReport: false })
+    people.set(e.id, {
+      id: e.id,
+      name: `${e.firstName} ${e.lastName}`.trim(),
+      isReport: false,
+      ...(viewOnlyEveryone && { viewOnly: true }),
+    })
   }
   for (const t of managedTeams) {
     for (const m of t.members) {
@@ -98,6 +107,7 @@ async function getManagedScope(userId: string, seesEveryone: boolean) {
       name: `${e.firstName} ${e.lastName}`.trim(),
       isReport: !seesEveryone,
       former: true,
+      ...(viewOnlyEveryone && { viewOnly: true }),
     })
   }
 
@@ -126,10 +136,13 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
     const status = searchParams.get("status") ?? undefined
     const userId = session.user.id
 
-    const seesEveryone = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+    // HR sees everyone too, read-only: editing still follows each task's own rules.
+    const isProjectAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+    const isHr = (session.user.roles ?? []).some((r) => HR_ROLES.includes(r))
+    const seesEveryone = isProjectAdmin || isHr
 
     const managed = mine
-      ? await getManagedScope(userId, seesEveryone)
+      ? await getManagedScope(userId, seesEveryone, isHr && !isProjectAdmin)
       : {
           teams: [] as { id: string; name: string; projectName: string; memberIds: string[] }[],
           people: [] as PickablePerson[],
