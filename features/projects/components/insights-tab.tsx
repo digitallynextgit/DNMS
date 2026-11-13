@@ -13,6 +13,7 @@ import {
   ExternalLink,
   LayoutDashboard,
   Target,
+  Gauge,
   CalendarDays,
   ListChecks,
 } from "lucide-react"
@@ -43,6 +44,7 @@ import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_LABEL_STYLE } from "@/lib/chart-them
 import { FacebookIcon, inr, compact, CAMPAIGN_STATUS_COLORS, SHOPIFY_GREEN } from "./meta-shared"
 import { InsightsRangeBar, useInsightsRange } from "./insights-range"
 import { ShopifyInsights } from "./shopify-insights"
+import { MetricsTab } from "@/features/metrics"
 import { WebChecklistTab } from "./web-checklist-tab"
 import { useProjectIntegration, useSyncMeta } from "../hooks/use-integration"
 import {
@@ -64,6 +66,7 @@ export function InsightsTab({ projectId, canManage }: { projectId: string; canMa
           items={[
             { value: "overview", label: "Overview", icon: LayoutDashboard },
             { value: "goals", label: "Goals & growth", icon: Target },
+            { value: "metrics", label: "Metrics", icon: Gauge },
             { value: "people", label: "Teams & people", icon: Users },
             { value: "calendars", label: "Calendars", icon: CalendarDays },
             { value: "meta", label: "Meta Ads", icon: MetaAdsIcon },
@@ -80,6 +83,9 @@ export function InsightsTab({ projectId, canManage }: { projectId: string; canMa
       </TabsContent>
       <TabsContent value="goals">
         <AnalyticsGoals projectId={projectId} canManage={canManage} />
+      </TabsContent>
+      <TabsContent value="metrics">
+        <MetricsTab projectId={projectId} />
       </TabsContent>
       <TabsContent value="people">
         <AnalyticsPeople projectId={projectId} />

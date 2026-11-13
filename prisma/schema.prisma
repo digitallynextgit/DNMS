@@ -730,6 +730,7 @@ model Employee {
   goalTargetsCreated   ProjectGoalTarget[]       @relation("GoalTargetCreator")
   goalEvents           ProjectGoalEvent[]        @relation("GoalEventActor")
   goalResultsEntered   ProjectGoalResult[]       @relation("GoalResultEnteredBy")
+  metricEntriesEntered ProjectMetricEntry[]      @relation("MetricEntryEnteredBy")
   taskWorkLogs         TaskWorkLog[]             @relation("TaskWorkLogAuthor")
   aiSuggestionsAsked   ProjectAiSuggestion[]     @relation("AiSuggestionRequester")
   aiSuggestionsUsed    ProjectAiSuggestion[]     @relation("AiSuggestionAcceptor")
@@ -1809,6 +1810,7 @@ model Project {
   goalSeries          ProjectGoalSeries[]
   aiSuggestions       ProjectAiSuggestion[]
   weeklyImpacts       TaskWeeklyImpact[]
+  metrics             ProjectMetric[]
 
   @@unique([tenantId, code])
   @@unique([tenantId, slug])
@@ -5213,6 +5215,61 @@ model ProjectGoalResult {
   @@index([goalId, recordedFor])
   @@index([tenantId])
   @@map("project_goal_results")
+}
+
+/// One line of a project's weekly growth scorecard: what is measured, how, and what "healthy" means.
+/// Seeded per project from the standard set so each team can drop what doesn't apply to its client.
+model ProjectMetric {
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String   @id @default(uuid()) @map("id")
+  projectId   String   @map("project_id")
+  /// The scorecard's grouping: "Overall", "SEO", "SMO", "Email / WhatsApp / SMS", "Ecommerce", "PR", "AEO", "GEO".
+  channel     String   @map("channel")
+  name        String   @map("name")
+  /// CURRENCY | PERCENT | COUNT | RATIO | NUMBER - decides how the value is written, not what it means.
+  unit        String   @default("NUMBER") @map("unit")
+  howTo       String?  @map("how_to") @db.Text
+  /// The healthy band, either end optional ("3-5x or higher" is min 3, no max).
+  healthyMin  Float?   @map("healthy_min")
+  healthyMax  Float?   @map("healthy_max")
+  /// UP | DOWN - which way is good when there is no band (average position is better lower).
+  goodWhen    String   @default("UP") @map("good_when")
+  /// The band as written for people, when a number pair cannot say it ("Trend up").
+  healthyNote String?  @map("healthy_note")
+  sortOrder   Int      @default(0) @map("sort_order")
+  /// Soft delete: dropped from the scorecard, but past weeks keep their numbers.
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  project Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  entries ProjectMetricEntry[]
+
+  @@unique([projectId, channel, name])
+  @@index([projectId, sortOrder])
+  @@index([tenantId])
+  @@map("project_metrics")
+}
+
+/// One metric's number for one week. weekStart is the Monday, so a week has at most one row per metric.
+model ProjectMetricEntry {
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String   @id @default(uuid()) @map("id")
+  metricId    String   @map("metric_id")
+  weekStart   DateTime @map("week_start") @db.Date
+  value       Float?   @map("value")
+  note        String?  @map("note")
+  enteredById String?  @map("entered_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  metric    ProjectMetric @relation(fields: [metricId], references: [id], onDelete: Cascade)
+  enteredBy Employee?     @relation("MetricEntryEnteredBy", fields: [enteredById], references: [id], onDelete: SetNull)
+
+  @@unique([metricId, weekStart])
+  @@index([metricId, weekStart])
+  @@index([tenantId])
+  @@map("project_metric_entries")
 }
 
 /// An AI suggestion made while planning (goal split, next month's numbers, deliverables, tasks):
